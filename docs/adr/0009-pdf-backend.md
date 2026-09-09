@@ -65,7 +65,7 @@ filled in, every centred label would have been centred on the wrong width.
 - PDF output costs no dependency. "Give me a vector chart in a report" links
   the same stdlib-only core as "give me an SVG".
 - There are now two vector emitters in the core to keep in step. They share
-  their marker geometry through `internal/markers` and their number formatting
+  their marker geometry through `ir.MarkerPath` and their number formatting
   policy, and the golden tests cover both, but a third would be one too many —
   at that point the shared spine should be extracted rather than copied again.
 - PDF is one page, no embedded fonts, and no transparency groups. Alpha is a

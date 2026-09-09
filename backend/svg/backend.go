@@ -12,7 +12,6 @@ import (
 	"strconv"
 
 	"github.com/timzifer/figure/internal/fontmetrics"
-	"github.com/timzifer/figure/internal/markers"
 	"github.com/timzifer/figure/ir"
 )
 
@@ -264,7 +263,7 @@ func (b *backend) symbol(shape ir.Marker, style ir.MarkerStyle) string {
 	b.symbols[key] = id
 
 	var p ir.Path
-	markers.Path(&p, shape, style.Size)
+	ir.MarkerPath(&p, shape, style.Size)
 
 	b.defs.WriteString(`<path id="`)
 	b.defs.WriteString(id)

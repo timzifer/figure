@@ -28,7 +28,7 @@ func TestANullCategoryIsNotABandOfItsOwn(t *testing.T) {
 	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
-	ticks := x.Ticks(0)
+	ticks := x.Ticks(scale.TickRequest{Want: 0})
 	if len(ticks) != 2 {
 		t.Fatalf("the axis has %d bands, want one per category somebody measured", len(ticks))
 	}
@@ -49,7 +49,7 @@ func TestAnEmptyCategoryIsStillABand(t *testing.T) {
 	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
-	if got := len(x.Ticks(0)); got != 3 {
+	if got := len(x.Ticks(scale.TickRequest{Want: 0})); got != 3 {
 		t.Errorf("the axis has %d bands, want three", got)
 	}
 }

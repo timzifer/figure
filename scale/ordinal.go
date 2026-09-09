@@ -164,7 +164,7 @@ func (o *ordinal) Bandwidth() float32 {
 // It ignores want. Dropping a category would leave an unlabelled bar, which is
 // worse than a crowded axis; the renderer already omits labels that would
 // collide, and it omits them from an axis whose ticks are all still there.
-func (o *ordinal) Ticks(int) []Tick {
+func (o *ordinal) Ticks(TickRequest) []Tick {
 	out := make([]Tick, 0, len(o.labels))
 	for i, l := range o.labels {
 		out = append(out, Tick{Value: float64(i), Pos: o.Map(float64(i)), Label: l})

@@ -363,7 +363,7 @@ not implement it — a ring has no far side — so a chart that names a second a
 under a polar coord simply does not draw one. The second axis draws **no grid
 lines**, and there is a test comparing the count against a one-axis chart:
 two ladders of rules at different values are a moiré, and which scale a line
-belongs to is unanswerable by looking. And `render.LayerAxes` is what makes a
+belongs to is unanswerable by looking. And the scales on `render.LayerInfo` are what make a
 hit report the right number — an index that inverted every mark through the
 panel's own scales would name 4200 on a chart whose right axis reads 12 %,
 which is wrong by a *unit* on the feature whose whole purpose is that the units
@@ -377,9 +377,9 @@ labels reads as though it named the axis.
 Steering has to move both. `Live.Wheel`, `ZoomTo`, `PanBy` and `Autoscale` all
 reach `Panel.Y2` as well as `Panel.Y`, or the two series slide apart under the
 reader's hand — a chart with two axes is one chart, so a zoom is one zoom.
-`interact.Panel` learns about the second axis from `LayerY` rather than from
-`Observer.Panel`, which carries the two scales a panel has always had and never
-gains a third.
+`interact.Panel` learns about the second axis from the scales on
+`render.LayerInfo` rather than from `Observer.Panel`, which carries the panel's
+own two.
 
 **An error bar's orientation is its encoding, and its bounds are derived in
 `Train`.** `Y2`/`ErrorBy` runs it vertically and `X2`/`ErrorXBy` horizontally —

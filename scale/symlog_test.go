@@ -70,7 +70,7 @@ func TestSymLogInvertRoundTrips(t *testing.T) {
 func TestSymLogAlwaysLabelsZero(t *testing.T) {
 	s := trained(scale.SymLog(), -300, 900)
 	found := false
-	for _, tk := range s.Ticks(6) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 6}) {
 		if tk.Value == 0 {
 			found = true
 			if tk.Label != "0" {
@@ -85,7 +85,7 @@ func TestSymLogAlwaysLabelsZero(t *testing.T) {
 
 func TestSymLogTicksStayInsideTheDomainAndAscend(t *testing.T) {
 	s := trained(scale.SymLog(), -50, 4000)
-	ticks := s.Ticks(6)
+	ticks := s.Ticks(scale.TickRequest{Want: 6})
 	if len(ticks) == 0 {
 		t.Fatal("no ticks")
 	}

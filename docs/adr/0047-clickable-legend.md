@@ -2,6 +2,10 @@
 
 **Status:** Accepted · **Date:** 2026-09-08
 
+> **Amended by [ADR 0060](0060-parameter-structs-at-every-seam.md).**
+> `render.LegendEntry` still exists and is still optional, but reports through
+> a `render.LegendInfo` struct rather than four positional arguments.
+
 ## Context
 
 [ADR 0046](0046-overlay-layer.md) closed with the case it had deliberately not

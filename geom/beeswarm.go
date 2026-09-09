@@ -125,7 +125,7 @@ func (g *swarmGeom) Build(b ir.Backend, f Frame) error {
 	if len(pts) == 0 {
 		return nil
 	}
-	f.Marks(pts, sc.sourceRows(g.s, rows))
+	f.Marks(MarkRows{At: pts, Rows: sc.sourceRows(g.s, rows)})
 
 	style := ir.MarkerStyle{Size: diameter}
 	if g.gs.grouped() {

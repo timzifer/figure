@@ -189,51 +189,44 @@ type Observer interface {
 	// a pie slice names a value rather than a pixel.
 	Panel(p PanelInfo)
 
-	// Layer opens a layer within the panel just announced: its index among
-	// that panel's layers, and its legend label if it has one.
-	Layer(i int, label string)
-}
+	// Layer opens a layer within the panel just announced.
+	Layer(l LayerInfo)
 
-// LayerAxes is an optional interface beside [Observer]: an observer that
-// implements it is told which scales the layer about to be opened reads.
-//
-// It exists because those are not always the panel's own. A layer bound to a
-// secondary axis with [github.com/timzifer/figure/geom.OnY2] or OnX2 is drawn
-// against a different scale, and an index that inverted its marks through the
-// panel's own would report a value from the wrong axis — a tooltip naming
-// 4 200 on a chart whose right axis reads 12 %.
-//
-// It is optional rather than a third method on Observer because Observer is
-// implemented outside this package and never gains one
-// ([CONCEPT §15](../CONCEPT.md#15-versioning--stability)). An observer that
-// does not implement it sees exactly what it saw before there were two axes.
-type LayerAxes interface {
-	// LayerAxes names the scales the next layer opened by [Observer.Layer] is
-	// drawn against. It is called immediately before it, and both are ranged
-	// for the panel already announced.
-	LayerAxes(x, y scale.Scale)
-}
-
-// EndData is an optional interface beside [Observer]: an observer that
-// implements it is told when the last layer has been drawn.
-//
-// It exists because [Observer] has no way to close a layer. Layer opens one and
-// the next Panel opens another, so after the final layer of the final panel the
-// most recent Layer call is still the most recent thing an observer was told —
-// and everything drawn afterwards is attributed to it. What is drawn afterwards
-// is the guides and the chart's [Overlay], neither of which is a mark: a
-// pointer landing on a legend swatch has not landed on a row of the layer that
-// happened to be drawn last, and one landing on a crosshair has not landed on
-// anything at all.
-//
-// It is optional rather than a third method on Observer for the reason
-// [LayerAxes] is: Observer is implemented outside this package and never gains
-// one ([CONCEPT §15](../CONCEPT.md#15-versioning--stability)).
-type EndData interface {
-	// EndData reports that the data pass is over and everything after it is
+	// End reports that the data pass is over and everything drawn after it is
 	// furniture. It is called once per render, after the last layer of the
 	// last panel, and is not called at all by a render with no layers.
-	EndData()
+	//
+	// It is a method rather than the optional interface it used to be because
+	// an observer that does not close its last layer is wrong rather than
+	// merely less capable: Layer opens a layer and the next Panel opens
+	// another, so without End everything drawn after the final layer — the
+	// guides, the chart's [Overlay] — is attributed to it. A pointer landing
+	// on a legend swatch has not landed on a row of whichever layer happened
+	// to be drawn last, and one landing on a crosshair has not landed on
+	// anything at all. An observer with nothing to close implements it empty.
+	End()
+}
+
+// LayerInfo is what [Observer.Layer] is handed: which layer is opening, and
+// what it is drawn against.
+//
+// The scales are here rather than in a second call because they are not always
+// the panel's own: a layer bound to a secondary axis with
+// [github.com/timzifer/figure/geom.OnY2] or OnX2 is drawn against a different
+// one, and an index that inverted its marks through the panel's would report a
+// value from the wrong axis — a tooltip naming 4 200 on a chart whose right
+// axis reads 12 %. Under the old positional signature that fact arrived as an
+// optional LayerAxes interface called immediately before Layer; it is a field
+// now, and the next such fact is another field. ADR 0060 is the record.
+type LayerInfo struct {
+	// Index is the layer's position among its panel's layers, in paint order.
+	Index int
+	// Label is the layer's legend label, empty if it has none.
+	Label string
+	// X and Y are the scales this layer is drawn against, ranged for the
+	// panel already announced. They are the panel's own unless the layer is
+	// bound to a secondary axis.
+	X, Y scale.Scale
 }
 
 // LegendEntry is an optional interface beside [Observer]: an observer that
@@ -247,19 +240,28 @@ type EndData interface {
 // swatch has to be distinguishable from a hit on the thing the swatch stands
 // for, or a tooltip would describe a row that is not under the pointer.
 //
-// It is optional rather than a third method on Observer for the reason
-// [LayerAxes] and [EndData] are: Observer is implemented outside this package
-// and never gains one.
+// It is optional rather than a method on [Observer] because an observer that
+// does not care about guides is not wrong, only narrower — which is what
+// separates it from [Observer.End].
 type LegendEntry interface {
-	// LegendEntry reports one row of the legend: which layer it stands for,
-	// what it is labelled, the rectangle it occupies, and whether that layer
-	// is currently hidden.
-	//
-	// layer is -1 for a row no layer can be attributed to. The rectangle spans
-	// the legend's width, so the gap between a swatch and its label is part of
-	// the same target — a reader aiming at a word should not have to hit the
-	// word.
-	LegendEntry(layer int, label string, area ir.Rect, hidden bool)
+	// LegendEntry reports one row of the legend.
+	LegendEntry(e LegendInfo)
+}
+
+// LegendInfo is one row of the legend, as [LegendEntry] is told about it.
+type LegendInfo struct {
+	// Layer is the layer the row stands for, or -1 for a row no layer can be
+	// attributed to.
+	Layer int
+	// Label is what the row is labelled.
+	Label string
+	// Area is the rectangle the row occupies. It spans the legend's width, so
+	// the gap between a swatch and its label is part of the same target — a
+	// reader aiming at a word should not have to hit the word.
+	Area ir.Rect
+	// Hidden reports whether the layer the row stands for is currently
+	// hidden.
+	Hidden bool
 }
 
 // ColorbarEntry is an optional interface beside [Observer]: an observer that
@@ -270,29 +272,45 @@ type LegendEntry interface {
 // one reports a single call for the whole bar, because every point of it means
 // something different and there is nothing discrete to enumerate.
 //
-// It is optional rather than a method on Observer for the reason [LayerAxes],
-// [EndData] and [LegendEntry] are: Observer never gains one.
+// It is optional for the reason [LegendEntry] is.
 type ColorbarEntry interface {
 	// ColorbarEntry reports a colourbar, or one band of a classed one.
-	//
-	// cs is the scale the bar was painted from, so that a caller can ask what
-	// value the ramp reaches at a point of it — which is the ramp's answer
-	// rather than the axis's, and the two disagree wherever the ramp is
+	ColorbarEntry(e ColorbarInfo)
+}
+
+// ColorbarInfo is a colourbar, or one band of a classed one, as
+// [ColorbarEntry] is told about it.
+type ColorbarInfo struct {
+	// Scale is the scale the bar was painted from, so that a caller can ask
+	// what value the ramp reaches at a point of it — which is the ramp's
+	// answer rather than the axis's, and the two disagree wherever the ramp is
 	// compressed.
-	//
-	// class is the band's index and lo and hi its interval; class is -1 for a
-	// continuous bar, and lo and hi are then the scale's whole domain.
-	ColorbarEntry(cs scale.ColorScale, class int, lo, hi float64, area ir.Rect)
+	Scale scale.ColorScale
+	// Class is the band's index, or -1 for a continuous bar.
+	Class int
+	// Lo and Hi are the band's interval, or the scale's whole domain for a
+	// continuous bar.
+	Lo, Hi float64
+	// Area is the rectangle the bar or band occupies.
+	Area ir.Rect
 }
 
 // SizeKeyEntry is an optional interface beside [Observer]: an observer that
 // implements it is told where each row of a size key was drawn, and what value
 // the row's sample stands for.
 type SizeKeyEntry interface {
-	// SizeKeyEntry reports one row of a size key: the value its sample is
-	// drawn for, how that value is spelled, and the rectangle the row
-	// occupies.
-	SizeKeyEntry(value float64, label string, area ir.Rect)
+	// SizeKeyEntry reports one row of a size key.
+	SizeKeyEntry(e SizeKeyInfo)
+}
+
+// SizeKeyInfo is one row of a size key, as [SizeKeyEntry] is told about it.
+type SizeKeyInfo struct {
+	// Value is the value the row's sample is drawn for.
+	Value float64
+	// Label is how that value is spelled.
+	Label string
+	// Area is the rectangle the row occupies.
+	Area ir.Rect
 }
 
 // Panel is one Cartesian area of a multi-panel chart.
@@ -430,7 +448,7 @@ func Draw(b ir.Backend, c Chart) error {
 			coords[i] = cd
 		}
 		fur.Reset()
-		cd.Furniture(fur, area, metricsOf(th), xTicks, yTicks)
+		cd.Furniture(fur, coord.FurnitureRequest{Area: area, Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
 		drawPanelFill(b, area, th)
 		drawGrid(b, th, p, fur, xTicks, yTicks)
 		drawAxes(b, th, p, fur, xTicks, yTicks)
@@ -445,11 +463,11 @@ func Draw(b ir.Backend, c Chart) error {
 	if err := drawData(b, c, panels, lay.Areas, th); err != nil {
 		return err
 	}
-	// Everything below this line is furniture. An observer that wants to know
-	// is told, so that a guide's swatch is not indexed as a mark of whichever
-	// layer was drawn last — see [EndData].
-	if e, ok := c.Observer.(EndData); ok {
-		e.EndData()
+	// Everything below this line is furniture. An observer is told, so that a
+	// guide's swatch is not indexed as a mark of whichever layer was drawn
+	// last — see [Observer.End].
+	if c.Observer != nil {
+		c.Observer.End()
 	}
 
 	// The solver reserves one box per guide, in order, so these are parallel.
@@ -554,7 +572,7 @@ func (c Chart) panels() ([]Panel, int, int) {
 // is not this panel's.
 func (p Panel) rangeTo(cd coord.Coord, area ir.Rect, th theme.Theme) (coord.Coord, []scale.Tick, []scale.Tick) {
 	framed := p.setRange(cd, area)
-	return framed, p.X.Ticks(th.TickCountHintX), p.Y.Ticks(th.TickCountHintY)
+	return framed, p.X.Ticks(scale.TickRequest{Want: th.TickCountHintX}), p.Y.Ticks(scale.TickRequest{Want: th.TickCountHintY})
 }
 
 // setRange is rangeTo without the ticks, for the data pass, which needs the
@@ -622,16 +640,16 @@ func measurePanels(panels []Panel, th theme.Theme) []layout.Panel {
 		// A panel that writes no tick labels needs no gutter for them, which is
 		// what gives a pie with its axes turned off the whole panel to fill.
 		if p.ShowX && th.ShowTicksX {
-			out[i].XLabels = labelsOf(p.X.Ticks(th.TickCountHintX))
+			out[i].XLabels = labelsOf(p.X.Ticks(scale.TickRequest{Want: th.TickCountHintX}))
 		}
 		if p.ShowY && th.ShowTicksY {
-			out[i].YLabels = labelsOf(p.Y.Ticks(th.TickCountHintY))
+			out[i].YLabels = labelsOf(p.Y.Ticks(scale.TickRequest{Want: th.TickCountHintY}))
 		}
 		if p.Y2 != nil && p.ShowY2 && th.ShowTicksY {
-			out[i].Y2Labels = labelsOf(p.Y2.Ticks(th.TickCountHintY))
+			out[i].Y2Labels = labelsOf(p.Y2.Ticks(scale.TickRequest{Want: th.TickCountHintY}))
 		}
 		if p.X2 != nil && p.ShowX2 && th.ShowTicksX {
-			out[i].X2Labels = labelsOf(p.X2.Ticks(th.TickCountHintX))
+			out[i].X2Labels = labelsOf(p.X2.Ticks(scale.TickRequest{Want: th.TickCountHintX}))
 		}
 	}
 	return out
@@ -917,11 +935,17 @@ func drawOppositeAxis(b ir.Backend, th theme.Theme, cd coord.Coord, area ir.Rect
 	if !showTicks && !showLine {
 		return
 	}
-	ticks := s.Ticks(want)
+	ticks := s.Ticks(scale.TickRequest{Want: want})
 	fur := acquireFurniture()
 	defer releaseFurniture(fur)
 	fur.Reset()
-	if !coord.OppositeFurniture(cd, fur, area, metricsOf(th), ticks, vertical) {
+	req := coord.FurnitureRequest{Area: area, Metrics: metricsOf(th)}
+	if vertical {
+		req.YTicks = ticks
+	} else {
+		req.XTicks = ticks
+	}
+	if !coord.OppositeFurniture(cd, fur, req) {
 		return
 	}
 
@@ -1097,10 +1121,7 @@ func drawLayers(b ir.Backend, p Panel, plot ir.Rect, th theme.Theme, obs Observe
 			// opened, so an observer that indexes the marks that follow knows
 			// which to invert them through. An observer that does not care is
 			// not asked.
-			if ax, ok := obs.(LayerAxes); ok {
-				ax.LayerAxes(x, y)
-			}
-			obs.Layer(i, layerLabel(g, f))
+			obs.Layer(LayerInfo{Index: i, Label: layerLabel(g, f), X: x, Y: y})
 		}
 		if err := g.Build(b, f); err != nil {
 			return err
@@ -1184,9 +1205,12 @@ func drawLegend(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer
 		// announced rather than drawn: a legend a pointer can act on has to be
 		// findable, and nothing here is a mark.
 		if rows != nil {
-			rows.LegendEntry(layer, e.Label, ir.R(
-				box.Min.X, y, box.Max.X, y+entryH,
-			), off)
+			rows.LegendEntry(LegendInfo{
+				Layer:  layer,
+				Label:  e.Label,
+				Area:   ir.R(box.Min.X, y, box.Max.X, y+entryH),
+				Hidden: off,
+			})
 		}
 		y += entryH + th.LegendGap
 	}

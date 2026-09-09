@@ -564,7 +564,7 @@ func (p *Plot) Render(t Target) (err error) {
 		return err
 	}
 
-	b, err := t.Open(p.width, p.height, p.dpr)
+	b, err := t.Open(ir.Surface{WidthPx: p.width, HeightPx: p.height, DPR: p.dpr})
 	if err != nil {
 		return err
 	}

@@ -29,22 +29,35 @@ import "github.com/timzifer/figure/ir"
 // Rows is implemented outside the geom — by whoever wants the answer — so it
 // never gains a method.
 type Rows interface {
-	// Marks attributes device positions to source rows: rows[i] is the row
-	// behind at[i], and a row of -1 marks a position that is not a row.
+	// Marks attributes device positions to source rows.
+	Marks(m MarkRows)
+}
+
+// MarkRows is one report of which source row is behind which mark.
+//
+// It is a struct rather than two parallel slices as parameters because a mark
+// has more than a position and a row to say about itself — which layer drew
+// it, what shape it took, how big it was — and a report that grows is a field
+// here rather than a second interface beside [Rows]. ADR 0060 is the record.
+type MarkRows struct {
+	// At are the device positions, and Rows the source row behind each: Rows[i]
+	// is the row behind At[i], and a row of -1 marks a position that is not a
+	// row. The two are parallel and the same length.
 	//
-	// Both slices are lent for the duration of the call, like everything else
-	// a geom hands out — they come from a pool, and the next frame writes over
+	// Both slices are lent for the duration of the call, like everything else a
+	// geom hands out — they come from a pool, and the next frame writes over
 	// them.
-	Marks(at []ir.Point, rows []int)
+	At   []ir.Point
+	Rows []int
 }
 
 // Marks reports the rows behind a set of marks, if anyone asked. A geom calls
 // it with the positions a row landed at, whatever it then draws through them.
-func (f Frame) Marks(at []ir.Point, rows []int) {
-	if f.Rows == nil || rows == nil || len(at) != len(rows) {
+func (f Frame) Marks(m MarkRows) {
+	if f.Rows == nil || m.Rows == nil || len(m.At) != len(m.Rows) {
 		return
 	}
-	f.Rows.Marks(at, rows)
+	f.Rows.Marks(m)
 }
 
 // tracking reports whether this frame's caller wants row identity. Geoms

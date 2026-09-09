@@ -68,7 +68,7 @@ func TestLogNiceExpandsToWholeDecades(t *testing.T) {
 
 func TestLogTicksLabelDecadesAndSubdivideThem(t *testing.T) {
 	s := trained(scale.Log(scale.LogNice()), 1, 100)
-	ticks := s.Ticks(5)
+	ticks := s.Ticks(scale.TickRequest{Want: 5})
 
 	var labelled []string
 	minor := 0
@@ -104,7 +104,7 @@ func TestLogTicksLabelDecadesAndSubdivideThem(t *testing.T) {
 
 func TestLogTicksThinToWholeDecadesOverAWideRange(t *testing.T) {
 	s := trained(scale.Log(scale.LogNice()), 1, 1e12)
-	ticks := s.Ticks(4)
+	ticks := s.Ticks(scale.TickRequest{Want: 4})
 	labelled, marked := 0, 0
 	for _, tk := range ticks {
 		if tk.Minor {
@@ -139,7 +139,7 @@ func TestLogUntrainedStillRenders(t *testing.T) {
 	if lo, hi := s.Domain(); !(lo > 0 && hi > lo) {
 		t.Errorf("Domain() = (%v, %v); an untrained log scale still has to produce an axis", lo, hi)
 	}
-	if len(s.Ticks(5)) == 0 {
+	if len(s.Ticks(scale.TickRequest{Want: 5})) == 0 {
 		t.Error("an untrained log scale produced no ticks")
 	}
 }

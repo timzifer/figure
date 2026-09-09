@@ -1,6 +1,14 @@
 # 0037 — A second axis is a scale on the chart and a binding on the layer
 
 **Status:** Accepted · **Date:** 2026-09-07 · **Amended:** 2026-09-07 (see
+
+> **Amended by [ADR 0060](0060-parameter-structs-at-every-seam.md).**
+> Two of the seams this record added have changed shape. `render.LayerAxes` is
+> gone: the scales it carried are fields on `render.LayerInfo`, which
+> `Observer.Layer` now takes. `coord.Opposite` is one method,
+> `FurnitureOpposite(dst, coord.FurnitureRequest)`, rather than `FurnitureY2`
+> and `FurnitureX2` — which edge is meant is read from the request. The
+> reasoning below is unchanged; only the signatures are.
 [Amendment](#amendment-the-horizontal-direction))
 
 ## Context

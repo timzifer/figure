@@ -229,7 +229,7 @@ func (g *Grid) Render(t Target) (err error) {
 		return err
 	}
 
-	b, err := t.Open(g.width, g.height, g.dpr)
+	b, err := t.Open(ir.Surface{WidthPx: g.width, HeightPx: g.height, DPR: g.dpr})
 	if err != nil {
 		return err
 	}

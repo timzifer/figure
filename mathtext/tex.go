@@ -2,8 +2,6 @@ package mathtext
 
 import (
 	"strings"
-
-	"github.com/timzifer/figure/ir"
 )
 
 // TeX returns a typesetter for a bounded subset of TeX's notation.
@@ -79,7 +77,8 @@ type tex struct {
 // Typeset splits the label at its dollar signs and lays out what is between
 // them. A label with no notation in it is refused rather than laid out, so that
 // the ordinary case costs one scan and one Text call.
-func (t *tex) Typeset(src string, font ir.FontRef, m Measurer) (Layout, bool) {
+func (t *tex) Typeset(req Request) (Layout, bool) {
+	src, font, m := req.Src, req.Font, req.Measurer
 	if m == nil || !strings.ContainsRune(src, '$') {
 		return Layout{}, false
 	}

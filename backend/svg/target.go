@@ -73,7 +73,8 @@ type target struct {
 	bw   *bufio.Writer
 }
 
-func (t *target) Open(widthPx, heightPx int, dpr float64) (ir.Backend, error) {
+func (t *target) Open(s ir.Surface) (ir.Backend, error) {
+	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if t.opts.fontFail != nil {
 		return nil, fmt.Errorf("figure/backend/svg: %w", t.opts.fontFail)
 	}

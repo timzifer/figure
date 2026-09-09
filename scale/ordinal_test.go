@@ -82,7 +82,7 @@ func TestOrdinalPaddingNarrowsTheBandNotTheSlot(t *testing.T) {
 func TestOrdinalTicksLabelEveryCategory(t *testing.T) {
 	s := scale.Ordinal(scale.Categories("mon", "tue", "wed"))
 	s.SetRange(0, 90)
-	ticks := s.Ticks(2)
+	ticks := s.Ticks(scale.TickRequest{Want: 2})
 	if len(ticks) != 3 {
 		t.Fatalf("got %d ticks for 3 categories asked for 2, want 3 — dropping one leaves an unlabelled slot", len(ticks))
 	}

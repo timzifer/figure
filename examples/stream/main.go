@@ -169,8 +169,8 @@ type surface struct {
 	area    float32
 }
 
-func (s *surface) Open(int, int, float64) (ir.Backend, error) { return s, nil }
-func (s *surface) Close() error                               { return nil }
+func (s *surface) Open(ir.Surface) (ir.Backend, error) { return s, nil }
+func (s *surface) Close() error                        { return nil }
 
 // Damage is the whole point of the example: a real backend clips to these
 // rectangles and repaints them, and a nil list means the whole frame.

@@ -182,7 +182,7 @@ func sizeSamples(g geom.SizeGuide, th theme.Theme) []sizeSample {
 	}
 
 	var out []sizeSample
-	for _, t := range s.Ticks(want) {
+	for _, t := range s.Ticks(scale.TickRequest{Want: want}) {
 		if t.Minor || t.Label == "" || t.Value <= lo || t.Value > hi {
 			continue
 		}
@@ -311,7 +311,7 @@ func drawColorbar(b ir.Backend, box ir.Rect, th theme.Theme, g geom.ColorGuide, 
 		// about.
 		if bars != nil {
 			lo, hi := g.Scale.Domain()
-			bars.ColorbarEntry(g.Scale, -1, lo, hi, bar)
+			bars.ColorbarEntry(ColorbarInfo{Scale: g.Scale, Class: -1, Lo: lo, Hi: hi, Area: bar})
 		}
 	}
 
@@ -363,7 +363,7 @@ func colorbarTicks(cs scale.ColorScale, want int) []scale.Tick {
 		}
 		return out
 	}
-	ticks := axis.Ticks(want)
+	ticks := axis.Ticks(scale.TickRequest{Want: want})
 	out := make([]scale.Tick, 0, len(ticks))
 	for _, t := range ticks {
 		if !t.Minor && t.Label != "" {
@@ -401,7 +401,7 @@ func drawClassedBar(b ir.Backend, bar ir.Rect, c scale.ClassedColorScale, bars C
 		// the rows between these two numbers — which a point on a continuous
 		// ramp is not.
 		if bars != nil {
-			bars.ColorbarEntry(c, i, edges[i], edges[i+1], band)
+			bars.ColorbarEntry(ColorbarInfo{Scale: c, Class: i, Lo: edges[i], Hi: edges[i+1], Area: band})
 		}
 	}
 }
@@ -466,7 +466,7 @@ func drawSizeKey(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observe
 		// sample and its label is part of the same target — the same rule a
 		// legend row follows.
 		if rows != nil {
-			rows.SizeKeyEntry(s.value, s.label, ir.R(box.Min.X, y, box.Max.X, y+h))
+			rows.SizeKeyEntry(SizeKeyInfo{Value: s.value, Label: s.label, Area: ir.R(box.Min.X, y, box.Max.X, y+h)})
 		}
 		if s.size > 0 {
 			var p ir.Path

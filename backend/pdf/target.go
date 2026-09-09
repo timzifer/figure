@@ -163,7 +163,8 @@ type target struct {
 // dpr is ignored: PDF is resolution-independent, so a device pixel ratio has
 // nothing to scale. One device-independent pixel becomes one PDF point, which
 // makes a chart specified as 800x500 come out as an 800x500pt page.
-func (t *target) Open(widthPx, heightPx int, dpr float64) (ir.Backend, error) {
+func (t *target) Open(s ir.Surface) (ir.Backend, error) {
+	widthPx, heightPx := s.WidthPx, s.HeightPx
 	if widthPx <= 0 || heightPx <= 0 {
 		return nil, errors.New("figure/backend/pdf: chart size must be positive")
 	}

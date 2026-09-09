@@ -31,6 +31,7 @@ import (
 	"math"
 
 	"github.com/timzifer/figure/coord"
+	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/render"
 	"github.com/timzifer/figure/scale"
@@ -168,7 +169,7 @@ type Panel struct {
 	// They are discovered from the layers rather than announced with the
 	// panel: [render.Observer.Panel] carries the two scales a panel has always
 	// had and never gains more, so a second axis arrives through
-	// [Index.LayerAxes] with the layer that reads it. A caller steering the
+	// [Index.Layer] with the layer that reads it. A caller steering the
 	// chart needs them — a zoom that moved one axis and left the other in the
 	// same direction would slide the two series apart.
 	Y2 scale.Scale
@@ -214,7 +215,7 @@ type Index struct {
 	label string
 	open  bool
 	// layerX and layerY are the scales the layer currently being drawn reads,
-	// set by [Index.LayerAxes] and nil where the renderer did not say — which
+	// set by [Index.Layer] and nil where the renderer did not say — which
 	// is every renderer that has one axis per direction to say anything about.
 	layerX, layerY scale.Scale
 }
@@ -294,16 +295,16 @@ func (ix *Index) TrackingRows() bool { return ix.track }
 //
 // The slices are lent for the call — they come from the geom's pooled
 // scratch — so the positions are copied out.
-func (ix *Index) Marks(at []ir.Point, rows []int) {
-	if !ix.track || !ix.open || len(at) != len(rows) {
+func (ix *Index) Marks(m geom.MarkRows) {
+	if !ix.track || !ix.open || len(m.At) != len(m.Rows) {
 		return
 	}
-	for i, p := range at {
-		if rows[i] < 0 {
+	for i, p := range m.At {
+		if m.Rows[i] < 0 {
 			continue
 		}
 		ix.rows = append(ix.rows, rowMark{
-			panel: ix.panel, layer: ix.layer, at: p, row: rows[i],
+			panel: ix.panel, layer: ix.layer, at: p, row: m.Rows[i],
 		})
 	}
 }
@@ -322,14 +323,15 @@ func (ix *Index) Panel(p render.PanelInfo) {
 }
 
 // Layer implements the render package's Observer.
-func (ix *Index) Layer(i int, label string) {
-	ix.layer, ix.label, ix.open = i, label, true
+func (ix *Index) Layer(l render.LayerInfo) {
+	ix.layer, ix.label, ix.open = l.Index, l.Label, true
+	ix.noteAxes(l.X, l.Y)
 }
 
-// EndData implements the render package's optional EndData: it closes the layer
-// that was open, so that the guides drawn after the data — and the chart's
-// overlay after them — are not indexed as marks of whichever layer happened to
-// be drawn last.
+// End implements the render package's Observer: it closes the layer that was
+// open, so that the guides drawn after the data — and the chart's overlay after
+// them — are not indexed as marks of whichever layer happened to be drawn
+// last.
 //
 // Without it the last Layer call stays the most recent thing this was told, and
 // a legend swatch is indexed as a shape belonging to that layer. That was
@@ -337,7 +339,7 @@ func (ix *Index) Layer(i int, label string) {
 // [github.com/timzifer/figure.Live.Move], which does not hit-test a point
 // outside every panel — but [Index.At] is reachable on its own, and an overlay
 // draws *inside* a panel, where it would be hit.
-func (ix *Index) EndData() { ix.open = false }
+func (ix *Index) End() { ix.open = false }
 
 // LegendEntry implements the render package's optional LegendEntry: it records
 // where a row of the legend was drawn, so that a pointer over it can be told
@@ -348,10 +350,10 @@ func (ix *Index) EndData() { ix.open = false }
 // through a panel's scales would report a value from a place no value was
 // drawn. [Hit.X] and [Hit.Y] are therefore zero on a guide hit; [Hit.Layer]
 // and [Hit.Series] are what it is for.
-func (ix *Index) LegendEntry(layer int, label string, area ir.Rect, hidden bool) {
+func (ix *Index) LegendEntry(e render.LegendInfo) {
 	ix.addGuide(mark{
-		kind: LegendRow, layer: layer, label: label, hidden: hidden, class: -1,
-	}, area)
+		kind: LegendRow, layer: e.Layer, label: e.Label, hidden: e.Hidden, class: -1,
+	}, e.Area)
 }
 
 // ColorbarEntry implements the render package's optional ColorbarEntry: it
@@ -362,30 +364,30 @@ func (ix *Index) LegendEntry(layer int, label string, area ir.Rect, hidden bool)
 // wherever the ramp is compressed. A hit inverts through it at the moment it is
 // asked, which is the same thing a hit in a panel does through the panel's
 // scales.
-func (ix *Index) ColorbarEntry(cs scale.ColorScale, class int, lo, hi float64, area ir.Rect) {
+func (ix *Index) ColorbarEntry(e render.ColorbarInfo) {
 	m := mark{
-		kind: Colorbar, layer: -1, cs: cs,
-		class: class, bandLo: lo, bandHi: hi,
+		kind: Colorbar, layer: -1, cs: e.Scale,
+		class: e.Class, bandLo: e.Lo, bandHi: e.Hi,
 	}
-	if class >= 0 {
+	if e.Class >= 0 {
 		// A band is one colour standing for one interval, so there is no
 		// gradient inside it to read a position off. The value it reports is
 		// the middle of what it covers — a representative rather than a
 		// measurement — and Lo and Hi are the truth a filter is written
 		// against. Reading a position within the band would invent precision
 		// the scale threw away on purpose.
-		m.value = lo + (hi-lo)/2
+		m.value = e.Lo + (e.Hi-e.Lo)/2
 		m.cs = nil
 	}
-	ix.addGuide(m, area)
+	ix.addGuide(m, e.Area)
 }
 
 // SizeKeyEntry implements the render package's optional SizeKeyEntry: it
 // records one row of a size key and the value its sample stands for.
-func (ix *Index) SizeKeyEntry(value float64, label string, area ir.Rect) {
+func (ix *Index) SizeKeyEntry(e render.SizeKeyInfo) {
 	ix.addGuide(mark{
-		kind: SizeKey, layer: -1, label: label, value: value, class: -1,
-	}, area)
+		kind: SizeKey, layer: -1, label: e.Label, value: e.Value, class: -1,
+	}, e.Area)
 }
 
 // addGuide records one piece of actionable furniture.
@@ -402,8 +404,7 @@ func (ix *Index) addGuide(m mark, area ir.Rect) {
 	ix.marks = append(ix.marks, m)
 }
 
-// LayerAxes implements the render package's LayerAxes: it records which scales
-// the layer about to be drawn reads.
+// noteAxes records which scales the layer being opened reads.
 //
 // A chart with a secondary axis draws some of its layers against a scale that
 // is not the panel's, and a hit has to be read back through the scale the mark
@@ -412,9 +413,8 @@ func (ix *Index) addGuide(m mark, area ir.Rect) {
 //
 // A layer drawn against a scale that is not the panel's own is also what tells
 // the panel it *has* a second axis in that direction. There is nowhere else to
-// learn it from: the observer's Panel call carries the two scales a panel has
-// always had and never gains more.
-func (ix *Index) LayerAxes(x, y scale.Scale) {
+// learn it from: the observer's Panel call carries the panel's own two.
+func (ix *Index) noteAxes(x, y scale.Scale) {
 	ix.layerX, ix.layerY = x, y
 	p := ix.panelOf(ix.panel)
 	if p == nil {

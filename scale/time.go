@@ -207,7 +207,8 @@ var timeUnits = []timeUnit{
 	{years: 100, layout: "2006"},
 }
 
-func (s *timeScale) Ticks(want int) []Tick {
+func (s *timeScale) Ticks(req TickRequest) []Tick {
+	want := req.Want
 	if want < 2 {
 		want = 2
 	}

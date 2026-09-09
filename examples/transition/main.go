@@ -156,8 +156,8 @@ func run(prefix string) (data.Alignment, error) {
 // and backend/window for the real things.
 type surface struct{}
 
-func (s *surface) Open(int, int, float64) (ir.Backend, error) { return s, nil }
-func (s *surface) Close() error                               { return nil }
+func (s *surface) Open(ir.Surface) (ir.Backend, error) { return s, nil }
+func (s *surface) Close() error                        { return nil }
 
 func (s *surface) Measure(run ir.TextRun) ir.TextMetrics {
 	adv := float32(0.6 * run.Font.Size * float64(len(run.Text)))

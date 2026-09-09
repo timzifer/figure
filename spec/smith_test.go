@@ -116,7 +116,7 @@ func TestPinnedTickValuesSurviveTheRoundTrip(t *testing.T) {
 	x, y := smithScales()
 	c := smithChartSpec(coord.Smith(), x, y, geom.Line(longTable(), geom.X("t"), geom.Y("v")))
 	back := roundTrip(t, c)
-	got := back.X.Ticks(6)
+	got := back.X.Ticks(scale.TickRequest{Want: 6})
 	want := []float64{0, 0.2, 0.5, 1, 2, 5}
 	if len(got) != len(want) {
 		t.Fatalf("the read-back axis has %d ticks, want %d", len(got), len(want))

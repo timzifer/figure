@@ -131,7 +131,7 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, fill, lin
 		// The upper edge carries the rows. A band's lower edge is the same
 		// rows in reverse, and reporting it as well would put two positions on
 		// each row for no gain.
-		f.Marks(top, sc.rowsOf(seg, keep, len(x)))
+		f.Marks(MarkRows{At: top, Rows: sc.rowsOf(seg, keep, len(x))})
 		if fill.A != 0 {
 			sc.fill.Reset()
 			appendCurve(&sc.fill, cd, top, tension, true)

@@ -108,7 +108,7 @@ func TestATimeScaleZoomsInNanoseconds(t *testing.T) {
 		t.Errorf("the right edge is %v, want %v", got, to)
 	}
 	// The ticks of an hour-long view are an hour's ticks, not a two-day one's.
-	ticks := s.Ticks(5)
+	ticks := s.Ticks(scale.TickRequest{Want: 5})
 	if len(ticks) == 0 {
 		t.Fatal("no ticks")
 	}

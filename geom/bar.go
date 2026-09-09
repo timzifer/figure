@@ -209,7 +209,7 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 			d := offsetAt(offs, i)
 			sc.pts[i] = ir.Point{X: p.X + d.X, Y: p.Y + d.Y}
 		}
-		f.Marks(sc.pts, sc.sourceRows(g.s, rows))
+		f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
 	}
 
 	// A grouped layer is painted by series, and every segment is its own

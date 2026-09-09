@@ -2,6 +2,12 @@
 
 **Status:** Accepted · **Date:** 2026-09-08
 
+> **Amended by [ADR 0060](0060-parameter-structs-at-every-seam.md).**
+> `render.EndData` is no longer an optional interface: closing the data pass is
+> `Observer.End`, a method of `Observer` itself, because an observer that does
+> not close its last layer is wrong rather than merely narrower. What it does
+> and why is exactly as described below.
+
 ## Context
 
 [docs/chart-types.md](../chart-types.md) has carried the same remainder since

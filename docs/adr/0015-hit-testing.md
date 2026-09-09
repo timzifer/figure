@@ -34,7 +34,9 @@ moment it calls `Build`.
 **A hit index is built by observing a render: the backend is wrapped, and the
 renderer announces which panel and which layer is drawing.**
 
-- `render.Observer` has two methods, `Panel` and `Layer`. It draws nothing and
+- `render.Observer` has three methods: `Panel`, `Layer` and `End`
+  ([ADR 0060](0060-parameter-structs-at-every-seam.md) added the third). It
+  draws nothing and
   cannot change what is drawn. `render.Chart.Observer` is nil for an ordinary
   render, so nothing else pays for this.
 - `interact.Index` implements that interface and `Index.Watch(b)` returns an

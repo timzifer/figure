@@ -206,9 +206,10 @@ If it needs a dependency the core must not have, it belongs in its own nested
 module. Keep its contact
 with that dependency as small as you can, and say what you touched — see
 [ADR 0006](docs/adr/0006-gg-coupling-surface.md). Marker outlines come from
-`internal/markers` so that a diamond is the same diamond everywhere; the gg
-backend is a separate module and cannot import it, so it carries a copy and
-says so.
+`ir.MarkerPath` so that a diamond is the same diamond everywhere — including
+in a backend written outside this repository, which is why it is exported
+rather than internal. It appends a circle for a Marker it does not know, so a
+shape added later degrades to a shape rather than to nothing.
 
 It should also answer the optional interfaces it can. One drawing into a surface
 rather than a document implements `ir.Partial`, so that a live chart repaints

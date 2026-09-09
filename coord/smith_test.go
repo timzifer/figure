@@ -140,9 +140,9 @@ func flattenPath(p *ir.Path, per int) []ir.Point {
 // filled from, so a test can walk the two in step.
 func furnitureOf(opts ...coord.SmithOption) (*coord.Furniture, []scale.Tick, []scale.Tick) {
 	c, x, y := smithChart(opts...)
-	xt, yt := x.Ticks(6), y.Ticks(11)
+	xt, yt := x.Ticks(scale.TickRequest{Want: 6}), y.Ticks(scale.TickRequest{Want: 11})
 	fur := new(coord.Furniture)
-	c.Furniture(fur, smithArea, coord.Metrics{TickLen: 4, MinorTickLen: 2, LabelPad: 3}, xt, yt)
+	c.Furniture(fur, coord.FurnitureRequest{Area: smithArea, Metrics: coord.Metrics{TickLen: 4, MinorTickLen: 2, LabelPad: 3}, XTicks: xt, YTicks: yt})
 	return fur, xt, yt
 }
 
@@ -274,9 +274,9 @@ func TestANegativeResistanceIsCulled(t *testing.T) {
 	x := scale.Linear(scale.Domain(-1, 5), scale.TickValues(-1, -0.5, 0, 1))
 	y := scale.Linear(scale.Domain(-5, 5), scale.TickValues(-1, 1))
 	c := coord.Smith(coord.SmithRadius(1)).Frame(coord.Framing{Area: smithArea, X: x, Y: y})
-	xt, yt := x.Ticks(4), y.Ticks(2)
+	xt, yt := x.Ticks(scale.TickRequest{Want: 4}), y.Ticks(scale.TickRequest{Want: 2})
 	fur := new(coord.Furniture)
-	c.Furniture(fur, smithArea, coord.Metrics{TickLen: 4, LabelPad: 3}, xt, yt)
+	c.Furniture(fur, coord.FurnitureRequest{Area: smithArea, Metrics: coord.Metrics{TickLen: 4, LabelPad: 3}, XTicks: xt, YTicks: yt})
 	if len(fur.InX) != len(xt) || len(fur.LabelX) != len(xt) || len(fur.GridX) != len(xt) {
 		t.Fatalf("the per-tick slices are %d/%d/%d long for %d ticks",
 			len(fur.InX), len(fur.LabelX), len(fur.GridX), len(xt))

@@ -3,7 +3,7 @@ package figure_test
 // Guides are furniture, and one of them answers to a pointer.
 //
 // ADR 0015 said a pointer landing on a guide has not landed on anything a
-// reader would ask about, and until render gained EndData the index did not
+// reader would ask about, and until render gained Observer.End the index did not
 // even know when the data pass ended — so a legend's swatches were being
 // recorded as *marks* of whichever layer was drawn last, which is the thing
 // that rule was against.

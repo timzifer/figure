@@ -176,7 +176,7 @@ func marksOf(t *testing.T, g geom.Geom) int {
 
 type countingRows struct{ n int }
 
-func (c *countingRows) Marks(at []ir.Point, rows []int) { c.n += len(at) }
+func (c *countingRows) Marks(m geom.MarkRows) { c.n += len(m.At) }
 
 func closef(a, b float32) bool {
 	d := a - b

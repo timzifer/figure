@@ -48,7 +48,7 @@ func TestAnUnlocalisedScaleIsUnchanged(t *testing.T) {
 	plain := scale.Linear()
 	plain.Train(0, 1)
 	plain.SetRange(0, 400)
-	for _, tk := range plain.Ticks(5) {
+	for _, tk := range plain.Ticks(scale.TickRequest{Want: 5}) {
 		if strings.ContainsAny(tk.Label, ",") {
 			t.Errorf("label %q was grouped without being asked", tk.Label)
 		}
@@ -86,7 +86,7 @@ func TestALocaleNamesTheMonths(t *testing.T) {
 			s.Train(scale.ValueOf(s, at), scale.ValueOf(s, at.Add(c.span)))
 			s.SetRange(0, 400)
 			var got []string
-			for _, tk := range s.Ticks(4) {
+			for _, tk := range s.Ticks(scale.TickRequest{Want: 4}) {
 				got = append(got, tk.Label)
 				if tk.Label == c.want {
 					return
@@ -106,7 +106,7 @@ func TestAHalfFilledLocaleFallsBackToEnglishNames(t *testing.T) {
 	at := time.Date(2026, 3, 9, 0, 0, 0, 0, time.UTC)
 	s.Train(scale.ValueOf(s, at))
 	s.SetRange(0, 400)
-	for _, tk := range s.Ticks(2) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 2}) {
 		if tk.Label == "" {
 			t.Fatal("a month with no name in the locale came out blank")
 		}

@@ -46,4 +46,4 @@ It was revisited, and the answer held for a reason this record did not expect.
 `gg-pdf` cannot draw geometry, so PDF became a second built-in emitter rather
 than a recording — see [ADR 0009](0009-pdf-backend.md). There is now no gg
 vector path for SVG to unify with, and the built-in emitters share their marker
-geometry through `internal/markers` instead.
+geometry through `ir.MarkerPath` instead.

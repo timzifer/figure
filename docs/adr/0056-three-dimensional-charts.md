@@ -47,7 +47,8 @@ the frozen one, reached through an optional interface and called from a
 `render` that knows when to look for it.
 
 **Nothing indexes it.** `render.Observer.Panel(i, area, x, y, cd)` is the same
-kind of interface for the same reason. `LayerAxes` shows how a scale is added
+kind of interface for the same reason. `LayerAxes` — the optional interface ADR 0060 has since folded into
+`Layer` — showed how a scale is added
 beside it without touching it — and shows the cost: another optional
 interface, another branch in the draw path, another thing an index has to
 implement to be correct.

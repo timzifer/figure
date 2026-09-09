@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/timzifer/figure/internal/fontmetrics"
-	"github.com/timzifer/figure/internal/markers"
 	"github.com/timzifer/figure/ir"
 )
 
@@ -483,7 +482,7 @@ func (b *backend) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) 
 	// One shape, translated per instance. PDF has form XObjects, but a marker
 	// is a dozen operators and a Do costs a resource lookup either way.
 	var proto ir.Path
-	markers.Path(&proto, shape, style.Size)
+	ir.MarkerPath(&proto, shape, style.Size)
 
 	b.op("q")
 	b.alpha(alphaOf(hasFill, style.Fill), alphaOf(hasStroke, style.Stroke.Color))

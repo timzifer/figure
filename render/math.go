@@ -36,14 +36,14 @@ func withMath(b ir.Backend, ts mathtext.Typesetter) ir.Backend {
 }
 
 func (m mathBackend) Measure(run ir.TextRun) ir.TextMetrics {
-	if l, ok := m.ts.Typeset(run.Text, run.Font, m.Backend); ok {
+	if l, ok := m.ts.Typeset(mathtext.Request{Src: run.Text, Font: run.Font, Measurer: m.Backend}); ok {
 		return l.Metrics()
 	}
 	return m.Backend.Measure(run)
 }
 
 func (m mathBackend) Text(run ir.TextRun) {
-	l, ok := m.ts.Typeset(run.Text, run.Font, m.Backend)
+	l, ok := m.ts.Typeset(mathtext.Request{Src: run.Text, Font: run.Font, Measurer: m.Backend})
 	if !ok {
 		m.Backend.Text(run)
 		return

@@ -160,7 +160,7 @@ func (g *arcGeom) ribbons(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, in
 		}
 	}
 	sc.pts, sc.mrows = pts, mrows
-	f.Marks(pts, mrows)
+	f.Marks(MarkRows{At: pts, Rows: mrows})
 }
 
 // chord appends the closed ribbon between two spans of the rail: along one

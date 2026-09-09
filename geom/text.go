@@ -270,7 +270,7 @@ func (g *textGeom) Build(b ir.Backend, f Frame) error {
 		for i, e := range drawn {
 			pts[i], rows[i] = pts[e], rows[e]
 		}
-		f.Marks(pts[:len(drawn)], sc.sourceRows(g.s, rows[:len(drawn)]))
+		f.Marks(MarkRows{At: pts[:len(drawn)], Rows: sc.sourceRows(g.s, rows[:len(drawn)])})
 	}
 	return nil
 }

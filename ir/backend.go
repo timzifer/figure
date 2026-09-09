@@ -75,6 +75,24 @@ type Backend interface {
 	Flush() error
 }
 
+// Surface describes what a [Target] opens and a [Resizer] resizes: how much
+// room there is to draw in, and at what device scale.
+//
+// It is a struct rather than three parameters because both methods are
+// implemented outside this module and so never gain one, and because what a
+// surface *is* has more to say than its size: a colour space, a background, a
+// pixel format, whether it is opaque. None of those are here yet, and every one
+// of them is a field when it arrives rather than a second Target interface.
+// ADR 0060 is the record.
+type Surface struct {
+	// WidthPx and HeightPx are the surface's size in device pixels.
+	WidthPx, HeightPx int
+	// DPR is the device pixel ratio. Coordinates handed to a backend are
+	// already in device pixels, so it is informational — backends use it to
+	// pick hinting and stroke-snapping strategies.
+	DPR float64
+}
+
 // Target is a render destination: it opens a Backend sized for one chart, and
 // finalises whatever it is writing to when Close is called.
 //
@@ -85,11 +103,8 @@ type Backend interface {
 // Like [Backend], it is implemented outside this module and never gains a
 // method.
 type Target interface {
-	// Open returns a Backend drawing into a surface of widthPx by heightPx
-	// device pixels. dpr is the device pixel ratio: coordinates handed to the
-	// backend are already in device pixels, so dpr is informational — backends
-	// use it to pick hinting and stroke-snapping strategies.
-	Open(widthPx, heightPx int, dpr float64) (Backend, error)
+	// Open returns a Backend drawing into the surface described by s.
+	Open(s Surface) (Backend, error)
 
 	// Close finalises the destination. It is called after the Backend's Flush.
 	Close() error
@@ -109,10 +124,10 @@ type Target interface {
 // Resize to Backend would break every third-party backend that has no surface
 // to resize.
 type Resizer interface {
-	// Resize sets the surface's size in device pixels. The arguments mean what
-	// [Target.Open]'s do, and the backend keeps whatever it was drawing into
-	// where that is possible. It takes effect on the next frame.
-	Resize(widthPx, heightPx int, dpr float64) error
+	// Resize sets the surface the backend draws into. It means what
+	// [Target.Open]'s argument does, and the backend keeps whatever it was
+	// drawing into where that is possible. It takes effect on the next frame.
+	Resize(s Surface) error
 }
 
 // Description is what a chart says about itself in words.

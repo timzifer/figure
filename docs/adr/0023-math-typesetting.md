@@ -2,6 +2,12 @@
 
 **Status:** Accepted · **Date:** 2026-09-04
 
+> **Amended by [ADR 0060](0060-parameter-structs-at-every-seam.md).**
+> `Typesetter.Typeset` now takes a single `mathtext.Request` carrying the
+> source, the font and the measurer, so that an input this record did not
+> foresee — a writing direction, a language — is a field rather than a second
+> interface. Nothing else here changes.
+
 ## Context
 
 CONCEPT §14 lists "math typesetting for labels (optional, pluggable)" in v0.6.

@@ -395,7 +395,7 @@ func (g *errorGeom) marks(b ir.Backend, f Frame, cd coord.Coord, sc *scratch, ro
 		return
 	}
 	if f.tracking() {
-		f.Marks(pts, sc.sourceRows(g.s, rows))
+		f.Marks(MarkRows{At: pts, Rows: sc.sourceRows(g.s, rows)})
 	}
 	if g.mid == nil {
 		return

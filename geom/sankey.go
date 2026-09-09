@@ -174,7 +174,7 @@ func (g *sankeyGeom) bands(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, w
 		}
 	}
 	sc.pts, sc.mrows = pts, mrows
-	f.Marks(pts, mrows)
+	f.Marks(MarkRows{At: pts, Rows: mrows})
 }
 
 // ribbon appends the closed band between two columns: an S-curve down one side,

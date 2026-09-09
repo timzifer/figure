@@ -132,7 +132,7 @@ milestone's evidence, and neither is a new geom:
   the total; the hole is the inner radius `Frame` was given. A slice is an
   annular sector: two radial edges and two arcs. **An arc is cubics** — `ir.Path`
   has `MoveTo`, `LineTo`, `CubicTo`, `Close` and nothing else, and ADR 0002 froze
-  that set — so `internal/markers` is the precedent, not the exception: its
+  that set — so `ir.MarkerPath` is the precedent, not the exception: its
   `kappa` is the quarter-circle constant already. Sweeps are split so no segment
   exceeds a quarter turn, and the control-point rule generalises it:
   `k = (4/3)·tan(φ/4)`, which at `φ = π/2` is `kappa` — exactly in real

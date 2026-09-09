@@ -83,7 +83,7 @@ func (g *stepGeom) build(b ir.Backend, f Frame, sc *scratch, s series, col ir.Co
 		marks := sc.marks(cd, x, y, keep)
 		// Reported before the staircase is expanded: a step draws two points
 		// per row, and only one of them is where the row is.
-		f.Marks(marks, sc.rowsOf(seg, keep, len(x)))
+		f.Marks(MarkRows{At: marks, Rows: sc.rowsOf(seg, keep, len(x))})
 		sx, sy := sc.stepColumns(x, y, keep, g.cfg.steps)
 		if len(sx) < 2 {
 			continue

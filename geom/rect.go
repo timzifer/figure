@@ -165,7 +165,7 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 			d := offsetAt(offs, i)
 			sc.pts[i] = ir.Point{X: p.X + d.X, Y: p.Y + d.Y}
 		}
-		f.Marks(sc.pts, sc.sourceRows(g.s, rows))
+		f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
 	}
 
 	stroke := ir.Stroke{Color: g.cfg.colorFor(f), Width: pick(g.cfg.width, 1)}

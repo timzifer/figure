@@ -56,7 +56,25 @@ type Measurer interface {
 //
 // A Typesetter is implemented outside this module, so it never gains a method.
 type Typesetter interface {
-	Typeset(src string, font ir.FontRef, m Measurer) (l Layout, ok bool)
+	Typeset(req Request) (l Layout, ok bool)
+}
+
+// Request is what [Typesetter.Typeset] is asked to set.
+//
+// It is a struct rather than three parameters because a Typesetter is
+// implemented outside this module and so never gains one, and because setting
+// notation has more inputs than these three the day it needs them: a writing
+// direction, a language, a size the caller wants the result to fit. ADR 0060
+// is the record.
+type Request struct {
+	// Src is the label as the caller wrote it, delimiters and all.
+	Src string
+	// Font is the font the surrounding text is set in. A typesetter picks its
+	// own sizes and styles relative to it.
+	Font ir.FontRef
+	// Measurer measures a run in that font. It is the backend, so a
+	// typesetter measures in the same place the text will be drawn.
+	Measurer Measurer
 }
 
 // Layout is a typeset label: the pieces of text to draw and the rules to fill,

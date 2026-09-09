@@ -34,7 +34,7 @@ func font() ir.FontRef { return ir.FontRef{Size: size} }
 func TestALabelWithNoNotationIsRefused(t *testing.T) {
 	ts := mathtext.TeX()
 	for _, src := range []string{"", "time (s)", "cost in $", "50% of 20"} {
-		if _, ok := ts.Typeset(src, font(), &metrics{}); ok {
+		if _, ok := ts.Typeset(mathtext.Request{Src: src, Font: font(), Measurer: &metrics{}}); ok {
 			t.Errorf("Typeset(%q) claimed notation where there is none", src)
 		}
 	}
@@ -44,13 +44,13 @@ func TestALabelWithNoNotationIsRefused(t *testing.T) {
 // sign: "$5 to $10" is two dollars and one range, and typesetting " 5 to " as
 // an expression would be a chart that misreads its own label.
 func TestAnUnclosedDollarIsMoney(t *testing.T) {
-	if _, ok := mathtext.TeX().Typeset("$5 and up", font(), &metrics{}); ok {
+	if _, ok := mathtext.TeX().Typeset(mathtext.Request{Src: "$5 and up", Font: font(), Measurer: &metrics{}}); ok {
 		t.Fatal("an unclosed $ was read as notation")
 	}
 }
 
 func TestADoubledDollarIsALiteralOne(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset("$$5 per $x$", font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: "$$5 per $x$", Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -61,14 +61,14 @@ func TestADoubledDollarIsALiteralOne(t *testing.T) {
 
 func TestNotationItCannotParseIsLeftAsWritten(t *testing.T) {
 	for _, src := range []string{`$\nosuchmacro$`, `$x^$`, `$\frac{1}$`, `$}{$`, `$x^1^2$`} {
-		if _, ok := mathtext.TeX().Typeset(src, font(), &metrics{}); ok {
+		if _, ok := mathtext.TeX().Typeset(mathtext.Request{Src: src, Font: font(), Measurer: &metrics{}}); ok {
 			t.Errorf("Typeset(%q) claimed to lay out unparseable notation", src)
 		}
 	}
 }
 
 func TestAScriptIsSmallerAndOffTheBaseline(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset("$x^2_i$", font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: "$x^2_i$", Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -100,15 +100,15 @@ func TestAScriptIsSmallerAndOffTheBaseline(t *testing.T) {
 }
 
 func TestScriptsStackTheSameWayRoundEither(t *testing.T) {
-	a, _ := mathtext.TeX().Typeset("$x^2_i$", font(), &metrics{})
-	b, _ := mathtext.TeX().Typeset("$x_i^2$", font(), &metrics{})
+	a, _ := mathtext.TeX().Typeset(mathtext.Request{Src: "$x^2_i$", Font: font(), Measurer: &metrics{}})
+	b, _ := mathtext.TeX().Typeset(mathtext.Request{Src: "$x_i^2$", Font: font(), Measurer: &metrics{}})
 	if a.Width != b.Width || a.Ascent != b.Ascent || a.Descent != b.Descent {
 		t.Errorf("x^2_i is %v wide and x_i^2 is %v; they are one expression", a.Width, b.Width)
 	}
 }
 
 func TestASingleLetterIsItalicAndAWordIsNot(t *testing.T) {
-	l, _ := mathtext.TeX().Typeset(`$x$ and $\mathrm{max}$ and $abc$`, font(), &metrics{})
+	l, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$x$ and $\mathrm{max}$ and $abc$`, Font: font(), Measurer: &metrics{}})
 	for _, r := range l.Runs {
 		switch r.Text {
 		case "x":
@@ -124,7 +124,7 @@ func TestASingleLetterIsItalicAndAWordIsNot(t *testing.T) {
 }
 
 func TestItalicsCanBeTurnedOff(t *testing.T) {
-	l, _ := mathtext.TeX(mathtext.Italic(false)).Typeset("$x$", font(), &metrics{})
+	l, _ := mathtext.TeX(mathtext.Italic(false)).Typeset(mathtext.Request{Src: "$x$", Font: font(), Measurer: &metrics{}})
 	for _, r := range l.Runs {
 		if r.Font.Italic {
 			t.Error("a run is italic with italics turned off")
@@ -133,7 +133,7 @@ func TestItalicsCanBeTurnedOff(t *testing.T) {
 }
 
 func TestAFractionStacksAroundARule(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset(`$\frac{ab}{c}$`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$\frac{ab}{c}$`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -172,7 +172,7 @@ func TestAFractionStacksAroundARule(t *testing.T) {
 func center(x float32, s string) float32 { return x + float32(len([]rune(s)))*size*0.25 }
 
 func TestARadicalCoversItsArgument(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset(`$\sqrt{n}$`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$\sqrt{n}$`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -206,7 +206,7 @@ func TestARadicalCoversItsArgument(t *testing.T) {
 }
 
 func TestSymbolsBecomeCharacters(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset(`$\alpha\leq\Omega$`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$\alpha\leq\Omega$`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -223,7 +223,7 @@ func TestARegisteredSymbolTypesets(t *testing.T) {
 	if r, ok := mathtext.Symbol("testsmiley"); !ok || r != '☺' {
 		t.Fatalf("Symbol = %q, %v", r, ok)
 	}
-	l, ok := mathtext.TeX().Typeset(`$\alpha\testsmiley$`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$\alpha\testsmiley$`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -236,8 +236,8 @@ func TestSpacesHaveWidthAndNoInk(t *testing.T) {
 	// The reference is an empty group rather than "$ab$", because two adjacent
 	// letters are one run and one name where a and b either side of anything
 	// are two variables — which is the italic rule working, not the spacing.
-	tight, _ := mathtext.TeX().Typeset(`$a{}b$`, font(), &metrics{})
-	loose, _ := mathtext.TeX().Typeset(`$a\,b$`, font(), &metrics{})
+	tight, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$a{}b$`, Font: font(), Measurer: &metrics{}})
+	loose, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$a\,b$`, Font: font(), Measurer: &metrics{}})
 
 	if got, want := loose.Width-tight.Width, float32(size*3.0/18); math.Abs(float64(got-want)) > 0.01 {
 		t.Errorf("a thin space added %v to the width, want %v", got, want)
@@ -253,15 +253,15 @@ func TestSpacesHaveWidthAndNoInk(t *testing.T) {
 // Ordinary spaces are notation's whitespace and set nothing, which is what
 // makes "$a + b$" set the same as "$a+b$".
 func TestWhitespaceInNotationIsNotASpace(t *testing.T) {
-	a, _ := mathtext.TeX().Typeset("$a+b$", font(), &metrics{})
-	b, _ := mathtext.TeX().Typeset("$a + b$", font(), &metrics{})
+	a, _ := mathtext.TeX().Typeset(mathtext.Request{Src: "$a+b$", Font: font(), Measurer: &metrics{}})
+	b, _ := mathtext.TeX().Typeset(mathtext.Request{Src: "$a + b$", Font: font(), Measurer: &metrics{}})
 	if a.Width != b.Width {
 		t.Errorf("widths %v and %v differ; whitespace in notation is not a space", a.Width, b.Width)
 	}
 }
 
 func TestTextAndNotationMix(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset(`peak $P_{max}$ (W)`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `peak $P_{max}$ (W)`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -274,7 +274,7 @@ func TestTextAndNotationMix(t *testing.T) {
 }
 
 func TestMetricsCoverEverythingDrawn(t *testing.T) {
-	l, _ := mathtext.TeX().Typeset(`$\frac{a}{b}^2$`, font(), &metrics{})
+	l, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$\frac{a}{b}^2$`, Font: font(), Measurer: &metrics{}})
 	m := l.Metrics()
 	for _, r := range l.Runs {
 		if -r.At.Y > m.Ascent+0.01 {
@@ -293,7 +293,7 @@ func TestMetricsCoverEverythingDrawn(t *testing.T) {
 }
 
 func TestDrawEmitsTextAndRules(t *testing.T) {
-	l, _ := mathtext.TeX().Typeset(`$\frac{a}{b}$`, font(), &metrics{})
+	l, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$\frac{a}{b}$`, Font: font(), Measurer: &metrics{}})
 	rec := irtest.New()
 	mathtext.Draw(rec, l, ir.Point{X: 100, Y: 50}, ir.Point{}, ir.RGB(1, 2, 3), 0)
 
@@ -318,7 +318,7 @@ func TestDrawEmitsTextAndRules(t *testing.T) {
 }
 
 func TestARotatedLayoutIsDrawnInOneFrame(t *testing.T) {
-	l, _ := mathtext.TeX().Typeset(`$\frac{a}{b}$`, font(), &metrics{})
+	l, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$\frac{a}{b}$`, Font: font(), Measurer: &metrics{}})
 	rec := irtest.New()
 	mathtext.Draw(rec, l, ir.Point{X: 10, Y: 20}, ir.Point{}, ir.RGB(0, 0, 0), -math.Pi/2)
 
@@ -360,7 +360,7 @@ func TestPlainReadsNotationAloud(t *testing.T) {
 // against numbers it invented.
 func TestATypesetterMeasuresThroughTheBackend(t *testing.T) {
 	m := &metrics{}
-	if _, ok := mathtext.TeX().Typeset(`$x^2$`, font(), m); !ok {
+	if _, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$x^2$`, Font: font(), Measurer: m}); !ok {
 		t.Fatal("no notation found")
 	}
 	if m.calls == 0 {
@@ -377,7 +377,7 @@ func text(l mathtext.Layout) string {
 }
 
 func TestABarSitsOverItsArgument(t *testing.T) {
-	l, ok := mathtext.TeX().Typeset(`$\bar{x}$`, font(), &metrics{})
+	l, ok := mathtext.TeX().Typeset(mathtext.Request{Src: `$\bar{x}$`, Font: font(), Measurer: &metrics{}})
 	if !ok {
 		t.Fatal("no notation found")
 	}
@@ -408,9 +408,9 @@ func TestABarSitsOverItsArgument(t *testing.T) {
 // either side of a binary operator and a thick one either side of a relation,
 // and a chart label set without them reads as a filename.
 func TestOperatorsAndRelationsAreSpaced(t *testing.T) {
-	tight, _ := mathtext.TeX().Typeset(`$a{}b$`, font(), &metrics{})
-	plus, _ := mathtext.TeX().Typeset(`$a+b$`, font(), &metrics{})
-	eq, _ := mathtext.TeX().Typeset(`$a=b$`, font(), &metrics{})
+	tight, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$a{}b$`, Font: font(), Measurer: &metrics{}})
+	plus, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$a+b$`, Font: font(), Measurer: &metrics{}})
+	eq, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$a=b$`, Font: font(), Measurer: &metrics{}})
 
 	// Each expression is two letters plus one operator wide, so the difference
 	// between them is exactly the spacing.
@@ -431,8 +431,8 @@ func TestOperatorsAndRelationsAreSpaced(t *testing.T) {
 // A minus with nothing to its left is a sign rather than an operator, and a
 // sign takes no space: "-1" is a number, not a subtraction with a gap in it.
 func TestASignIsNotAnOperator(t *testing.T) {
-	sign, _ := mathtext.TeX().Typeset(`$-1$`, font(), &metrics{})
-	bare, _ := mathtext.TeX().Typeset(`$21$`, font(), &metrics{})
+	sign, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$-1$`, Font: font(), Measurer: &metrics{}})
+	bare, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$21$`, Font: font(), Measurer: &metrics{}})
 	if math.Abs(float64(sign.Width-bare.Width)) > 0.01 {
 		t.Errorf("a leading minus was spaced as an operator: %v against %v", sign.Width, bare.Width)
 	}
@@ -441,7 +441,7 @@ func TestASignIsNotAnOperator(t *testing.T) {
 // An operator is never merged into the run beside it, or the spacing would
 // have nothing to sit between.
 func TestAnOperatorIsItsOwnRun(t *testing.T) {
-	l, _ := mathtext.TeX().Typeset(`$x=1$`, font(), &metrics{})
+	l, _ := mathtext.TeX().Typeset(mathtext.Request{Src: `$x=1$`, Font: font(), Measurer: &metrics{}})
 	if len(l.Runs) != 3 {
 		t.Fatalf("laid out %d runs for x=1, want three", len(l.Runs))
 	}

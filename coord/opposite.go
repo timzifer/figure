@@ -19,10 +19,12 @@ import (
 // curves through the same ink. In each case a second axis drawn over the first
 // would be two scales sharing one line.
 //
-// The two methods are one interface rather than two because they are one
-// capability — "this coord has edges opposite its axes" — and a coord that can
-// answer for one direction can answer for the other. Cartesian implements
-// both; Polar implements neither.
+// It is one method rather than two because placing a second vertical axis and
+// placing a second horizontal one are one capability — "this coord has edges
+// opposite its axes" — and because a third such family would otherwise be a
+// third method. Which edge is meant is read from the request: a nil tick slice
+// is a direction that was not asked for. Cartesian implements it; Polar and
+// [Smith] do not.
 //
 // It answers the *furniture* only. Whether a chart has a second axis, which
 // layers read it and whether the panel writes its labels are all decisions
@@ -30,34 +32,32 @@ import (
 // where things go and does not draw. See
 // [ADR 0037](../docs/adr/0037-secondary-axis.md).
 type Opposite interface {
-	// FurnitureY2 fills dst with the axis line, tick marks and tick label
-	// positions of a second vertical axis, opposite the one [Coord.Furniture]
-	// places.
+	// FurnitureOpposite fills dst with the axis line, tick marks and tick
+	// label positions of a second axis, opposite the one [Coord.Furniture]
+	// places. [FurnitureRequest.YTicks] asks for the right-hand edge and
+	// XTicks for the top; a nil slice fills nothing on that side.
 	//
-	// It fills the Y side of dst and nothing else, so a caller keeps one
+	// It fills one side of dst per direction asked for, so a caller keeps one
 	// Furniture per axis rather than one with two of everything in it. The
-	// slices are parallel to ticks, as they are everywhere in this package.
+	// slices are parallel to the ticks given, as they are everywhere in this
+	// package.
 	//
 	// It places **no grid lines**. Two ladders of rules at different values
 	// are a moiré rather than a reading, and which of the two scales a line
 	// belongs to is unanswerable by looking — so the grid stays the primary
 	// axis's, and the second axis is a line, its ticks and its labels.
-	FurnitureY2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick)
-
-	// FurnitureX2 is FurnitureY2 turned a quarter turn: a second horizontal
-	// axis along the panel's top edge, filling the X side of dst.
-	FurnitureX2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick)
+	FurnitureOpposite(dst *Furniture, req FurnitureRequest)
 }
 
-// FurnitureY2 implements [Opposite] for a Cartesian coord: the mirror image of
-// the Y axis in [cartesian.Furniture], reaching right instead of left and
-// left-aligning its labels instead of right-aligning them.
+// furnitureY2 is the mirror image of the Y axis in [cartesian.Furniture],
+// reaching right instead of left and left-aligning its labels instead of
+// right-aligning them.
 //
 // It is written out rather than derived from the first axis by reflection,
 // because a reflection would have to know which of the label's alignments and
 // which of the tick's endpoints to flip — and getting one of those wrong
 // produces labels inside the plot, which is a bug that looks like a theme.
-func (cartesian) FurnitureY2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
+func furnitureY2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
 	y := dst.y()
 	y.axis.line(ir.Point{X: area.Max.X, Y: area.Min.Y}, ir.Point{X: area.Max.X, Y: area.Max.Y})
 	for _, t := range ticks {
@@ -77,14 +77,14 @@ func (cartesian) FurnitureY2(dst *Furniture, area ir.Rect, m Metrics, ticks []sc
 	}
 }
 
-// FurnitureX2 implements [Opposite] for a Cartesian coord: the mirror image of
-// the X axis in [cartesian.Furniture], reaching up instead of down and hanging
-// its labels above the ticks instead of below them.
+// furnitureX2 is the mirror image of the X axis in [cartesian.Furniture],
+// reaching up instead of down and hanging its labels above the ticks instead
+// of below them.
 //
 // It reports [Furniture.XLabelsShareARow], because they do: labels along the
 // top of a panel collide with each other exactly as those along the bottom do,
 // and render drops the ones that would overlap on the same evidence.
-func (cartesian) FurnitureX2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
+func furnitureX2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
 	dst.XLabelsShareARow = true
 
 	x := dst.x()
@@ -106,32 +106,36 @@ func (cartesian) FurnitureX2(dst *Furniture, area ir.Rect, m Metrics, ticks []sc
 	}
 }
 
+// FurnitureOpposite implements [Opposite] for a Cartesian coord. Each
+// direction is placed only when the request names ticks for it, so the same
+// call serves an axis on the right, one along the top, or both.
+func (cartesian) FurnitureOpposite(dst *Furniture, req FurnitureRequest) {
+	if req.YTicks != nil {
+		furnitureY2(dst, req.Area, req.Metrics, req.YTicks)
+	}
+	if req.XTicks != nil {
+		furnitureX2(dst, req.Area, req.Metrics, req.XTicks)
+	}
+}
+
 // The framed Cartesian coord is the value a panel actually holds —
 // [Coord.Frame] hands back the coord positioned in the panel — so it has to
 // answer everything the unframed one does.
-func (f framedCartesian) FurnitureY2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
-	f.cartesian.FurnitureY2(dst, area, m, ticks)
+func (f framedCartesian) FurnitureOpposite(dst *Furniture, req FurnitureRequest) {
+	f.cartesian.FurnitureOpposite(dst, req)
 }
 
-func (f framedCartesian) FurnitureX2(dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick) {
-	f.cartesian.FurnitureX2(dst, area, m, ticks)
-}
-
-// OppositeFurniture fills dst with cd's second axis in one direction,
-// reporting whether cd has one to place.
+// OppositeFurniture fills dst with cd's second axes, reporting whether cd has
+// any to place.
 //
 // It is the type assertion written once, so that a caller asks the question
-// rather than knowing which coords answer it. vertical picks which of the two
-// edges is meant: the right-hand one, or the top.
-func OppositeFurniture(cd Coord, dst *Furniture, area ir.Rect, m Metrics, ticks []scale.Tick, vertical bool) bool {
+// rather than knowing which coords answer it. Which edges are meant is in the
+// request: YTicks for the right-hand one, XTicks for the top.
+func OppositeFurniture(cd Coord, dst *Furniture, req FurnitureRequest) bool {
 	o, ok := cd.(Opposite)
 	if !ok {
 		return false
 	}
-	if vertical {
-		o.FurnitureY2(dst, area, m, ticks)
-	} else {
-		o.FurnitureX2(dst, area, m, ticks)
-	}
+	o.FurnitureOpposite(dst, req)
 	return true
 }

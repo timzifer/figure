@@ -90,7 +90,7 @@ func TestCloneOfATimeScaleKeepsItsLocation(t *testing.T) {
 	s := scale.Time(scale.In(loc))
 	c := s.(scale.Cloner).Clone()
 	c.Train(scale.Nanos(time.Unix(0, 0)), scale.Nanos(time.Unix(86400, 0)))
-	if len(c.Ticks(4)) == 0 {
+	if len(c.Ticks(scale.TickRequest{Want: 4})) == 0 {
 		t.Error("a cloned time scale produced no ticks")
 	}
 }

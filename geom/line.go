@@ -87,7 +87,7 @@ func (g *lineGeom) build(b ir.Backend, f Frame, sc *scratch, s series, col ir.Co
 		// Reported over the unsplit marks: the vertices a colour boundary
 		// adds are not rows, and the one a run shares with the next would
 		// otherwise be indexed twice at the same place.
-		f.Marks(pts, sc.rowsOf(seg, keep, len(x)))
+		f.Marks(MarkRows{At: pts, Rows: sc.rowsOf(seg, keep, len(x))})
 		if cs, sp, ok := splitFor(g.cfg, f); ok && g.cfg.varying(seg) {
 			g.strokeRuns(b, cd, sc, cs, sp, seg, x, y, keep, stroke)
 			continue

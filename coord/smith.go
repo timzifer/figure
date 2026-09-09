@@ -378,7 +378,8 @@ func (s *smith) Clip(p *ir.Path, area ir.Rect) {
 // chart; a sweep is a few thousand points at most.
 func (s *smith) Decimates() bool { return false }
 
-func (s *smith) Furniture(dst *Furniture, area ir.Rect, m Metrics, xTicks, yTicks []scale.Tick) {
+func (s *smith) Furniture(dst *Furniture, req FurnitureRequest) {
+	m, xTicks, yTicks := req.Metrics, req.XTicks, req.YTicks
 	// The resistance labels really do sit along one horizontal line — the real
 	// axis — so the greedy overlap filter that keeps a dense axis readable
 	// should run over them. This is the one place a Smith panel differs from a

@@ -20,7 +20,7 @@ func render(t *testing.T, w, h int, fn func(ir.Backend), opts ...pdf.Option) str
 	var buf bytes.Buffer
 	opts = append([]pdf.Option{pdf.Uncompressed()}, opts...)
 	tg := pdf.Writer(&buf, opts...)
-	b, err := tg.Open(w, h, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: w, HeightPx: h, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -390,7 +390,7 @@ func TestClipAndTransform(t *testing.T) {
 
 func TestPopWithoutPushIsAnError(t *testing.T) {
 	tg := pdf.Writer(&bytes.Buffer{})
-	b, err := tg.Open(10, 10, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestPopWithoutPushIsAnError(t *testing.T) {
 
 func TestUnclosedPushIsAnError(t *testing.T) {
 	tg := pdf.Writer(&bytes.Buffer{})
-	b, err := tg.Open(10, 10, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +477,7 @@ func TestOpaqueImageHasNoSoftMask(t *testing.T) {
 // exact rather than approximate.
 func TestMeasureIsHelvetica(t *testing.T) {
 	tg := pdf.Writer(&bytes.Buffer{})
-	b, err := tg.Open(100, 100, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: 100, HeightPx: 100, DPR: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +496,7 @@ func TestMeasureIsHelvetica(t *testing.T) {
 
 func TestMeasureDefaultsAZeroSize(t *testing.T) {
 	tg := pdf.Writer(&bytes.Buffer{})
-	b, _ := tg.Open(100, 100, 1)
+	b, _ := tg.Open(ir.Surface{WidthPx: 100, HeightPx: 100, DPR: 1})
 	if got := b.Measure(ir.TextRun{Text: "x"}).Advance; got <= 0 {
 		t.Errorf("Advance = %v with no font size set", got)
 	}
@@ -545,7 +545,7 @@ func TestNoMetadataMeansNoInfoDictionary(t *testing.T) {
 func TestCompressionIsTheDefault(t *testing.T) {
 	var buf bytes.Buffer
 	tg := pdf.Writer(&buf)
-	b, err := tg.Open(100, 100, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: 100, HeightPx: 100, DPR: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -564,7 +564,7 @@ func TestCompressionIsTheDefault(t *testing.T) {
 func TestFileTarget(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "chart.pdf")
 	tg := pdf.File(path)
-	b, err := tg.Open(200, 100, 1)
+	b, err := tg.Open(ir.Surface{WidthPx: 200, HeightPx: 100, DPR: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,14 +585,14 @@ func TestFileTarget(t *testing.T) {
 }
 
 func TestOpenRejectsAnEmptyCanvas(t *testing.T) {
-	if _, err := pdf.Writer(&bytes.Buffer{}).Open(0, 10, 1); err == nil {
+	if _, err := pdf.Writer(&bytes.Buffer{}).Open(ir.Surface{WidthPx: 0, HeightPx: 10, DPR: 1}); err == nil {
 		t.Error("Open accepted a zero width")
 	}
 }
 
 func TestCloseBeforeFlushIsAnError(t *testing.T) {
 	tg := pdf.Writer(&bytes.Buffer{})
-	if _, err := tg.Open(10, 10, 1); err != nil {
+	if _, err := tg.Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1}); err != nil {
 		t.Fatal(err)
 	}
 	if err := tg.Close(); err == nil {

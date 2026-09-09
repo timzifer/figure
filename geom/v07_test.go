@@ -399,7 +399,8 @@ type rowSink struct {
 	rows []int
 }
 
-func (s *rowSink) Marks(at []ir.Point, rows []int) {
+func (s *rowSink) Marks(m geom.MarkRows) {
+	at, rows := m.At, m.Rows
 	s.at = append(s.at, at...)
 	s.rows = append(s.rows, rows...)
 }

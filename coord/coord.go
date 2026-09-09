@@ -119,7 +119,7 @@ type Coord interface {
 	// tick labels of one panel, one entry per tick in tick order. It fills dst
 	// rather than returning a value so that a chart redrawn every frame does
 	// not pay for its furniture again; render resets and reuses one.
-	Furniture(dst *Furniture, area ir.Rect, m Metrics, xTicks, yTicks []scale.Tick)
+	Furniture(dst *Furniture, req FurnitureRequest)
 
 	// Decimates reports whether a reduction defined over pixel columns still
 	// measures what it was defined to measure under this coord.
@@ -130,6 +130,29 @@ type Coord interface {
 	// angle is not a bucket of equal width — and nothing polar is a big-data
 	// chart, so saying no costs nothing. See docs/adr/0011-decimation.md.
 	Decimates() bool
+}
+
+// FurnitureRequest is what [Coord.Furniture] — and [Opposite] beside it — is
+// asked for: which rectangle, at what metrics, with which ticks on each axis.
+//
+// The tick families are fields rather than parameters because a coord can
+// acquire another one. A second axis on the far side of the panel already
+// needed two more, and under the old positional signature the only way to add
+// them was [Opposite], a second method pair placing the same furniture. A
+// depth axis, a second radial family or an axis of time would each have needed
+// another. ADR 0060 is the record.
+//
+// A nil tick slice means that axis was not asked for, which is how one call
+// places one axis: [Opposite] reads YTicks for the right-hand edge and XTicks
+// for the top, and fills only the side it was given.
+type FurnitureRequest struct {
+	// Area is the panel rectangle in device space.
+	Area ir.Rect
+	// Metrics are the tick and label measurements the theme chose.
+	Metrics Metrics
+	// XTicks and YTicks are the ticks of the horizontal and vertical axes, in
+	// ascending order, already mapped into Area.
+	XTicks, YTicks []scale.Tick
 }
 
 // Describer is implemented by a coord that can write itself down, so that a
@@ -245,7 +268,8 @@ func (cartesian) Decimates() bool { return true }
 
 func (cartesian) Describe() Desc { return Desc{Type: TypeCartesian} }
 
-func (cartesian) Furniture(dst *Furniture, area ir.Rect, m Metrics, xTicks, yTicks []scale.Tick) {
+func (cartesian) Furniture(dst *Furniture, req FurnitureRequest) {
+	area, m, xTicks, yTicks := req.Area, req.Metrics, req.XTicks, req.YTicks
 	dst.XLabelsShareARow = true
 
 	// The X axis runs along the bottom edge, its ticks hang below it and its

@@ -202,7 +202,7 @@ func (b *backend) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) 
 	// CPU path, so this is the allocation-free equivalent: build the shape once
 	// and move it, rather than constructing N paths.
 	var proto ir.Path
-	markerPath(&proto, shape, style.Size)
+	ir.MarkerPath(&proto, shape, style.Size)
 
 	var moved ir.Path
 	for _, p := range at {
@@ -374,7 +374,8 @@ func (b *backend) undamage() {
 // A change of device scale reallocates the context, because the scale is fixed
 // when one is made; a change of size alone resizes the buffer in place, which
 // is the common case and the cheap one.
-func (b *backend) Resize(widthPx, heightPx int, dpr float64) error {
+func (b *backend) Resize(s ir.Surface) error {
+	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if widthPx <= 0 || heightPx <= 0 {
 		return fmt.Errorf("figure/backend/gg: size %dx%d is not positive", widthPx, heightPx)
 	}
@@ -419,50 +420,6 @@ func (b *backend) fail(err error) {
 }
 
 // --- shapes --------------------------------------------------------------
-
-// kappa is the cubic Bézier constant that approximates a quarter circle.
-const kappa = 0.5522847498307936
-
-// markerPath builds a marker centred on the origin.
-//
-// It is a copy of internal/markers.Path in the core module, kept in step by
-// hand because a nested module cannot import its parent's internal packages.
-// "The same chart looks the same on every backend" has to hold for marker
-// geometry too — a diamond that is a different diamond in PNG than in SVG
-// would break the promise in a way nobody would notice until it mattered.
-func markerPath(p *ir.Path, m ir.Marker, size float32) {
-	r := size / 2
-	switch m {
-	case ir.MarkerSquare:
-		p.Rect(ir.R(-r, -r, r, r))
-	case ir.MarkerDiamond:
-		p.MoveTo(0, -r).LineTo(r, 0).LineTo(0, r).LineTo(-r, 0).Close()
-	case ir.MarkerTriangle:
-		h := r * 1.5
-		w := r * 1.2990381
-		p.MoveTo(0, -h*2/3).LineTo(w, h/3).LineTo(-w, h/3).Close()
-	case ir.MarkerCross:
-		arm := r * 0.28
-		d := (r - arm) * 0.7071068
-		p.MoveTo(-d-arm, -d).LineTo(-d, -d-arm).LineTo(0, -arm*1.4142136).
-			LineTo(d, -d-arm).LineTo(d+arm, -d).LineTo(arm*1.4142136, 0).
-			LineTo(d+arm, d).LineTo(d, d+arm).LineTo(0, arm*1.4142136).
-			LineTo(-d, d+arm).LineTo(-d-arm, d).LineTo(-arm*1.4142136, 0).Close()
-	case ir.MarkerPlus:
-		arm := r * 0.28
-		p.MoveTo(-arm, -r).LineTo(arm, -r).LineTo(arm, -arm).LineTo(r, -arm).
-			LineTo(r, arm).LineTo(arm, arm).LineTo(arm, r).LineTo(-arm, r).
-			LineTo(-arm, arm).LineTo(-r, arm).LineTo(-r, -arm).LineTo(-arm, -arm).Close()
-	default:
-		k := r * kappa
-		p.MoveTo(r, 0).
-			CubicTo(r, k, k, r, 0, r).
-			CubicTo(-k, r, -r, k, -r, 0).
-			CubicTo(-r, -k, -k, -r, 0, -r).
-			CubicTo(k, -r, r, -k, r, 0).
-			Close()
-	}
-}
 
 // gradientBrush converts an IR linear gradient into a gg brush.
 func gradientBrush(f ir.Fill) gogg.Brush {

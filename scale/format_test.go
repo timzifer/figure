@@ -15,7 +15,7 @@ func labelsOf(t *testing.T, s scale.Scale, lo, hi float64, want int) []string {
 	s.Train(lo, hi)
 	s.SetRange(0, 400)
 	var out []string
-	for _, tk := range s.Ticks(want) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: want}) {
 		if tk.Label != "" {
 			out = append(out, tk.Label)
 		}
@@ -27,12 +27,12 @@ func labelsOf(t *testing.T, s scale.Scale, lo, hi float64, want int) []string {
 func labelAt(t *testing.T, s scale.Scale, v float64) string {
 	t.Helper()
 	s.SetRange(0, 400)
-	for _, tk := range s.Ticks(11) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 11}) {
 		if tk.Value == v {
 			return tk.Label
 		}
 	}
-	t.Fatalf("no tick at %v among %v", v, s.Ticks(11))
+	t.Fatalf("no tick at %v among %v", v, s.Ticks(scale.TickRequest{Want: 11}))
 	return ""
 }
 
@@ -181,7 +181,7 @@ func TestATimeLayoutFixesEveryLabel(t *testing.T) {
 	from := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	s.Train(scale.ValueOf(s, from), scale.ValueOf(s, from.AddDate(0, 0, 20)))
 	s.SetRange(0, 400)
-	for _, tk := range s.Ticks(5) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		if len(tk.Label) != len("2006-01-02") {
 			t.Errorf("label %q is not the layout that was asked for", tk.Label)
 		}
@@ -202,7 +202,7 @@ func TestAPinnedTickSequenceDecidesThePrecision(t *testing.T) {
 	s.SetRange(0, 400)
 
 	want := map[float64]string{0: "0.0", 0.2: "0.2", 0.5: "0.5", 1: "1.0", 2: "2.0", 5: "5.0"}
-	for _, tk := range s.Ticks(6) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 6}) {
 		if w, ok := want[tk.Value]; ok && tk.Label != w {
 			t.Errorf("tick %v is labelled %q, want %q", tk.Value, tk.Label, w)
 		}

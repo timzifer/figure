@@ -106,7 +106,7 @@ func (g *scatterGeom) build(b ir.Backend, f Frame, sc *scratch, s series, col ir
 		return nil
 	}
 	// A scatter is the easy case: one mark per row, at the row's own position.
-	f.Marks(pts, sc.sourceRows(s, rows))
+	f.Marks(MarkRows{At: pts, Rows: sc.sourceRows(s, rows)})
 	cols := sc.colorsFor(g.cfg, s, rows)
 	if cols == nil {
 		b.Markers(marker, pts, style)
@@ -162,7 +162,7 @@ func (g *scatterGeom) bubbles(b ir.Backend, f Frame, sc *scratch, s series, ok [
 
 	// A bubble's row is its centre, which is where a reader points when they
 	// mean "this one".
-	f.Marks(pts, sc.sourceRows(s, rows))
+	f.Marks(MarkRows{At: pts, Rows: sc.sourceRows(s, rows)})
 
 	fill := g.cfg.fillOf(col, bubbleFillOpacity)
 	stroke := ir.Stroke{Color: col, Width: pick(g.cfg.width, 1)}

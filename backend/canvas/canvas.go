@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"syscall/js"
 
-	"github.com/timzifer/figure/internal/markers"
 	"github.com/timzifer/figure/ir"
 )
 
@@ -68,7 +67,8 @@ type target struct {
 	b    *backend
 }
 
-func (t *target) Open(widthPx, heightPx int, dpr float64) (ir.Backend, error) {
+func (t *target) Open(s ir.Surface) (ir.Backend, error) {
+	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if dpr <= 0 {
 		dpr = 1
 	}
@@ -148,7 +148,8 @@ func (b *backend) Describe(d ir.Description) {
 // The backing store and the CSS size are set the way [Element] sets them. A
 // target built with [Context] leaves both alone — the caller owns that canvas
 // — and only records the new logical size.
-func (b *backend) Resize(widthPx, heightPx int, dpr float64) error {
+func (b *backend) Resize(s ir.Surface) error {
+	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if widthPx <= 0 || heightPx <= 0 {
 		return fmt.Errorf("figure/backend/canvas: size %dx%d is not positive", widthPx, heightPx)
 	}
@@ -249,7 +250,7 @@ func (b *backend) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) 
 		return
 	}
 	var outline ir.Path
-	markers.Path(&outline, shape, style.Size)
+	ir.MarkerPath(&outline, shape, style.Size)
 
 	b.buf = b.buf[:0]
 	for _, c := range at {

@@ -53,8 +53,8 @@ func targetOf(b ir.Backend) ir.Target { return fixedTarget{b} }
 
 type fixedTarget struct{ b ir.Backend }
 
-func (t fixedTarget) Open(int, int, float64) (ir.Backend, error) { return t.b, nil }
-func (fixedTarget) Close() error                                 { return nil }
+func (t fixedTarget) Open(ir.Surface) (ir.Backend, error) { return t.b, nil }
+func (fixedTarget) Close() error                          { return nil }
 
 // --- accessibility -------------------------------------------------------
 

@@ -71,9 +71,24 @@ type Scale interface {
 	// inverse of Map over the whole real line, not just the range.
 	Invert(pos float32) float64
 
-	// Ticks returns tick positions and labels, aiming for about want ticks.
-	// The result is ordered ascending by Value.
-	Ticks(want int) []Tick
+	// Ticks returns tick positions and labels for a request. The result is
+	// ordered ascending by Value.
+	Ticks(req TickRequest) []Tick
+}
+
+// TickRequest is what [Scale.Ticks] is asked for.
+//
+// It is a struct rather than a plain count because Scale is implemented
+// outside this module and so never gains a parameter, and because a tick
+// search has more than one input the caller could reasonably supply: the space
+// the axis has, the rotation its labels are allowed, the locale their format
+// follows. Today it carries one. ADR 0060 is the record.
+type TickRequest struct {
+	// Want is roughly how many ticks the caller would like. A scale treats it
+	// as a target rather than a count: a search that lands on readable values
+	// returns the nearest readable sequence, which may be one or two ticks
+	// either side of it. Zero or negative asks the scale for its own default.
+	Want int
 }
 
 // Definite is implemented by scales whose domain excludes some finite values.
@@ -205,7 +220,7 @@ func LabelOf(s Scale, v float64) string {
 	if l, ok := s.(Labeller); ok {
 		return l.LabelOf(v)
 	}
-	for _, t := range s.Ticks(defaultTickCount) {
+	for _, t := range s.Ticks(TickRequest{Want: defaultTickCount}) {
 		if t.Value == v {
 			return t.Label
 		}

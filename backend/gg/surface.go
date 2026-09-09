@@ -36,7 +36,8 @@ func NewSurface(opts ...Option) *Surface {
 
 // Open prepares the surface for a chart of the given size. Opening a surface
 // that is already open replaces what it held.
-func (s *Surface) Open(widthPx, heightPx int, dpr float64) (ir.Backend, error) {
+func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
+	widthPx, heightPx, dpr := sf.WidthPx, sf.HeightPx, sf.DPR
 	if s.opts.fontErr != nil {
 		return nil, s.opts.fontErr
 	}

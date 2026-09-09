@@ -440,7 +440,8 @@ func (p *polar) Explode(x0, y0, x1, y1 float32, by float64) (dx, dy float32) {
 // nothing polar is a big-data chart, so nothing is lost by saying so.
 func (p *polar) Decimates() bool { return false }
 
-func (p *polar) Furniture(dst *Furniture, area ir.Rect, m Metrics, xTicks, yTicks []scale.Tick) {
+func (p *polar) Furniture(dst *Furniture, req FurnitureRequest) {
+	m, xTicks, yTicks := req.Metrics, req.XTicks, req.YTicks
 	// Labels round a ring do not share a row, so the greedy overlap filter
 	// that keeps a dense Cartesian axis readable must not run over them.
 	dst.XLabelsShareARow = false

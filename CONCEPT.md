@@ -1333,8 +1333,8 @@ rather than merely present: what an overlay draws is not hit-testable, because
 a tooltip a pointer can hit is a tooltip that flickers. Getting there needed a
 bug fixed that had been latent since v0.5 — `render.Observer` had no way to
 *close* a layer, so everything drawn after the last one was attributed to it,
-and a legend's swatches were being indexed as marks. `render.EndData` is the
-seam that closes it, in the shape `LayerAxes` already established.
+and a legend's swatches were being indexed as marks. `render.Observer.End` is
+the seam that closes it.
 
 `Crosshair`, `Highlight`, `Brush`, `Tooltip` and `Overlays` ship in the root
 package, each a struct whose zero value draws nothing and whose colours come
@@ -1524,9 +1524,16 @@ axis, which is a third vocabulary. ✔
 - **The growth rule.** An interface a third party implements — `data.Source`,
   `scale.Scale`, `coord.Coord`, `geom.Geom`, `ir.Backend`, `ir.Target`,
   `render.Observer`, `mathtext.Typesetter` and the colour and size scales —
-  never gains a method. A new capability is an optional interface beside it,
+  never gains a method, **and a method on one never takes more than one
+  parameter beyond its output destination**, so that what it is told can grow
+  without the interface changing
+  ([ADR 0060](docs/adr/0060-parameter-structs-at-every-seam.md)). A capability
+  an implementation may legitimately lack is an optional interface beside it,
   asked for with a type assertion, the way `Resizer`, `Definite` and `Legender`
-  already are. A struct with exported fields gains fields and never loses one,
+  already are; a fact every correct implementation needs is a field or a
+  method, which is why `render.Observer.End` is a method and the deleted
+  `EndData` was not the answer. `ir.Backend`'s drawing calls are the exception
+  the rule names: their parameters are the ink, not a description that grows. A struct with exported fields gains fields and never loses one,
   and its zero value keeps its meaning. A string-typed name (`geom.Mark`,
   `scale.Kind`, `coord.Type`) is open to third-party values; an iota enum grows
   at the end.
@@ -1595,7 +1602,6 @@ figure/                     # core module — pure Go, STDLIB ONLY (no requires)
   backend/pdf/               # built-in, zero-dependency PDF emitter      (v0.3)
   backend/canvas/            # built-in canvas 2D, js/wasm only           (v0.5)
   internal/fontmetrics/      # stdlib hmtx/cmap reader + Helvetica table  (v0.1)
-  internal/markers/          # the marker outlines both emitters share    (v0.3)
 
   backend/gg/                # NESTED MODULE: the raster backend, and the  (v0.1)
                              # in-memory Surface a window draws into.

@@ -28,7 +28,7 @@ func TestTimeTicksPickCalendarUnits(t *testing.T) {
 	for _, c := range cases {
 		s := scale.Time()
 		trainTime(s, start, c.span)
-		ticks := s.Ticks(6)
+		ticks := s.Ticks(scale.TickRequest{Want: 6})
 		if len(ticks) < 2 {
 			t.Errorf("span %v produced %d ticks", c.span, len(ticks))
 			continue
@@ -49,7 +49,7 @@ func TestTimeTicksAreAscendingAndInsideTheDomain(t *testing.T) {
 		s := scale.Time()
 		trainTime(s, start, span)
 		lo, hi := s.Domain()
-		ticks := s.Ticks(6)
+		ticks := s.Ticks(scale.TickRequest{Want: 6})
 		if len(ticks) == 0 {
 			t.Errorf("span %v produced no ticks", span)
 			continue
@@ -75,7 +75,7 @@ func TestTimeTicksHonourTheLocation(t *testing.T) {
 	s := scale.Time(scale.In(loc))
 	trainTime(s, start, 5*24*time.Hour)
 
-	for _, tk := range s.Ticks(5) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		got := scale.FromNanos(tk.Value).In(loc)
 		if got.Hour() != 0 || got.Minute() != 0 {
 			t.Fatalf("daily tick at %v is not local midnight", got)
@@ -89,7 +89,7 @@ func TestTimeDefaultsToUTC(t *testing.T) {
 	start := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
 	s := scale.Time()
 	trainTime(s, start, 6*time.Hour)
-	ticks := s.Ticks(4)
+	ticks := s.Ticks(scale.TickRequest{Want: 4})
 	if len(ticks) == 0 {
 		t.Fatal("no ticks")
 	}
@@ -120,7 +120,7 @@ func TestTimeDegenerateDomain(t *testing.T) {
 	now := time.Date(2026, time.March, 14, 9, 0, 0, 0, time.UTC)
 	s.Train(scale.Nanos(now))
 	s.SetRange(0, 100)
-	if got := s.Ticks(5); len(got) == 0 {
+	if got := s.Ticks(scale.TickRequest{Want: 5}); len(got) == 0 {
 		t.Fatal("a single-instant domain produced no ticks")
 	}
 }

@@ -130,7 +130,8 @@ func (s *symlogScale) Invert(pos float32) float64 {
 	return s.inverse(flo + t*(fhi-flo))
 }
 
-func (s *symlogScale) Ticks(want int) []Tick {
+func (s *symlogScale) Ticks(req TickRequest) []Tick {
+	want := req.Want
 	if want < 2 {
 		want = 2
 	}

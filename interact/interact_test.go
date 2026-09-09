@@ -253,7 +253,7 @@ func TestRowIdentityIsOffUntilAskedFor(t *testing.T) {
 		t.Error("TrackRows(true) did not turn tracking on")
 	}
 	// Marks outside a layer are furniture and carry no row, tracking or not.
-	ix.Marks([]ir.Point{{X: 1, Y: 2}}, []int{7})
+	ix.Marks(geom.MarkRows{At: []ir.Point{{X: 1, Y: 2}}, Rows: []int{7}})
 	if ix.RowCount() != 0 {
 		t.Errorf("a mark reported outside a layer was kept: %d", ix.RowCount())
 	}
@@ -264,8 +264,8 @@ func TestMismatchedRowReportsAreDropped(t *testing.T) {
 	// the shorter of the two would turn it into wrong rows rather than none.
 	ix := interact.New().TrackRows(true)
 	ix.Panel(render.PanelInfo{Area: ir.R(0, 0, 10, 10), X: scale.Linear(), Y: scale.Linear(), Coord: coord.Cartesian()})
-	ix.Layer(0, "s")
-	ix.Marks([]ir.Point{{X: 1}, {X: 2}}, []int{0})
+	ix.Layer(render.LayerInfo{Index: 0, Label: "s"})
+	ix.Marks(geom.MarkRows{At: []ir.Point{{X: 1}, {X: 2}}, Rows: []int{0}})
 	if ix.RowCount() != 0 {
 		t.Errorf("a mismatched report was kept: %d rows", ix.RowCount())
 	}
@@ -274,8 +274,8 @@ func TestMismatchedRowReportsAreDropped(t *testing.T) {
 func TestResetForgetsRows(t *testing.T) {
 	ix := interact.New().TrackRows(true)
 	ix.Panel(render.PanelInfo{Area: ir.R(0, 0, 10, 10), X: scale.Linear(), Y: scale.Linear(), Coord: coord.Cartesian()})
-	ix.Layer(0, "s")
-	ix.Marks([]ir.Point{{X: 1, Y: 1}}, []int{4})
+	ix.Layer(render.LayerInfo{Index: 0, Label: "s"})
+	ix.Marks(geom.MarkRows{At: []ir.Point{{X: 1, Y: 1}}, Rows: []int{4}})
 	if ix.RowCount() != 1 {
 		t.Fatalf("rows = %d", ix.RowCount())
 	}

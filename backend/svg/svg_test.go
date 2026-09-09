@@ -18,7 +18,7 @@ func open(t *testing.T, opts ...svg.Option) (ir.Backend, func() string) {
 	t.Helper()
 	var buf bytes.Buffer
 	target := svg.Writer(&buf, opts...)
-	b, err := target.Open(200, 100, 1)
+	b, err := target.Open(ir.Surface{WidthPx: 200, HeightPx: 100, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestClipAndTransformGroup(t *testing.T) {
 func TestUnbalancedPushIsAnError(t *testing.T) {
 	var buf bytes.Buffer
 	target := svg.Writer(&buf)
-	b, err := target.Open(10, 10, 1)
+	b, err := target.Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -260,7 +260,7 @@ func TestMeasureUsesTheBuiltinTableByDefault(t *testing.T) {
 func TestBadFontIsReportedOnOpen(t *testing.T) {
 	var buf bytes.Buffer
 	target := svg.Writer(&buf, svg.WithFont([]byte("not a font")))
-	if _, err := target.Open(10, 10, 1); err == nil {
+	if _, err := target.Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1}); err == nil {
 		t.Fatal("a malformed font must fail at Open, not silently fall back")
 	}
 }

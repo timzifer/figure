@@ -415,7 +415,7 @@ func reportBoxes(sc *scratch, f Frame, rects []ir.Rect, rows []int, s series) {
 	for i, r := range rects {
 		sc.pts[i] = cd.Point((r.Min.X+r.Max.X)/2, (r.Min.Y+r.Max.Y)/2)
 	}
-	f.Marks(sc.pts, sc.sourceRows(s, rows))
+	f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(s, rows)})
 }
 
 // oneNodeLegend is the single entry a relational layer contributes when every

@@ -2,6 +2,11 @@
 
 **Status:** Accepted · **Date:** 2026-09-08
 
+> **Amended by [ADR 0060](0060-parameter-structs-at-every-seam.md).**
+> `render.ColorbarEntry` and `render.SizeKeyEntry` report through
+> `render.ColorbarInfo` and `render.SizeKeyInfo` rather than positional
+> arguments. Both are still optional interfaces beside `Observer`.
+
 ## Context
 
 [ADR 0047](0047-clickable-legend.md) made a legend row findable and closed with

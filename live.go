@@ -172,7 +172,7 @@ func (p *Plot) Live(t Target) (*Live, error) {
 	if len(p.layers) == 0 && p.x == nil && p.y == nil {
 		return nil, ErrNoLayers
 	}
-	b, err := t.Open(p.width, p.height, p.dpr)
+	b, err := t.Open(ir.Surface{WidthPx: p.width, HeightPx: p.height, DPR: p.dpr})
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func (l *Live) Resize(w, h int) error {
 	l.chart.Width, l.chart.Height = w, h
 	l.chart.Theme = l.p.themeFor(w, h)
 	if r, ok := l.b.(ir.Resizer); ok {
-		if err := r.Resize(w, h, l.dpr); err != nil {
+		if err := r.Resize(ir.Surface{WidthPx: w, HeightPx: h, DPR: l.dpr}); err != nil {
 			return err
 		}
 	}
@@ -294,7 +294,7 @@ func (l *Live) Rescale(dpr float64) error {
 	if !ok {
 		return nil
 	}
-	if err := r.Resize(l.width, l.height, dpr); err != nil {
+	if err := r.Resize(ir.Surface{WidthPx: l.width, HeightPx: l.height, DPR: dpr}); err != nil {
 		return err
 	}
 	// The pixels behind the frame are gone: the surface reallocated them.

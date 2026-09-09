@@ -295,7 +295,8 @@ func (r *Recorder) Damage(rects []ir.Rect) {
 // Resize implements [ir.Resizer]: it records the size a surface was told to
 // take rather than taking one, which is how a test checks that a chart being
 // resized tells its backend so.
-func (r *Recorder) Resize(widthPx, heightPx int, _ float64) error {
+func (r *Recorder) Resize(s ir.Surface) error {
+	widthPx, heightPx := s.WidthPx, s.HeightPx
 	r.Resized = append(r.Resized, [2]int{widthPx, heightPx})
 	return nil
 }
@@ -314,8 +315,8 @@ func (r *Recorder) Target() ir.Target { return recorderTarget{r} }
 
 type recorderTarget struct{ r *Recorder }
 
-func (t recorderTarget) Open(int, int, float64) (ir.Backend, error) { return t.r, nil }
-func (recorderTarget) Close() error                                 { return nil }
+func (t recorderTarget) Open(ir.Surface) (ir.Backend, error) { return t.r, nil }
+func (recorderTarget) Close() error                          { return nil }
 
 var (
 	_ ir.Backend   = (*Recorder)(nil)
@@ -353,8 +354,8 @@ func (null) Measure(run ir.TextRun) ir.TextMetrics { return (&Recorder{}).Measur
 
 type nullTarget struct{}
 
-func (nullTarget) Open(int, int, float64) (ir.Backend, error) { return null{}, nil }
-func (nullTarget) Close() error                               { return nil }
+func (nullTarget) Open(ir.Surface) (ir.Backend, error) { return null{}, nil }
+func (nullTarget) Close() error                        { return nil }
 
 var (
 	_ ir.Backend = null{}

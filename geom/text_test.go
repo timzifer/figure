@@ -58,7 +58,7 @@ func boxed(src data.Source, opts ...geom.Option) geom.Geom {
 
 type rowsFunc func(at []ir.Point, rows []int)
 
-func (f rowsFunc) Marks(at []ir.Point, rows []int) { f(at, rows) }
+func (f rowsFunc) Marks(m geom.MarkRows) { f(m.At, m.Rows) }
 
 func TestALabelSitsInTheMiddleOfItsBox(t *testing.T) {
 	g := boxed(gantt())

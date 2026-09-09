@@ -149,7 +149,7 @@ func TestColorAxisTicksAreDecadesUnderALogRamp(t *testing.T) {
 	axis := scale.ColorAxisOf(c)
 	axis.SetRange(0, 100)
 	var labelled []float64
-	for _, tick := range axis.Ticks(5) {
+	for _, tick := range axis.Ticks(scale.TickRequest{Want: 5}) {
 		if !tick.Minor && tick.Label != "" {
 			labelled = append(labelled, tick.Value)
 		}

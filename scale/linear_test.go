@@ -94,7 +94,7 @@ func TestLinearTicksAreEvenlySpacedAndDistinctlyLabelled(t *testing.T) {
 	for _, c := range cases {
 		s := scale.Linear(scale.Domain(c.lo, c.hi))
 		s.SetRange(0, 500)
-		ticks := s.Ticks(5)
+		ticks := s.Ticks(scale.TickRequest{Want: 5})
 		if len(ticks) < 2 {
 			t.Errorf("domain %v..%v produced %d ticks", c.lo, c.hi, len(ticks))
 			continue
@@ -124,7 +124,7 @@ func TestLinearTicksAreEvenlySpacedAndDistinctlyLabelled(t *testing.T) {
 func TestLinearFractionalStepKeepsItsDecimal(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 10))
 	s.SetRange(0, 400)
-	for _, tk := range s.Ticks(5) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		if tk.Value == 2.5 && tk.Label != "2.5" {
 			t.Fatalf("tick 2.5 is labelled %q", tk.Label)
 		}
@@ -134,7 +134,7 @@ func TestLinearFractionalStepKeepsItsDecimal(t *testing.T) {
 func TestLinearCustomFormat(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 3), scale.Format(func(v float64) string { return "x" }))
 	s.SetRange(0, 100)
-	for _, tk := range s.Ticks(4) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 4}) {
 		if tk.Label != "x" {
 			t.Fatalf("custom format not applied: %q", tk.Label)
 		}
@@ -144,7 +144,7 @@ func TestLinearCustomFormat(t *testing.T) {
 func TestLinearTicksStayInsideTheDomain(t *testing.T) {
 	s := scale.Linear(scale.Domain(1.3, 8.7))
 	s.SetRange(0, 100)
-	for _, tk := range s.Ticks(5) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		if tk.Value < 1.3-1e-9 || tk.Value > 8.7+1e-9 {
 			t.Errorf("tick %v lies outside the pinned domain 1.3..8.7", tk.Value)
 		}
@@ -159,7 +159,7 @@ func TestTickValuesArePinnedExactly(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 20), scale.TickValues(5, 1, 0.2, 0, 2, 0.5))
 	s.SetRange(0, 100)
 	for _, want := range [][]float64{want, want} {
-		got := s.Ticks(3)
+		got := s.Ticks(scale.TickRequest{Want: 3})
 		if len(got) != len(want) {
 			t.Fatalf("got %d ticks, want %d", len(got), len(want))
 		}
@@ -177,7 +177,7 @@ func TestTickValuesArePinnedExactly(t *testing.T) {
 func TestTickValuesOutsideTheDomainAreDropped(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 2), scale.TickValues(-1, 0, 1, 2, 5))
 	s.SetRange(0, 100)
-	got := s.Ticks(5)
+	got := s.Ticks(scale.TickRequest{Want: 5})
 	if len(got) != 3 {
 		t.Fatalf("got %d ticks, want the three inside 0..2: %v", len(got), got)
 	}
@@ -194,7 +194,7 @@ func TestTickValuesLabelToTheTightestSpacing(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 5), scale.TickValues(0, 0.2, 0.5, 1, 2, 5))
 	s.SetRange(0, 100)
 	want := []string{"0.0", "0.2", "0.5", "1.0", "2.0", "5.0"}
-	for i, tk := range s.Ticks(5) {
+	for i, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		if tk.Label != want[i] {
 			t.Errorf("tick %d is labelled %q, want %q", i, tk.Label, want[i])
 		}
@@ -205,7 +205,7 @@ func TestTickValuesYieldToAnExplicitFormat(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 5),
 		scale.TickValues(0, 1, 5), scale.Format(func(v float64) string { return "x" }))
 	s.SetRange(0, 100)
-	for _, tk := range s.Ticks(5) {
+	for _, tk := range s.Ticks(scale.TickRequest{Want: 5}) {
 		if tk.Label != "x" {
 			t.Fatalf("custom format not applied to a pinned tick: %q", tk.Label)
 		}
@@ -217,12 +217,12 @@ func TestTickValuesYieldToAnExplicitFormat(t *testing.T) {
 func TestTickValuesIgnoresAnEmptyList(t *testing.T) {
 	s := scale.Linear(scale.Domain(0, 10), scale.TickValues())
 	s.SetRange(0, 100)
-	if len(s.Ticks(5)) == 0 {
+	if len(s.Ticks(scale.TickRequest{Want: 5})) == 0 {
 		t.Fatal("an empty TickValues silenced the axis")
 	}
 	s = scale.Linear(scale.Domain(0, 10), scale.TickValues(math.NaN(), math.Inf(1)))
 	s.SetRange(0, 100)
-	if len(s.Ticks(5)) == 0 {
+	if len(s.Ticks(scale.TickRequest{Want: 5})) == 0 {
 		t.Fatal("a list of non-finite values silenced the axis")
 	}
 }
@@ -236,7 +236,7 @@ func TestTickValuesSurviveCloneAndSnapshot(t *testing.T) {
 		"snapshot": s.(scale.Snapshotter).Snapshot(),
 	} {
 		copied.SetRange(0, 100)
-		got := copied.Ticks(5)
+		got := copied.Ticks(scale.TickRequest{Want: 5})
 		if len(got) != 3 || got[0].Value != 0 || got[1].Value != 0.5 || got[2].Value != 2 {
 			t.Errorf("%s lost the pinned ticks: %v", name, got)
 		}

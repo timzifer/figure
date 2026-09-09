@@ -199,7 +199,7 @@ func TestAnEmbeddedDocumentIsReproducible(t *testing.T) {
 // than one that never started.
 func TestABadFontIsRefusedAtOpen(t *testing.T) {
 	tg := pdf.Writer(&strings.Builder{}, pdf.WithFont([]byte("not a font"), nil, nil))
-	if _, err := tg.Open(100, 100, 1); err == nil {
+	if _, err := tg.Open(ir.Surface{WidthPx: 100, HeightPx: 100, DPR: 1}); err == nil {
 		t.Error("a font that is not a font was accepted")
 	}
 }

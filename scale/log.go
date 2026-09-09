@@ -149,7 +149,8 @@ func (l *logScale) Invert(pos float32) float64 {
 	return math.Exp(math.Log(lo) + t*(math.Log(hi)-math.Log(lo)))
 }
 
-func (l *logScale) Ticks(want int) []Tick {
+func (l *logScale) Ticks(req TickRequest) []Tick {
+	want := req.Want
 	if want < 2 {
 		want = 2
 	}

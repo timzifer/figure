@@ -114,6 +114,11 @@ func (f Fill) Visible() bool {
 }
 
 // Marker is a scatter-point shape, drawn centred on its position.
+//
+// The set grows at the end, so a backend must not assume it is complete:
+// [MarkerPath] appends the outline of any Marker and appends a circle for one
+// it does not know, which is what keeps a shape added in a later release from
+// being drawn differently — or not at all — by a backend written before it.
 type Marker uint8
 
 // The marker shapes.

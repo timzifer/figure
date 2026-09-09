@@ -238,7 +238,7 @@ func TestCartesianFurnitureIsTheStraightRunsItAlwaysWas(t *testing.T) {
 	c := coord.Cartesian().Frame(coord.Framing{Area: area, X: x, Y: y})
 	var f coord.Furniture
 	m := coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}
-	c.Furniture(&f, area, m, x.Ticks(5), y.Ticks(5))
+	c.Furniture(&f, coord.FurnitureRequest{Area: area, Metrics: m, XTicks: x.Ticks(scale.TickRequest{Want: 5}), YTicks: y.Ticks(scale.TickRequest{Want: 5})})
 
 	if !f.XLabelsShareARow {
 		t.Error("a Cartesian axis writes its labels along one row and must say so")
@@ -264,7 +264,7 @@ func TestPolarFurnitureIsRingsAndSpokes(t *testing.T) {
 	area := ir.R(0, 0, 200, 200)
 	c := coord.Polar().Frame(coord.Framing{Area: area, X: x, Y: y})
 	var f coord.Furniture
-	c.Furniture(&f, area, coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}, x.Ticks(5), y.Ticks(5))
+	c.Furniture(&f, coord.FurnitureRequest{Area: area, Metrics: coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}, XTicks: x.Ticks(scale.TickRequest{Want: 5}), YTicks: y.Ticks(scale.TickRequest{Want: 5})})
 
 	if f.XLabelsShareARow {
 		t.Error("labels round a ring do not share a row and must not be culled as though they did")
@@ -301,14 +301,14 @@ func TestFurnitureResetKeepsItsBuffersAndForgetsItsPoints(t *testing.T) {
 	m := coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}
 
 	var f coord.Furniture
-	c.Furniture(&f, area, m, x.Ticks(8), y.Ticks(8))
+	c.Furniture(&f, coord.FurnitureRequest{Area: area, Metrics: m, XTicks: x.Ticks(scale.TickRequest{Want: 8}), YTicks: y.Ticks(scale.TickRequest{Want: 8})})
 	gridCap := cap(f.GridX)
 	f.Reset()
 	if cap(f.GridX) != gridCap {
 		t.Errorf("Reset gave up the grid buffer: cap %d, was %d", cap(f.GridX), gridCap)
 	}
 	// One tick this time: the shapes behind it must come back empty.
-	c.Furniture(&f, area, m, x.Ticks(2)[:1], nil)
+	c.Furniture(&f, coord.FurnitureRequest{Area: area, Metrics: m, XTicks: x.Ticks(scale.TickRequest{Want: 2})[:1], YTicks: nil})
 	full := f.GridX[:cap(f.GridX)]
 	for i := 1; i < len(full); i++ {
 		if !full[i].Empty() {

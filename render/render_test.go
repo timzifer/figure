@@ -257,7 +257,7 @@ func TestMinorTicksGetAMarkButNoGridLine(t *testing.T) {
 	rec := draw(t, c)
 
 	minors := 0
-	for _, tk := range c.Y.Ticks(theme.Light.TickCountHintY) {
+	for _, tk := range c.Y.Ticks(scale.TickRequest{Want: theme.Light.TickCountHintY}) {
 		if tk.Minor {
 			minors++
 		}
@@ -267,7 +267,7 @@ func TestMinorTicksGetAMarkButNoGridLine(t *testing.T) {
 	}
 	// Five decades, so every labelled Y tick contributes one horizontal grid
 	// line; the subdivisions must contribute none.
-	majors := len(c.Y.Ticks(theme.Light.TickCountHintY)) - minors
+	majors := len(c.Y.Ticks(scale.TickRequest{Want: theme.Light.TickCountHintY})) - minors
 	horizontal := gridLines(rec, theme.Light, true)
 	if horizontal != majors {
 		t.Errorf("got %d horizontal grid lines for %d labelled ticks and %d subdivisions; "+

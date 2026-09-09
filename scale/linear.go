@@ -175,7 +175,8 @@ func (l *linear) Invert(pos float32) float64 {
 // SetLocale implements [Localizer].
 func (l *linear) SetLocale(loc *Locale) { l.loc = loc }
 
-func (l *linear) Ticks(want int) []Tick {
+func (l *linear) Ticks(req TickRequest) []Tick {
+	want := req.Want
 	lo, hi := l.effective()
 	var vals []float64
 	step := 0.0

@@ -113,7 +113,8 @@ type target struct {
 	ctx *gogg.Context
 }
 
-func (t *target) Open(widthPx, heightPx int, dpr float64) (ir.Backend, error) {
+func (t *target) Open(s ir.Surface) (ir.Backend, error) {
+	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if t.opts.fontErr != nil {
 		return nil, t.opts.fontErr
 	}
