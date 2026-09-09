@@ -273,7 +273,7 @@ func TestMeasureUsesTheContextFont(t *testing.T) {
 	defer f.release()
 
 	tgt := canvas.Context(f.ctx)
-	b, err := tgt.Open(400, 300, 1)
+	b, err := tgt.Open(ir.Surface{WidthPx: 400, HeightPx: 300, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestDamageClipsAndClears(t *testing.T) {
 	defer f.release()
 
 	tgt := canvas.Context(f.ctx)
-	b, err := tgt.Open(400, 300, 1)
+	b, err := tgt.Open(ir.Surface{WidthPx: 400, HeightPx: 300, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestElementIsSizedForTheDevicePixelRatio(t *testing.T) {
 	el.Set("style", js.Global().Get("Object").New())
 	f.define(el, "getContext", func(js.Value, []js.Value) any { return f.ctx })
 
-	if _, err := canvas.Element(el).Open(400, 300, 2); err != nil {
+	if _, err := canvas.Element(el).Open(ir.Surface{WidthPx: 400, HeightPx: 300, DPR: 2}); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	if got := el.Get("width").Int(); got != 800 {
@@ -370,7 +370,7 @@ func TestAnImageGoesThroughAScratchCanvas(t *testing.T) {
 	f.define(js.Global(), "ImageData", func(js.Value, []js.Value) any { return nil })
 
 	tgt := canvas.Context(f.ctx)
-	b, err := tgt.Open(400, 300, 1)
+	b, err := tgt.Open(ir.Surface{WidthPx: 400, HeightPx: 300, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
