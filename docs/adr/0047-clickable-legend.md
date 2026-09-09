@@ -141,11 +141,10 @@ legend. Both are reasonable and they conflict; the way out would be for
 `Hidden` to distinguish "not drawn" from "not counted", which is a second flag
 and a second set of consequences rather than a change to this one.
 
-~~A colourbar or a size key wanting to be clickable is the other.~~ **Answered
-by [ADR 0048](0048-clickable-colourbar-and-size-key.md).** The vocabulary it
-needed turned out to be a quantity: a classed bar reports bands with the
-interval they cover, a continuous one reports the value its ramp reaches under
-the pointer, and a size key row reports the magnitude its sample stands for.
-`interact.Guide` was renamed `interact.LegendRow` there, because once there
-were three kinds of actionable furniture the general name on the specific one
-was misleading.
+A colourbar and a size key answer to a pointer through
+[ADR 0048](0048-clickable-colourbar-and-size-key.md), in a vocabulary of
+quantity rather than of series: a classed bar reports bands with the interval
+they cover, a continuous one the value its ramp reaches under the pointer, and
+a size key row the magnitude its sample stands for. That is why the kind here
+is `interact.LegendRow` rather than a general `Guide` — with three kinds of
+actionable furniture, the general name on the specific one misleads.

@@ -170,7 +170,7 @@ and the wording is decided here rather than left to the commit that does it:
 > preferred to carrying the mistake. The `v0.x` series widens `Geom.Train`,
 > `Observer.Panel` and `Coord.Frame` from positional scale arguments to
 > growable parameter structs, so that adding a dimension is additive from then
-> on ([ADR 0056](docs/adr/0056-three-dimensional-charts.md)).
+> on ([ADR 0056](0056-three-dimensional-charts.md)).
 
 The deprecation cycle CONCEPT promises for the removals is not skipped so much
 as unnecessary — it exists for callers, and the release notes say precisely who

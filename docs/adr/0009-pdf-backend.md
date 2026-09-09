@@ -4,7 +4,7 @@
 
 ## Context
 
-[CONCEPT.md §14](../../CONCEPT.md#14-roadmap--milestones) puts PDF in v0.3 and
+[CONCEPT.md §14](../../CONCEPT.md#14-what-is-built-and-what-is-next) puts PDF in v0.3 and
 names the route: gg's recording API, played back through
 [`gg-pdf`](https://github.com/gogpu/gg-pdf). [ADR 0006](0006-gg-coupling-surface.md)
 excluded `gg/recording` from the adapter and said so explicitly — "neither is

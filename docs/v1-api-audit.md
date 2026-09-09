@@ -1,13 +1,11 @@
 # v1 API freeze audit
 
-> **Historical.** This audit was written for the freeze that shipped as
-> `refract v1.0.0`. The library has since been renamed to `figure` and restarted
-> in the `v0.x` series
-> ([ADR 0059](adr/0059-renaming-and-restarting-the-version.md)), and three of
-> the seams this document froze are being widened before `v1.0.0` is tagged
-> again ([ADR 0056](adr/0056-three-dimensional-charts.md)). It is kept because
-> its verdicts are the reasoning behind the API that exists, not because its
-> version numbers are current.
+> **A record, not a plan.** This audit walked every exported identifier before
+> the API froze and gave each a verdict. It is kept because those verdicts are
+> the reasoning behind the API that exists — not because the version numbers in
+> it are current. Three of the seams it froze are being widened
+> ([ADR 0056](adr/0056-three-dimensional-charts.md),
+> [ADR 0060](adr/0060-parameter-structs-at-every-seam.md)).
 
 This is the last question asked of the public API before it freezes: not *what
 is missing*, but *which decision would we regret in six months once it is

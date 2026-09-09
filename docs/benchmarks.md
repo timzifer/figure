@@ -177,3 +177,7 @@ Measured on linux/amd64, Intel(R) Xeon(R) Processor @ 2.80GHz.
 |---|---:|---:|---:|
 | `BorrowedFloat64Column` | 346 ns | 536 B | 6 |
 | `WidenedInt64Column` | 8.68 ms | 7.6 MB | 7 |
+
+---
+
+**[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Chart forms](charts.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Chart-type catalogue](chart-types.md) · [How it was built](milestones.md)

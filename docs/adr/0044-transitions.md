@@ -4,7 +4,7 @@
 
 ## Context
 
-[CONCEPT §14](../../CONCEPT.md#14-roadmap--milestones) closes its animation
+[CONCEPT §14](../../CONCEPT.md#14-what-is-built-and-what-is-next) closes its animation
 entry with a sentence that is a design decision rather than an observation:
 
 > The step is a key concept, not an interpolation layer.

@@ -118,9 +118,8 @@ from.
 
 ## Revisit if
 
-~~Someone wants to drag a *range* on a continuous bar.~~ **Done in the same
-release**, and it needed no new vocabulary — which is what the guess above got
-right. `Input` remembers whether a press landed on a colourbar and, if it did,
+Dragging a *range* on a continuous bar needs no new vocabulary. `Input`
+remembers whether a press landed on a colourbar and, if it did,
 the drag is a range along the bar whatever `Input.Drag` says: a bar cannot be
 panned and there is no view on it to zoom, so a drag over one has exactly one
 sensible reading and a mode would only have let a caller ask for a wrong one.

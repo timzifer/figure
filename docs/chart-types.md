@@ -18,30 +18,30 @@ no code** — [ADR 0050](adr/0050-locus-annotations.md) through
 [ADR 0054](adr/0054-statistical-instruments.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
-answered again, differently, later. Each is additive and nothing in v1.7 waits
+answered again, differently, later. Each is additive and nothing shipped waits
 on any of them.
 
 ## The plumbing, and what it unlocks
 
 | Piece | Status | Unlocks |
 |---|---|---|
-| A data-driven rectangle mark (`geom.Rect`) | **shipped in v0.7** | heatmap, gantt, candlestick, waterfall, bullet, waffle, calendar |
-| Groups in one layer (`geom.GroupBy`) + discrete colour (`scale.Qualitative`) | **shipped in v0.7** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | every multi-series form; prerequisite for stacking |
-| Multi-entry legends (`geom.Legender`) | **shipped in v0.7** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | pie, stacks, treemap, waffle, sankey |
-| Position adjustments (stack / dodge / fill / wiggle) | **shipped in v0.7** — [ADR 0019](adr/0019-position-adjustments.md) | stacked and grouped bars, stacked area, streamgraph, funnel, marimekko, ridgeline, **and pie** |
-| Coordinate systems (`coord.Polar`) | **shipped in v0.8** — [ADR 0018](adr/0018-coordinate-systems.md) | pie, donut, radar, rose, wind rose, gauge |
-| A band at a panel's edge on a shared axis (`Plot.Track`) | **shipped in v0.10** — [ADR 0031](adr/0031-tracks.md) | gantt strip under a trace, rug plot, event ribbon, sparkline gutter, shift bands; beside it, colour keys and marginal distributions |
-| A size channel (`geom.SizeBy` + a size scale) | **shipped in v0.9** — [ADR 0027](adr/0027-size-channel-and-the-guide-column.md) | bubble |
-| Distribution stats (`Bin`, KDE, hexbin, ECDF, loess) | **shipped in v0.9** — [ADR 0028](adr/0028-distribution-stats.md) | histogram, violin, hexbin, ridgeline, beeswarm, smoothing |
-| A Smith coordinate system (`coord.Smith`) + pinned ticks (`scale.TickValues`) | **shipped in v1.2** — [ADR 0033](adr/0033-smith-charts.md) | Smith chart, admittance (Y) chart, matching-network locus, impedance region |
-| Relational layouts (squarify, sankey, chord) | **shipped in v1.4** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
+| A data-driven rectangle mark (`geom.Rect`) | **shipped** | heatmap, gantt, candlestick, waterfall, bullet, waffle, calendar |
+| Groups in one layer (`geom.GroupBy`) + discrete colour (`scale.Qualitative`) | **shipped** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | every multi-series form; prerequisite for stacking |
+| Multi-entry legends (`geom.Legender`) | **shipped** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | pie, stacks, treemap, waffle, sankey |
+| Position adjustments (stack / dodge / fill / wiggle) | **shipped** — [ADR 0019](adr/0019-position-adjustments.md) | stacked and grouped bars, stacked area, streamgraph, funnel, marimekko, ridgeline, **and pie** |
+| Coordinate systems (`coord.Polar`) | **shipped** — [ADR 0018](adr/0018-coordinate-systems.md) | pie, donut, radar, rose, wind rose, gauge |
+| A band at a panel's edge on a shared axis (`Plot.Track`) | **shipped** — [ADR 0031](adr/0031-tracks.md) | gantt strip under a trace, rug plot, event ribbon, sparkline gutter, shift bands; beside it, colour keys and marginal distributions |
+| A size channel (`geom.SizeBy` + a size scale) | **shipped** — [ADR 0027](adr/0027-size-channel-and-the-guide-column.md) | bubble |
+| Distribution stats (`Bin`, KDE, hexbin, ECDF, loess) | **shipped** — [ADR 0028](adr/0028-distribution-stats.md) | histogram, violin, hexbin, ridgeline, beeswarm, smoothing |
+| A Smith coordinate system (`coord.Smith`) + pinned ticks (`scale.TickValues`) | **shipped** — [ADR 0033](adr/0033-smith-charts.md) | Smith chart, admittance (Y) chart, matching-network locus, impedance region |
+| Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
 | A locus: a family of curves given by a formula (`geom.Locus`) | **planned** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 
-## A — needs a rectangle mark, and nothing else — **shipped in v0.7**
+## A — needs a rectangle mark, and nothing else — **shipped**
 
 `geom.Rect` occupies an arbitrary `[x0,x1] × [y0,y1]` per row: `geom.X2(col)`
 gives the far horizontal edge and `geom.Y2(col)` the far vertical one, and an
@@ -70,7 +70,7 @@ is therefore passed the layer's encoding as well as the mark: a rect with a
 Vega-Lite resolves the same ambiguity. `spec`'s round-trip test draws both in
 one chart, which is what would catch getting it wrong.
 
-## B — needs a position adjustment — **shipped in v0.7**
+## B — needs a position adjustment — **shipped**
 
 See [ADR 0019](adr/0019-position-adjustments.md). Stacked bars, grouped bars,
 stacked area, 100 % stacked and streamgraph/ThemeRiver are `geom.GroupBy` plus
@@ -86,7 +86,7 @@ deliberately does not move the slots, because unequal slots that label
 themselves are an axis question rather than an adjustment one. A **ridgeline**
 still waits on the KDE in F.
 
-## C — needs polar coordinates — **shipped in v0.8**
+## C — needs polar coordinates — **shipped**
 
 See [ADR 0018](adr/0018-coordinate-systems.md). `coord.Polar` wraps one axis
 around a circle and reads the other as a radius; nothing in this family is a new
@@ -127,11 +127,12 @@ rather than a radius the geom adds
 
 **A pie has no axis worth labelling**, so `theme.Grid(false, false)`,
 `theme.AxisLines(false, false)` and `theme.Ticks(false, false)` are the three
-switches that turn the furniture off. The third of them is new in v0.8, and
+switches that turn the furniture off. The third of them came with the
+coordinate stage, and
 [ADR 0018](adr/0018-coordinate-systems.md) is why: "suppress the furniture" had
 no home before the coord gave it one.
 
-## D — needs a new aesthetic channel — **shipped in v0.9**
+## D — needs a new aesthetic channel — **shipped**
 
 **Bubble** is `geom.SizeBy(col, scale.Size())`. The scale maps by **area**, not
 radius — doubling a value multiplies the diameter by √2 — because a reader
@@ -155,11 +156,12 @@ be a data race.
 **Parallel coordinates** needs no new channel but does need per-axis scales
 inside one panel, which makes it a near-relative of radar: both draw their own
 axes inside the plot area. Radar got its axes from `coord.Polar`'s furniture in
-v0.8 — spokes and rings the coord reports and `render` strokes — and parallel
+the coordinate stage — spokes and rings the coord reports and `render`
+strokes — and parallel
 coordinates would want the same shape of answer from a coord of its own rather
 than a second one drawn by a geom.
 
-## E — needs a relational layout — **shipped in v1.4**, except force-directed node-link and Venn
+## E — needs a relational layout — **shipped**, except force-directed node-link and Venn
 
 Sankey/alluvial, chord, arc diagram, node-link, treemap, sunburst/icicle,
 Venn/UpSet.
@@ -185,7 +187,8 @@ be two: the legend and the hit test were already general enough, which is what
 
 **Four marks, six charts.** Every layout here fills the unit square — a span
 across, a height out — and the coordinate stage decides what that looks like.
-That is the v0.8 move made twice: an icicle wrapped round a circle is a
+That is the coordinate stage's move made twice: an icicle wrapped round a
+circle is a
 sunburst, and an arc diagram with its rail at the rim is a chord diagram.
 Neither is a mark of its own, for the same reason a pie is not a second
 implementation of a bar.
@@ -221,10 +224,10 @@ binds force layouts and not tree layouts: Reingold–Tilford, in Buchheim's
 linear-time form, is O(n), deterministic and bounded, which is `stat.Squarify`'s
 shape exactly. See [ADR 0053](adr/0053-tidy-tree-layout.md).
 
-## F — needs new stats — **shipped in v0.9**, except contour
+## F — needs new stats — **shipped**, except contour
 
-`CONCEPT §8` promised `Bin`, `Density` and `Smooth` from v0.1 and `stat/` did not
-carry them until v0.9. It does now, and each is a pure function with an `Append`
+`CONCEPT §8` promised `Bin`, `Density` and `Smooth`, and `stat/` carries them:
+each is a pure function with an `Append`
 form and a determinism test, per CONTRIBUTING's rule for reductions.
 
 | Chart | Stat | Mark |
@@ -262,13 +265,13 @@ and `Silverman` takes two spread measures, because sorting means a buffer and th
 geoms already keep one — one per layer, for the reason `barGeom.gaps` is on the
 layer rather than in the frame's pool.
 
-## G — needs a Smith coordinate system — **shipped in v1.2**
+## G — needs a Smith coordinate system — **shipped**
 
 See [ADR 0033](adr/0033-smith-charts.md). A Smith chart is a conformal map of
 the impedance half-plane onto the unit disc, Γ = (z−1)/(z+1). It is the one form
 in this catalogue that no general-purpose library draws, and it needed exactly
 one piece of plumbing — a coord — because everything else it wants shipped
-between v0.1 and v0.9.
+in the package all along.
 
 | Chart | Recipe |
 |---|---|
@@ -320,13 +323,14 @@ something else.
 
 A **locus** is a family of curves given by a formula rather than by data: the
 set of points in the plane where some derived quantity is constant. `geom.HLine`
-is the degenerate member of the family and has been there since v0.1.
+is the degenerate member of the family.
 
 The bucket exists because four charts wanted the same thing and each was
 individually too small to build machinery for. It is an annotation and not
 furniture — `render` still walks two tick lists and still labels nothing a
 scale did not write — and because a locus is defined in **data space**, the
-coordinate stage draws it. That is the v0.8 move again: a VSWR circle is not
+coordinate stage draws it. That is the coordinate stage's move again: a VSWR
+circle is not
 implemented as a circle, it is implemented as the set of impedances whose
 reflection has a given magnitude, and `coord.Smith` makes it a circle.
 
@@ -379,7 +383,7 @@ seam — once, together with a projection's graticule, rather than twice.
 
 Probability paper: an axis warped so that one distribution's cumulative
 function plots as a straight line, and the line's slope and intercept are the
-fitted parameters. `geom.QQ` from v1.5 is the same information the other way
+fitted parameters. `geom.QQ` is the same information the other way
 round — it warps the sample and leaves the axis linear, so its ladder is
 labelled in z-scores; this warps the axis, so the ladder is labelled in
 percentages, which is what the reader came for.
@@ -419,13 +423,13 @@ predicted a node-link layout would read.
 
 The last one is the reason to build it. It is the most-published figure shape
 in bioinformatics, it needs a rectangle, a colour ramp, an ordinal axis and a
-band at a panel's edge — all four of which shipped by v0.10 — and it has been
+band at a panel's edge — all four of which are drawn today — and it has been
 one missing band's worth of content away ever since.
 
 ## M — needs a domain reduction — **planned**, [ADR 0054](adr/0054-statistical-instruments.md)
 
 The other buckets are missing a shape. This one is missing only **arithmetic**:
-every chart in it is drawable with marks that shipped by v0.10, and none of them
+every chart in it is drawable with the marks that exist, and none of them
 can be drawn because figure does not hold the numbers.
 
 The admission rule, which is what the record is really for: *a reduction belongs
@@ -451,7 +455,7 @@ chart is for.
 missing.** A **forest plot** is `ErrorBar` + `Text` + a `Track` (the pooled
 estimate is a meta-analysis and is the caller's); a **funnel plot** is a scatter
 plus bucket I's contours; a **Pareto chart** is sorted bars with the cumulative
-percentage on the secondary axis v1.3 shipped; **Bland–Altman** is a scatter and
+percentage on the secondary axis; **Bland–Altman** is a scatter and
 three reference lines.
 
 ## Already possible today
@@ -464,75 +468,48 @@ statement is `ErrorBar`); a **step chart** is `Step`; a
 callouts** are the annotations in `geom/annotate.go`; a **slope chart** is a
 line over two ordinal positions. What these lack is gallery figures, not code.
 
-## Sequence
+## What is left, in the order the records argue for
 
-The dependency order is not a preference:
+Buckets A to H are drawn today: `geom.Rect` and the eight charts that are one
+box per row; `GroupBy` with discrete colour and multi-entry legends
+([ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md)); position
+adjustments ([ADR 0019](adr/0019-position-adjustments.md)); the coordinate
+stage ([ADR 0018](adr/0018-coordinate-systems.md)); the size channel and the
+generalised guide column
+([ADR 0027](adr/0027-size-channel-and-the-guide-column.md)); the distribution
+stats ([ADR 0028](adr/0028-distribution-stats.md)); the Smith coord
+([ADR 0033](adr/0033-smith-charts.md)); the relational layouts
+([ADR 0039](adr/0039-relational-layouts.md)); and the overlay layer the chart
+itself owns — a tooltip, a crosshair, a brush rectangle — drawn last and
+announced to no observer, because a tooltip a pointer can hit is a tooltip that
+flickers ([ADR 0046](adr/0046-overlay-layer.md)). Label collision avoidance is
+opt-in per layer ([ADR 0040](adr/0040-label-collision-avoidance.md)).
 
-1. ~~**`geom.Rect`**~~ — shipped in v0.7; unlocked eight charts (A).
-2. ~~**`GroupBy` + discrete colour + `Legender`**~~ — shipped in v0.7; the
-   keystone nothing after it works without
-   ([ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md)).
-3. ~~**Position adjustments**~~ — shipped in v0.7
-   ([ADR 0019](adr/0019-position-adjustments.md)): B, and the second half of
-   what a pie needs.
-4. ~~**Position adjustments**~~ — see 3.
-5. ~~**`coord/`**~~ — shipped in v0.8
-   ([ADR 0018](adr/0018-coordinate-systems.md)): C.
-6. ~~**The size channel**~~ — shipped in v0.9
-   ([ADR 0027](adr/0027-size-channel-and-the-guide-column.md)): D, and the guide
-   column generalised.
-7. ~~**The stat family**~~ — shipped in v0.9
-   ([ADR 0028](adr/0028-distribution-stats.md)): F, less contour and QQ.
-8. ~~**A Smith coord**~~ — shipped in v1.2
-   ([ADR 0033](adr/0033-smith-charts.md)): G, on the seam v0.8 already cut.
-9. ~~**Bucket H**~~ — shipped: the gaps that are not chart types at all. It is
-   listed last in this order and first in nothing, because sorting by
-   machinery is what makes a schedule and these have none — each is small,
-   independent, and was blocking a whole class of charts from being *usable*
-   rather than from being drawn. The bucket is now empty: the last of it
-   was an **overlay layer the chart itself owns** — a tooltip, a crosshair, a
-   brush rectangle — which `interact` cannot draw because it only reads, and
-   which shipped in v1.8 as a stage in `render`, the one package that knows
-   drawing order ([ADR 0046](adr/0046-overlay-layer.md)). It is drawn last and
-   announced to no observer, so what it draws is not hit-testable: a tooltip a
-   pointer can hit is a tooltip that flickers. **Label collision
-   avoidance** is implemented for the next release through
-   `geom.AvoidOverlap(true)` ([ADR 0040](adr/0040-label-collision-avoidance.md)).
-10. ~~**Relational layouts**~~ — E, shipped in v1.4
-   ([ADR 0039](adr/0039-relational-layouts.md)): the only bucket that shared
-   nothing with the others, and therefore the only one that could be moved
-   without cost.
+What is left is five records, listed in the order they argue for — a dependency
+order rather than a preference. The first is the only one anything else waits
+on.
 
-The five that follow are planned. They are listed in the order their records
-argue for, which is again a dependency order rather than a preference — the
-first is the only one anything else waits on.
-
-11. **A locus** — I ([ADR 0050](adr/0050-locus-annotations.md)). First, because
+1. **A locus** — I ([ADR 0050](adr/0050-locus-annotations.md)). First, because
    it is the only one of the five with a dependent: bucket J keeps it as the
    escape hatch for a fourth grid family, and bucket M's funnel plot is a
    scatter plus one. It also closes three lines ADR 0033 left open, which no
    other work will close.
-12. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
-   widest genuine gap in the general-purpose world with a real user base, on the
-   seam v0.8 already cut, and the cheapest coord in the package because the map
-   is affine.
-13. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
+2. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
+   widest genuine gap in the general-purpose world with a real user base, on
+   the seam the coordinate stage already cut, and the cheapest coord in the
+   package because the map is affine.
+3. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
    The smallest diff in this list and the one with the rarest output: five
    charts and no new mark, because every one of them is `geom.ECDF` on a warped
    axis.
-14. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
+4. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
    four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.
-15. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
+5. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
    Last, and deliberately: it is the widest reach in the catalogue and the least
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.
 
-**Sankey deliberately sat last, and the order was right.** It was the single
-most-requested form in this catalogue that benefits from none of the plumbing
-above, and pulling it forward would have delayed the four pieces that unlock
-everything else. What the wait bought is visible in the diff: the multi-entry
-legend of v0.7, the coordinate stage of v0.8 and the subpath-per-mark hit test
-of v0.5 were all already general enough, so two of the four things this bucket
-was said to need turned out to need nothing at all — and the two recipes,
-sunburst and chord, cost no code whatsoever.
+---
+
+**[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Chart forms](charts.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Benchmarks](benchmarks.md) · [How it was built](milestones.md)

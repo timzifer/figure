@@ -1,13 +1,12 @@
 # 0018 — Coordinates are a stage between the scales and the IR
 
-**Status:** Accepted · **Date:** 2026-09-04 · **Implemented:** v0.8, with the amendments below
+**Status:** Accepted · **Date:** 2026-09-04
 
-> **Superseded in one detail.** `Coord.Frame` took `(area ir.Rect, x, y
-> scale.Scale)` when this was written and now takes a single
-> `coord.Framing`, so that a third positional scale never has to be added to a
-> method implemented outside the module
-> ([ADR 0056](0056-three-dimensional-charts.md)). The signatures quoted below
-> are the originals; everything they are quoted to argue is unchanged.
+> **Current shape:** `Coord.Frame` takes a single `coord.Framing`, so that a
+> third positional scale never has to be added to a method implemented
+> outside the module ([ADR 0056](0056-three-dimensional-charts.md)). The
+> signatures quoted below are the originals; what they are quoted to argue is
+> unchanged.
 
 ## Context
 

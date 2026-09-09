@@ -108,7 +108,7 @@ away; nothing in the toolchain will tell you that you have.
 **Scales snap their endpoints.** `Map` returns the exact range bounds for the
 exact domain bounds. Without that, a tick on the plot edge lands a float32 ulp
 outside it and gets culled. There is a test; do not "simplify" it away. Every
-scale does this, including the ones added in v0.2.
+scale does this.
 
 **There is one layout solver, and every chart goes through it.**
 `layout.Compute` is `layout.Panels` over a one-by-one grid, and `render.Draw`
@@ -539,7 +539,7 @@ the wrong conversion to reach for near a rebased axis: the domain values, the
 JSON spec writes it out for that reason.
 
 **The raster backend draws italic now, and `WithFont` takes three fonts.**
-`ir.FontRef.Italic` has existed since v0.1 and `backend/gg` ignored it, which
+`ir.FontRef.Italic` was ignored by `backend/gg` once, which
 was invisible until a typesetter started producing italic runs — at which point
 the PNG and the SVG of the same chart would have disagreed in the
 documentation. The default set parses `goitalic` alongside `goregular` and
@@ -689,7 +689,8 @@ twenty allocations; that was measured, and it is why the signature differs from
 the one ADR 0018 sketched.
 
 **A hit on a filled mark is decided against the outline, not the box.**
-`interact.inside` ray-casts the subpath the drawing call carried. Until v0.8
+`interact.inside` ray-casts the subpath the drawing call carried. Before the
+coordinate stage
 every filled mark figure drew was a rectangle, so its bounding box *was* its
 shape; a pie's wedges have boxes that overlap almost completely, and a hit
 decided on the box alone names whichever wedge was indexed last. The row behind
@@ -807,7 +808,7 @@ outranks training.
 
 **The guide column is one list, and a fourth kind must not make it four.**
 `layout.Guide` carries what the solver needs of any guide and `GridResult.Guides`
-is the boxes, parallel and in order. v0.9 generalised it once rather than
+is the boxes, parallel and in order. It was generalised once rather than
 extending it twice — see
 [ADR 0027](docs/adr/0027-size-channel-and-the-guide-column.md). Adding a kind is
 a `GuideKind` constant, a measuring function and a drawing function; adding a
@@ -964,15 +965,12 @@ property of watching, not of animating, but it is where someone will notice it.
 
 ## Open questions
 
-[CONCEPT.md §17](CONCEPT.md#17-open-decisions) lists the design decisions that
-were genuinely open. All seven are closed and recorded in [docs/adr](docs/adr):
-§17.3, Vega-Lite spec fidelity, was settled in v0.5 by
-[ADR 0014](docs/adr/0014-json-spec.md), and §17.7, the third-party extension
-API, was the last — held open on purpose until the v1 freeze and settled there
-by [ADR 0029](docs/adr/0029-extension-model.md). A question that opens after
-v1.0 is answered the same way: with a record in `docs/adr`, never in passing.
-The most recent, [ADR 0030](docs/adr/0030-arrow-major-version.md), is the
-Arrow adapter's major version, which is why its import path ends in `/v18`.
+[CONCEPT.md §17](CONCEPT.md#17-the-decisions-this-design-rests-on) lists the
+rules the design rests on. Every one has a record in [docs/adr](docs/adr) —
+§17.3, the JSON dialect, is [ADR 0014](docs/adr/0014-json-spec.md); §17.7, the
+third-party extension API, is
+[ADR 0029](docs/adr/0029-extension-model.md). A question that opens from here
+is answered the same way: with a record in `docs/adr`, never in passing.
 
 Optional interfaces are how this codebase extends a type without breaking
 everyone who implements it: `scale.Definite`, `scale.Categorical`,
@@ -984,8 +982,8 @@ everyone who implements it: `scale.Definite`, `scale.Categorical`,
 `mathtext.Plainer`. Reach for one before adding a method to `Scale`, `Geom` or
 `Backend`. `geom.Legender` is the newest and the argument is worth keeping in
 view: a pie, a stack and a waffle contribute N legend entries from one layer,
-and adding a second method to `Geom` for them would have broken every
-implementation and spent the v1.0 freeze before the evidence for it existed.
+and adding a second method to `Geom` for them would break every implementation
+for a shape only some layers have.
 
 `Cloner`, `Snapshotter` and `Zoomer` are three different things and none
 substitutes for another: Clone hands back an *untrained* copy for a free facet
@@ -994,16 +992,12 @@ scale in place for a pan or a zoom.
 
 ## Scope
 
-The roadmap in [CONCEPT.md §14](CONCEPT.md#14-roadmap--milestones) is what this
-project is doing and in what order. Everything through v0.9 has shipped, and so
-has everything the v1.0 line asks for short of the tag itself: the API audit,
-the extension model, the docs, the gallery and the benchmark suite. What is
-left for v1.0 is the release — the order is in
-[CONTRIBUTING](CONTRIBUTING.md#releasing) — and everything after it is listed
-under *Beyond v1.0*. Adding a stub for one of those is not progress towards it:
-the seams exist, that is enough.
+[CONCEPT.md §14](CONCEPT.md#14-what-is-built-and-what-is-next) says what exists
+and what is next, in the order it is being done. Adding a stub for something on
+that list is not progress towards it: the seams exist, that is enough. The
+release order is in [CONTRIBUTING](CONTRIBUTING.md#releasing).
 
-Things v1.4 deliberately did not do. There is **no node-link layout**: a force
+Deliberately not done. There is **no node-link layout**: a force
 simulation's whole method is to run until it settles, so it cannot be a pure
 function of its input at a bounded sweep count that also looks good, and
 [ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own terms
@@ -1022,7 +1016,7 @@ is the first time that has been true and is
 [ADR 0015](docs/adr/0015-hit-testing.md)'s revisit clause rather than this
 record's.
 
-Things v0.9 deliberately did not do. A **hexbin has no colourbar**, for the
+Deliberately not done. A **hexbin has no colourbar**, for the
 ordering reason above. A **histogram ignores `GroupBy`**. A **sized layer draws
 circles** and ignores `geom.Shape`: a marker ladder is a redundant encoding for
 telling series apart, and a bubble cloud is one series. A **violin's widths are
@@ -1035,7 +1029,7 @@ quantile function, which is a distribution library rather than a chart. And
 `geom.Ridgeline` is the **first geom that refuses a scale outright** — it errors
 on a continuous Y axis rather than drawing every ridge on top of the last.
 
-Things v1.2 deliberately did not do. A Smith chart has **no constant-|Γ| (VSWR)
+Deliberately not done. A Smith chart has **no constant-|Γ| (VSWR)
 circles, no constant-Q arcs and no combined ZY overlay** — each is a third grid
 family against two tick lists, per the trap above — and it reads a **normalised
 impedance** rather than the reflection coefficient a VNA reports, for the same
@@ -1043,7 +1037,7 @@ reason. `coord.SmithZ` is the bridge. It does not implement `coord.Exploder`:
 the middle of a Smith chart is a matched load, not an origin of magnitude, so
 there is no direction away from it that means anything. And it does not zoom.
 
-Things v0.8 deliberately did not do. There is no **geographic projection**: a
+Deliberately not done. There is no **geographic projection**: a
 projection transforms every point with no linear interval underneath it, which
 is a wider seam than this one, and ADR 0018 says it is argued on its own
 evidence rather than smuggled in as a third `Coord`. A polar coord **does not
@@ -1056,7 +1050,7 @@ spiralling through three revolutions does not wrap. And a curve is hit-tested as
 its control polygon, so a filled shape can be pointed at a little way outside
 its ink at a bulge.
 
-Things the v0.8 sugar deliberately did not do. There is no `geom.Slice` and
+Deliberately not done. There is no `geom.Slice` and
 there are no `Inner`/`Outer` channels: `Geom.Train` is handed the two scales and
 no coord, so a layer cannot know at training time which of them is the radius —
 a channel that only exists under one coord would be the pie geom this project
@@ -1069,7 +1063,7 @@ layer that asks for a break-out under a coord that cannot answer draws what it
 drew, silently: an error would make every Cartesian chart's option list
 conditional on a coord chosen somewhere else.
 
-Things v0.7 deliberately did not do. A grouped **line, step and scatter do not
+Deliberately not done. A grouped **line, step and scatter do not
 stack**: two series drawn over one another are two readings, and adding them
 would invent a third nobody measured. Stacking accumulates in group order, so a
 stack of mixed signs runs each segment from where the last one ended rather than
@@ -1083,8 +1077,8 @@ a group column that is numeric or temporal is formatted into a label per row,
 which is a cost of naming a category with a number rather than of grouping: the
 allocation gate uses a text column, which is what a series column is.
 
-Things v0.6 deliberately did not do. The GPU tier is opt-in beta and stays that
-way past v1.0 — for server-side stills the CPU rasterizer and the vector
+Deliberately not done. The GPU tier is opt-in beta and stays that
+way off — for server-side stills the CPU rasterizer and the vector
 emitters are the supported path. The window is compiled by CI and never opened
 by it, because a runner has no display; what is tested is everything that is not
 the window, which is the same hole `backend/canvas` has about a browser. The
@@ -1097,8 +1091,8 @@ ten thousand elements, and the data table is the better answer to the same
 question. And a description is a snapshot: data that changes afterwards leaves
 it stale, which is why `Describe` is a call rather than a flag.
 
-Things v0.5 deliberately did not do. There was no native window and no GPU tier;
-both landed in v0.6 and both needed GoGPU packages that milestone did not touch.
+Deliberately not done. There was no native window and no GPU tier;
+both needed GoGPU packages the raster backend does not touch.
 A hit
 reports data values rather than a row number, because carrying row identity
 through decimation is bookkeeping the design avoids. Damage is per drawing
@@ -1107,7 +1101,7 @@ path is canvas 2D, not WebGPU — gg has no `syscall/js` in it at the pinned
 version, so there was no WebGPU path to take
 ([ADR 0017](docs/adr/0017-browser-backend.md)).
 
-Things v0.4 deliberately did not do, in case they look like oversights.
+Deliberately not done, in case they look like oversights.
 `stat` carries the decimation family and nothing else: smoothing, regression and
 hexbin are stats rather than big-data machinery, and they belong with the geoms
 that would draw them. There is no `StreamSource` and no snapshot/swap, because
@@ -1118,7 +1112,7 @@ different decision with a different shape. And the Arrow adapter does not handle
 `float16`, decimals or extension types; nothing that plots produces them yet,
 and an untested conversion is worse than an absent one.
 
-One thing v0.3 deliberately did not do, still true: a colourbar is vertical, in
+One thing deliberately not done: a colourbar is vertical, in
 the guide column; a horizontal one under the plot is a layout question, not a
 drawing one. The other — "a PDF is one page with no embedded font: text outside
 WinAnsi becomes `?`" — is half closed. It is still one page, and the *default*

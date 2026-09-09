@@ -270,7 +270,7 @@ what catch forgetting.
 **A guide** — a third kind beside the legend and the colourbar — is a
 `layout.GuideKind` constant, a measuring function in `layout`, and a drawing
 function in `render`. It is not a field on `layout.Grid`: the guide column is
-one list with one stacking rule, generalised once in v0.9 rather than extended
+one list with one stacking rule, generalised once rather than extended
 twice ([ADR 0027](docs/adr/0027-size-channel-and-the-guide-column.md)). The
 layer contributes it through an optional interface — `geom.Guided`,
 `geom.Sized` — never through a method on `Geom`.
@@ -290,7 +290,7 @@ furniture and belongs on every panel of a facet.
 
 Anything that changes the IR or the `Backend` interface needs an ADR. So does
 anything that answers one of the open questions in
-[CONCEPT.md §17](CONCEPT.md#17-open-decisions).
+[CONCEPT.md §17](CONCEPT.md#17-the-decisions-this-design-rests-on).
 
 ## Tests
 
@@ -395,7 +395,7 @@ stops. Re-run it with `-push` to write the tags on `HEAD` and push them.
 
 ```
 Would tag HEAD:
-  v0.8.0                 v0.8.0 — the first release under this name
+  v0.8.0                 v0.8.0 — the release being tagged
   backend/gg/v0.8.0      backend/gg v0.8.0 — the raster path at core v0.8.0
   arrow/v18.0.4          arrow/v18.0.4 — the adapter at core v0.8.0
   backend/gg/gpu/v0.3.0  backend/gg/gpu v0.3.0 — the tier at core v0.8.0
@@ -454,7 +454,7 @@ post-tag check is a backstop, not a substitute for the pre-tag command.
 A nested module's `require` on the core is a floor, not a pin — minimal version
 selection raises it for anyone who imports both — so it only moves when the
 module needs a core API the required core does not have. The Arrow adapter's
-did between v1.2.0 and v1.5.0. `releasecheck` is what says so: that module's
+did between two of its own releases. `releasecheck` is what says so: that module's
 build or test fails, with the workspace off, against the core it names.
 
 Do not silence that with a workspace, a local replacement or a tag that does

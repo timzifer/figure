@@ -156,13 +156,12 @@ reason.
 
 ## Revisit if
 
-~~An overlay wants to be hit-testable after all — a legend whose entries can be
-clicked to hide a series is the case, and it is a real one.~~ **Answered by
-[ADR 0047](0047-clickable-legend.md).** It went the way this record predicted:
-the guides are announced, through an optional `render.LegendEntry` beside
-`Observer`, and indexed under a kind of their own so that a hit on a swatch is
-distinguishable from a hit on the thing the swatch stands for. The overlay
-itself is still not hit-testable and there is still no reason for it to be.
+A guide a reader can act on is announced rather than made part of the overlay:
+[ADR 0047](0047-clickable-legend.md) puts the legend, the colourbar and the
+size key through an optional interface beside `Observer`, indexed under a kind
+of their own so that a hit on a swatch is distinguishable from a hit on the
+thing the swatch stands for. The overlay itself is not hit-testable, and there
+is no reason for it to be.
 
 An overlay also cannot currently read the rows a layer drew — it is given
 scales and areas, not marks. A tooltip that wanted to snap to the nearest point

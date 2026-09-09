@@ -2,12 +2,10 @@
 
 **Status:** Accepted · **Date:** 2026-09-07
 
-> **Amended by [ADR 0061](0061-columns-are-one-value.md).** `data.Nulls` is no
-> longer an optional interface. Absence is `data.Column.Nulls`, a field of the
-> column it describes, so a Source that wraps another carries it along with the
-> values instead of having to forward a second method — which two wrapping
-> Sources in this repository had not. What a null *means*, and every consequence
-> argued below, is unchanged.
+> **Current shape:** absence is `data.Column.Nulls`, a field of the column it
+> describes, rather than an optional interface a wrapping Source has to
+> remember to forward ([ADR 0061](0061-columns-are-one-value.md)). What a null
+> *means*, and every consequence argued below, is unchanged.
 
 ## Context
 
