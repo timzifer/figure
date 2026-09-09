@@ -27,7 +27,8 @@ func QQ(src data.Source, opts ...Option) Geom {
 // are the parts that differ, and none is delegated to an ECDF drawing method.
 type qqGeom struct{ ecdfGeom }
 
-func (g *qqGeom) Train(x, y scale.Scale) error {
+func (g *qqGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if _, ok := x.(scale.Categorical); ok {
 		g.err = ErrNotContinuous
 		return g.err

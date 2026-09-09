@@ -142,7 +142,7 @@ func TestAContinuousRampOnALineIsRefused(t *testing.T) {
 	s := src(map[string][]float64{"x": {0, 1}, "y": {0, 1}})
 	g := geom.Line(s, geom.X("x"), geom.Y("y"),
 		geom.ColorBy("y", scale.Sequential(palette.Viridis)))
-	if err := g.Train(scale.Linear(), scale.Linear()); !errors.Is(err, geom.ErrRampOnPath) {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); !errors.Is(err, geom.ErrRampOnPath) {
 		t.Fatalf("Train: %v, want ErrRampOnPath", err)
 	}
 }
@@ -247,7 +247,7 @@ func TestAContinuousRampOnAStepIsRefused(t *testing.T) {
 	s := src(map[string][]float64{"x": {0, 1}, "y": {0, 1}})
 	g := geom.Step(s, geom.X("x"), geom.Y("y"),
 		geom.ColorBy("y", scale.Sequential(palette.Viridis)))
-	if err := g.Train(scale.Linear(), scale.Linear()); !errors.Is(err, geom.ErrRampOnPath) {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); !errors.Is(err, geom.ErrRampOnPath) {
 		t.Fatalf("Train: %v, want ErrRampOnPath", err)
 	}
 }

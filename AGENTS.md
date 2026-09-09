@@ -643,7 +643,7 @@ annotation. Dropping the parameter compiles and turns every heatmap into a
 four-literal annotation.
 
 **A coord is a value, and `Frame` hands one back rather than moving the
-receiver.** `coord.Coord.Frame(area, x, y)` returns the coord positioned in that
+receiver.** `coord.Coord.Frame(coord.Framing{...})` returns the coord positioned in that
 panel; the chart's own coord is never written to. That is not style — panels are
 built on separate goroutines (ADR 0012), and a coord that remembered which panel
 it was in would be a data race with no `Snapshotter` to fix it. `render.Panel`

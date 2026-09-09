@@ -50,7 +50,7 @@ func segmentsOf(rec *irtest.Recorder) [][2]ir.Point {
 func TestAnErrorBarTrainsItsAxisOnTheInterval(t *testing.T) {
 	g := geom.ErrorBar(measured(), geom.X("t"), geom.Y("mean"), geom.ErrorBy("sd"))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	lo, hi := y.Domain()
@@ -182,7 +182,7 @@ func TestTheEncodingDecidesWhichWayItRuns(t *testing.T) {
 // were written in.
 func TestAnIntervalOnBothAxesIsRefused(t *testing.T) {
 	g := geom.ErrorBar(measured(), geom.X("lo"), geom.X2("hi"), geom.Y("lo"), geom.Y2("hi"))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if !errors.Is(err, geom.ErrBothAxes) {
 		t.Errorf("error is %v, want ErrBothAxes", err)
 	}
@@ -191,7 +191,7 @@ func TestAnIntervalOnBothAxesIsRefused(t *testing.T) {
 // An error bar with nothing to bound is a layer that named the wrong mark.
 func TestAnErrorBarWithNoIntervalIsRefused(t *testing.T) {
 	g := geom.ErrorBar(measured(), geom.X("t"), geom.Y("mean"))
-	if err := g.Train(scale.Linear(), scale.Linear()); !errors.Is(err, geom.ErrNoInterval) {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); !errors.Is(err, geom.ErrNoInterval) {
 		t.Errorf("error is %v, want ErrNoInterval", err)
 	}
 }
@@ -297,7 +297,7 @@ func TestAGroupedErrorBarNamesItsSeries(t *testing.T) {
 	g := geom.ErrorBar(src, geom.X("t"), geom.Y("v"), geom.ErrorBy("e"),
 		geom.GroupBy("g"), geom.ColorBy("g", scale.Qualitative(nil)))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	entries := geom.Legends(g, geom.Frame{X: x, Y: y, Theme: theme.Light})

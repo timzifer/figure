@@ -459,7 +459,7 @@ func TestAnUnknownThemeIsAnError(t *testing.T) {
 
 type opaqueGeom struct{}
 
-func (opaqueGeom) Train(scale.Scale, scale.Scale) error       { return nil }
+func (opaqueGeom) Train(geom.Training) error                  { return nil }
 func (opaqueGeom) Build(ir.Backend, geom.Frame) error         { return nil }
 func (opaqueGeom) Legend(geom.Frame) (geom.LegendEntry, bool) { return geom.LegendEntry{}, false }
 

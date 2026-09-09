@@ -3,7 +3,6 @@ package geom
 import (
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 )
 
@@ -57,7 +56,8 @@ type treemapGeom struct {
 	err   error
 }
 
-func (g *treemapGeom) Train(x, y scale.Scale) error {
+func (g *treemapGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.err = g.t.reset(g.src, g.cfg); g.err != nil {
 		return g.err
 	}

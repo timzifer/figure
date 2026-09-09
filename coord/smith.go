@@ -162,7 +162,8 @@ type smith struct {
 	framed         bool
 }
 
-func (s *smith) Frame(area ir.Rect, x, y scale.Scale) Coord {
+func (s *smith) Frame(f Framing) Coord {
+	area, x, y := f.Area, f.X, f.Y
 	q := *s
 	q.cx = (area.Min.X + area.Max.X) / 2
 	q.cy = (area.Min.Y + area.Max.Y) / 2

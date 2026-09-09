@@ -45,7 +45,8 @@ type boxGroup struct {
 	outliers           []float64
 }
 
-func (g *boxGeom) Train(x, y scale.Scale) error {
+func (g *boxGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

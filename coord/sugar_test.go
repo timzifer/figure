@@ -48,7 +48,7 @@ func TestABreakOutMovesAMarkAlongItsBisector(t *testing.T) {
 	x, y := linear(0, 1), linear(0, 4)
 	// Theta from Y, so the pair is (radius, angle) and a quarter of the Y
 	// domain is a quarter turn.
-	c := coord.Polar(coord.Theta(coord.FromY), coord.Radius(1)).Frame(ir.R(0, 0, 200, 200), x, y)
+	c := coord.Polar(coord.Theta(coord.FromY), coord.Radius(1)).Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: x, Y: y})
 	e, ok := c.(coord.Exploder)
 	if !ok {
 		t.Fatal("a polar coord cannot break a mark out")
@@ -76,7 +76,7 @@ func TestCartesianHasNoMiddleToBreakOutOf(t *testing.T) {
 	if _, ok := coord.Cartesian().(coord.Exploder); ok {
 		t.Error("Cartesian claims it can break a mark out")
 	}
-	framed := coord.Cartesian().Frame(ir.R(0, 0, 100, 100), scale.Linear(), scale.Linear())
+	framed := coord.Cartesian().Frame(coord.Framing{Area: ir.R(0, 0, 100, 100), X: scale.Linear(), Y: scale.Linear()})
 	if _, ok := framed.(coord.Exploder); ok {
 		t.Error("a framed Cartesian coord claims it can break a mark out")
 	}

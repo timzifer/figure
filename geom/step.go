@@ -3,7 +3,6 @@ package geom
 import (
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 )
 
 // Step connects rows with horizontal and vertical segments instead of a
@@ -25,7 +24,8 @@ type stepGeom struct {
 	err error
 }
 
-func (g *stepGeom) Train(x, y scale.Scale) error {
+func (g *stepGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

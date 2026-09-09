@@ -4,7 +4,6 @@ import (
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 )
 
 // Area fills the region between a series and a baseline, or — given [Y2] — the
@@ -44,7 +43,8 @@ type areaGeom struct {
 	err error
 }
 
-func (g *areaGeom) Train(x, y scale.Scale) error {
+func (g *areaGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

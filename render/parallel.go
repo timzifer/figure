@@ -32,7 +32,7 @@ func drawData(b ir.Backend, c Chart, panels []Panel, areas []ir.Rect, th theme.T
 		for i, p := range panels {
 			cd := p.setRange(c.coordOf(p), areas[i])
 			if c.Observer != nil {
-				c.Observer.Panel(i, areas[i], p.X, p.Y, cd)
+				c.Observer.Panel(PanelInfo{Index: i, Area: areas[i], X: p.X, Y: p.Y, Coord: cd})
 			}
 			if err := drawLayers(b, p, areas[i], th, c.Observer, c.RowSink, cd, c.Hidden); err != nil {
 				return err

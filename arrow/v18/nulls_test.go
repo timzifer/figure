@@ -62,7 +62,7 @@ func TestANullTimestampDoesNotStretchTheAxis(t *testing.T) {
 	})
 
 	x, y := scale.Time(), scale.Linear()
-	if err := geom.Line(arrow.Source(rec), geom.X("t"), geom.Y("v")).Train(x, y); err != nil {
+	if err := geom.Line(arrow.Source(rec), geom.X("t"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	lo, hi := x.Domain()

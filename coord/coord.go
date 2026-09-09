@@ -31,6 +31,22 @@ import (
 	"github.com/timzifer/figure/scale"
 )
 
+// Framing is what [Coord.Frame] is handed: the rectangle a panel occupies and
+// the scales that map into it.
+//
+// It is a struct rather than a parameter list for the reason geom.Training is
+// one — a chart can gain a dimension, and a struct with exported fields gains a
+// field where a method implemented outside this module cannot gain a parameter.
+// ADR 0056 is the record.
+type Framing struct {
+	// Area is the panel rectangle in device space.
+	Area ir.Rect
+	// X and Y are the panel's scales. Either may be nil, which asks for a
+	// coord positioned in the rectangle without ranging anything: a frame
+	// built by code that never heard of coordinate systems does that.
+	X, Y scale.Scale
+}
+
 // Coord turns a pair of mapped positions into a device point, and reports the
 // geometry of everything else that depends on what the pair means.
 //
@@ -56,7 +72,7 @@ type Coord interface {
 	// The receiver is not modified: the returned value is what the panel's
 	// geoms are handed, so two panels drawn on two goroutines never share one
 	// position.
-	Frame(area ir.Rect, x, y scale.Scale) Coord
+	Frame(f Framing) Coord
 
 	// Extent reports the interval each scale maps into — what Frame chose.
 	// A mark that spans a whole axis needs it: the far end of a rule is where
@@ -183,7 +199,8 @@ func Cartesian() Coord { return cartesian{} }
 // allocates nothing.
 type cartesian struct{}
 
-func (cartesian) Frame(area ir.Rect, x, y scale.Scale) Coord {
+func (cartesian) Frame(f Framing) Coord {
+	area, x, y := f.Area, f.X, f.Y
 	if x != nil {
 		x.SetRange(area.Min.X, area.Max.X)
 	}

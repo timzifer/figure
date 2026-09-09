@@ -74,7 +74,7 @@ func TestOnlyCartesianPlacesAnOppositeAxis(t *testing.T) {
 			// way: Frame hands back a coord positioned in the panel, and one
 			// that lost the interface there would draw a second axis in an
 			// unframed test and none in a chart.
-			framed := c.cd.Frame(ir.R(0, 0, 100, 100), scale.Linear(), scale.Linear())
+			framed := c.cd.Frame(coord.Framing{Area: ir.R(0, 0, 100, 100), X: scale.Linear(), Y: scale.Linear()})
 			if _, got := framed.(coord.Opposite); got != c.want {
 				t.Errorf("framed %T implements Opposite = %v, want %v", framed, got, c.want)
 			}

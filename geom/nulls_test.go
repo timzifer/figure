@@ -25,7 +25,7 @@ func TestANullCategoryIsNotABandOfItsOwn(t *testing.T) {
 		WithNulls("k", []bool{false, true, false})
 
 	x, y := scale.Ordinal(), scale.Linear()
-	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(x, y); err != nil {
+	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	ticks := x.Ticks(0)
@@ -46,7 +46,7 @@ func TestAnEmptyCategoryIsStillABand(t *testing.T) {
 		Float64("v", []float64{1, 2, 3})
 
 	x, y := scale.Ordinal(), scale.Linear()
-	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(x, y); err != nil {
+	if err := geom.Bar(src, geom.X("k"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	if got := len(x.Ticks(0)); got != 3 {
@@ -64,7 +64,7 @@ func TestANullInstantDoesNotStretchTheAxis(t *testing.T) {
 		WithNulls("t", []bool{false, true, false})
 
 	x, y := scale.Time(), scale.Linear()
-	if err := geom.Line(src, geom.X("t"), geom.Y("v")).Train(x, y); err != nil {
+	if err := geom.Line(src, geom.X("t"), geom.Y("v")).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	lo, hi := x.Domain()
@@ -84,7 +84,7 @@ func TestANullIsMissingUnderTheErrorPolicy(t *testing.T) {
 		WithNulls("k", []bool{false, true, false})
 
 	err := geom.Bar(src, geom.X("k"), geom.Y("v"), geom.OnMissing(geom.Error)).
-		Train(scale.Ordinal(), scale.Linear())
+		Train(geom.Training{X: scale.Ordinal(), Y: scale.Linear()})
 	if err == nil {
 		t.Fatal("a null row passed OnMissing(Error)")
 	}
@@ -99,7 +99,7 @@ func TestABorrowedColumnIsNotWrittenTo(t *testing.T) {
 		Float64("y", []float64{4, 5, 6}).
 		WithNulls("v", []bool{false, true, false})
 
-	if err := geom.Line(src, geom.X("v"), geom.Y("y")).Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := geom.Line(src, geom.X("v"), geom.Y("y")).Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 	if vs[1] != 2 {
@@ -118,7 +118,7 @@ func TestAMaskThatAgreesWithItsNaNsCopiesNothing(t *testing.T) {
 		WithNulls("v", []bool{false, true, false})
 
 	x := scale.Linear()
-	if err := geom.Line(src, geom.X("v"), geom.Y("y")).Train(x, scale.Linear()); err != nil {
+	if err := geom.Line(src, geom.X("v"), geom.Y("y")).Train(geom.Training{X: x, Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 	if lo, hi := x.Domain(); lo != 1 || hi != 3 {
@@ -138,7 +138,7 @@ func TestANullSeriesIsNotALegendEntry(t *testing.T) {
 	g := geom.Line(src, geom.X("t"), geom.Y("v"), geom.GroupBy("series"),
 		geom.ColorBy("series", scale.Qualitative(nil)))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	entries := geom.Legends(g, geom.Frame{X: x, Y: y, Theme: theme.Light})
@@ -162,7 +162,7 @@ func TestALayerWhoseEverySeriesIsAbsentIsUngrouped(t *testing.T) {
 		WithNulls("series", []bool{true, true})
 
 	g := geom.Bar(src, geom.X("t"), geom.Y("v"), geom.GroupBy("series"))
-	if err := g.Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -210,7 +210,7 @@ func TestANullErrorIsTheMissingDataError(t *testing.T) {
 		WithNulls("v", []bool{false, true})
 
 	err := geom.Line(src, geom.X("t"), geom.Y("v"), geom.OnMissing(geom.Error)).
-		Train(scale.Linear(), scale.Linear())
+		Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if err == nil {
 		t.Fatal("a marked numeric row passed OnMissing(Error)")
 	}

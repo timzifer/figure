@@ -30,7 +30,7 @@ func TestAHistogramTrainsItsAxisOnTheCounts(t *testing.T) {
 	g := geom.Histogram(src, geom.X("v"), geom.Bins(10))
 
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	if lo, hi := y.Domain(); lo != 0 || hi < 10 {
@@ -72,7 +72,7 @@ func TestAnECDFRunsTheWholeAxis(t *testing.T) {
 	src := data.Float64Columns(map[string][]float64{"v": {3, 1, 2, 2}})
 	g := geom.ECDF(src, geom.X("v"))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	if lo, hi := y.Domain(); lo != 0 || hi != 1 {
@@ -169,7 +169,7 @@ func TestARidgelineRefusesAContinuousAxis(t *testing.T) {
 	tbl.Float64("v", []float64{1, 2, 3})
 	tbl.String("m", []string{"jan", "jan", "feb"})
 	g := geom.Ridgeline(tbl, geom.X("v"), geom.Y("m"))
-	if err := g.Train(scale.Linear(), scale.Linear()); err == nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err == nil {
 		t.Error("a ridgeline was trained against a continuous Y axis")
 	}
 }
@@ -331,7 +331,7 @@ func TestATrendTrainsTheAxisOnItsFit(t *testing.T) {
 	src := data.Float64Columns(map[string][]float64{"x": xs, "y": ys})
 	g := geom.Trend(src, geom.X("x"), geom.Y("y"), geom.Smooth(geom.LinearFit))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	lo, hi := y.Domain()
@@ -438,7 +438,7 @@ func TestABubblesDiameterFollowsTheSquareRootOfItsValue(t *testing.T) {
 func TestASizedLayerContributesASizeGuide(t *testing.T) {
 	src := data.Float64Columns(map[string][]float64{"x": {0, 1}, "y": {0, 1}, "pop": {10, 20}})
 	g := geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.SizeBy("pop", scale.Size()))
-	if err := g.Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 	sized, ok := g.(geom.Sized)
@@ -462,7 +462,7 @@ func TestASizedLayerContributesASizeGuide(t *testing.T) {
 func TestAnUnsizedLayerContributesNoSizeGuide(t *testing.T) {
 	src := data.Float64Columns(map[string][]float64{"x": {0, 1}, "y": {0, 1}})
 	g := geom.Scatter(src, geom.X("x"), geom.Y("y"))
-	if err := g.Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := g.(geom.Sized).SizeGuide(); ok {

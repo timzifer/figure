@@ -71,7 +71,8 @@ type violinGeom struct {
 	err     error
 }
 
-func (g *violinGeom) Train(x, y scale.Scale) error {
+func (g *violinGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err
@@ -350,7 +351,8 @@ type ridgeGeom struct {
 // ErrNotCategorical reports an axis that has to name categories and cannot.
 var ErrNotCategorical = fmt.Errorf("figure/geom: this mark needs a categorical axis")
 
-func (g *ridgeGeom) Train(x, y scale.Scale) error {
+func (g *ridgeGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if _, ok := y.(scale.Categorical); !ok {
 		g.err = fmt.Errorf("%w: a ridgeline names its rows on the Y axis; give it a scale.Ordinal", ErrNotCategorical)
 		return g.err

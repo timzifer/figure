@@ -18,7 +18,7 @@ import (
 func wideFrame(t *testing.T, g geom.Geom) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, 400, 300)
@@ -99,7 +99,7 @@ func TestDecimationLeavesTheDomainAlone(t *testing.T) {
 	src := wave(rows)
 	x, y := scale.Linear(), scale.Linear()
 	g := geom.Line(src, geom.X("x"), geom.Y("y"))
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	lo, hi := x.Domain()

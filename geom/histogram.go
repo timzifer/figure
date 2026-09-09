@@ -5,7 +5,6 @@ import (
 
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 )
 
@@ -46,7 +45,8 @@ type histGeom struct {
 	err     error
 }
 
-func (g *histGeom) Train(x, y scale.Scale) error {
+func (g *histGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.vals, g.err = column(g.src, g.cfg.xcol, x)
 	if g.err != nil {
 		return g.err

@@ -60,7 +60,7 @@ func annotFrame(t *testing.T, gs ...geom.Geom) geom.Frame {
 	x := scale.Linear()
 	y := scale.Linear()
 	for _, g := range gs {
-		if err := g.Train(x, y); err != nil {
+		if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 			t.Fatalf("Train: %v", err)
 		}
 	}
@@ -124,10 +124,10 @@ func TestAnnotationExtendsTheDomain(t *testing.T) {
 	x := scale.Linear()
 	y := scale.Linear()
 	g := geom.Line(src(map[string][]float64{"x": {0, 1}, "y": {0, 1}}), geom.X("x"), geom.Y("y"))
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
-	if err := geom.HLine(9).Train(x, y); err != nil {
+	if err := geom.HLine(9).Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	if _, hi := y.Domain(); hi < 9 {
@@ -139,7 +139,7 @@ func TestExtendOffLeavesTheDomainAlone(t *testing.T) {
 	x := scale.Linear()
 	y := scale.Linear()
 	g := geom.Line(src(map[string][]float64{"x": {0, 1}, "y": {0, 1}}), geom.X("x"), geom.Y("y"))
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range []geom.Geom{
@@ -151,7 +151,7 @@ func TestExtendOffLeavesTheDomainAlone(t *testing.T) {
 		geom.Region(8, 8, 9, 9, geom.Extend(false)),
 		geom.Note(9, 9, "x", geom.Extend(false)),
 	} {
-		if err := a.Train(x, y); err != nil {
+		if err := a.Train(geom.Training{X: x, Y: y}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -341,7 +341,7 @@ func TestAnnotationOffAnUndefinedScalePositionIsSkipped(t *testing.T) {
 	x := scale.Linear()
 	y := scale.Log()
 	g := geom.Line(src(map[string][]float64{"x": {1, 10}, "y": {1, 100}}), geom.X("x"), geom.Y("y"))
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	x.SetRange(0, 100)

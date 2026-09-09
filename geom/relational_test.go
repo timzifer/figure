@@ -40,14 +40,14 @@ func calls() data.Source {
 func relFrame(t *testing.T, g geom.Geom, c coord.Coord, w, h float32) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, w, h)
 	if c == nil {
 		c = coord.Cartesian()
 	}
-	c = c.Frame(area, x, y)
+	c = c.Frame(coord.Framing{Area: area, X: x, Y: y})
 	return irtest.New(), geom.Frame{Area: area, X: x, Y: y, Coord: c, Theme: theme.Light}
 }
 
@@ -299,7 +299,7 @@ func TestASankeyRefusesACycle(t *testing.T) {
 		String("to", []string{"b", "c", "a"}).
 		Float64("n", []float64{1, 1, 1})
 	g := geom.Sankey(src, geom.From("from"), geom.To("to"), geom.Value("n"))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if !errors.Is(err, geom.ErrCyclic) {
 		t.Errorf("Train over a cycle returned %v, want ErrCyclic", err)
 	}
@@ -396,7 +396,7 @@ func TestALayoutMarkRefusesAnOrdinalAxis(t *testing.T) {
 		geom.Sankey(calls(), geom.From("from"), geom.To("to"), geom.Value("n")),
 		geom.Arc(calls(), geom.From("from"), geom.To("to"), geom.Value("n")),
 	} {
-		if err := g.Train(scale.Ordinal(), scale.Linear()); !errors.Is(err, geom.ErrNotContinuous) {
+		if err := g.Train(geom.Training{X: scale.Ordinal(), Y: scale.Linear()}); !errors.Is(err, geom.ErrNotContinuous) {
 			t.Errorf("%T accepted an ordinal axis: %v", g, err)
 		}
 	}
@@ -408,7 +408,7 @@ func TestALayoutMarkRefusesAnOrdinalAxis(t *testing.T) {
 func TestALayoutMarkTrainsTheUnitSquare(t *testing.T) {
 	g := geom.Sankey(calls(), geom.From("from"), geom.To("to"), geom.Value("n"))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	for _, s := range []scale.Scale{x, y} {
@@ -482,7 +482,7 @@ func TestAHierarchyRefusesADuplicateNode(t *testing.T) {
 		String("under", []string{"", ""}).
 		Float64("bytes", []float64{1, 2})
 	g := geom.Treemap(src, geom.ID("path"), geom.Parent("under"), geom.Value("bytes"))
-	if err := g.Train(scale.Linear(), scale.Linear()); err == nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err == nil {
 		t.Error("a hierarchy with two rows for one node was accepted")
 	}
 }

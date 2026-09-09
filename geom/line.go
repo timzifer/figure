@@ -24,7 +24,8 @@ type lineGeom struct {
 	err error
 }
 
-func (g *lineGeom) Train(x, y scale.Scale) error {
+func (g *lineGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

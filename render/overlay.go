@@ -72,7 +72,7 @@ type OverlayPanel struct {
 // the plot rectangle when it has none.
 func (p OverlayPanel) Coords() coord.Coord {
 	if p.Coord == nil {
-		return coord.Cartesian().Frame(p.Area, nil, nil)
+		return coord.Cartesian().Frame(coord.Framing{Area: p.Area})
 	}
 	return p.Coord
 }

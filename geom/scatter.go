@@ -5,7 +5,6 @@ import (
 
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 )
 
@@ -30,7 +29,8 @@ type scatterGeom struct {
 	err error
 }
 
-func (g *scatterGeom) Train(x, y scale.Scale) error {
+func (g *scatterGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

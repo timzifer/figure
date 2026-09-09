@@ -18,7 +18,7 @@ func frame(t *testing.T, g geom.Geom) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
 	x := scale.Linear()
 	y := scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, 100, 100)
@@ -84,7 +84,7 @@ func TestLineErrorPolicyRejectsMissingData(t *testing.T) {
 		"y": {0, nan, 2},
 	}), geom.X("x"), geom.Y("y"), geom.OnMissing(geom.Error))
 
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if err == nil {
 		t.Fatal("OnMissing(Error) must reject a NaN")
 	}
@@ -164,7 +164,7 @@ func TestBarIncludesTheBaselineInTheDomain(t *testing.T) {
 	}), geom.X("x"), geom.Y("y"))
 
 	y := scale.Linear()
-	if err := g.Train(scale.Linear(), y); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	lo, _ := y.Domain()
@@ -180,7 +180,7 @@ func TestBarWidensTheDomainSoOuterBarsFit(t *testing.T) {
 	}), geom.X("x"), geom.Y("y"))
 
 	x := scale.Linear()
-	if err := g.Train(x, scale.Linear()); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: scale.Linear()}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	lo, hi := x.Domain()
@@ -211,7 +211,7 @@ func TestBarEmitsOneFilledPathForAllBars(t *testing.T) {
 
 func TestMissingColumnIsReportedNotPanicked(t *testing.T) {
 	g := geom.Line(src(map[string][]float64{"x": {1}}), geom.X("x"), geom.Y("absent"))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if !errors.Is(err, geom.ErrNoColumn) {
 		t.Fatalf("err = %v, want ErrNoColumn", err)
 	}

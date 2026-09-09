@@ -42,7 +42,7 @@ func oneRow(label string) *data.Table {
 func textFrame(t *testing.T, g geom.Geom, area ir.Rect) geom.Frame {
 	t.Helper()
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	x.SetRange(area.Min.X, area.Max.X)
@@ -229,7 +229,7 @@ func TestARowWithNoPositionDrawsNoLabel(t *testing.T) {
 		String("name", []string{"zero", "ten"})
 	g := geom.Text(tbl, geom.X("t"), geom.Y("v"), geom.TextBy("name"))
 	x, y := scale.Linear(), scale.Log()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	x.SetRange(0, 100)
@@ -266,7 +266,7 @@ func TestAMissingLabelColumnIsAnError(t *testing.T) {
 		geom.Text(gantt(), geom.X("start"), geom.Y("lo"), geom.TextBy("nope")),
 		geom.Text(gantt(), geom.X("start"), geom.Y("lo")),
 	} {
-		if err := g.Train(scale.Linear(), scale.Linear()); err == nil {
+		if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err == nil {
 			t.Error("a layer with nothing to say built without complaint")
 		}
 	}

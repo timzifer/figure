@@ -40,7 +40,8 @@ type ecdfGeom struct {
 	err    error
 }
 
-func (g *ecdfGeom) Train(x, y scale.Scale) error {
+func (g *ecdfGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolveOne(g.src, g.cfg, x)
 	if g.err != nil {
 		return g.err

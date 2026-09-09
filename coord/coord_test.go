@@ -63,7 +63,7 @@ func TestCartesianIsTheIdentity(t *testing.T) {
 
 func TestCartesianFramesTheRectangleWithYFlipped(t *testing.T) {
 	x, y := linear(0, 10), linear(0, 10)
-	c := coord.Cartesian().Frame(ir.R(20, 30, 120, 230), x, y)
+	c := coord.Cartesian().Frame(coord.Framing{Area: ir.R(20, 30, 120, 230), X: x, Y: y})
 	near(t, x.Map(0), 20, "x lo")
 	near(t, x.Map(10), 120, "x hi")
 	// Larger values are higher on screen, which is a smaller device Y.
@@ -79,8 +79,8 @@ func TestCartesianFramesTheRectangleWithYFlipped(t *testing.T) {
 
 func TestPointsIsPointInBatch(t *testing.T) {
 	for _, c := range []coord.Coord{
-		coord.Cartesian().Frame(ir.R(0, 0, 100, 100), linear(0, 1), linear(0, 1)),
-		coord.Polar().Frame(ir.R(0, 0, 200, 200), linear(0, 1), linear(0, 1)),
+		coord.Cartesian().Frame(coord.Framing{Area: ir.R(0, 0, 100, 100), X: linear(0, 1), Y: linear(0, 1)}),
+		coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: linear(0, 1), Y: linear(0, 1)}),
 	} {
 		xs := []float32{0, 1, 2, 3}
 		ys := []float32{10, 20, 30, 40}
@@ -101,7 +101,7 @@ func TestPointsIsPointInBatch(t *testing.T) {
 // memory back rather than a new allocation. That is the property the
 // allocation gate rests on.
 func TestPointsAppendsIntoTheCallersBuffer(t *testing.T) {
-	c := coord.Polar().Frame(ir.R(0, 0, 100, 100), linear(0, 1), linear(0, 1))
+	c := coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 100, 100), X: linear(0, 1), Y: linear(0, 1)})
 	buf := make([]ir.Point, 0, 8)
 	xs, ys := []float32{1, 2, 3}, []float32{4, 5, 6}
 	got := c.Points(buf, xs, ys)
@@ -112,7 +112,7 @@ func TestPointsAppendsIntoTheCallersBuffer(t *testing.T) {
 
 func TestPolarPlacesAnglesClockwiseFromNoon(t *testing.T) {
 	x, y := linear(0, 4), linear(0, 1)
-	c := coord.Polar().Frame(ir.R(0, 0, 200, 200), x, y)
+	c := coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: x, Y: y})
 	// The X scale sweeps the circle: a quarter of its domain is a quarter turn.
 	// The Y scale is the radius, and 1 is the rim.
 	for _, tc := range []struct {
@@ -134,7 +134,7 @@ func TestPolarPlacesAnglesClockwiseFromNoon(t *testing.T) {
 
 func TestPolarInvertsBackToTheMappedPair(t *testing.T) {
 	x, y := linear(0, 100), linear(0, 10)
-	c := coord.Polar().Frame(ir.R(0, 0, 300, 240), x, y)
+	c := coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 300, 240), X: x, Y: y})
 	for _, v := range []struct{ vx, vy float64 }{{0, 10}, {25, 5}, {60, 8}, {99, 1}} {
 		mx, my := x.Map(v.vx), y.Map(v.vy)
 		gx, gy := c.Invert(c.Point(mx, my))
@@ -164,7 +164,7 @@ func TestAQuarterArcIsTheKappaCircle(t *testing.T) {
 
 	// And the arc the coord draws stays on the circle it claims to be.
 	x, y := linear(0, 1), linear(0, 1)
-	c := coord.Polar().Frame(ir.R(0, 0, 200, 200), x, y)
+	c := coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: x, Y: y})
 	var p ir.Path
 	c.Area(&p, x.Map(0), y.Map(1), x.Map(1), y.Map(1))
 	r := float64(90) // half of 200, times the default 0.9 radius fraction
@@ -183,7 +183,7 @@ func TestAQuarterArcIsTheKappaCircle(t *testing.T) {
 // that to be worth anything.
 func TestARingHasNoSeam(t *testing.T) {
 	x, y := linear(0, 100), linear(0, 1)
-	c := coord.Polar().Frame(ir.R(0, 0, 200, 200), x, y)
+	c := coord.Polar().Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: x, Y: y})
 
 	start := c.Point(x.Map(0), y.Map(1))
 	wrap := c.Point(x.Map(100), y.Map(1))
@@ -223,7 +223,7 @@ func TestChordAndArcAreAPolicy(t *testing.T) {
 
 func TestHoleIsAnAnnulus(t *testing.T) {
 	x, y := linear(0, 1), linear(0, 1)
-	c := coord.Polar(coord.Hole(0.5), coord.Radius(1)).Frame(ir.R(0, 0, 200, 200), x, y)
+	c := coord.Polar(coord.Hole(0.5), coord.Radius(1)).Frame(coord.Framing{Area: ir.R(0, 0, 200, 200), X: x, Y: y})
 	// The radial scale starts at the inner radius, so nothing a geom draws
 	// enters the hole — the hole is where the scale is not.
 	inner := c.Point(x.Map(0), y.Map(0))
@@ -235,7 +235,7 @@ func TestHoleIsAnAnnulus(t *testing.T) {
 func TestCartesianFurnitureIsTheStraightRunsItAlwaysWas(t *testing.T) {
 	x, y := linear(0, 10), linear(0, 10)
 	area := ir.R(50, 20, 250, 220)
-	c := coord.Cartesian().Frame(area, x, y)
+	c := coord.Cartesian().Frame(coord.Framing{Area: area, X: x, Y: y})
 	var f coord.Furniture
 	m := coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}
 	c.Furniture(&f, area, m, x.Ticks(5), y.Ticks(5))
@@ -262,7 +262,7 @@ func TestCartesianFurnitureIsTheStraightRunsItAlwaysWas(t *testing.T) {
 func TestPolarFurnitureIsRingsAndSpokes(t *testing.T) {
 	x, y := linear(0, 4), linear(0, 10)
 	area := ir.R(0, 0, 200, 200)
-	c := coord.Polar().Frame(area, x, y)
+	c := coord.Polar().Frame(coord.Framing{Area: area, X: x, Y: y})
 	var f coord.Furniture
 	c.Furniture(&f, area, coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}, x.Ticks(5), y.Ticks(5))
 
@@ -297,7 +297,7 @@ func TestPolarFurnitureIsRingsAndSpokes(t *testing.T) {
 func TestFurnitureResetKeepsItsBuffersAndForgetsItsPoints(t *testing.T) {
 	x, y := linear(0, 10), linear(0, 10)
 	area := ir.R(0, 0, 200, 200)
-	c := coord.Cartesian().Frame(area, x, y)
+	c := coord.Cartesian().Frame(coord.Framing{Area: area, X: x, Y: y})
 	m := coord.Metrics{TickLen: 5, MinorTickLen: 3, LabelPad: 4}
 
 	var f coord.Furniture

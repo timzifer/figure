@@ -198,7 +198,7 @@ func TestPanelsShareTheirColourScale(t *testing.T) {
 	// Every panel trains before any guide is read, which is the order render
 	// works in — and the reason the guides agree at all.
 	for _, p := range panels {
-		if err := p.Layers[0].Train(scale.Linear(), scale.Linear()); err != nil {
+		if err := p.Layers[0].Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 			t.Fatal(err)
 		}
 	}

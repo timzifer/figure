@@ -247,7 +247,7 @@ func TestAMismatchedSugarColumnIsAnError(t *testing.T) {
 		{"a break-out", geom.ExplodeBy("short")},
 	} {
 		g := geom.Bar(src, geom.X("x"), geom.Y("y"), tc.opt)
-		if err := g.Train(scale.Linear(), scale.Linear()); err == nil {
+		if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err == nil {
 			t.Errorf("%s of the wrong length trained without complaint", tc.what)
 		}
 	}

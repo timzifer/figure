@@ -26,7 +26,7 @@ func smithChart(opts ...coord.SmithOption) (coord.Coord, scale.Scale, scale.Scal
 	x := scale.Linear(scale.Domain(0, 20), scale.TickValues(0, 0.2, 0.5, 1, 2, 5))
 	y := scale.Linear(scale.Domain(-20, 20), scale.TickValues(-5, -2, -1, -0.5, -0.2, 0, 0.2, 0.5, 1, 2, 5))
 	c := coord.Smith(append([]coord.SmithOption{coord.SmithRadius(1)}, opts...)...)
-	return c.Frame(smithArea, x, y), x, y
+	return c.Frame(coord.Framing{Area: smithArea, X: x, Y: y}), x, y
 }
 
 // gammaOf reads a device point back as the reflection coefficient it stands
@@ -273,7 +273,7 @@ func TestSmithAxesAreTheRealAxisAndTheRim(t *testing.T) {
 func TestANegativeResistanceIsCulled(t *testing.T) {
 	x := scale.Linear(scale.Domain(-1, 5), scale.TickValues(-1, -0.5, 0, 1))
 	y := scale.Linear(scale.Domain(-5, 5), scale.TickValues(-1, 1))
-	c := coord.Smith(coord.SmithRadius(1)).Frame(smithArea, x, y)
+	c := coord.Smith(coord.SmithRadius(1)).Frame(coord.Framing{Area: smithArea, X: x, Y: y})
 	xt, yt := x.Ticks(4), y.Ticks(2)
 	fur := new(coord.Furniture)
 	c.Furniture(fur, smithArea, coord.Metrics{TickLen: 4, LabelPad: 3}, xt, yt)
@@ -425,8 +425,8 @@ func TestSmithHasNoMiddleToBreakOutOf(t *testing.T) {
 // receiver, because panels are built concurrently.
 func TestSmithFrameDoesNotMoveTheReceiver(t *testing.T) {
 	c := coord.Smith()
-	a := c.Frame(smithArea, linear(0, 5), linear(-5, 5))
-	b := c.Frame(ir.Rect{Min: ir.Point{X: 400, Y: 400}, Max: ir.Point{X: 600, Y: 600}}, linear(0, 5), linear(-5, 5))
+	a := c.Frame(coord.Framing{Area: smithArea, X: linear(0, 5), Y: linear(-5, 5)})
+	b := c.Frame(coord.Framing{Area: ir.Rect{Min: ir.Point{X: 400, Y: 400}, Max: ir.Point{X: 600, Y: 600}}, X: linear(0, 5), Y: linear(-5, 5)})
 	if a.Point(1, 0) == b.Point(1, 0) {
 		t.Fatal("two panels framed to one centre")
 	}
@@ -440,7 +440,7 @@ func TestSmithFrameDoesNotMoveTheReceiver(t *testing.T) {
 // the domain, which is what a mark spanning a whole axis needs.
 func TestSmithMapsTheImpedanceOntoItself(t *testing.T) {
 	x, y := scale.Linear(scale.Domain(0, 20)), scale.Linear(scale.Domain(-20, 20))
-	c := coord.Smith().Frame(smithArea, x, y)
+	c := coord.Smith().Frame(coord.Framing{Area: smithArea, X: x, Y: y})
 	for _, v := range []float64{0, 0.2, 1, 7.5, 20} {
 		if got := x.Map(v); math.Abs(float64(got)-v) > 1e-4 {
 			t.Errorf("the resistance %v maps to %v, not to itself", v, got)

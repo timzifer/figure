@@ -29,7 +29,7 @@ func longTable() *data.Table {
 // need a categorical axis or a fixed size.
 func frameOn(t *testing.T, g geom.Geom, x, y scale.Scale, w, h float32) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, w, h)
@@ -198,7 +198,7 @@ func TestAGroupedLineDrawsOnePathPerSeries(t *testing.T) {
 func TestAStackedBarReachesTheStackedTotal(t *testing.T) {
 	g := geom.Bar(longTable(), geom.X("t"), geom.Y("v"), geom.GroupBy("series"))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	_, hi := y.Domain()
@@ -259,7 +259,7 @@ func TestFillingNormalisesEverySlotToOne(t *testing.T) {
 	g := geom.Bar(longTable(), geom.X("t"), geom.Y("v"),
 		geom.GroupBy("series"), geom.Stack(geom.StackFill))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	if lo, hi := y.Domain(); lo != 0 || math.Abs(hi-1) > 1e-9 {
@@ -426,7 +426,7 @@ func TestStackingWantsAGroupColumn(t *testing.T) {
 	g := geom.Bar(src(map[string][]float64{"x": {0, 1}, "y": {2, 4}}),
 		geom.X("x"), geom.Y("y"), geom.Stack(geom.StackZero))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	if _, hi := y.Domain(); hi != 4 {
@@ -436,7 +436,7 @@ func TestStackingWantsAGroupColumn(t *testing.T) {
 
 func TestAMissingGroupColumnIsNamed(t *testing.T) {
 	g := geom.Line(longTable(), geom.X("t"), geom.Y("v"), geom.GroupBy("nope"))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if err == nil {
 		t.Fatal("a group column that does not exist was accepted")
 	}

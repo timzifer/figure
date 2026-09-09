@@ -148,6 +148,26 @@ type Chart struct {
 	Overlay Overlay
 }
 
+// PanelInfo is what [Observer.Panel] is handed: which panel is opening, where
+// it is, and what places values in it.
+//
+// It is a struct rather than a parameter list because a chart can gain a
+// dimension, and Observer is implemented outside this package and so never
+// gains a method or a parameter. A struct with exported fields gains a field
+// instead, and an observer written against today's fields keeps compiling.
+// ADR 0056 is the record.
+type PanelInfo struct {
+	// Index is the panel's position in the chart, in paint order.
+	Index int
+	// Area is the rectangle the panel occupies in device space.
+	Area ir.Rect
+	// X and Y are the panel's scales, ranged for it.
+	X, Y scale.Scale
+	// Coord turns a pair of mapped positions into a point in the panel, and
+	// inverts one back into a pair.
+	Coord coord.Coord
+}
+
 // Observer is told the structure a render is drawing, as it draws it.
 //
 // It is how hit-testing gets built without widening the IR. A backend sees
@@ -163,13 +183,11 @@ type Chart struct {
 //
 // An Observer is implemented outside this package, so it never gains a method.
 type Observer interface {
-	// Panel opens a panel: its index in the chart, the rectangle it occupies,
-	// the scales that place values in it, and the coord that turns a pair of
-	// mapped positions into a point there. The scales are ranged for this
-	// panel and must not be modified; the coord is framed for it and is what
-	// turns a device position back into a pair — which is the only way a
-	// tooltip over a pie slice names a value rather than a pixel.
-	Panel(i int, area ir.Rect, x, y scale.Scale, cd coord.Coord)
+	// Panel opens a panel. The scales it carries are ranged for this panel and
+	// must not be modified; the coord is framed for it and is what turns a
+	// device position back into a pair — which is the only way a tooltip over
+	// a pie slice names a value rather than a pixel.
+	Panel(p PanelInfo)
 
 	// Layer opens a layer within the panel just announced: its index among
 	// that panel's layers, and its legend label if it has one.
@@ -351,7 +369,8 @@ func Draw(b ir.Backend, c Chart) error {
 	//    measured.
 	for _, p := range panels {
 		for _, g := range p.Layers {
-			if err := g.Train(p.axesOf(g)); err != nil {
+			x, y := p.axesOf(g)
+			if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 				return err
 			}
 		}
@@ -549,9 +568,9 @@ func (p Panel) setRange(cd coord.Coord, area ir.Rect) coord.Coord {
 		// scales it is handed; the framed coord is the same either way,
 		// because a coord's own state is the rectangle rather than the scales
 		// in it.
-		cd.Frame(area, orElse(p.X2, p.X), orElse(p.Y2, p.Y))
+		cd.Frame(coord.Framing{Area: area, X: orElse(p.X2, p.X), Y: orElse(p.Y2, p.Y)})
 	}
-	return cd.Frame(area, p.X, p.Y)
+	return cd.Frame(coord.Framing{Area: area, X: p.X, Y: p.Y})
 }
 
 func orElse(s, fallback scale.Scale) scale.Scale {

@@ -1,6 +1,6 @@
 # 0056 — A third axis widens the seams that count scales, and the IR stays two-dimensional
 
-**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** not started
+**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** the three seams are widened; 3D itself is not started
 
 > **Amended 2026-09-09.** This record was written while the library was
 > `github.com/timzifer/refract` at `v1.7.0`, so it priced its break as a
@@ -12,6 +12,11 @@
 > seams, the package boundary, the untouched IR and the painter's order are all
 > as decided. Only the version number the break is spelled with is different,
 > and the passages that named it have been corrected in place.
+>
+> The three seams were widened on the same day, ahead of any 3D code:
+> `geom.Training`, `render.PanelInfo` and `coord.Framing` exist, and each
+> carries an X and a Y and nothing else. The Z that this record is about
+> arrives when `three` does.
 
 ## Context
 

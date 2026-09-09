@@ -6,7 +6,6 @@ import (
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
-	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 )
 
@@ -65,7 +64,8 @@ type sankeyGeom struct {
 	err error
 }
 
-func (g *sankeyGeom) Train(x, y scale.Scale) error {
+func (g *sankeyGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.err = g.e.reset(g.src, g.cfg); g.err != nil {
 		return g.err
 	}

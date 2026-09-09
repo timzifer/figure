@@ -36,7 +36,8 @@ type barGeom struct {
 	err   error
 }
 
-func (g *barGeom) Train(x, y scale.Scale) error {
+func (g *barGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

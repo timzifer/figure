@@ -21,11 +21,11 @@ import (
 // polarFrame builds a frame in a polar coord, framed the way render would.
 func polarFrame(t *testing.T, g geom.Geom, x, y scale.Scale, c coord.Coord, size float32) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, size, size)
-	cd := c.Frame(area, x, y)
+	cd := c.Frame(coord.Framing{Area: area, X: x, Y: y})
 	return irtest.New(), geom.Frame{Area: area, X: x, Y: y, Coord: cd, Theme: theme.Light}
 }
 

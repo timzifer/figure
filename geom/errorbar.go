@@ -100,7 +100,8 @@ var ErrBothAxes = errors.New("figure/geom: an error bar names an interval on bot
 // than one with nothing to say.
 var ErrNoInterval = errors.New("figure/geom: an error bar needs an interval: give it geom.Y2/geom.X2 or geom.ErrorBy/geom.ErrorXBy")
 
-func (g *errorGeom) Train(x, y scale.Scale) error {
+func (g *errorGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

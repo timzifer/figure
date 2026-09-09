@@ -36,7 +36,8 @@ type ruleGeom struct {
 	cfg      config
 }
 
-func (g *ruleGeom) Train(x, y scale.Scale) error {
+func (g *ruleGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.cfg.extend {
 		g.axis(x, y).Train(g.at)
 	}
@@ -99,7 +100,8 @@ type bandGeom struct {
 	cfg      config
 }
 
-func (g *bandGeom) Train(x, y scale.Scale) error {
+func (g *bandGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if !g.cfg.extend {
 		return nil
 	}
@@ -169,7 +171,8 @@ type segmentGeom struct {
 	cfg            config
 }
 
-func (g *segmentGeom) Train(x, y scale.Scale) error {
+func (g *segmentGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.cfg.extend {
 		x.Train(g.x0, g.x1)
 		y.Train(g.y0, g.y1)
@@ -210,7 +213,8 @@ type regionGeom struct {
 	cfg            config
 }
 
-func (g *regionGeom) Train(x, y scale.Scale) error {
+func (g *regionGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.cfg.extend {
 		x.Train(g.x0, g.x1)
 		y.Train(g.y0, g.y1)
@@ -273,7 +277,8 @@ type noteGeom struct {
 	cfg  config
 }
 
-func (g *noteGeom) Train(x, y scale.Scale) error {
+func (g *noteGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	if g.cfg.extend {
 		x.Train(g.x)
 		y.Train(g.y)

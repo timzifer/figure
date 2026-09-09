@@ -56,7 +56,8 @@ type hexGeom struct {
 	err error
 }
 
-func (g *hexGeom) Train(x, y scale.Scale) error {
+func (g *hexGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	// The colour column is deliberately not resolved: what a hexbin colours by
 	// is its own count, and the name given to [ColorBy] is a label rather than
 	// a column this layer reads.

@@ -203,7 +203,8 @@ type polar struct {
 	framed bool
 }
 
-func (p *polar) Frame(area ir.Rect, x, y scale.Scale) Coord {
+func (p *polar) Frame(f Framing) Coord {
+	area, x, y := f.Area, f.X, f.Y
 	q := *p
 	q.cx = (area.Min.X + area.Max.X) / 2
 	q.cy = (area.Min.Y + area.Max.Y) / 2

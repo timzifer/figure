@@ -27,7 +27,8 @@ func newLollipop(src data.Source, opts ...geom.Option) geom.Geom {
 	return &lollipop{src: src, cfg: geom.Configure(opts...)}
 }
 
-func (l *lollipop) Train(x, y scale.Scale) error {
+func (l *lollipop) Train(t geom.Training) error {
+	x, y := t.X, t.Y
 	xs, ok := l.src.Float64Column(l.cfg.X)
 	if !ok {
 		return geom.ErrNoColumn
@@ -190,7 +191,7 @@ func TestARegisteredMarkDrawsThroughTheFrame(t *testing.T) {
 	src := lollipopSource()
 	g := newLollipop(src, geom.X("x"), geom.Y("y"), geom.Extra("stem", 3.0))
 	x, y := scale.Linear(), scale.Linear()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	x.SetRange(0, 100)

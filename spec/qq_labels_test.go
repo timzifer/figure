@@ -43,7 +43,7 @@ func TestHandwrittenQQSpecNeedsOnlyTheSampleColumn(t *testing.T) {
 	if len(c.Layers) != 1 {
 		t.Fatal("lost sample")
 	}
-	if err := c.Layers[0].Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := c.Layers[0].Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 }

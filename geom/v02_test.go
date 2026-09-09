@@ -17,7 +17,7 @@ import (
 // frameWith builds a trained frame over the given scales, the way render does.
 func frameWith(t *testing.T, g geom.Geom, x, y scale.Scale) (*irtest.Recorder, geom.Frame) {
 	t.Helper()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatalf("Train: %v", err)
 	}
 	area := ir.R(0, 0, 100, 100)
@@ -87,7 +87,7 @@ func TestAreaTrainsTheBaselineIntoTheDomain(t *testing.T) {
 	}), geom.X("x"), geom.Y("y"))
 
 	y := scale.Linear()
-	if err := g.Train(scale.Linear(), y); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	if lo, _ := y.Domain(); lo != 0 {
@@ -308,7 +308,7 @@ func TestCategoricalColumnNeedsAnOrdinalScale(t *testing.T) {
 		Float64("sales", []float64{3, 4})
 
 	g := geom.Bar(tbl, geom.X("region"), geom.Y("sales"))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if !errors.Is(err, geom.ErrCategorical) {
 		t.Fatalf("err = %v, want ErrCategorical — a continuous axis has no position for a name", err)
 	}
@@ -391,7 +391,7 @@ func TestTheErrorPolicyCoversValuesTheScaleCannotPlace(t *testing.T) {
 		"y": {1, 0, 100},
 	}), geom.X("x"), geom.Y("y"), geom.OnMissing(geom.Error))
 
-	if err := g.Train(scale.Linear(), scale.Log()); err == nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Log()}); err == nil {
 		t.Fatal("want an error: zero has no position on a log axis")
 	}
 }
@@ -466,7 +466,7 @@ func TestColorByTrainsItsScaleFromTheColumn(t *testing.T) {
 		"x": {0, 1}, "y": {0, 1}, "z": {-7, 42},
 	}), geom.X("x"), geom.Y("y"), geom.ColorBy("z", cs))
 
-	if err := g.Train(scale.Linear(), scale.Linear()); err != nil {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 		t.Fatal(err)
 	}
 	if lo, hi := cs.Domain(); lo != -7 || hi != 42 {
@@ -477,7 +477,7 @@ func TestColorByTrainsItsScaleFromTheColumn(t *testing.T) {
 func TestColorByNamesAMissingColumn(t *testing.T) {
 	g := geom.Scatter(src(map[string][]float64{"x": {0}, "y": {0}}),
 		geom.X("x"), geom.Y("y"), geom.ColorBy("nope", scale.Sequential(nil)))
-	if err := g.Train(scale.Linear(), scale.Linear()); !errors.Is(err, geom.ErrNoColumn) {
+	if err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); !errors.Is(err, geom.ErrNoColumn) {
 		t.Fatalf("err = %v, want ErrNoColumn", err)
 	}
 }
@@ -490,7 +490,7 @@ func TestColorByRejectsACategoricalColumn(t *testing.T) {
 
 	g := geom.Scatter(tbl, geom.X("x"), geom.Y("y"),
 		geom.ColorBy("kind", scale.Sequential(nil)))
-	err := g.Train(scale.Linear(), scale.Linear())
+	err := g.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()})
 	if !errors.Is(err, geom.ErrCategorical) {
 		t.Fatalf("err = %v, want ErrCategorical", err)
 	}

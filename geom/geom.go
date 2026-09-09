@@ -84,7 +84,7 @@ type LabelAvoider interface {
 // the far edge.
 func (f Frame) Coords() coord.Coord {
 	if f.Coord == nil {
-		return coord.Cartesian().Frame(f.Area, nil, nil)
+		return coord.Cartesian().Frame(coord.Framing{Area: f.Area})
 	}
 	return f.Coord
 }
@@ -109,6 +109,21 @@ type LegendEntry struct {
 	Width  float32
 }
 
+// Training is what [Geom.Train] is handed: the scales a layer feeds its data
+// into so they can establish their domains.
+//
+// It is a struct rather than a parameter list because a chart can gain a
+// dimension — a depth scale, a second radial scale, an axis of time — and a
+// struct with exported fields gains a field where a method signature cannot.
+// Train is implemented outside this module, so widening it again would be a
+// breaking change every time; widening this is additive. ADR 0056 is the
+// record.
+type Training struct {
+	// X and Y are the scales for the horizontal and vertical channels. Both
+	// are non-nil.
+	X, Y scale.Scale
+}
+
 // Geom is a layer of marks.
 //
 // # Stability
@@ -124,7 +139,7 @@ type Geom interface {
 	// Train feeds the geom's data into the scales so they can establish their
 	// domains. It runs before layout, because layout needs tick labels and
 	// tick labels need a domain.
-	Train(x, y scale.Scale) error
+	Train(t Training) error
 
 	// Build emits the geom's marks into b.
 	Build(b ir.Backend, f Frame) error

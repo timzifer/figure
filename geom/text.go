@@ -8,7 +8,6 @@ import (
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/palette"
-	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/theme"
 )
 
@@ -98,7 +97,8 @@ func errNoText(col string) error {
 // not have in the first place.
 const ellipsis = "…"
 
-func (g *textGeom) Train(x, y scale.Scale) error {
+func (g *textGeom) Train(t Training) error {
+	x, y := t.X, t.Y
 	g.s, g.err = resolve(g.src, g.cfg, x, y)
 	if g.err != nil {
 		return g.err

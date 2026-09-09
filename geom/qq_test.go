@@ -41,7 +41,7 @@ func TestQQGroupsFacetsNullsAndLogHoles(t *testing.T) {
 	src := data.NewTable().Float64("v", []float64{0, 1, 4, 10, 20, 30}).String("group", []string{"a", "a", "a", "b", "b", "b"}).WithNulls("v", []bool{false, false, false, false, true, false})
 	g := geom.QQ(src, geom.X("v"), geom.GroupBy("group"))
 	x, y := scale.Linear(), scale.Log()
-	if err := g.Train(x, y); err != nil {
+	if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 		t.Fatal(err)
 	}
 	x.SetRange(0, 100)
@@ -61,14 +61,14 @@ func TestQQGroupsFacetsNullsAndLogHoles(t *testing.T) {
 		t.Fatalf("facet has %d series", n)
 	}
 	bad := geom.QQ(src, geom.X("v"), geom.OnMissing(geom.Error))
-	if err := bad.Train(scale.Linear(), scale.Linear()); err == nil {
+	if err := bad.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err == nil {
 		t.Fatal("Error policy accepted null")
 	}
 }
 
 func TestQQRefusesCategoricalAxes(t *testing.T) {
 	g := geom.QQ(data.NewTable().Float64("v", []float64{1}), geom.X("v"))
-	if err := g.Train(scale.Ordinal(), scale.Linear()); err == nil {
+	if err := g.Train(geom.Training{X: scale.Ordinal(), Y: scale.Linear()}); err == nil {
 		t.Fatal("accepted categorical theoretical axis")
 	}
 }

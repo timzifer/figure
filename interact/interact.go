@@ -32,6 +32,7 @@ import (
 
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/render"
 	"github.com/timzifer/figure/scale"
 )
 
@@ -311,12 +312,12 @@ func (ix *Index) Marks(at []ir.Point, rows []int) {
 func (ix *Index) RowCount() int { return len(ix.rows) }
 
 // Panel implements the render package's Observer.
-func (ix *Index) Panel(i int, area ir.Rect, x, y scale.Scale, cd coord.Coord) {
-	for len(ix.panels) <= i {
+func (ix *Index) Panel(p render.PanelInfo) {
+	for len(ix.panels) <= p.Index {
 		ix.panels = append(ix.panels, Panel{})
 	}
-	ix.panels[i] = Panel{Area: area, X: x, Y: y, Coord: cd}
-	ix.panel, ix.layer, ix.label, ix.open = i, -1, "", false
+	ix.panels[p.Index] = Panel{Area: p.Area, X: p.X, Y: p.Y, Coord: p.Coord}
+	ix.panel, ix.layer, ix.label, ix.open = p.Index, -1, "", false
 	ix.layerX, ix.layerY = nil, nil
 }
 

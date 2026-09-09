@@ -142,7 +142,7 @@ func TestSharedScalesSurviveAParallelRender(t *testing.T) {
 
 type failingGeom struct{ err error }
 
-func (g failingGeom) Train(x, y scale.Scale) error           { return nil }
+func (g failingGeom) Train(t geom.Training) error            { return nil }
 func (g failingGeom) Build(b ir.Backend, f geom.Frame) error { return g.err }
 func (g failingGeom) Legend(geom.Frame) (geom.LegendEntry, bool) {
 	return geom.LegendEntry{}, false

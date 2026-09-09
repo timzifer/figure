@@ -29,7 +29,8 @@ func newStem(src data.Source, opts ...geom.Option) geom.Geom {
 	return &stemGeom{src: src, cfg: geom.Configure(opts...)}
 }
 
-func (g *stemGeom) Train(x, y scale.Scale) error {
+func (g *stemGeom) Train(t geom.Training) error {
+	x, y := t.X, t.Y
 	xs, _ := g.src.Float64Column(g.cfg.X)
 	ys, _ := g.src.Float64Column(g.cfg.Y)
 	x.Train(xs...)

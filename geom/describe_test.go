@@ -119,9 +119,9 @@ func TestDescribeOnAThirdPartyGeomSaysNo(t *testing.T) {
 
 type stubGeom struct{}
 
-func (stubGeom) Train(scale.Scale, scale.Scale) error { return nil }
-func (stubGeom) Build(ir.Backend, Frame) error        { return nil }
-func (stubGeom) Legend(Frame) (LegendEntry, bool)     { return LegendEntry{}, false }
+func (stubGeom) Train(Training) error             { return nil }
+func (stubGeom) Build(ir.Backend, Frame) error    { return nil }
+func (stubGeom) Legend(Frame) (LegendEntry, bool) { return LegendEntry{}, false }
 
 // sameDesc compares two descriptions. reflect.DeepEqual is the right tool
 // here rather than ==: a Desc holds a dash pattern behind a slice, so it is

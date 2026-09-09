@@ -211,6 +211,6 @@ func TestParseJSONRejectsRubbish(t *testing.T) {
 
 type opaqueLayer struct{}
 
-func (opaqueLayer) Train(scale.Scale, scale.Scale) error       { return nil }
+func (opaqueLayer) Train(geom.Training) error                  { return nil }
 func (opaqueLayer) Build(ir.Backend, geom.Frame) error         { return nil }
 func (opaqueLayer) Legend(geom.Frame) (geom.LegendEntry, bool) { return geom.LegendEntry{}, false }
