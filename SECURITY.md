@@ -3,15 +3,15 @@
 ## Supported versions
 
 figure follows semantic versioning. Security fixes are made on the latest
-minor release of the current major line; older lines are not patched.
+release of each module; older releases are not patched.
 
 | Module | Supported |
 |---|---|
-| `github.com/timzifer/figure` | `v1.x` |
-| `github.com/timzifer/figure/backend/gg` | `v1.x` |
-| `github.com/timzifer/figure/backend/window` | `v1.x` |
-| `github.com/timzifer/figure/backend/gg/gpu` | `v0.x` (pre-1.0, latest only) |
-| `github.com/timzifer/figure/arrow/v18` | `v18.x` |
+| `github.com/timzifer/figure` | `v0.x`, latest only |
+| `github.com/timzifer/figure/backend/gg` | `v0.x`, latest only |
+| `github.com/timzifer/figure/backend/window` | `v0.x`, latest only |
+| `github.com/timzifer/figure/backend/gg/gpu` | `v0.x`, latest only |
+| `github.com/timzifer/figure/arrow/v18` | `v18.x`, latest only |
 
 ## Reporting a vulnerability
 

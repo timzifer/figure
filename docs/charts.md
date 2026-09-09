@@ -124,7 +124,7 @@ point of having a stage rather than a shape
 ([ADR 0018](adr/0018-coordinate-systems.md)).
 
 The stage costs an existing chart nothing: `Cartesian` is the identity, and
-every golden file and every figure in this README is unchanged by it. What it
+every golden file and every figure in the gallery is unchanged by it. What it
 does change is what a pointer can be told — a hit is inverted back through the
 coord before the scales see it, so a pointer over a slice reports the value the
 slice stands for rather than a pixel, and `Live.TrackRows` names the row.

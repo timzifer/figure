@@ -157,8 +157,8 @@ END {
 	# escaped the pool, which is the same bug the gate above exists for.
 	flat("BenchmarkWatchedFrame", "BenchmarkWatchedFrameRows", 2)
 
-	# Row identity across frames, added after v1.6. A hover resolves the key of
-	# the row it landed on, and the whole reason that goes through data.Label
+	# Row identity across frames. A hover resolves the key of the row it
+	# landed on, and the whole reason that goes through data.Label
 	# rather than data.Labels is this line: Labels spells the column, which over
 	# a hundred thousand rows is a hundred thousand strings to name one of them.
 	# A pointer asks on every move, so the cost has to be a constant.
@@ -170,8 +170,8 @@ END {
 	atMost("BenchmarkHover", 0)
 	flat("BenchmarkHover", "BenchmarkHoverKeyed", 0)
 
-	# Transitions, added after v1.6. A frame of an animation is a blend written
-	# into columns that already exist, over a chart that is not resolved again
+	# Transitions. A frame of an animation is a blend written into columns
+	# that already exist, over a chart that is not resolved again
 	# between frames — so it costs a frame and nothing per row.
 	#
 	# The two ways to break it are both easy to write and both invisible in the

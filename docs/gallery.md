@@ -2,7 +2,7 @@
 
 Every figure the library draws, rendered from the code that draws it.
 
-Every figure below is rendered by
+Every figure here is rendered by
 [`backend/gg/cmd/gallery`](../backend/gg/cmd/gallery) and re-checked in CI, so a
 picture here cannot drift away from the code that produced it.
 

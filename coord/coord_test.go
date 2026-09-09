@@ -152,7 +152,7 @@ func TestPolarInvertsBackToTheMappedPair(t *testing.T) {
 
 // ADR 0002 froze the IR's path verbs on the claim that every curve a chart
 // needs is expressible as cubics, and an arc is the first serious test of it.
-// The control-point rule k = (4/3)·tan(φ/4) is exactly internal/markers'
+// The control-point rule k = (4/3)·tan(φ/4) is exactly ir.MarkerPath's
 // kappa at a quarter turn — in real arithmetic. By the time math.Tan has
 // evaluated it, it is float arithmetic, so the two are compared at a tolerance
 // rather than with ==.

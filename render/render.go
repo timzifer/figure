@@ -215,9 +215,8 @@ type Observer interface {
 // [github.com/timzifer/figure/geom.OnY2] or OnX2 is drawn against a different
 // one, and an index that inverted its marks through the panel's would report a
 // value from the wrong axis — a tooltip naming 4 200 on a chart whose right
-// axis reads 12 %. Under the old positional signature that fact arrived as an
-// optional LayerAxes interface called immediately before Layer; it is a field
-// now, and the next such fact is another field. ADR 0060 is the record.
+// axis reads 12 %. It is a field rather than a second call beside Layer, and
+// the next such fact is another field. ADR 0060 is the record.
 type LayerInfo struct {
 	// Index is the layer's position among its panel's layers, in paint order.
 	Index int

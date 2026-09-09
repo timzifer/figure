@@ -35,7 +35,7 @@
 //
 // An Arrow null becomes NaN in a numeric column, the zero time in a temporal
 // one and the empty string in a categorical one — and the validity bitmap is
-// offered beside the values through [data.Nulls], which is what tells the
+// offered beside the values as [data.Column.Nulls], which is what tells the
 // second two apart from a value somebody measured. NaN is what figure's
 // missing-data policies are written against, so a null row is gapped,
 // interpolated or rejected by the same [geom.OnMissing] setting that handles a

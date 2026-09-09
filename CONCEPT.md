@@ -680,10 +680,11 @@ The record of how each of those arrived, and the argument that shaped it, is in
   an implementation may legitimately lack is an optional interface beside it,
   asked for with a type assertion, the way `Resizer`, `Definite` and `Legender`
   already are; a fact every correct implementation needs is a field or a
-  method, which is why `render.Observer.End` is a method and the deleted
-  `EndData` was not the answer. `ir.Backend`'s drawing calls are the exception
-  the rule names: their parameters are the ink, not a description that grows. A struct with exported fields gains fields and never loses one,
-  and its zero value keeps its meaning. A string-typed name (`geom.Mark`,
+  method, which is why `render.Observer.End` is a method rather than an
+  optional interface beside it. `ir.Backend`'s drawing calls are the exception
+  the rule names: their parameters are the ink, not a description that grows.
+  A struct with exported fields gains fields and never loses one, and its zero
+  value keeps its meaning. A string-typed name (`geom.Mark`,
   `scale.Kind`, `coord.Type`) is open to third-party values; an iota enum grows
   at the end.
 - **The JSON dialect.** Within v1 a field is only ever added; a reader ignores a

@@ -45,7 +45,7 @@ func onCircleAt(cx, cy float32, angle, r float64) ir.Point {
 // A sweep at a constant radius is a circular arc, and this is the exact
 // construction for one: the control points sit a distance k = (4/3)·tan(φ/4)
 // times the radius along the tangent, which at a quarter turn is the kappa in
-// internal/markers. Longer sweeps are cut into quarter turns or less, because
+// [github.com/timzifer/figure/ir.MarkerPath]. Longer sweeps are cut into quarter turns or less, because
 // that identity degrades badly past one. A sweep whose two radii differ is the
 // same construction with each end scaled by its own radius, which is the honest
 // reading of an edge that is straight in data space when the radius is part of

@@ -270,7 +270,7 @@ func (gs *groups) train(src data.Source, s series, c config, x, y scale.Scale, s
 	// [dropNulls] has already taken its position away, so gs.ok below is
 	// false for it and both the cumulative sum and the drawing traversal skip
 	// it. Registering the key instead would put a series named "" in the
-	// legend and spend a colour of the palette on it. See [data.Nulls].
+	// legend and spend a colour of the palette on it. See [data.Column.Nulls].
 	null, _ := data.NullMask(src, c.groupCol)
 
 	gs.of = grow(gs.of, len(labels))
