@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/timzifer/figure/data"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,7 +74,7 @@ func TestTheHighlightKeepsEveryFlow(t *testing.T) {
 	if tbl.Len() != len(edgeFrom) {
 		t.Errorf("the highlighted table has %d rows, want all %d", tbl.Len(), len(edgeFrom))
 	}
-	marks, ok := tbl.StringColumn("lit")
+	marks, ok := data.StringColumn(tbl, "lit")
 	if !ok {
 		t.Fatal("the highlighted table has no lit column")
 	}
@@ -94,7 +95,7 @@ func TestNoKeyLightsNothing(t *testing.T) {
 	if lit := flowsThrough(""); lit != nil {
 		t.Errorf("an empty key lit %v", lit)
 	}
-	marks, _ := flowTable(nil).StringColumn("lit")
+	marks, _ := data.StringColumn(flowTable(nil), "lit")
 	for i, m := range marks {
 		if m != "other" {
 			t.Errorf("edge %d is %q with nothing hovered, want %q", i, m, "other")

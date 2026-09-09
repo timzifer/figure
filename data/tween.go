@@ -227,6 +227,12 @@ type Tween struct {
 	times map[string][]time.Time
 	strs  map[string][]string
 
+	// nulls holds one mask per non-numeric column, allocated once and
+	// rewritten in place by each blend so that [Tween.At] keeps allocating
+	// nothing. A numeric column needs none: a row the blend could not fill
+	// is NaN, which is already what missing means for a number.
+	nulls map[string][]bool
+
 	enter map[string]float64
 	exit  map[string]float64
 	hold  map[string]bool
@@ -339,6 +345,7 @@ func NewTween(a, b Source, key string, opts ...TweenOption) (*Tween, error) {
 		nums:  map[string][]float64{},
 		times: map[string][]time.Time{},
 		strs:  map[string][]string{},
+		nulls: map[string][]bool{},
 		enter: cfg.enter, exit: cfg.exit, hold: cfg.hold, round: cfg.round,
 		n: al.Len(),
 	}
@@ -380,8 +387,10 @@ func (t *Tween) plan() error {
 			t.nums[name] = make([]float64, t.n)
 		case temporal:
 			t.times[name] = make([]time.Time, t.n)
+			t.nulls[name] = make([]bool, t.n)
 		case textual:
 			t.strs[name] = make([]string, t.n)
+			t.nulls[name] = make([]bool, t.n)
 		}
 	}
 	if len(t.names) == 0 {
@@ -401,16 +410,22 @@ func (k colKind) String() string {
 }
 
 func kindOf(src Source, name string) (colKind, bool) {
-	if _, ok := src.Float64Column(name); ok {
+	c, ok := ColumnOf(src, name)
+	if !ok {
+		return numeric, false
+	}
+	switch c.Kind {
+	case KindTime:
+		return temporal, true
+	case KindString:
+		return textual, true
+	default:
+		// An exact integer blends as a number: a value between two ids is
+		// not an id, but a value between two counts is a count, and a
+		// transition is about the movement rather than the identity — which
+		// [github.com/timzifer/figure/geom.KeyBy] carries separately.
 		return numeric, true
 	}
-	if _, ok := src.TimeColumn(name); ok {
-		return temporal, true
-	}
-	if _, ok := src.StringColumn(name); ok {
-		return textual, true
-	}
-	return numeric, false
 }
 
 // At sets the blend fraction, clamped to [0, 1], and rewrites the columns in
@@ -447,14 +462,16 @@ func (t *Tween) Rows() int { return t.n }
 
 func (t *Tween) blendNumeric(name string, f float64) {
 	dst := t.nums[name]
-	av, hasA := t.a.Float64Column(name)
-	bv, hasB := t.b.Float64Column(name)
+	av, hasA := Float64Column(t.a, name)
+	bv, hasB := Float64Column(t.b, name)
+	nullA, _ := NullMask(t.a, name)
+	nullB, _ := NullMask(t.b, name)
 	held := t.hold[name]
 	digits, rounding := t.round[name]
 	for i := range dst {
 		ra, rb := t.al.A[i], t.al.B[i]
-		lo, okLo := at64(av, hasA, ra)
-		hi, okHi := at64(bv, hasB, rb)
+		lo, okLo := at64(av, hasA && !IsNull(nullA, ra), ra)
+		hi, okHi := at64(bv, hasB && !IsNull(nullB, rb), rb)
 
 		var v float64
 		switch {
@@ -511,13 +528,16 @@ func roundTo(v float64, digits int) float64 {
 
 func (t *Tween) blendTime(name string, f float64) {
 	dst := t.times[name]
-	av, hasA := t.a.TimeColumn(name)
-	bv, hasB := t.b.TimeColumn(name)
+	av, hasA := TimeColumn(t.a, name)
+	bv, hasB := TimeColumn(t.b, name)
+	nullA, _ := NullMask(t.a, name)
+	nullB, _ := NullMask(t.b, name)
 	held := t.hold[name]
 	for i := range dst {
 		ra, rb := t.al.A[i], t.al.B[i]
-		lo, okLo := atTime(av, hasA, ra)
-		hi, okHi := atTime(bv, hasB, rb)
+		lo, okLo := atTime(av, hasA && !IsNull(nullA, ra), ra)
+		hi, okHi := atTime(bv, hasB && !IsNull(nullB, rb), rb)
+		t.nulls[name][i] = !okLo && !okHi
 		switch {
 		case okLo && okHi:
 			if held {
@@ -544,15 +564,18 @@ func (t *Tween) blendTime(name string, f float64) {
 // name rather than a quantity, so there is nothing between two of them.
 func (t *Tween) blendString(name string, _ float64) {
 	dst := t.strs[name]
-	av, hasA := t.a.StringColumn(name)
-	bv, hasB := t.b.StringColumn(name)
+	av, hasA := StringColumn(t.a, name)
+	bv, hasB := StringColumn(t.b, name)
+	nullA, _ := NullMask(t.a, name)
+	nullB, _ := NullMask(t.b, name)
 	for i := range dst {
-		if v, ok := atStr(bv, hasB, t.al.B[i]); ok {
-			dst[i] = v
+		ra, rb := t.al.A[i], t.al.B[i]
+		if v, ok := atStr(bv, hasB && !IsNull(nullB, rb), rb); ok {
+			dst[i], t.nulls[name][i] = v, false
 			continue
 		}
-		v, _ := atStr(av, hasA, t.al.A[i])
-		dst[i] = v
+		v, ok := atStr(av, hasA && !IsNull(nullA, ra), ra)
+		dst[i], t.nulls[name][i] = v, !ok
 	}
 }
 
@@ -600,19 +623,29 @@ func (v *tweenView) Len() int { return v.n }
 
 func (v *tweenView) Columns() []string { return append([]string(nil), v.names...) }
 
-func (v *tweenView) Float64Column(name string) ([]float64, bool) {
-	c, ok := v.nums[name]
-	return c, ok
-}
-
-func (v *tweenView) TimeColumn(name string) ([]time.Time, bool) {
-	c, ok := v.times[name]
-	return c, ok
-}
-
-func (v *tweenView) StringColumn(name string) ([]string, bool) {
-	c, ok := v.strs[name]
-	return c, ok
+// Column reports the blended column, carrying the mask that says which of its
+// rows the blend could not fill.
+//
+// The mask matters for a text or temporal column, where a row nothing was
+// blended into reads as "" or as the year 1 — a numeric one says the same
+// thing with a NaN. Before the mask travelled with the column this view had
+// no way to say it at all, and a transition quietly drew rows neither end
+// had.
+func (v *tweenView) Column(name string) (Column, bool) {
+	out := Column{Nulls: v.nulls[name]}
+	if c, ok := v.nums[name]; ok {
+		out.Kind, out.Floats = KindFloat64, c
+		return out, true
+	}
+	if c, ok := v.times[name]; ok {
+		out.Kind, out.Times = KindTime, c
+		return out, true
+	}
+	if c, ok := v.strs[name]; ok {
+		out.Kind, out.Strings = KindString, c
+		return out, true
+	}
+	return Column{}, false
 }
 
 var _ Source = (*tweenView)(nil)

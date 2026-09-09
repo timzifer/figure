@@ -281,12 +281,7 @@ func (v *streamView) current() *frozen {
 func (v *streamView) Len() int          { return v.current().Len() }
 func (v *streamView) Columns() []string { return v.current().Columns() }
 
-func (v *streamView) Float64Column(name string) ([]float64, bool) {
-	return v.current().Float64Column(name)
-}
-
-func (v *streamView) TimeColumn(string) ([]time.Time, bool) { return nil, false }
-func (v *streamView) StringColumn(string) ([]string, bool)  { return nil, false }
+func (v *streamView) Column(name string) (Column, bool) { return v.current().Column(name) }
 
 // frozen is one of the two buffers: a plain columnar Source that nothing
 // writes to while it is the current one.
@@ -328,17 +323,14 @@ func grow(buf []float64, n int) []float64 {
 func (f *frozen) Len() int          { return f.n }
 func (f *frozen) Columns() []string { return f.names }
 
-func (f *frozen) Float64Column(name string) ([]float64, bool) {
+func (f *frozen) Column(name string) (Column, bool) {
 	for i, n := range f.names {
 		if n == name {
-			return f.cols[i][:f.n], true
+			return Column{Kind: KindFloat64, Floats: f.cols[i][:f.n]}, true
 		}
 	}
-	return nil, false
+	return Column{}, false
 }
-
-func (f *frozen) TimeColumn(string) ([]time.Time, bool) { return nil, false }
-func (f *frozen) StringColumn(string) ([]string, bool)  { return nil, false }
 
 var (
 	_ Source = (*frozen)(nil)

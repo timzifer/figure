@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/timzifer/figure/data"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,11 +40,11 @@ func TestTheSpansLineUpWithTheTrace(t *testing.T) {
 	}
 
 	st := states(times[0])
-	starts, ok := st.TimeColumn("start")
+	starts, ok := data.TimeColumn(st, "start")
 	if !ok {
 		t.Fatal("no start column")
 	}
-	ends, ok := st.TimeColumn("end")
+	ends, ok := data.TimeColumn(st, "end")
 	if !ok {
 		t.Fatal("no end column")
 	}

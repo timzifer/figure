@@ -3,6 +3,7 @@
 package canvas_test
 
 import (
+	"github.com/timzifer/figure/data"
 	"image"
 	"strconv"
 	"strings"
@@ -216,8 +217,8 @@ func TestEveryPathIsOneCall(t *testing.T) {
 		"x": make([]float64, 500),
 		"y": make([]float64, 500),
 	})
-	xs, _ := src.Float64Column("x")
-	ys, _ := src.Float64Column("y")
+	xs, _ := data.Float64Column(src, "x")
+	ys, _ := data.Float64Column(src, "y")
 	for i := range xs {
 		xs[i], ys[i] = float64(i), float64(i%17)
 	}

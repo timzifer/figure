@@ -2,6 +2,12 @@
 
 **Status:** Accepted · **Date:** 2026-09-04
 
+> **Amended by [ADR 0061](0061-columns-are-one-value.md).** The adapter answers
+> one `Column` call rather than three typed ones, and an Arrow `Int64` column
+> now arrives as exact integers rather than widened into `float64` — which is
+> what keeps an identifier past 2^53 from becoming its neighbour. The borrow
+> described below still happens, for `Float64` and now for `Int64` too.
+
 ## Context
 
 CONCEPT §7 has always said "Arrow adapter as a separate module (`figure/arrow`)

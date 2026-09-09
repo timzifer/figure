@@ -352,3 +352,45 @@ func benchmarkHover(b *testing.B, key bool) {
 
 func BenchmarkHover(b *testing.B)      { benchmarkHover(b, false) }
 func BenchmarkHoverKeyed(b *testing.B) { benchmarkHover(b, true) }
+
+// A key column of exact integers keys by the digits, not by the float the
+// digits round to.
+//
+// Two ids one apart above 2^53 are the same float64. Before the data layer
+// could hold an exact integer they were also the same key, so a transition
+// blended one row into the other and a hover named whichever came first —
+// which is the failure the kind exists to prevent. See ADR 0061.
+func TestAnExactIntegerKeyIsExact(t *testing.T) {
+	const lo, hi = 9007199254740992, 9007199254740993 // 2^53 and 2^53+1
+	tbl := figure.NewTable().
+		Float64("x", []float64{0, 1}).
+		Float64("y", []float64{10, 20}).
+		Int64("id", []int64{lo, hi})
+
+	var got figure.Event
+	p := figure.New(figure.Size(600, 300))
+	p.Add(geom.Scatter(tbl, geom.X("x"), geom.Y("y"), geom.KeyBy("id")))
+	p.On(figure.Hover, func(ev figure.Event) { got = ev })
+
+	rec := irtest.New()
+	live, err := p.Live(rec.Target())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+	live.TrackRows(true)
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+
+	panel := live.Index().Panels()[0]
+	at := ir.Point{X: panel.X.Map(1), Y: panel.Y.Map(20)}
+	live.Move(float64(at.X), float64(at.Y))
+
+	if !got.Found {
+		t.Fatal("no hit under a point a mark was drawn at")
+	}
+	if got.Key != "9007199254740993" {
+		t.Errorf("key = %q, want the id's own digits", got.Key)
+	}
+}

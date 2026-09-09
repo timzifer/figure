@@ -185,34 +185,38 @@ func fields(d geom.Desc) []string {
 // per cell: a table of a hundred thousand rows should not look its column type
 // up a hundred thousand times.
 func reader(src data.Source, name string) func(int) string {
-	if v, ok := src.Float64Column(name); ok {
+	c, ok := data.ColumnOf(src, name)
+	if !ok {
+		return func(int) string { return "" }
+	}
+	switch {
+	case c.Text != nil:
+		// A source that spells its own rows is the authority on them: a
+		// quantity reads as "2.5 bar" here for the same reason it does in a
+		// tooltip.
+		return c.Spell
+	case c.Kind == data.KindFloat64:
 		return func(i int) string {
-			if i >= len(v) {
+			if i >= len(c.Floats) || math.IsNaN(c.Floats[i]) || data.IsNull(c.Nulls, i) {
 				return ""
 			}
-			if math.IsNaN(v[i]) {
+			return data.FormatNumber(c.Floats[i])
+		}
+	case c.Kind == data.KindTime:
+		return func(i int) string {
+			if i >= len(c.Times) || data.IsNull(c.Nulls, i) {
 				return ""
 			}
-			return data.FormatNumber(v[i])
+			return c.Times[i].UTC().Format(time.RFC3339)
+		}
+	default:
+		return func(i int) string {
+			if data.IsNull(c.Nulls, i) {
+				return ""
+			}
+			return c.Spell(i)
 		}
 	}
-	if v, ok := src.TimeColumn(name); ok {
-		return func(i int) string {
-			if i >= len(v) {
-				return ""
-			}
-			return v[i].UTC().Format(time.RFC3339)
-		}
-	}
-	if v, ok := src.StringColumn(name); ok {
-		return func(i int) string {
-			if i >= len(v) {
-				return ""
-			}
-			return v[i]
-		}
-	}
-	return func(int) string { return "" }
 }
 
 func esc(s string) string { return html.EscapeString(s) }

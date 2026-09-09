@@ -32,7 +32,7 @@ func TestAStreamIsEmptyUntilItIsSnapshotted(t *testing.T) {
 	if got := src.Len(); got != 3 {
 		t.Fatalf("after a snapshot the view has %d rows, want 3", got)
 	}
-	y, ok := src.Float64Column("y")
+	y, ok := data.Float64Column(src, "y")
 	if !ok {
 		t.Fatal("no y column")
 	}
@@ -51,7 +51,7 @@ func TestASnapshotDoesNotSeeLaterAppends(t *testing.T) {
 	if got := snap.Len(); got != 1 {
 		t.Errorf("the snapshot grew to %d rows while the producer appended", got)
 	}
-	y, _ := snap.Float64Column("y")
+	y, _ := data.Float64Column(snap, "y")
 	if len(y) != 1 || y[0] != 1 {
 		t.Errorf("the snapshot's rows changed: %v", y)
 	}
@@ -66,7 +66,7 @@ func TestAWindowKeepsTheLastRows(t *testing.T) {
 		t.Errorf("the stream holds %d rows, want the window's 4", got)
 	}
 	s.Snapshot()
-	col, _ := s.Source().Float64Column("i")
+	col, _ := data.Float64Column(s.Source(), "i")
 	if want := []float64{6, 7, 8, 9}; !equal(col, want) {
 		t.Errorf("rows = %v, want %v — the window keeps the newest and in order", col, want)
 	}
@@ -80,8 +80,8 @@ func TestAWindowSetAfterwardsDropsTheOldest(t *testing.T) {
 	s.Window(3)
 	s.Snapshot()
 	src := s.Source()
-	i, _ := src.Float64Column("i")
-	j, _ := src.Float64Column("j")
+	i, _ := data.Float64Column(src, "i")
+	j, _ := data.Float64Column(src, "j")
 	if want := []float64{7, 8, 9}; !equal(i, want) {
 		t.Errorf("i = %v, want %v", i, want)
 	}
@@ -100,7 +100,7 @@ func TestAWindowedStreamStaysInRowOrder(t *testing.T) {
 		s.Append(float64(i))
 	}
 	s.Snapshot()
-	col, _ := s.Source().Float64Column("i")
+	col, _ := data.Float64Column(s.Source(), "i")
 	if want := []float64{18, 19, 20, 21, 22}; !equal(col, want) {
 		t.Errorf("rows = %v, want %v", col, want)
 	}
@@ -127,11 +127,11 @@ func TestAppendTimeUsesUnixNanoseconds(t *testing.T) {
 	}
 	s.Snapshot()
 	src := s.Source()
-	ts, _ := src.Float64Column("t")
+	ts, _ := data.Float64Column(src, "t")
 	if ts[0] != float64(when.UnixNano()) {
 		t.Errorf("t = %v, want %v", ts[0], when.UnixNano())
 	}
-	v, _ := src.Float64Column("v")
+	v, _ := data.Float64Column(src, "v")
 	if v[0] != 7 {
 		t.Errorf("v = %v, want 7", v)
 	}
@@ -154,16 +154,16 @@ func TestAStreamCarriesOnlyNumbers(t *testing.T) {
 	s := data.NewStream("y")
 	s.Append(1)
 	src := s.Snapshot()
-	if _, ok := src.TimeColumn("y"); ok {
+	if _, ok := data.TimeColumn(src, "y"); ok {
 		t.Error("a stream column reported itself as temporal")
 	}
-	if _, ok := src.StringColumn("y"); ok {
+	if _, ok := data.StringColumn(src, "y"); ok {
 		t.Error("a stream column reported itself as categorical")
 	}
 	if got := src.Columns(); len(got) != 1 || got[0] != "y" {
 		t.Errorf("columns = %v", got)
 	}
-	if _, ok := src.Float64Column("nope"); ok {
+	if _, ok := data.Float64Column(src, "nope"); ok {
 		t.Error("an absent column was found")
 	}
 }
@@ -263,10 +263,10 @@ func TestTheStreamAndItsViewAgreeAboutColumns(t *testing.T) {
 	if got := view.Columns(); len(got) != 2 {
 		t.Errorf("the view reports %v", got)
 	}
-	if _, ok := view.TimeColumn("a"); ok {
+	if _, ok := data.TimeColumn(view, "a"); ok {
 		t.Error("the view reported a temporal column")
 	}
-	if _, ok := view.StringColumn("a"); ok {
+	if _, ok := data.StringColumn(view, "a"); ok {
 		t.Error("the view reported a categorical column")
 	}
 	if got := view.Len(); got != 1 {

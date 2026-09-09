@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/timzifer/figure/data"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,9 +90,9 @@ func TestALayoutChartDrawsNoAxis(t *testing.T) {
 // names two ends, and the hierarchy has exactly one root and no cycle.
 func TestTheDataIsWellFormed(t *testing.T) {
 	src := traffic()
-	from, okF := src.StringColumn("from")
-	to, okT := src.StringColumn("to")
-	rps, okV := src.Float64Column("rps")
+	from, okF := data.StringColumn(src, "from")
+	to, okT := data.StringColumn(src, "to")
+	rps, okV := data.Float64Column(src, "rps")
 	if !okF || !okT || !okV {
 		t.Fatal("the edge list is missing a column")
 	}
@@ -108,8 +109,8 @@ func TestTheDataIsWellFormed(t *testing.T) {
 	}
 
 	h := disk()
-	path, _ := h.StringColumn("path")
-	under, _ := h.StringColumn("under")
+	path, _ := data.StringColumn(h, "path")
+	under, _ := data.StringColumn(h, "under")
 	seen := map[string]bool{}
 	roots := 0
 	for i, id := range path {

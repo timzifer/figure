@@ -29,11 +29,11 @@ func newLollipop(src data.Source, opts ...geom.Option) geom.Geom {
 
 func (l *lollipop) Train(t geom.Training) error {
 	x, y := t.X, t.Y
-	xs, ok := l.src.Float64Column(l.cfg.X)
+	xs, ok := data.Float64Column(l.src, l.cfg.X)
 	if !ok {
 		return geom.ErrNoColumn
 	}
-	ys, ok := l.src.Float64Column(l.cfg.Y)
+	ys, ok := data.Float64Column(l.src, l.cfg.Y)
 	if !ok {
 		return geom.ErrNoColumn
 	}
@@ -43,8 +43,8 @@ func (l *lollipop) Train(t geom.Training) error {
 }
 
 func (l *lollipop) Build(b ir.Backend, f geom.Frame) error {
-	xs, _ := l.src.Float64Column(l.cfg.X)
-	ys, _ := l.src.Float64Column(l.cfg.Y)
+	xs, _ := data.Float64Column(l.src, l.cfg.X)
+	ys, _ := data.Float64Column(l.src, l.cfg.Y)
 	col := f.Theme.Palette.At(f.Index)
 	if l.cfg.Color != nil {
 		col = *l.cfg.Color

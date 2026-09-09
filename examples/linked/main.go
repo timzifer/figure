@@ -319,7 +319,7 @@ func count(lit []bool) int {
 // markOf finds where a row carrying a value landed, so the example can point
 // at it without a pointer.
 func markOf(l *figure.Live, src data.Source, col, want string) (ir.Point, bool) {
-	vals, ok := src.StringColumn(col)
+	vals, ok := data.StringColumn(src, col)
 	if !ok {
 		return ir.Point{}, false
 	}

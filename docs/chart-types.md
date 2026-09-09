@@ -190,8 +190,8 @@ sunburst, and an arc diagram with its rail at the rim is a chord diagram.
 Neither is a mark of its own, for the same reason a pie is not a second
 implementation of a bar.
 
-**The data layer did not change.** An edge list is `StringColumn("from")`,
-`StringColumn("to")`, `Float64Column("value")` — three columns, exactly what
+**The data layer did not change.** An edge list is a string column `from`, a
+string column `to` and a numeric column `value` — three columns, exactly what
 `data.Source` already returns. A hierarchy is `(id, parent, value)`, a
 self-referential edge table, equally columnar. What was added is five *channels*
 — `geom.From`, `geom.To`, `geom.ID`, `geom.Parent`, `geom.Value` — and the two
@@ -314,7 +314,7 @@ something else.
 | A tick label a document can choose | **shipped** — [ADR 0035](adr/0035-label-format-and-locale.md) | `scale.NumberFormat` and `scale.TimeLayout`. `scale.Format` takes a Go function, so a chart authored as JSON could not set a thousands separator, a currency or a decimal place at all. |
 | A chart in a language | **shipped** — [ADR 0035](adr/0035-label-format-and-locale.md) | `scale.Locale` and `figure.Locale`. The time ladder rendered through Go's English tables and `strconv` writes a decimal point; for a German reader the second is not foreign but wrong. |
 | A PDF in a script WinAnsi cannot hold | **shipped** — [ADR 0038](adr/0038-embedded-fonts.md) | `pdf.WithFont`. The PDF emitter named the base-14 Helvetica and encoded WinAnsi, so every rune outside Latin-1 became `?` — Greek, Cyrillic, Hebrew, Thai and every CJK script, in the format people send to customers. |
-| Absence in a text or temporal column | **shipped** — [ADR 0034](adr/0034-null-values.md) | `data.Nulls`. A null read back as `""` was a band of its own on an ordinal axis and one read back as the zero time stretched a domain across two millennia. |
+| Absence in a text or temporal column | **shipped** — [ADR 0034](adr/0034-null-values.md) | `data.Column.Nulls`. A null read back as `""` was a band of its own on an ordinal axis and one read back as the zero time stretched a domain across two millennia. |
 
 ## I — needs a locus — **planned**, [ADR 0050](adr/0050-locus-annotations.md)
 

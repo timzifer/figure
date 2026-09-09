@@ -21,7 +21,7 @@ import (
 //	}
 //
 //	func (l *lollipop) Build(b ir.Backend, f geom.Frame) error {
-//	    xs, _ := l.src.Float64Column(l.cfg.X)
+//	    xs, _ := data.Float64Column(l.src, l.cfg.X)
 //	    col := f.Theme.Palette.At(f.Index)
 //	    if l.cfg.Color != nil {
 //	        col = *l.cfg.Color

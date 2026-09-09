@@ -79,7 +79,7 @@ func TestAlignRefusesAKeyColumnThatIsNotThere(t *testing.T) {
 
 func valueOf(t *testing.T, src data.Source, col string, row int) float64 {
 	t.Helper()
-	v, ok := src.Float64Column(col)
+	v, ok := data.Float64Column(src, col)
 	if !ok {
 		t.Fatalf("no column %q", col)
 	}
@@ -180,7 +180,7 @@ func TestStringColumnsDoNotInterpolate(t *testing.T) {
 	}
 	for _, f := range []float64{0, 0.5, 1} {
 		tw.At(f)
-		got, ok := tw.Source().StringColumn("stage")
+		got, ok := data.StringColumn(tw.Source(), "stage")
 		if !ok {
 			t.Fatal("the blend lost its string column")
 		}
@@ -202,7 +202,7 @@ func TestTimeColumnsInterpolate(t *testing.T) {
 		t.Fatal(err)
 	}
 	tw.At(0.5)
-	got, ok := tw.Source().TimeColumn("t")
+	got, ok := data.TimeColumn(tw.Source(), "t")
 	if !ok {
 		t.Fatal("the blend lost its time column")
 	}
@@ -317,8 +317,8 @@ func TestAtIsDeterministic(t *testing.T) {
 	for _, f := range []float64{0, 0.3, 0.5, 0.77, 1} {
 		x.At(f)
 		y.At(f)
-		xc, _ := x.Source().Float64Column("v")
-		yc, _ := y.Source().Float64Column("v")
+		xc, _ := data.Float64Column(x.Source(), "v")
+		yc, _ := data.Float64Column(y.Source(), "v")
 		for i := range xc {
 			if xc[i] != yc[i] {
 				t.Fatalf("two blends at f=%v differ at row %d: %v vs %v", f, i, xc[i], yc[i])

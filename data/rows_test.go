@@ -25,13 +25,13 @@ func TestRowsGathersInTheOrderGiven(t *testing.T) {
 	if got := sub.Len(); got != 2 {
 		t.Fatalf("Len = %d, want 2", got)
 	}
-	if got, _ := sub.Float64Column("sales"); !reflect.DeepEqual(got, []float64{4, 1}) {
+	if got, _ := data.Float64Column(sub, "sales"); !reflect.DeepEqual(got, []float64{4, 1}) {
 		t.Errorf("sales = %v, want [4 1]", got)
 	}
-	if got, _ := sub.StringColumn("region"); !reflect.DeepEqual(got, []string{"east", "north"}) {
+	if got, _ := data.StringColumn(sub, "region"); !reflect.DeepEqual(got, []string{"east", "north"}) {
 		t.Errorf("region = %v, want [east north]", got)
 	}
-	if got, _ := sub.TimeColumn("when"); len(got) != 2 || got[0] != time.Unix(3, 0).UTC() {
+	if got, _ := data.TimeColumn(sub, "when"); len(got) != 2 || got[0] != time.Unix(3, 0).UTC() {
 		t.Errorf("when = %v", got)
 	}
 }
@@ -40,8 +40,8 @@ func TestRowsGathersInTheOrderGiven(t *testing.T) {
 // a geom asks for the same column from Train and from Build.
 func TestRowsCachesAGatheredColumn(t *testing.T) {
 	sub := data.Rows(sample(), []int{1, 2})
-	a, _ := sub.Float64Column("sales")
-	b, _ := sub.Float64Column("sales")
+	a, _ := data.Float64Column(sub, "sales")
+	b, _ := data.Float64Column(sub, "sales")
 	if &a[0] != &b[0] {
 		t.Error("the second read re-gathered the column")
 	}
@@ -52,17 +52,17 @@ func TestRowsDropsOutOfRangeIndices(t *testing.T) {
 	if got := sub.Len(); got != 1 {
 		t.Fatalf("Len = %d, want 1", got)
 	}
-	if got, _ := sub.Float64Column("sales"); !reflect.DeepEqual(got, []float64{3}) {
+	if got, _ := data.Float64Column(sub, "sales"); !reflect.DeepEqual(got, []float64{3}) {
 		t.Errorf("sales = %v, want [3]", got)
 	}
 }
 
 func TestRowsReportsAMissingColumn(t *testing.T) {
 	sub := data.Rows(sample(), []int{0})
-	if _, ok := sub.Float64Column("nope"); ok {
+	if _, ok := data.Float64Column(sub, "nope"); ok {
 		t.Error("a column that does not exist was reported present")
 	}
-	if _, ok := sub.StringColumn("sales"); ok {
+	if _, ok := data.StringColumn(sub, "sales"); ok {
 		t.Error("a numeric column was reported as textual")
 	}
 }

@@ -185,10 +185,10 @@ func columnRange(src data.Source, name string) Range {
 	if src == nil || name == "" {
 		return Range{}
 	}
-	if v, ok := src.Float64Column(name); ok {
+	if v, ok := data.Float64Column(src, name); ok {
 		return rangeOf(v)
 	}
-	if v, ok := src.TimeColumn(name); ok {
+	if v, ok := data.TimeColumn(src, name); ok {
 		out := Range{}
 		for _, t := range v {
 			out = extend(out, scale.Nanos(t))

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"time"
 
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
@@ -933,7 +932,7 @@ func colorColumn(src data.Source, c config) ([]float64, error) {
 		}
 		return out, nil
 	}
-	if _, text := src.StringColumn(c.colorCol); text {
+	if _, text := data.StringColumn(src, c.colorCol); text {
 		return nil, fmt.Errorf("%w: column %q holds category names and a colour ramp reads numbers; give it a scale.Qualitative",
 			ErrCategorical, c.colorCol)
 	}
@@ -963,35 +962,31 @@ func column(src data.Source, name string, s scale.Scale) ([]float64, error) {
 	// happens to it — the same three answers a numeric column's own NaN
 	// already gets. Doing it here rather than per geom is what makes it true
 	// of every mark, including the ones that do not exist yet. See
-	// [data.Nulls].
+	// [data.Column].
 	null, _ := data.NullMask(src, name)
 
-	if v, ok := src.StringColumn(name); ok {
-		if cat == nil {
-			return nil, fmt.Errorf("%w: column %q holds category names; give that axis a scale.Ordinal", ErrCategorical, name)
-		}
-		return encode(cat, v, null, func(l string) string { return l }), nil
+	col, ok := data.ColumnOf(src, name)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrNoColumn, name)
 	}
-	if v, ok := src.Float64Column(name); ok {
-		if cat == nil {
-			if !masks(v, null) {
-				return v, nil
+	// A category is encoded by what it reads as, whatever it is stored as, so
+	// an ordinal axis over exact integers puts them in the order the scale was
+	// given and labels them as digits rather than as floats.
+	if cat != nil {
+		out := make([]float64, col.Len())
+		for i := range out {
+			if data.IsNull(null, i) {
+				out[i] = math.NaN()
+				continue
 			}
-			out := make([]float64, len(v))
-			copy(out, v)
-			for i := range out {
-				if data.IsNull(null, i) {
-					out[i] = math.NaN()
-				}
-			}
-			return out, nil
+			out[i] = cat.Encode(col.Spell(i))
 		}
-		return encode(cat, v, null, data.FormatNumber), nil
+		return out, nil
 	}
-	if t, ok := src.TimeColumn(name); ok {
-		if cat != nil {
-			return encode(cat, t, null, func(tv time.Time) string { return tv.Format(time.RFC3339) }), nil
-		}
+	if col.Kind == data.KindString {
+		return nil, fmt.Errorf("%w: column %q holds category names; give that axis a scale.Ordinal", ErrCategorical, name)
+	}
+	if t, ok := data.TimeColumn(src, name); ok {
 		out := make([]float64, len(t))
 		for i, tv := range t {
 			if data.IsNull(null, i) {
@@ -1002,7 +997,21 @@ func column(src data.Source, name string, s scale.Scale) ([]float64, error) {
 		}
 		return out, nil
 	}
-	return nil, fmt.Errorf("%w: %q", ErrNoColumn, name)
+	v, ok := col.Numbers()
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrNoColumn, name)
+	}
+	if !masks(v, null) {
+		return v, nil
+	}
+	out := make([]float64, len(v))
+	copy(out, v)
+	for i := range out {
+		if data.IsNull(null, i) {
+			out[i] = math.NaN()
+		}
+	}
+	return out, nil
 }
 
 // masks reports whether applying null to vs would change any of them.

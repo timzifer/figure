@@ -231,7 +231,7 @@ func magnitudes(src data.Source, c config, n int, val, ones []float64) ([]float6
 		}
 		return ones, ones, nil
 	}
-	v, ok := src.Float64Column(c.valCol)
+	v, ok := data.Float64Column(src, c.valCol)
 	if !ok {
 		return val, ones, fmt.Errorf("%w: %q, which has to be a number", ErrNoColumn, c.valCol)
 	}

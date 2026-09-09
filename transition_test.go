@@ -130,11 +130,11 @@ func snapshot(t *testing.T, tw *data.Tween) data.Source {
 	src := tw.Source()
 	tbl := figure.NewTable()
 	for _, name := range src.Columns() {
-		if v, ok := src.Float64Column(name); ok {
+		if v, ok := data.Float64Column(src, name); ok {
 			tbl = tbl.Float64(name, append([]float64(nil), v...))
 			continue
 		}
-		if v, ok := src.StringColumn(name); ok {
+		if v, ok := data.StringColumn(src, name); ok {
 			tbl = tbl.String(name, append([]string(nil), v...))
 		}
 	}
@@ -224,7 +224,7 @@ func TestTheMiddleIsBetweenTheEnds(t *testing.T) {
 		t.Fatal(err)
 	}
 	tw.At(0.5)
-	y, ok := tw.Source().Float64Column("y")
+	y, ok := data.Float64Column(tw.Source(), "y")
 	if !ok {
 		t.Fatal("no y column")
 	}

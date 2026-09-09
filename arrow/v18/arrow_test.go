@@ -2,6 +2,7 @@ package arrow_test
 
 import (
 	"bytes"
+	"github.com/timzifer/figure/data"
 	"math"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ func TestAFloat64ColumnIsBorrowed(t *testing.T) {
 		})
 
 	src := arrow.Source(rec)
-	got, ok := src.Float64Column("y")
+	got, ok := data.Float64Column(src, "y")
 	if !ok {
 		t.Fatal("the float64 column was not offered as numeric")
 	}
@@ -51,7 +52,7 @@ func TestNullsBecomeNaN(t *testing.T) {
 			b.Field(0).(*array.Float64Builder).AppendValues([]float64{1, 0, 3}, []bool{true, false, true})
 		})
 
-	got, ok := arrow.Source(rec).Float64Column("y")
+	got, ok := data.Float64Column(arrow.Source(rec), "y")
 	if !ok {
 		t.Fatal("the column was not offered as numeric")
 	}
@@ -93,7 +94,7 @@ func TestIntegerAndFloat32ColumnsWiden(t *testing.T) {
 		{"f32", []float64{0.5, 1.5}},
 		{"flag", []float64{1, 0}},
 	} {
-		got, ok := src.Float64Column(c.name)
+		got, ok := data.Float64Column(src, c.name)
 		if !ok {
 			t.Errorf("%s was not offered as numeric", c.name)
 			continue
@@ -124,7 +125,7 @@ func TestTimestampsCarryTheirUnit(t *testing.T) {
 
 	src := arrow.Source(rec)
 	for _, name := range []string{"ms", "ns"} {
-		got, ok := src.TimeColumn(name)
+		got, ok := data.TimeColumn(src, name)
 		if !ok {
 			t.Fatalf("%s was not offered as temporal", name)
 		}
@@ -146,7 +147,7 @@ func TestDateColumns(t *testing.T) {
 	})
 	src := arrow.Source(rec)
 	for _, name := range []string{"d32", "d64"} {
-		got, ok := src.TimeColumn(name)
+		got, ok := data.TimeColumn(src, name)
 		if !ok {
 			t.Fatalf("%s was not offered as temporal", name)
 		}
@@ -172,13 +173,13 @@ func TestStringAndDictionaryColumns(t *testing.T) {
 	})
 
 	src := arrow.Source(rec)
-	plain, ok := src.StringColumn("plain")
+	plain, ok := data.StringColumn(src, "plain")
 	if !ok || len(plain) != 3 || plain[0] != "north" || plain[1] != "south" {
 		t.Fatalf("plain string column: got %v ok=%v", plain, ok)
 	}
 	// Dictionary encoding is how Arrow spells "categorical", and a categorical
 	// column is exactly what an ordinal axis or a facet wants.
-	cat, ok := src.StringColumn("cat")
+	cat, ok := data.StringColumn(src, "cat")
 	if !ok {
 		t.Fatal("a dictionary-encoded string column was not offered as textual")
 	}
@@ -196,13 +197,13 @@ func TestAColumnIsOnlyOfferedAsWhatItIs(t *testing.T) {
 		b.Field(1).(*array.StringBuilder).AppendValues([]string{"x"}, nil)
 	})
 	src := arrow.Source(rec)
-	if _, ok := src.TimeColumn("y"); ok {
+	if _, ok := data.TimeColumn(src, "y"); ok {
 		t.Error("a float column was offered as temporal")
 	}
-	if _, ok := src.Float64Column("name"); ok {
+	if _, ok := data.Float64Column(src, "name"); ok {
 		t.Error("a string column was offered as numeric")
 	}
-	if _, ok := src.Float64Column("absent"); ok {
+	if _, ok := data.Float64Column(src, "absent"); ok {
 		t.Error("a column that is not there was offered")
 	}
 }
@@ -250,7 +251,7 @@ func TestATableConcatenatesItsChunks(t *testing.T) {
 	if src.Len() != 5 {
 		t.Fatalf("Len is %d, want 5 rows across both chunks", src.Len())
 	}
-	got, ok := src.Float64Column("y")
+	got, ok := data.Float64Column(src, "y")
 	if !ok {
 		t.Fatal("the column was not offered as numeric")
 	}
@@ -276,7 +277,7 @@ func TestMaterializeCutsTheSourceLooseFromArrow(t *testing.T) {
 	if tbl.Len() != 2 {
 		t.Fatalf("Len is %d, want 2", tbl.Len())
 	}
-	ys, ok := tbl.Float64Column("y")
+	ys, ok := data.Float64Column(tbl, "y")
 	if !ok || ys[0] != 7 {
 		t.Fatalf("y is %v ok=%v", ys, ok)
 	}
@@ -284,10 +285,10 @@ func TestMaterializeCutsTheSourceLooseFromArrow(t *testing.T) {
 	if &ys[0] == &borrowed[0] {
 		t.Error("Materialize kept Arrow's buffer; the point of it is that the record can be released")
 	}
-	if _, ok := tbl.TimeColumn("t"); !ok {
+	if _, ok := data.TimeColumn(tbl, "t"); !ok {
 		t.Error("the timestamp column did not survive materialisation")
 	}
-	if _, ok := tbl.StringColumn("g"); !ok {
+	if _, ok := data.StringColumn(tbl, "g"); !ok {
 		t.Error("the string column did not survive materialisation")
 	}
 }
@@ -347,7 +348,7 @@ func benchmarkColumn(b *testing.B, field aw.Field, fill func(*array.RecordBuilde
 	b.ReportAllocs()
 	for b.Loop() {
 		src := arrow.Source(rec)
-		got, ok := src.Float64Column(field.Name)
+		got, ok := data.Float64Column(src, field.Name)
 		if !ok || len(got) != n {
 			b.Fatalf("read %d rows, ok=%v", len(got), ok)
 		}

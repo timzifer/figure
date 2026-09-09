@@ -8,6 +8,80 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 )
 
+// intColumn reads a column of 64-bit-or-narrower signed integers as exact
+// int64, borrowing when it can.
+//
+// It exists so that an identifier survives the adapter. Widening an int64 into
+// a float64 stops being lossless at 2^53, and a column of ids past that point
+// is a chart drawing two rows as one — while the same widening is invisible in
+// a *position*, because a pixel cannot show the difference. So the exact path
+// is taken for the kinds where exactness is representable, and everything else
+// numeric — unsigned 64-bit, floats, booleans, durations — goes on widening
+// through [numericColumn].
+//
+// A uint64 is deliberately not here: its top half has no int64 to be exact in,
+// and silently wrapping would be worse than the float it becomes today.
+func intColumn(chunks []arrow.Array, n int) ([]int64, bool) {
+	if len(chunks) == 1 {
+		if a, ok := chunks[0].(*array.Int64); ok && a.NullN() == 0 {
+			return a.Int64Values(), true
+		}
+	}
+	if !exactInt(chunks) {
+		return nil, false
+	}
+	out := make([]int64, 0, n)
+	for _, c := range chunks {
+		out = appendInt(out, c)
+	}
+	return out, true
+}
+
+func exactInt(chunks []arrow.Array) bool {
+	for _, c := range chunks {
+		switch c.(type) {
+		case *array.Int64, *array.Int32, *array.Int16, *array.Int8,
+			*array.Uint32, *array.Uint16, *array.Uint8:
+		default:
+			return false
+		}
+	}
+	return len(chunks) > 0
+}
+
+// appendInt widens one chunk into int64. A null becomes zero, which the
+// validity mask beside the column is what says apart from a measured zero.
+func appendInt(out []int64, c arrow.Array) []int64 {
+	switch a := c.(type) {
+	case *array.Int64:
+		return appendInts(out, a, func(i int) int64 { return a.Value(i) })
+	case *array.Int32:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	case *array.Int16:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	case *array.Int8:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	case *array.Uint32:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	case *array.Uint16:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	case *array.Uint8:
+		return appendInts(out, a, func(i int) int64 { return int64(a.Value(i)) })
+	}
+	return out
+}
+
+func appendInts(out []int64, a arrow.Array, at func(int) int64) []int64 {
+	for i := range a.Len() {
+		if a.IsNull(i) {
+			out = append(out, 0)
+			continue
+		}
+		out = append(out, at(i))
+	}
+	return out
+}
+
 // numericColumn reads a column as float64, borrowing when it can.
 //
 // The borrow is the one case where Arrow's memory is exactly what figure

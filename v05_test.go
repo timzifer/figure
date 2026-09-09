@@ -272,8 +272,8 @@ func TestAStreamDrawsAConsistentViewWhileItGrows(t *testing.T) {
 		// "a consistent snapshot" means, and it is what an unlocked read
 		// would break.
 		src := st.Source()
-		x, _ := src.Float64Column("t")
-		y, _ := src.Float64Column("y")
+		x, _ := data.Float64Column(src, "t")
+		y, _ := data.Float64Column(src, "y")
 		if len(x) != len(y) {
 			t.Fatalf("the snapshot is ragged: %d timestamps, %d values", len(x), len(y))
 		}

@@ -2,6 +2,11 @@
 
 **Status:** Accepted · **Date:** 2026-09-08
 
+> **Amended by [ADR 0061](0061-columns-are-one-value.md).** A key is still the
+> row's spelling in the named column, and that spelling is now exact for a
+> column of exact integers: `strconv.FormatInt` rather than a float's shortest
+> round-tripping form. Two ids one apart above 2^53 used to be one key.
+
 ## Context
 
 [CONCEPT §14](../../CONCEPT.md#14-roadmap--milestones) has listed animation as

@@ -14,7 +14,7 @@ func TestFloat64ColumnsBorrowsRatherThanCopies(t *testing.T) {
 	xs := []float64{1, 2, 3}
 	src := data.Float64Columns(map[string][]float64{"x": xs})
 
-	got, ok := src.Float64Column("x")
+	got, ok := data.Float64Column(src, "x")
 	if !ok {
 		t.Fatal("column x is missing")
 	}
@@ -33,10 +33,10 @@ func TestFloat64ColumnsBasics(t *testing.T) {
 	if len(cols) != 2 || cols[0] != "a" || cols[1] != "b" {
 		t.Errorf("Columns() = %v, want [a b]", cols)
 	}
-	if _, ok := src.Float64Column("nope"); ok {
+	if _, ok := data.Float64Column(src, "nope"); ok {
 		t.Error("an absent column reported ok")
 	}
-	if _, ok := src.TimeColumn("a"); ok {
+	if _, ok := data.TimeColumn(src, "a"); ok {
 		t.Error("a numeric column must not answer TimeColumn")
 	}
 }
@@ -63,11 +63,11 @@ func TestTableMixesNumericAndTimeColumns(t *testing.T) {
 	if cols := tab.Columns(); len(cols) != 2 || cols[0] != "t" || cols[1] != "y" {
 		t.Errorf("Columns() = %v, want insertion order [t y]", cols)
 	}
-	got, ok := tab.TimeColumn("t")
+	got, ok := data.TimeColumn(tab, "t")
 	if !ok || unsafe.SliceData(got) != unsafe.SliceData(times) {
 		t.Error("Table copied the time column instead of borrowing it")
 	}
-	if _, ok := tab.Float64Column("t"); ok {
+	if _, ok := data.Float64Column(tab, "t"); ok {
 		t.Error("a time column must not answer Float64Column")
 	}
 }
@@ -96,17 +96,17 @@ func TestTableCarriesStringColumns(t *testing.T) {
 		String("region", []string{"north", "south", "north"}).
 		Float64("sales", []float64{3, 4, 5})
 
-	got, ok := tbl.StringColumn("region")
+	got, ok := data.StringColumn(tbl, "region")
 	if !ok {
 		t.Fatal("StringColumn(region) reported the column missing")
 	}
 	if len(got) != 3 || got[1] != "south" {
 		t.Errorf("StringColumn(region) = %v", got)
 	}
-	if _, ok := tbl.Float64Column("region"); ok {
+	if _, ok := data.Float64Column(tbl, "region"); ok {
 		t.Error("a string column must not answer to Float64Column")
 	}
-	if _, ok := tbl.StringColumn("sales"); ok {
+	if _, ok := data.StringColumn(tbl, "sales"); ok {
 		t.Error("a numeric column must not answer to StringColumn")
 	}
 	if tbl.Len() != 3 {
@@ -118,7 +118,7 @@ func TestTableStringColumnIsBorrowed(t *testing.T) {
 	src := []string{"a", "b"}
 	tbl := data.NewTable().String("k", src)
 	src[0] = "z"
-	if got, _ := tbl.StringColumn("k"); got[0] != "z" {
+	if got, _ := data.StringColumn(tbl, "k"); got[0] != "z" {
 		t.Error("the slice was copied; the data layer borrows")
 	}
 }
@@ -134,7 +134,7 @@ func TestTableRejectsARaggedStringColumn(t *testing.T) {
 
 func TestFloat64SourceHasNoStringColumns(t *testing.T) {
 	s := data.Float64Columns(map[string][]float64{"x": {1}})
-	if _, ok := s.StringColumn("x"); ok {
+	if _, ok := data.StringColumn(s, "x"); ok {
 		t.Error("a numeric source must report no string columns")
 	}
 }

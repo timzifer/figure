@@ -420,7 +420,8 @@ from then on and never written, so there is nothing for `Snapshotter` to fix.
 **A null is a missing value, and only a numeric column can say so by itself.**
 `""` is a string somebody may have measured and the zero time is an instant, so
 absence in a text or temporal column is stated beside the values through
-`data.Nulls` rather than inside them — [ADR 0034](docs/adr/0034-null-values.md).
+`data.Column.Nulls` rather than inside them — [ADR 0034](docs/adr/0034-null-values.md),
+[ADR 0061](docs/adr/0061-columns-are-one-value.md).
 It is read in exactly one place, `geom.column`, which writes NaN whatever the
 column is stored as; every policy, traversal and mark downstream is the
 machinery that already handled a NaN, and no geom knows about nulls. Three

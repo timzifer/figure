@@ -3,7 +3,6 @@ package geom_test
 import (
 	"math"
 	"testing"
-	"time"
 
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
@@ -224,14 +223,13 @@ func (r ragged) Len() int { return len(r.cols["x"]) }
 
 func (r ragged) Columns() []string { return []string{"x", "y", "short"} }
 
-func (r ragged) Float64Column(name string) ([]float64, bool) {
+func (r ragged) Column(name string) (data.Column, bool) {
 	v, ok := r.cols[name]
-	return v, ok
+	if !ok {
+		return data.Column{}, false
+	}
+	return data.Column{Kind: data.KindFloat64, Floats: v}, true
 }
-
-func (ragged) TimeColumn(string) ([]time.Time, bool) { return nil, false }
-
-func (ragged) StringColumn(string) ([]string, bool) { return nil, false }
 
 // A column of the wrong length is an error at Train, where every other
 // mismatched column is caught, rather than a panic at Build.

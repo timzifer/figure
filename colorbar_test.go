@@ -6,6 +6,7 @@ package figure_test
 // series.
 
 import (
+	"github.com/timzifer/figure/data"
 	"math"
 	"testing"
 
@@ -286,7 +287,7 @@ func TestClickingAColourbarBandReportsItsInterval(t *testing.T) {
 		}
 		// The rows the band covers. figure said which interval; which rows
 		// are in it is this program's arithmetic.
-		v, _ := src.Float64Column("v")
+		v, _ := data.Float64Column(src, "v")
 		kept = kept[:0]
 		for _, x := range v {
 			if x >= ev.Hit.Lo && x < ev.Hit.Hi {

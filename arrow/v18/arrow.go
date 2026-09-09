@@ -114,15 +114,15 @@ func Materialize(src data.Source) *data.Table {
 		return t
 	}
 	for _, name := range src.Columns() {
-		switch v, ok := src.Float64Column(name); {
+		switch v, ok := data.Float64Column(src, name); {
 		case ok:
 			t.Float64(name, append([]float64(nil), v...))
 		default:
-			if v, ok := src.TimeColumn(name); ok {
+			if v, ok := data.TimeColumn(src, name); ok {
 				t.Time(name, append([]time.Time(nil), v...))
 				break
 			}
-			if v, ok := src.StringColumn(name); ok {
+			if v, ok := data.StringColumn(src, name); ok {
 				t.String(name, append([]string(nil), v...))
 			}
 		}
@@ -149,6 +149,9 @@ type source struct {
 	times map[string][]time.Time
 	strs  map[string][]string
 	nulls map[string][]bool
+
+	// cols2 caches the converted columns by name.
+	cols2 map[string]data.Column
 }
 
 func (s *source) Len() int          { return s.n }
@@ -163,95 +166,60 @@ func (s *source) at(name string) ([]arrow.Array, bool) {
 	return nil, false
 }
 
-func (s *source) Float64Column(name string) ([]float64, bool) {
-	if v, ok := s.nums[name]; ok {
-		return v, true
-	}
-	chunks, ok := s.at(name)
-	if !ok {
-		return nil, false
-	}
-	out, ok := numericColumn(chunks, s.n)
-	if !ok {
-		return nil, false
-	}
-	if s.nums == nil {
-		s.nums = map[string][]float64{}
-	}
-	s.nums[name] = out
-	return out, true
-}
-
-func (s *source) TimeColumn(name string) ([]time.Time, bool) {
-	if v, ok := s.times[name]; ok {
-		return v, true
-	}
-	chunks, ok := s.at(name)
-	if !ok {
-		return nil, false
-	}
-	out, ok := timeColumn(chunks, s.n)
-	if !ok {
-		return nil, false
-	}
-	if s.times == nil {
-		s.times = map[string][]time.Time{}
-	}
-	s.times[name] = out
-	return out, true
-}
-
-func (s *source) StringColumn(name string) ([]string, bool) {
-	if v, ok := s.strs[name]; ok {
-		return v, true
-	}
-	chunks, ok := s.at(name)
-	if !ok {
-		return nil, false
-	}
-	out, ok := stringColumn(chunks, s.n)
-	if !ok {
-		return nil, false
-	}
-	if s.strs == nil {
-		s.strs = map[string][]string{}
-	}
-	s.strs[name] = out
-	return out, true
-}
-
-// Nulls implements [data.Nulls]: it reads Arrow's validity bitmap, which is
-// the one place a null survives the conversion.
+// Column implements [data.Source]. Each kind of Arrow array is tried in the
+// order that loses the least: an exact integer stays exact, a timestamp stays
+// an instant, a string stays itself, and everything else numeric widens into
+// float64.
 //
-// It is what closes the half of the null story the stand-in values cannot
-// tell. A numeric column loses nothing by becoming NaN, but "" is a string
-// somebody may have measured and the zero time is an instant — so a text or
-// temporal null was, until this, a value like any other: a category of its own
-// on an ordinal axis, or the year 1 stretching a time domain across two
-// millennia. With the mask, figure's missing-data policies cover all three
-// column kinds rather than one.
-//
-// A column with no nulls answers false, so the borrowed float64 path is
-// exactly what it was.
-func (s *source) Nulls(name string) ([]bool, bool) {
-	if v, ok := s.nulls[name]; ok {
-		return v, len(v) > 0
+// The result is cached, because a chart reads a column more than once and
+// converting an Arrow chunk list is the expensive half of this adapter.
+func (s *source) Column(name string) (data.Column, bool) {
+	if c, ok := s.cols2[name]; ok {
+		return c, c.Kind != kindAbsent
 	}
+	c, ok := s.build(name)
+	if s.cols2 == nil {
+		s.cols2 = map[string]data.Column{}
+	}
+	if !ok {
+		s.cols2[name] = data.Column{Kind: kindAbsent}
+		return data.Column{}, false
+	}
+	s.cols2[name] = c
+	return c, true
+}
+
+// kindAbsent marks a name this source does not have, so that asking twice
+// costs one lookup. It is out of range of every real [data.Kind].
+const kindAbsent data.Kind = 255
+
+func (s *source) build(name string) (data.Column, bool) {
 	chunks, ok := s.at(name)
 	if !ok {
-		return nil, false
+		return data.Column{}, false
 	}
-	out, ok := nullMask(chunks, s.n)
-	if s.nulls == nil {
-		s.nulls = map[string][]bool{}
+	// The validity bitmap is the one place a null survives the conversion. It
+	// is what closes the half of the null story the stand-in values cannot
+	// tell: a numeric column loses nothing by becoming NaN, but "" is a string
+	// somebody may have measured and the zero time is an instant — so a text
+	// or temporal null would otherwise be a value like any other, a category
+	// of its own on an ordinal axis or the year 1 stretching a time domain
+	// across two millennia.
+	null, _ := nullMask(chunks, s.n)
+
+	if v, ok := intColumn(chunks, s.n); ok {
+		return data.Column{Kind: data.KindInt64, Ints: v, Nulls: null}, true
 	}
-	if !ok {
-		s.nulls[name] = []bool{}
-		return nil, false
+	if v, ok := numericColumn(chunks, s.n); ok {
+		return data.Column{Kind: data.KindFloat64, Floats: v, Nulls: null}, true
 	}
-	s.nulls[name] = out
-	return out, true
+	if v, ok := timeColumn(chunks, s.n); ok {
+		return data.Column{Kind: data.KindTime, Times: v, Nulls: null}, true
+	}
+	if v, ok := stringColumn(chunks, s.n); ok {
+		return data.Column{Kind: data.KindString, Strings: v, Nulls: null}, true
+	}
+	return data.Column{}, false
 }
 
 var _ data.Source = (*source)(nil)
-var _ data.Nulls = (*source)(nil)

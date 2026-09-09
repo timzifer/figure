@@ -29,7 +29,7 @@ func TestATextNullIsMarkedRatherThanEmpty(t *testing.T) {
 	if data.IsNull(mask, 0) || !data.IsNull(mask, 1) || data.IsNull(mask, 2) {
 		t.Errorf("mask is %v, want only the middle row marked", mask)
 	}
-	if v, _ := src.StringColumn("k"); v[1] != "" {
+	if v, _ := data.StringColumn(src, "k"); v[1] != "" {
 		t.Errorf("the stand-in value changed to %q; the mask is beside the values, not instead of them", v[1])
 	}
 }

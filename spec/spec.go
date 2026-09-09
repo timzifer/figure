@@ -38,6 +38,7 @@
 package spec
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -539,17 +540,44 @@ type Data struct {
 	Format *Format          `json:"format,omitempty"`
 }
 
+// UnmarshalJSON reads the inline values keeping every digit a number was
+// written with.
+//
+// It exists for one reason: [encoding/json] decodes a JSON number into an
+// `any` as a float64, and an identifier past 2^53 comes back a different
+// number. A column declared "integer" is meant to survive the round trip
+// exactly, so the values are decoded with [json.Decoder.UseNumber] and the
+// readers in this package accept a [json.Number] wherever they accept a
+// float64.
+func (d *Data) UnmarshalJSON(b []byte) error {
+	type plain Data // no method set, so no recursion
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var p plain
+	if err := dec.Decode(&p); err != nil {
+		return err
+	}
+	*d = Data(p)
+	return nil
+}
+
 // Format carries the column types.
 type Format struct {
-	// Parse maps a column name to "number", "date" or "string".
+	// Parse maps a column name to "number", "integer", "date" or "string".
 	Parse map[string]string `json:"parse,omitempty"`
 }
 
 // The column types Format.Parse uses.
 const (
 	ParseNumber = "number"
-	ParseDate   = "date"
-	ParseString = "string"
+	// ParseInteger is a column of exact integers. It is written when a
+	// [github.com/timzifer/figure/data.Source] hands over a
+	// data.KindInt64 column, and read back into one — so an identifier
+	// survives the round trip with every digit it had, which "number" cannot
+	// promise above 2^53.
+	ParseInteger = "integer"
+	ParseDate    = "date"
+	ParseString  = "string"
 )
 
 // Facet describes small multiples: a field to wrap on, or a row and a column

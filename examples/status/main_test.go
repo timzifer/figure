@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/timzifer/figure/data"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func TestExampleRuns(t *testing.T) {
 // only two of them drawn would be a chart that proves nothing.
 func TestTheTraceCrossesBothBoundaries(t *testing.T) {
 	src := trace()
-	ms, ok := src.Float64Column("ms")
+	ms, ok := data.Float64Column(src, "ms")
 	if !ok {
 		t.Fatal("no ms column")
 	}

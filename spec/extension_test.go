@@ -31,16 +31,16 @@ func newStem(src data.Source, opts ...geom.Option) geom.Geom {
 
 func (g *stemGeom) Train(t geom.Training) error {
 	x, y := t.X, t.Y
-	xs, _ := g.src.Float64Column(g.cfg.X)
-	ys, _ := g.src.Float64Column(g.cfg.Y)
+	xs, _ := data.Float64Column(g.src, g.cfg.X)
+	ys, _ := data.Float64Column(g.src, g.cfg.Y)
 	x.Train(xs...)
 	y.Train(ys...)
 	return nil
 }
 
 func (g *stemGeom) Build(b ir.Backend, f geom.Frame) error {
-	xs, _ := g.src.Float64Column(g.cfg.X)
-	ys, _ := g.src.Float64Column(g.cfg.Y)
+	xs, _ := data.Float64Column(g.src, g.cfg.X)
+	ys, _ := data.Float64Column(g.src, g.cfg.Y)
 	w := float32(1)
 	if v, ok := g.cfg.Extra["stem"].(float64); ok {
 		w = float32(v)

@@ -282,13 +282,13 @@ func TestColumnTypesSurvive(t *testing.T) {
 	d, _ := geom.Describe(back.Layers[0])
 	got := d.Source
 
-	if ts, ok := got.TimeColumn("t"); !ok || !ts[0].Equal(when) {
+	if ts, ok := data.TimeColumn(got, "t"); !ok || !ts[0].Equal(when) {
 		t.Errorf("the time column came back as %v, %v", ts, ok)
 	}
-	if _, ok := got.Float64Column("y"); !ok {
+	if _, ok := data.Float64Column(got, "y"); !ok {
 		t.Error("the numeric column did not come back numeric")
 	}
-	if ks, ok := got.StringColumn("k"); !ok || ks[1] != "b" {
+	if ks, ok := data.StringColumn(got, "k"); !ok || ks[1] != "b" {
 		t.Errorf("the category column came back as %v, %v", ks, ok)
 	}
 }
@@ -316,7 +316,7 @@ func TestAMissingValueIsNullAndComesBackNaN(t *testing.T) {
 
 	back := roundTrip(t, c)
 	d, _ := geom.Describe(back.Layers[0])
-	col, _ := d.Source.Float64Column("y")
+	col, _ := data.Float64Column(d.Source, "y")
 	if !isNaN(col[1]) {
 		t.Errorf("the hole came back as %v, want NaN", col[1])
 	}
@@ -423,7 +423,7 @@ func TestAHandWrittenSpecReads(t *testing.T) {
 	if n := d.Source.Len(); n != 2 {
 		t.Errorf("rows = %d", n)
 	}
-	if _, ok := d.Source.Float64Column("a"); !ok {
+	if _, ok := data.Float64Column(d.Source, "a"); !ok {
 		t.Error("an inferred numeric column did not come back numeric")
 	}
 	draw(t, c)
@@ -629,7 +629,7 @@ func TestQuotedNumbersAndUnixNanosecondsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, _ := geom.Describe(c.Layers[0])
-	ts, ok := d.Source.TimeColumn("t")
+	ts, ok := data.TimeColumn(d.Source, "t")
 	if !ok || len(ts) != 2 {
 		t.Fatalf("time column = %v, %v", ts, ok)
 	}

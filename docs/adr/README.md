@@ -70,6 +70,7 @@ depends on.
 | [0058](0058-what-3d-is-for.md) | What the third dimension is for, and where it stops paying | Planned | — |
 | [0059](0059-renaming-and-restarting-the-version.md) | The library is renamed, and the version restarts rather than doubling | Accepted | — |
 | [0060](0060-parameter-structs-at-every-seam.md) | Every seam an outsider implements takes a struct, and the count of optional interfaces stops growing | Accepted | — |
+| [0061](0061-columns-are-one-value.md) | A column is one value that grows, and identity is its spelling | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the

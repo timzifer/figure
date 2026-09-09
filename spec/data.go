@@ -1,10 +1,12 @@
 package spec
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/timzifer/figure/data"
@@ -34,19 +36,26 @@ func encodeData(src data.Source) (*Data, error) {
 	nums := map[string][]float64{}
 	times := map[string][]time.Time{}
 	strs := map[string][]string{}
+	ints := map[string][]int64{}
 	for _, name := range names {
-		switch {
-		case has(src.Float64Column(name)):
-			v, _ := src.Float64Column(name)
-			nums[name], parse[name] = v, ParseNumber
-		case has(src.TimeColumn(name)):
-			v, _ := src.TimeColumn(name)
-			times[name], parse[name] = v, ParseDate
-		case has(src.StringColumn(name)):
-			v, _ := src.StringColumn(name)
-			strs[name], parse[name] = v, ParseString
+		c, ok := src.Column(name)
+		if !ok {
+			return nil, fmt.Errorf("figure/spec: column %q vanished between being listed and being read", name)
+		}
+		switch c.Kind {
+		case data.KindFloat64:
+			nums[name], parse[name] = c.Floats, ParseNumber
+		case data.KindInt64:
+			// An exact integer is written as JSON's own number, which carries
+			// every digit of an int64 as text. It comes back exact, which is
+			// the whole reason the kind exists.
+			ints[name], parse[name] = c.Ints, ParseInteger
+		case data.KindTime:
+			times[name], parse[name] = c.Times, ParseDate
+		case data.KindString:
+			strs[name], parse[name] = c.Strings, ParseString
 		default:
-			return nil, fmt.Errorf("figure/spec: column %q is of no type this package can write", name)
+			return nil, fmt.Errorf("figure/spec: column %q is of no kind this package can write", name)
 		}
 	}
 
@@ -55,6 +64,13 @@ func encodeData(src data.Source) (*Data, error) {
 		row := make(map[string]any, len(names))
 		for name, v := range nums {
 			if i < len(v) && isFinite(v[i]) {
+				row[name] = v[i]
+			} else {
+				row[name] = nil
+			}
+		}
+		for name, v := range ints {
+			if i < len(v) {
 				row[name] = v[i]
 			} else {
 				row[name] = nil
@@ -78,10 +94,6 @@ func encodeData(src data.Source) (*Data, error) {
 	}
 	return &Data{Values: rows, Format: &Format{Parse: parse}}, nil
 }
-
-// has is the shape every Source getter returns, reduced to the half that
-// matters when all three are being tried in turn.
-func has[T any](_ []T, ok bool) bool { return ok }
 
 func isFinite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
 
@@ -114,6 +126,12 @@ func decodeData(d *Data) (data.Source, error) {
 				col[i] = asNumber(row[name])
 			}
 			t.Float64(name, col)
+		case ParseInteger:
+			col := make([]int64, n)
+			for i, row := range d.Values {
+				col[i] = asInteger(row[name])
+			}
+			t.Int64(name, col)
 		case ParseDate:
 			col := make([]time.Time, n)
 			for i, row := range d.Values {
@@ -157,10 +175,30 @@ func infer(rows []map[string]any) map[string]string {
 	out := map[string]string{}
 	for _, row := range rows {
 		for name, v := range row {
-			if _, seen := out[name]; seen || v == nil {
+			if v == nil {
+				continue
+			}
+			if kind, seen := out[name]; seen {
+				// One fractional value demotes a column the rows before it
+				// looked like integers: a table whose first row happens to
+				// hold whole numbers is not a table of integers, and
+				// truncating the rest of it would be a silent wrong answer.
+				if n, isNum := v.(json.Number); isNum && kind == ParseInteger && !integral(n) {
+					out[name] = ParseNumber
+				}
 				continue
 			}
 			switch x := v.(type) {
+			case json.Number:
+				// A document with no parse map says what it says: a column
+				// whose every value is written without a fraction or an
+				// exponent is a column of integers, and reading it as one
+				// keeps a hand-written table of ids exact without anybody
+				// having had to declare it.
+				out[name] = ParseNumber
+				if integral(x) {
+					out[name] = ParseInteger
+				}
 			case float64, int, int64:
 				out[name] = ParseNumber
 			case string:
@@ -184,10 +222,50 @@ func infer(rows []map[string]any) map[string]string {
 	return out
 }
 
+// integral reports whether a JSON number was written as a whole number that
+// fits an int64 — no fraction, no exponent, no overflow.
+func integral(n json.Number) bool {
+	if strings.ContainsAny(n.String(), ".eE") {
+		return false
+	}
+	_, err := n.Int64()
+	return err == nil
+}
+
+// asInteger reads a value written by an exact-integer column.
+//
+// json.Number is the shape a document decoded through [Unmarshal] hands over,
+// and it is the reason that decoder asks for one: an int64 past 2^53 read as a
+// float64 comes back a different number, which would make the round trip lose
+// exactly what the kind exists to keep. A value of any other shape is read as
+// a number and truncated, because a document written by hand is under no
+// obligation to have used integers.
+func asInteger(v any) int64 {
+	switch x := v.(type) {
+	case json.Number:
+		if i, err := x.Int64(); err == nil {
+			return i
+		}
+		f, _ := x.Float64()
+		return int64(f)
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	}
+	return int64(asNumber(v))
+}
+
 func asNumber(v any) float64 {
 	switch x := v.(type) {
 	case float64:
 		return x
+	case json.Number:
+		f, err := x.Float64()
+		if err != nil {
+			return math.NaN()
+		}
+		return f
 	case int:
 		return float64(x)
 	case int64:
@@ -212,6 +290,12 @@ func asTime(v any) (time.Time, error) {
 	case float64:
 		// Unix nanoseconds, which is the domain a time scale actually maps.
 		return scale.FromNanos(x), nil
+	case json.Number:
+		f, err := x.Float64()
+		if err != nil {
+			return time.Time{}, fmt.Errorf("%v is not a timestamp", v)
+		}
+		return scale.FromNanos(f), nil
 	}
 	return time.Time{}, fmt.Errorf("%v is not a timestamp", v)
 }

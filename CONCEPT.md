@@ -229,13 +229,25 @@ One-directional lowering from a high-level model to a backend:
 **Batch/columnar in, zero-copy where possible, Arrow as an optional adapter.**
 
 ```go
-// DataSource exposes columnar, batch access. Implementations return typed
-// slices the caller must not mutate; figure never copies when it can borrow.
-type DataSource interface {
+// Source exposes columnar, batch access. A Column carries typed slices the
+// caller must not mutate; figure never copies when it can borrow.
+type Source interface {
     Len() int
     Columns() []string
-    Float64Column(name string) (data []float64, ok bool) // read-only view
-    // TimeColumn, StringColumn, etc.
+    Column(name string) (Column, bool)
+}
+
+// A Column is one value that grows: a kind, the values of that kind, which
+// rows are absent, and how a row reads as text. A kind added later is a field
+// here rather than a method above ([ADR 0061](docs/adr/0061-columns-are-one-value.md)).
+type Column struct {
+    Kind    Kind
+    Floats  []float64
+    Ints    []int64
+    Strings []string
+    Times   []time.Time
+    Nulls   []bool
+    Text    func(i int) string // optional; nil spells by kind
 }
 ```
 
@@ -592,8 +604,8 @@ re-renders and checks against the committed images.
 
 ### v0.2 — Data layer & scales — **shipped**
 
-- Columnar/batch `DataSource`; zero-copy for `[]float64`. `StringColumn` closes
-  the interface sketched in [§7](#7-data-layer), so a table can carry categories
+- Columnar/batch `Source`; zero-copy for `[]float64`. Categories close the
+  interface sketched in [§7](#7-data-layer), so a table can carry them
   alongside numbers and times.
 - Log, symlog, ordinal/categorical scales. Log and symlog emit minor ticks; the
   ordinal scale is a band scale, so bars and boxplots take their width from it
@@ -1107,10 +1119,11 @@ bucket H for them.
   and every policy figure has is written against that; a missing *category*
   read back as `""` became a band of its own on an ordinal axis and a missing
   *instant* as the zero time stretched a three-hour domain across two
-  millennia. `data.Nulls` is the optional interface `data.Source`'s own
-  documentation promised, `geom.column` is the one place it is read, and
-  everything downstream is the machinery that already handled a NaN
-  ([ADR 0034](docs/adr/0034-null-values.md)).
+  millennia. Absence is `data.Column.Nulls`, carried by the column it belongs
+  to, `geom.column` is the one place it is read, and everything downstream is
+  the machinery that already handled a NaN
+  ([ADR 0034](docs/adr/0034-null-values.md),
+  [ADR 0061](docs/adr/0061-columns-are-one-value.md)).
 - **A tick label is described rather than computed.** `scale.Desc` carried an
   honest field saying a document had lost the axis's formatter and gave it
   nowhere to put one, so a chart authored as JSON could not set a thousands
@@ -1571,7 +1584,7 @@ figure/                     # core module — pure Go, STDLIB ONLY (no requires)
   figure.go                 # top-level API: New, X, Y, Add, Render      (v0.1)
   input.go                   # the portable pointer state machine         (v0.6)
   describe.go                # Plot.Describe, Plot.DataTable              (v0.6)
-  data/                      # Source, Float64Columns, Table              (v0.1)
+  data/                      # Source, Column, Float64Columns, Table      (v0.1)
   scale/                     # linear, time (+ log, symlog, ordinal, colour) (v0.1)
                              # + Origin, for a time domain that keeps its
                              # nanoseconds at any zoom                    (v0.6)

@@ -14,7 +14,7 @@ func TestAMaskThatMarksNothingIsNotAMask(t *testing.T) {
 	tab := data.NewTable().
 		String("k", []string{"a", "b", "c"}).
 		WithNulls("k", []bool{false, false, false})
-	if mask, ok := tab.Nulls("k"); ok {
+	if mask, ok := data.NullMask(tab, "k"); ok {
 		t.Errorf("a column with no nulls reported %v; want no mask at all", mask)
 	}
 	if _, ok := data.NullMask(tab, "k"); ok {
