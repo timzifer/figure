@@ -149,8 +149,9 @@ The rest of the cost is Go's, and it is the part worth stating plainly:
 - the import path does *not* gain a suffix, because the rename already made
   every existing import line invalid once ([ADR 0059](0059-renaming-and-restarting-the-version.md));
   this is the saving that record bought;
-- `$schema` moves anyway, because the spec's shape changes with the seams even
-  though the module's major does not;
+- `$schema` does not move. It names the JSON dialect, the seams are Go
+  interfaces, and no document written against `…/spec/v1` reads differently
+  after this — only its host URL changed with the rename;
 - `backend/gg`, `backend/window` and `arrow/v18` re-require the core and tag
   again. Their own APIs do not change: `ir.Backend` is untouched by this
   record, so a third-party backend recompiles and is done.
