@@ -1,0 +1,330 @@
+package figure
+
+import (
+	"errors"
+
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/mathtext"
+	"github.com/timzifer/figure/render"
+	themepkg "github.com/timzifer/figure/theme"
+)
+
+// Grid renders several plots together in one image, with their axes aligned.
+//
+// It is the other half of the multi-panel story: [Plot.Facet] splits one plot
+// by a column, and a Grid puts different plots side by side. Both go through
+// the same solver, so the panels line up either way.
+//
+//	g := figure.NewGrid(2, figure.GridSize(900, 600), figure.GridTitle("Fleet"))
+//	g.Add(latency, throughput, errors, saturation)
+//	err := g.Render(figure.SVG("fleet.svg"))
+//
+// A member plot contributes its layers, its scales and its title, which
+// becomes the label above its panel. The canvas is the grid's: its size,
+// theme, chart title and axis titles are the ones used, and a member plot's
+// own size, theme and axis titles are not. That is the price of one image —
+// two panels cannot disagree about the colour of the paper they are printed
+// on.
+type Grid struct {
+	width, height int
+	dpr           float64
+	theme         themepkg.Theme
+
+	title  string
+	xTitle string
+	yTitle string
+
+	cols       int
+	cells      []gridCell
+	rowHeights []float32
+	colWidths  []float32
+	sharedX    bool
+	sharedY    bool
+
+	legend    bool
+	legendSet bool
+
+	math    mathtext.Typesetter
+	desc    ir.Description
+	descSet bool
+
+	serial bool
+}
+
+type gridCell struct {
+	row, col int
+	plot     *Plot
+}
+
+// GridOption configures a Grid at construction.
+type GridOption func(*Grid)
+
+// GridSize sets the output size in device-independent pixels. The default is
+// 900x600, which is a grid's worth rather than a single chart's.
+func GridSize(w, h int) GridOption {
+	return func(g *Grid) {
+		if w > 0 {
+			g.width = w
+		}
+		if h > 0 {
+			g.height = h
+		}
+	}
+}
+
+// GridDPR sets the device pixel ratio. See [DPR].
+func GridDPR(r float64) GridOption {
+	return func(g *Grid) {
+		if r > 0 {
+			g.dpr = r
+		}
+	}
+}
+
+// GridTheme sets the visual tokens for the whole grid.
+func GridTheme(t themepkg.Theme) GridOption { return func(g *Grid) { g.theme = t } }
+
+// GridTitle sets the title above the grid.
+func GridTitle(s string) GridOption { return func(g *Grid) { g.title = s } }
+
+// GridAxisTitles labels the shared axes, once for the grid. Panels keep their
+// own scales; these name what those scales measure.
+func GridAxisTitles(x, y string) GridOption {
+	return func(g *Grid) { g.xTitle, g.yTitle = x, y }
+}
+
+// GridLegend forces the legend on or off. By default it appears when any
+// panel would have shown one.
+func GridLegend(show bool) GridOption {
+	return func(g *Grid) { g.legend, g.legendSet = show, true }
+}
+
+// GridMath typesets the notation in the grid's labels — its title, its axis
+// titles, and the title of every panel in it. See [Math] and package mathtext.
+//
+// A member plot's own typesetter is not used, for the same reason its theme is
+// not: the canvas is the grid's, and two panels cannot disagree about how a
+// label is set.
+func GridMath(ts mathtext.Typesetter) GridOption { return func(g *Grid) { g.math = ts } }
+
+// GridDescription attaches an accessible description to the grid. See
+// [Description].
+//
+// There is no `Grid.Describe`: a grid is several charts, and the honest
+// description of one is written by whoever knows why they are on the same page.
+// The grid's title is carried into the output either way, as a chart's is.
+func GridDescription(title, detail string) GridOption {
+	return func(g *Grid) {
+		g.desc = ir.Description{Title: title, Detail: detail}
+		g.descSet = true
+	}
+}
+
+// GridParallel controls whether the panels are built concurrently. See
+// [Parallel]; a grid is the shape that benefits most, because its panels are
+// different charts over different data.
+func GridParallel(on bool) GridOption { return func(g *Grid) { g.serial = !on } }
+
+// GridRowHeights fixes the height of each row in device-independent pixels. A
+// zero entry, or a row past the end of the list, is left to the solver, and
+// the rows left to it share what the fixed rows leave, equally.
+//
+// It is what makes a grid of plots express the shape a track expresses inside
+// one plot: a full-height plot with a short strip under it.
+//
+//	figure.NewGrid(1, figure.GridRowHeights(0, 48), figure.GridSharedX(true))
+func GridRowHeights(h ...float32) GridOption {
+	return func(g *Grid) { g.rowHeights = append([]float32(nil), h...) }
+}
+
+// GridColWidths fixes the width of each column in device-independent pixels,
+// as [GridRowHeights] does for rows. A zero entry, or a column past the end of
+// the list, is left to the solver.
+func GridColWidths(w ...float32) GridOption {
+	return func(g *Grid) { g.colWidths = append([]float32(nil), w...) }
+}
+
+// GridSharedY writes the Y tick labels only beside the first column, as
+// [GridSharedX] does for the bottom row. The same caution applies: turn it on
+// only when the plots in a row really do share a domain, which they do when
+// they were given the same [scale.Scale] object.
+func GridSharedY(on bool) GridOption { return func(g *Grid) { g.sharedY = on } }
+
+// GridSharedX writes the X tick labels only under the bottom row, instead of
+// under every panel.
+//
+// It is half of what stacked plots on one domain need; the other half is
+// giving those plots the same [scale.Scale] object, which shares their domain,
+// their nicing and — for a [Live] chart — their zoom, because a zoom reaches a
+// scale and there is only one scale to reach:
+//
+//	t := scale.Time()
+//	speed := figure.New().X(t).Y(scale.Linear())
+//	states := figure.New().X(t).Y(scale.Ordinal())
+//
+// Turn it on only when the plots really do share a domain. Labels under one
+// axis and different numbers on another is the misreading this exists to
+// prevent, and enabling it cannot make two unrelated domains agree.
+//
+// A Grid renders; it has no [Plot.Live]. Interaction on stacked plots is what
+// a track inside one plot is for — see [Plot.Track].
+func GridSharedX(on bool) GridOption { return func(g *Grid) { g.sharedX = on } }
+
+// NewGrid creates a grid that flows plots into rows of cols panels.
+func NewGrid(cols int, opts ...GridOption) *Grid {
+	g := &Grid{
+		width:  900,
+		height: 600,
+		dpr:    1,
+		theme:  themepkg.Light,
+		cols:   cols,
+	}
+	if g.cols < 1 {
+		g.cols = 1
+	}
+	for _, o := range opts {
+		o(g)
+	}
+	return g
+}
+
+// Add appends plots, filling the grid left to right and wrapping.
+func (g *Grid) Add(ps ...*Plot) *Grid {
+	for _, p := range ps {
+		n := len(g.cells)
+		g.cells = append(g.cells, gridCell{row: n / g.cols, col: n % g.cols, plot: p})
+	}
+	return g
+}
+
+// At places a plot in a specific cell, replacing whatever was there. Cells
+// left empty stay empty, which is how a grid is given a deliberate hole.
+func (g *Grid) At(row, col int, p *Plot) *Grid {
+	if row < 0 || col < 0 {
+		return g
+	}
+	for i := range g.cells {
+		if g.cells[i].row == row && g.cells[i].col == col {
+			g.cells[i].plot = p
+			return g
+		}
+	}
+	g.cells = append(g.cells, gridCell{row: row, col: col, plot: p})
+	if col >= g.cols {
+		g.cols = col + 1
+	}
+	return g
+}
+
+// ErrEmptyGrid reports a render of a grid with no plots in it.
+var ErrEmptyGrid = errors.New("figure: grid has no plots")
+
+// Render draws the grid into t.
+func (g *Grid) Render(t Target) (err error) {
+	if t == nil {
+		return errors.New("figure: nil render target")
+	}
+	c, err := g.chart()
+	if err != nil {
+		return err
+	}
+
+	b, err := t.Open(g.width, g.height, g.dpr)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := t.Close(); err == nil {
+			err = cerr
+		}
+	}()
+
+	if err = render.Draw(b, c); err != nil {
+		return err
+	}
+	return b.Flush()
+}
+
+func (g *Grid) chart() (render.Chart, error) {
+	c := render.Chart{
+		Width:       g.width,
+		Height:      g.height,
+		DPR:         g.dpr,
+		Theme:       g.theme,
+		Title:       g.title,
+		XTitle:      g.xTitle,
+		YTitle:      g.yTitle,
+		ShowLegend:  g.showLegend(),
+		Description: g.description(),
+		Math:        g.math,
+		Serial:      g.serial,
+	}
+	rows := 0
+	for _, cell := range g.cells {
+		if cell.plot == nil {
+			continue
+		}
+		rows = max(rows, cell.row+1)
+		c.Panels = append(c.Panels, render.Panel{
+			Row: cell.row,
+			Col: cell.col,
+			// A subplot's title names its panel. There is one chart title, and
+			// it belongs to the grid.
+			Strip: cell.plot.title,
+			X:     cell.plot.scaleX(),
+			Y:     cell.plot.scaleY(),
+			// Each cell keeps its own coordinate system: the cells of a grid
+			// are separate plots sharing a canvas, so a pie can sit beside a
+			// bar chart.
+			Coord:  cell.plot.coord,
+			Layers: cell.plot.layers,
+			// Every panel has scales of its own, so every panel writes its own
+			// axes: the numbers on one are not the numbers on the next. Unless
+			// the caller says they are — see [GridSharedX].
+			ShowX: true,
+			ShowY: true,
+		})
+	}
+	if len(c.Panels) == 0 {
+		return render.Chart{}, ErrEmptyGrid
+	}
+	c.Rows, c.Cols = rows, g.cols
+	for i := range c.Panels {
+		if g.sharedX {
+			c.Panels[i].ShowX = c.Panels[i].Row == rows-1
+		}
+		if g.sharedY {
+			c.Panels[i].ShowY = c.Panels[i].Col == 0
+		}
+	}
+	if len(g.rowHeights) > 0 {
+		c.RowHeights = make([]float32, rows)
+		copy(c.RowHeights, g.rowHeights)
+	}
+	if len(g.colWidths) > 0 {
+		c.ColWidths = make([]float32, g.cols)
+		copy(c.ColWidths, g.colWidths)
+	}
+	return c, nil
+}
+
+// description reports what the grid says about itself: the one it was given,
+// or its title alone.
+func (g *Grid) description() ir.Description {
+	if g.descSet {
+		return g.desc
+	}
+	return ir.Description{Title: g.title}
+}
+
+func (g *Grid) showLegend() bool {
+	if g.legendSet {
+		return g.legend
+	}
+	for _, cell := range g.cells {
+		if cell.plot != nil && cell.plot.showLegend() {
+			return true
+		}
+	}
+	return false
+}

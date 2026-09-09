@@ -1,0 +1,1208 @@
+// Package render lowers a resolved chart into IR.
+//
+// This is the one place that knows the drawing order of a chart — background,
+// grid, axes, data, guides — and the one place that turns a layout rectangle
+// and a set of scales into actual primitives. Geoms emit their own marks;
+// everything around them is built here.
+//
+// # Who it is for
+//
+// The root package is the supported way to draw a chart: it resolves a Plot
+// into the [Chart] this package takes and handles the parts that are
+// plumbing — [Chart.Serial], [Chart.Observer], [Chart.RowSink]. This package
+// is public for the caller that has no Plot: a tool that assembles a chart
+// from the model packages directly, or that wraps a backend to watch what a
+// render emits through [Observer]. [Chart] and [Panel] grow by gaining fields,
+// and a zero field always means what it meant.
+package render
+
+import (
+	"sync"
+
+	"github.com/timzifer/figure/coord"
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/internal/layout"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/mathtext"
+	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/theme"
+)
+
+// Chart is a fully specified chart, ready to be drawn.
+type Chart struct {
+	Width, Height int
+	DPR           float64
+	Theme         theme.Theme
+
+	Title  string
+	XTitle string
+	YTitle string
+	// Y2Title labels the secondary vertical axis, down the right-hand side,
+	// and X2Title the secondary horizontal one, along the top.
+	Y2Title string
+	X2Title string
+
+	X, Y scale.Scale
+
+	// Y2 is the chart's secondary vertical axis, drawn down the right-hand
+	// side, and X2 its secondary horizontal one, drawn along the top. Each is
+	// read by the layers that asked for it with
+	// [github.com/timzifer/figure/geom.OnY2] or OnX2, and each is nil for a
+	// chart with one axis in that direction — which is every chart written
+	// before there were two.
+	//
+	// They are the chart's rather than a panel's for the reason the coord is:
+	// the panels of a facet are one plot over different rows, and a second
+	// axis that meant different things in different panels would be a
+	// different chart. A grid of subplots gives each panel its own through
+	// [Panel.Y2] and [Panel.X2].
+	Y2 scale.Scale
+	X2 scale.Scale
+
+	// Coord is the stage between the scales and the IR: what the interval a
+	// scale maps into means. Nil is [coord.Cartesian], which is the identity,
+	// so a chart that names no coord draws exactly what it always drew.
+	//
+	// It belongs to the chart rather than to a panel: the panels of a facet are
+	// the same plot over different rows, and one of them in a different
+	// coordinate system would be a different chart.
+	Coord coord.Coord
+
+	Layers []geom.Geom
+
+	// ShowLegend requests a legend. Entries come from the layers.
+	ShowLegend bool
+
+	// Description is what the chart says about itself in words, for a backend
+	// that can carry it — see [ir.Semantics]. It is announced before anything
+	// is drawn and never affects what is.
+	Description ir.Description
+
+	// Math typesets the notation in this chart's labels. It is nil for a chart
+	// whose labels are text, which is the default and costs nothing: the
+	// backend is wrapped only when there is a typesetter to wrap it with.
+	Math mathtext.Typesetter
+
+	// Panels, Rows and Cols describe a multi-panel chart: subplots, or the
+	// facets of one plot. When Panels is empty the chart is the single panel
+	// described by X, Y and Layers.
+	Panels     []Panel
+	Rows, Cols int
+
+	// RowHeights fixes the height of a grid row in device units, leaving the
+	// solver to size any row whose entry is zero or absent. It is how a track
+	// is given the height it was asked for, and how a subplot grid is told
+	// that one of its rows is a strip rather than a panel.
+	RowHeights []float32
+
+	// ColWidths fixes the width of a grid column in device units, leaving the
+	// solver to size any column whose entry is zero or absent. It is
+	// RowHeights turned a quarter turn, and it is what a left or right track
+	// is given its width by.
+	ColWidths []float32
+
+	// Serial draws the panels one at a time. The zero value builds them
+	// concurrently where that is possible and worth it — see [drawData] — and
+	// produces the same output either way.
+	Serial bool
+
+	// Observer is told which panel and which layer is drawing, so that a
+	// caller watching the backend can attribute a mark to the layer that made
+	// it. It is nil for an ordinary render, and setting it forces the serial
+	// path: the observer is told things in order, and two panels drawing at
+	// once have no order to be told in.
+	Observer Observer
+
+	// RowSink, when non-nil, collects which source row is behind each mark. It
+	// is separate from Observer because it is a separate cost: a layer does
+	// the bookkeeping only when someone is listening, so this is what turns it
+	// on. See [geom.Rows].
+	//
+	// It is not called Rows because that name is already the facet grid's.
+	RowSink geom.Rows
+
+	// Hidden turns individual layers off by index, without removing them: a
+	// hidden layer is not drawn, still trains its scales, and still appears in
+	// the legend — dimmed, so that a reader can see what they have put away
+	// and bring it back.
+	//
+	// It is indexed by the layer's position among the chart's layers, which is
+	// the index an [Observer] is told and the one [interact.Hit] reports. A
+	// shorter slice than there are layers hides none of the rest, and nil
+	// hides nothing at all.
+	//
+	// The scales are trained from hidden layers on purpose. A legend toggle is
+	// a reading aid — let me see this one without that one on top — and an
+	// axis that moved every time one was clicked would make the two readings
+	// incomparable, which is the thing the toggle was for. A caller who wants
+	// the axes to follow what is left removes the layer instead, with
+	// [Plot.SetLayers], which is a different statement about the chart.
+	Hidden []bool
+
+	// Overlay paints over the finished chart — a crosshair, a tooltip, a brush
+	// rectangle. It is nil for an ordinary chart and costs nothing then.
+	//
+	// It is drawn last, after the guides, and is not announced to Observer:
+	// what an overlay draws is not a mark and must not be hit-testable. See
+	// [Overlay].
+	Overlay Overlay
+}
+
+// Observer is told the structure a render is drawing, as it draws it.
+//
+// It is how hit-testing gets built without widening the IR. A backend sees
+// primitives — a polyline, some markers — and nothing about which layer of
+// which panel emitted them; an Observer is told that separately, so a caller
+// wrapping the backend can tag what it sees. Nothing here draws, and nothing
+// here can change what is drawn.
+//
+// The calls come in paint order: one Panel, then a Layer for each of its
+// layers, then the next Panel. Only the data pass is announced — the grid, the
+// axes and the guides are furniture, and a pointer landing on a grid line has
+// not landed on anything.
+//
+// An Observer is implemented outside this package, so it never gains a method.
+type Observer interface {
+	// Panel opens a panel: its index in the chart, the rectangle it occupies,
+	// the scales that place values in it, and the coord that turns a pair of
+	// mapped positions into a point there. The scales are ranged for this
+	// panel and must not be modified; the coord is framed for it and is what
+	// turns a device position back into a pair — which is the only way a
+	// tooltip over a pie slice names a value rather than a pixel.
+	Panel(i int, area ir.Rect, x, y scale.Scale, cd coord.Coord)
+
+	// Layer opens a layer within the panel just announced: its index among
+	// that panel's layers, and its legend label if it has one.
+	Layer(i int, label string)
+}
+
+// LayerAxes is an optional interface beside [Observer]: an observer that
+// implements it is told which scales the layer about to be opened reads.
+//
+// It exists because those are not always the panel's own. A layer bound to a
+// secondary axis with [github.com/timzifer/figure/geom.OnY2] or OnX2 is drawn
+// against a different scale, and an index that inverted its marks through the
+// panel's own would report a value from the wrong axis — a tooltip naming
+// 4 200 on a chart whose right axis reads 12 %.
+//
+// It is optional rather than a third method on Observer because Observer is
+// implemented outside this package and never gains one
+// ([CONCEPT §15](../CONCEPT.md#15-versioning--stability)). An observer that
+// does not implement it sees exactly what it saw before there were two axes.
+type LayerAxes interface {
+	// LayerAxes names the scales the next layer opened by [Observer.Layer] is
+	// drawn against. It is called immediately before it, and both are ranged
+	// for the panel already announced.
+	LayerAxes(x, y scale.Scale)
+}
+
+// EndData is an optional interface beside [Observer]: an observer that
+// implements it is told when the last layer has been drawn.
+//
+// It exists because [Observer] has no way to close a layer. Layer opens one and
+// the next Panel opens another, so after the final layer of the final panel the
+// most recent Layer call is still the most recent thing an observer was told —
+// and everything drawn afterwards is attributed to it. What is drawn afterwards
+// is the guides and the chart's [Overlay], neither of which is a mark: a
+// pointer landing on a legend swatch has not landed on a row of the layer that
+// happened to be drawn last, and one landing on a crosshair has not landed on
+// anything at all.
+//
+// It is optional rather than a third method on Observer for the reason
+// [LayerAxes] is: Observer is implemented outside this package and never gains
+// one ([CONCEPT §15](../CONCEPT.md#15-versioning--stability)).
+type EndData interface {
+	// EndData reports that the data pass is over and everything after it is
+	// furniture. It is called once per render, after the last layer of the
+	// last panel, and is not called at all by a render with no layers.
+	EndData()
+}
+
+// LegendEntry is an optional interface beside [Observer]: an observer that
+// implements it is told where each row of the legend was drawn.
+//
+// It is what makes a legend answer to a pointer. A legend is furniture — it is
+// drawn after the data and is not a mark — but it is the one piece of
+// furniture a reader expects to be able to *act on*, by clicking a series to
+// put it away. So it is announced separately from the marks and with its own
+// vocabulary, rather than being indexed as though it were data: a hit on a
+// swatch has to be distinguishable from a hit on the thing the swatch stands
+// for, or a tooltip would describe a row that is not under the pointer.
+//
+// It is optional rather than a third method on Observer for the reason
+// [LayerAxes] and [EndData] are: Observer is implemented outside this package
+// and never gains one.
+type LegendEntry interface {
+	// LegendEntry reports one row of the legend: which layer it stands for,
+	// what it is labelled, the rectangle it occupies, and whether that layer
+	// is currently hidden.
+	//
+	// layer is -1 for a row no layer can be attributed to. The rectangle spans
+	// the legend's width, so the gap between a swatch and its label is part of
+	// the same target — a reader aiming at a word should not have to hit the
+	// word.
+	LegendEntry(layer int, label string, area ir.Rect, hidden bool)
+}
+
+// ColorbarEntry is an optional interface beside [Observer]: an observer that
+// implements it is told where a colourbar was drawn.
+//
+// A classed colourbar reports one call per band, because a band is a discrete
+// thing a reader can mean — the rows between these two numbers. A continuous
+// one reports a single call for the whole bar, because every point of it means
+// something different and there is nothing discrete to enumerate.
+//
+// It is optional rather than a method on Observer for the reason [LayerAxes],
+// [EndData] and [LegendEntry] are: Observer never gains one.
+type ColorbarEntry interface {
+	// ColorbarEntry reports a colourbar, or one band of a classed one.
+	//
+	// cs is the scale the bar was painted from, so that a caller can ask what
+	// value the ramp reaches at a point of it — which is the ramp's answer
+	// rather than the axis's, and the two disagree wherever the ramp is
+	// compressed.
+	//
+	// class is the band's index and lo and hi its interval; class is -1 for a
+	// continuous bar, and lo and hi are then the scale's whole domain.
+	ColorbarEntry(cs scale.ColorScale, class int, lo, hi float64, area ir.Rect)
+}
+
+// SizeKeyEntry is an optional interface beside [Observer]: an observer that
+// implements it is told where each row of a size key was drawn, and what value
+// the row's sample stands for.
+type SizeKeyEntry interface {
+	// SizeKeyEntry reports one row of a size key: the value its sample is
+	// drawn for, how that value is spelled, and the rectangle the row
+	// occupies.
+	SizeKeyEntry(value float64, label string, area ir.Rect)
+}
+
+// Panel is one Cartesian area of a multi-panel chart.
+type Panel struct {
+	// Row and Col place the panel in the grid.
+	Row, Col int
+	// Strip and RightStrip are the labels naming the panel, above it and
+	// beside it.
+	Strip, RightStrip string
+
+	// X and Y are this panel's scales. Panels sharing an axis share the scale
+	// object, which is what makes the axis shared rather than merely similar.
+	X, Y scale.Scale
+
+	// Y2 and X2 are this panel's secondary vertical and horizontal axes, or
+	// nil for a panel with one in that direction. The layers that read them
+	// are the ones that answer
+	// [github.com/timzifer/figure/geom.OnSecondaryY] and OnSecondaryX.
+	Y2 scale.Scale
+	X2 scale.Scale
+
+	// Coord overrides the chart's coordinate system for this panel, and is nil
+	// for the panels that use it — which is every panel of a facet, because
+	// the panels of a facet are one plot over different rows and one of them
+	// in a different coordinate system would be a different chart.
+	//
+	// A grid of subplots is the case that needs it: those panels are separate
+	// plots that happen to share a canvas, each with its own scales and its
+	// own axes, so a pie beside a bar chart is two coords beside each other.
+	Coord coord.Coord
+	// Layers are this panel's marks.
+	Layers []geom.Geom
+
+	// ShowX and ShowY report whether this panel writes its own tick labels. A
+	// panel that shares an axis with its neighbour leaves the labels to the
+	// edge of the grid. ShowY2 and ShowX2 are the same question for the
+	// secondary axes, answered at the right-hand and top edges of the grid
+	// rather than the left and bottom ones.
+	ShowX, ShowY, ShowY2, ShowX2 bool
+
+	// HideGrid suppresses this panel's grid lines while leaving its fill, its
+	// axes and its tick marks alone. A track — a band on the panel's own X,
+	// whose rows are lanes rather than a quantity — is what it is for: a grid
+	// line through a gantt strip is a rule drawn across a solid bar.
+	HideGrid bool
+}
+
+// Draw lowers c into b. It does not call Flush: the caller owns the backend's
+// lifecycle.
+//
+// The order is fixed here and nowhere else: background, then every panel's
+// grid and axes, then the titles, then every panel's data inside its own clip,
+// then the guides. Data is drawn after the furniture so that a mark is never
+// hidden by a grid line, and the guides last because they sit outside every
+// panel and must not be clipped by one.
+func Draw(b ir.Backend, c Chart) error {
+	// Every label — measured during layout and drawn during the paint — goes
+	// through the backend, so a typesetter is installed by wrapping it once
+	// here rather than at each of the dozen places that write text.
+	//
+	// The unwrapped backend is kept for the one thing that is asked of the
+	// backend itself rather than of the drawing: whether it can carry a
+	// description. A wrapper forwards drawing calls and hides optional
+	// interfaces, so the question has to be put to the backend that answers it.
+	raw := b
+	b = withMath(b, c.Math)
+
+	th := c.Theme
+	canvas := ir.R(0, 0, float32(c.Width), float32(c.Height))
+	panels, rows, cols := c.panels()
+
+	// 1. Train the scales. Tick labels depend on the domain, and the layout
+	//    depends on the tick labels, so this has to happen before anything is
+	//    measured.
+	for _, p := range panels {
+		for _, g := range p.Layers {
+			if err := g.Train(p.axesOf(g)); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 2. Measure. Tick label *text* depends only on the domain, but
+	//    Scale.Ticks also reports positions, which need a range — so
+	//    measurePanels gives every scale a provisional unit range, and the
+	//    real one is set below once the rectangles exist. The guides are
+	//    collected here too, because how wide they are decides how wide the
+	//    panels can be — and because collecting a size key is what gives its
+	//    scale the diameters the theme asks for, which the marks then read.
+	guides := chartGuides(c, panels, th, ir.Rect{})
+
+	lay := layout.Panels(layout.Grid{
+		Canvas:     canvas,
+		Theme:      th,
+		Title:      c.Title,
+		XTitle:     c.XTitle,
+		YTitle:     c.YTitle,
+		Y2Title:    c.Y2Title,
+		X2Title:    c.X2Title,
+		Rows:       rows,
+		Cols:       cols,
+		Panels:     measurePanels(panels, th),
+		RowHeights: c.RowHeights,
+		ColWidths:  c.ColWidths,
+		Guides:     layoutGuides(guides, th),
+	}, b)
+
+	// 3. Paint. Furniture for every panel first, then the titles, then the
+	//    data — so a mark is never buried under a grid line — and the guides
+	//    last, because they sit outside every panel and must not be clipped
+	//    by one.
+	//
+	//    The description goes first of all, before any ink: a backend that
+	//    writes a document header has it in hand when it writes one.
+	if s, ok := raw.(ir.Semantics); ok && !c.Description.Empty() {
+		s.Describe(c.Description)
+	}
+	drawBackground(b, canvas, th)
+
+	// An overlay is told the coords the panels were actually drawn in. They
+	// are collected here rather than recomputed afterwards: ranging a panel
+	// generates its ticks, and doing that twice would allocate a tick list per
+	// frame for nobody to read.
+	var coords []coord.Coord
+	if c.Overlay != nil {
+		coords = make([]coord.Coord, len(panels))
+	}
+
+	fur := acquireFurniture()
+	for i, p := range panels {
+		area := lay.Areas[i]
+		cd, xTicks, yTicks := p.rangeTo(c.coordOf(p), area, th)
+		if coords != nil {
+			coords[i] = cd
+		}
+		fur.Reset()
+		cd.Furniture(fur, area, metricsOf(th), xTicks, yTicks)
+		drawPanelFill(b, area, th)
+		drawGrid(b, th, p, fur, xTicks, yTicks)
+		drawAxes(b, th, p, fur, xTicks, yTicks)
+		drawSecondaryAxes(b, th, p, cd, area)
+		drawStrip(b, lay.Strips[i], th, p.Strip, 0)
+		drawStrip(b, lay.RightStrips[i], th, p.RightStrip, halfPi)
+	}
+	releaseFurniture(fur)
+
+	drawTitles(b, lay, th, c)
+
+	if err := drawData(b, c, panels, lay.Areas, th); err != nil {
+		return err
+	}
+	// Everything below this line is furniture. An observer that wants to know
+	// is told, so that a guide's swatch is not indexed as a mark of whichever
+	// layer was drawn last — see [EndData].
+	if e, ok := c.Observer.(EndData); ok {
+		e.EndData()
+	}
+
+	// The solver reserves one box per guide, in order, so these are parallel.
+	// The legend is rebuilt against the real plot rectangle: an entry can
+	// depend on where the layer was drawn, and the provisional pass above had
+	// no rectangle to give it.
+	for i, box := range lay.Guides {
+		if i >= len(guides) {
+			break
+		}
+		g := guides[i]
+		if g.kind == layout.GuideLegend {
+			g.entries, g.layers = legendEntries(c, panels, lay.Areas[0])
+		}
+		drawGuide(b, box, th, g, c.Observer, c.Hidden)
+	}
+
+	// Last of all, over everything, clipped by nothing. See [Overlay].
+	if c.Overlay != nil {
+		c.Overlay.DrawOverlay(b, overlayFrame(panels, lay.Areas, coords, canvas, th))
+	}
+	return nil
+}
+
+// overlayFrame gathers what an overlay is told: the panels as they were
+// actually drawn, with the scales already ranged to them and the coords the
+// paint pass framed.
+//
+// The scales are the panels' own objects rather than copies. An overlay reads
+// them in the same frame that drew them, and a copy would be a copy per frame
+// of something nothing is going to change.
+func overlayFrame(panels []Panel, areas []ir.Rect, coords []coord.Coord, canvas ir.Rect, th theme.Theme) OverlayFrame {
+	f := OverlayFrame{Canvas: canvas, Theme: th}
+	if len(panels) == 0 {
+		return f
+	}
+	f.Panels = make([]OverlayPanel, 0, len(panels))
+	for i, p := range panels {
+		if i >= len(areas) {
+			break
+		}
+		op := OverlayPanel{
+			Index: i,
+			Area:  areas[i],
+			X:     p.X, Y: p.Y, Y2: p.Y2, X2: p.X2,
+		}
+		if i < len(coords) {
+			op.Coord = coords[i]
+		}
+		f.Panels = append(f.Panels, op)
+	}
+	return f
+}
+
+// isHidden reports whether the layer at i is turned off. A short or nil slice
+// hides nothing, so a caller may keep one sized to the layers it cares about.
+func isHidden(hidden []bool, i int) bool { return i < len(hidden) && hidden[i] }
+
+// coord is the chart's coordinate system, which is [coord.Cartesian] when it
+// names none.
+func (c Chart) coord() coord.Coord {
+	if c.Coord == nil {
+		return coord.Cartesian()
+	}
+	return c.Coord
+}
+
+// coordOf is the coord one panel is drawn in: its own, or the chart's.
+func (c Chart) coordOf(p Panel) coord.Coord {
+	if p.Coord != nil {
+		return p.Coord
+	}
+	return c.coord()
+}
+
+// panels resolves the chart into a panel list, wrapping a single-panel chart
+// into a one-by-one grid so that there is one code path rather than two.
+func (c Chart) panels() ([]Panel, int, int) {
+	if len(c.Panels) > 0 {
+		rows, cols := c.Rows, c.Cols
+		for _, p := range c.Panels {
+			rows = max(rows, p.Row+1)
+			cols = max(cols, p.Col+1)
+		}
+		return c.Panels, rows, cols
+	}
+	return []Panel{{
+		X: c.X, Y: c.Y, Y2: c.Y2, X2: c.X2, Layers: c.Layers,
+		ShowX: true, ShowY: true, ShowY2: true, ShowX2: true,
+	}}, 1, 1
+}
+
+// rangeTo gives the panel's scales their real range, returns the coord framed
+// in the panel, and returns the ticks that fall in it.
+//
+// Which interval each scale maps into is the coord's decision now: Cartesian
+// sets the rectangle's edges, with Y inverted so that larger values are higher
+// on screen, and Polar sets an angle range and a radius range.
+//
+// It is called again before the data pass because panels sharing a scale share
+// one object, so the range left behind by the last panel of the furniture pass
+// is not this panel's.
+func (p Panel) rangeTo(cd coord.Coord, area ir.Rect, th theme.Theme) (coord.Coord, []scale.Tick, []scale.Tick) {
+	framed := p.setRange(cd, area)
+	return framed, p.X.Ticks(th.TickCountHintX), p.Y.Ticks(th.TickCountHintY)
+}
+
+// setRange is rangeTo without the ticks, for the data pass, which needs the
+// range and has no use for the tick list the furniture pass already drew.
+func (p Panel) setRange(cd coord.Coord, area ir.Rect) coord.Coord {
+	if p.Y2 != nil || p.X2 != nil {
+		// A second axis maps into the same interval the first does, so it is
+		// framed against the same rectangle — and it has to be framed at all,
+		// or the layers that read it would map through a scale with no device
+		// range. One extra call covers both, because Frame ranges the two
+		// scales it is handed; the framed coord is the same either way,
+		// because a coord's own state is the rectangle rather than the scales
+		// in it.
+		cd.Frame(area, orElse(p.X2, p.X), orElse(p.Y2, p.Y))
+	}
+	return cd.Frame(area, p.X, p.Y)
+}
+
+func orElse(s, fallback scale.Scale) scale.Scale {
+	if s != nil {
+		return s
+	}
+	return fallback
+}
+
+// axesOf is the pair of scales a layer reads: the panel's secondary axis in
+// each direction where the layer asked for it and the chart has one, and the
+// panel's own otherwise. The two are independent, so a layer may read the top
+// axis and the left one.
+//
+// A layer that asks for an axis the chart does not have reads the primary one
+// rather than failing, for the reason a break-out under a Cartesian coord
+// draws nothing rather than erroring: an option every mark accepts must not
+// make a chart's validity depend on something set somewhere else.
+func (p Panel) axesOf(g geom.Geom) (x, y scale.Scale) {
+	x, y = p.X, p.Y
+	if p.X2 != nil && geom.OnSecondaryX(g) {
+		x = p.X2
+	}
+	if p.Y2 != nil && geom.OnSecondaryY(g) {
+		y = p.Y2
+	}
+	return x, y
+}
+
+// measurePanels reports what each panel will write, so the solver can size the
+// gutters around it.
+func measurePanels(panels []Panel, th theme.Theme) []layout.Panel {
+	out := make([]layout.Panel, len(panels))
+	for i, p := range panels {
+		p.X.SetRange(0, 1)
+		p.Y.SetRange(1, 0)
+		if p.Y2 != nil {
+			p.Y2.SetRange(1, 0)
+		}
+		if p.X2 != nil {
+			p.X2.SetRange(0, 1)
+		}
+		out[i] = layout.Panel{
+			Row:        p.Row,
+			Col:        p.Col,
+			Strip:      p.Strip,
+			RightStrip: p.RightStrip,
+		}
+		// A panel that writes no tick labels needs no gutter for them, which is
+		// what gives a pie with its axes turned off the whole panel to fill.
+		if p.ShowX && th.ShowTicksX {
+			out[i].XLabels = labelsOf(p.X.Ticks(th.TickCountHintX))
+		}
+		if p.ShowY && th.ShowTicksY {
+			out[i].YLabels = labelsOf(p.Y.Ticks(th.TickCountHintY))
+		}
+		if p.Y2 != nil && p.ShowY2 && th.ShowTicksY {
+			out[i].Y2Labels = labelsOf(p.Y2.Ticks(th.TickCountHintY))
+		}
+		if p.X2 != nil && p.ShowX2 && th.ShowTicksX {
+			out[i].X2Labels = labelsOf(p.X2.Ticks(th.TickCountHintX))
+		}
+	}
+	return out
+}
+
+// cullEps is the tolerance for "is this tick inside the plot area".
+//
+// Tick positions come out of a float32 mapping, so a tick sitting exactly on
+// an edge can land a hair outside it. Half a pixel is far below anything
+// visible and far above the rounding error.
+const cullEps = 0.5
+
+func inRange(v, lo, hi float32) bool { return v >= lo-cullEps && v <= hi+cullEps }
+
+func labelsOf(ticks []scale.Tick) []string {
+	out := make([]string, 0, len(ticks))
+	for _, t := range ticks {
+		if t.Label != "" {
+			out = append(out, t.Label)
+		}
+	}
+	return out
+}
+
+// legendEntries collects the legend rows of every panel, keeping the first of
+// each label.
+//
+// Faceted panels carry the same layers over different rows, so every panel
+// offers the same entries; a legend that repeated them once per panel would
+// grow with the facet rather than with the data. That is also why a grouped
+// layer costs nothing extra here: a facet whose panels hold different groups
+// contributes the union of them, in the order they were first seen.
+//
+// A layer contributes as many entries as it has to say — a grouped layer names
+// its series, a layer painted from a qualitative palette names its categories —
+// through [geom.Legends], which prefers a layer's own list where it has one.
+func legendEntries(c Chart, panels []Panel, area ir.Rect) ([]geom.LegendEntry, []int) {
+	if !c.ShowLegend {
+		return nil, nil
+	}
+	var out []geom.LegendEntry
+	var from []int
+	seen := map[string]bool{}
+	for _, p := range panels {
+		for i, g := range p.Layers {
+			f := geom.Frame{Area: area, X: p.X, Y: p.Y, Theme: c.Theme, Index: i}
+			es := geom.Legends(g, f)
+			for _, e := range es {
+				if e.Label == "" || seen[e.Label] {
+					continue
+				}
+				seen[e.Label] = true
+				out = append(out, e)
+				// Which layer a row toggles. A layer contributing several rows
+				// — a pie, a stack, a waffle — names itself for each of them,
+				// and turning any of them off turns the layer off: the rows
+				// are one drawing, and there is no way to draw a third of it.
+				// A caller who wants them independent splits the layer, which
+				// is what makes them independent in the data too.
+				from = append(from, i)
+			}
+		}
+	}
+	return out, from
+}
+
+// Furniture is per panel and sized by the tick count rather than by the data,
+// but a chart redrawn every frame still asks for it every frame — so it comes
+// out of a pool, like everything else here that is refilled rather than
+// rebuilt. One is held for the whole furniture pass and reset between panels.
+var furniturePool sync.Pool
+
+func acquireFurniture() *coord.Furniture {
+	f, _ := furniturePool.Get().(*coord.Furniture)
+	if f == nil {
+		return new(coord.Furniture)
+	}
+	return f
+}
+
+func releaseFurniture(f *coord.Furniture) {
+	f.Reset()
+	furniturePool.Put(f)
+}
+
+// metricsOf hands a coord the theme lengths it needs to place furniture. A
+// coord must not know what a theme is, so the three numbers travel rather than
+// the theme.
+func metricsOf(th theme.Theme) coord.Metrics {
+	return coord.Metrics{
+		TickLen:      th.TickLength,
+		MinorTickLen: th.TickLength * minorTickScale,
+		LabelPad:     th.TickLabelPad,
+	}
+}
+
+func drawBackground(b ir.Backend, canvas ir.Rect, th theme.Theme) {
+	if th.Background.A == 0 {
+		return
+	}
+	var p ir.Path
+	p.Rect(canvas)
+	b.FillPath(&p, ir.Solid(th.Background), ir.NonZero)
+}
+
+func drawPanelFill(b ir.Backend, area ir.Rect, th theme.Theme) {
+	if th.PlotFill.A == 0 || area.Empty() {
+		return
+	}
+	var p ir.Path
+	p.Rect(area)
+	b.FillPath(&p, ir.Solid(th.PlotFill), ir.NonZero)
+}
+
+// drawStrip paints the band naming a facet. rotation turns the label for a
+// band down the side of a panel, where it reads top to bottom.
+func drawStrip(b ir.Backend, box ir.Rect, th theme.Theme, label string, rotation float64) {
+	if label == "" || box.Empty() {
+		return
+	}
+	if th.StripBG.A != 0 {
+		var p ir.Path
+		p.Rect(box)
+		b.FillPath(&p, ir.Solid(th.StripBG), ir.NonZero)
+	}
+	if th.StripBorder.A != 0 {
+		var p ir.Path
+		p.Rect(box)
+		b.StrokePath(&p, ir.Stroke{Color: th.StripBorder, Width: th.AxisWidth})
+	}
+	b.Text(ir.TextRun{
+		Text:     label,
+		Font:     th.Font(th.StripSize),
+		At:       ir.Point{X: (box.Min.X + box.Max.X) / 2, Y: (box.Min.Y + box.Max.Y) / 2},
+		H:        ir.AlignCenter,
+		V:        ir.AlignMiddle,
+		Rotation: rotation,
+		Color:    th.StripColor,
+	})
+}
+
+func drawGrid(b ir.Backend, th theme.Theme, c Panel, fur *coord.Furniture, xTicks, yTicks []scale.Tick) {
+	stroke := ir.Stroke{Color: th.GridColor, Width: th.GridWidth, Dash: th.GridDash}
+	if c.HideGrid || !stroke.Visible() {
+		return
+	}
+	// Minor ticks get a tick mark but no grid line. A log axis emits eight of
+	// them per decade; drawing a grid line for each would turn the plot area
+	// into a hatch and bury the data it is there to support.
+	if th.ShowGridX && !banded(c.X) {
+		for i := range xTicks {
+			strokeShape(b, shapeAt(fur.GridX, i), stroke)
+		}
+	}
+	if th.ShowGridY && !banded(c.Y) {
+		for i := range yTicks {
+			strokeShape(b, shapeAt(fur.GridY, i), stroke)
+		}
+	}
+}
+
+// strokeShape draws one piece of furniture: as a polyline where the coord
+// reported a straight run, and as a path where it reported a curve.
+//
+// The polyline is not a shortcut. A Cartesian grid line has reached the
+// backend as a two-point Polyline since v0.1, and the golden files, the damage
+// rectangles and the SVG in the documentation are all written in those terms.
+func strokeShape(b ir.Backend, s *coord.Shape, stroke ir.Stroke) {
+	if s == nil {
+		return
+	}
+	if len(s.Pts) >= 2 {
+		b.Polyline(s.Pts, stroke)
+		return
+	}
+	if !s.Path.Empty() {
+		b.StrokePath(&s.Path, stroke)
+	}
+}
+
+// shapeAt is the i'th shape of a per-tick list, or nil where the coord had
+// nothing to report for that tick.
+func shapeAt(shapes []coord.Shape, i int) *coord.Shape {
+	if i >= len(shapes) {
+		return nil
+	}
+	return &shapes[i]
+}
+
+// banded reports whether an axis positions categories in slots.
+//
+// A band scale's ticks sit at the centre of each slot, which is where the mark
+// is — so a grid line there is drawn straight through the bar or box it is
+// supposed to help read. The grid is a reference for a continuous quantity;
+// a categorical axis has no continuous quantity to reference.
+func banded(s scale.Scale) bool {
+	_, ok := s.(scale.Band)
+	return ok
+}
+
+// minorTickScale is how long a minor tick is relative to a major one. A minor
+// tick is drawn shorter so that the labelled ticks stay the ones the eye lands
+// on; it travels to the coord as part of [coord.Metrics], because the coord is
+// what decides where a tick mark goes and a coord must not know what a theme
+// is.
+const minorTickScale = 0.55
+
+func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTicks, yTicks []scale.Tick) {
+	axis := ir.Stroke{Color: th.AxisColor, Width: th.AxisWidth, Cap: ir.CapButt}
+	tickFont := th.Font(th.TickSize)
+
+	if th.ShowAxisLineX {
+		strokeShape(b, &fur.AxisX, axis)
+	}
+	if th.ShowAxisLineY {
+		strokeShape(b, &fur.AxisY, axis)
+	}
+
+	// X ticks. Where the labels sit along one line they will collide on a
+	// dense axis; drop the ones that would overlap rather than let them run
+	// together. Labels arranged around a ring share no line and are all kept.
+	keep := selectXLabels(b, fur, xTicks, tickFont, th.TickLabelPad)
+	for i, t := range xTicks {
+		if !inFurniture(fur.InX, i) || !th.ShowTicksX {
+			continue
+		}
+		if axis.Visible() {
+			strokeShape(b, shapeAt(fur.TickX, i), axis)
+		}
+		if t.Label == "" || !keep[i] || !p.ShowX {
+			continue
+		}
+		b.Text(labelRun(t.Label, tickFont, fur.LabelX[i], th.TickColor))
+	}
+
+	// Y ticks. On a Cartesian axis these stack vertically and are right-
+	// aligned against the axis, so they collide far less often; the theme's
+	// tick count hint is enough.
+	for i, t := range yTicks {
+		if !inFurniture(fur.InY, i) || !th.ShowTicksY {
+			continue
+		}
+		if axis.Visible() {
+			strokeShape(b, shapeAt(fur.TickY, i), axis)
+		}
+		if t.Label == "" || !p.ShowY {
+			continue
+		}
+		b.Text(labelRun(t.Label, tickFont, fur.LabelY[i], th.TickColor))
+	}
+}
+
+// drawSecondaryAxes strokes the panel's second axes: a line, its tick marks
+// and its labels, and no grid.
+//
+// It takes a Furniture of its own out of the pool rather than a second set of
+// fields on the one the panel already filled. The coord fills one side of
+// whatever it is given, so one struct with two of everything in it would mean
+// a wider Furniture for every chart to carry and a coord that had to know
+// which half it was filling.
+//
+// A coord that cannot place a second axis draws none. That is [coord.Polar]:
+// a ring has one angular axis and one radial one and no far side to put
+// another on, and a second one over the first would be two scales sharing one
+// line.
+func drawSecondaryAxes(b ir.Backend, th theme.Theme, p Panel, cd coord.Coord, area ir.Rect) {
+	if p.Y2 != nil {
+		drawOppositeAxis(b, th, cd, area, p.Y2, p.ShowY2, true,
+			th.ShowTicksY, th.ShowAxisLineY, th.TickCountHintY)
+	}
+	if p.X2 != nil {
+		drawOppositeAxis(b, th, cd, area, p.X2, p.ShowX2, false,
+			th.ShowTicksX, th.ShowAxisLineX, th.TickCountHintX)
+	}
+}
+
+// drawOppositeAxis is one of the two, written once: the sides differ in which
+// furniture slot the coord fills and which of the theme's switches apply, and
+// in nothing else.
+func drawOppositeAxis(b ir.Backend, th theme.Theme, cd coord.Coord, area ir.Rect,
+	s scale.Scale, labels, vertical, showTicks, showLine bool, want int,
+) {
+	if !showTicks && !showLine {
+		return
+	}
+	ticks := s.Ticks(want)
+	fur := acquireFurniture()
+	defer releaseFurniture(fur)
+	fur.Reset()
+	if !coord.OppositeFurniture(cd, fur, area, metricsOf(th), ticks, vertical) {
+		return
+	}
+
+	axis := ir.Stroke{Color: th.AxisColor, Width: th.AxisWidth, Cap: ir.CapButt}
+	line, marks, places, in := &fur.AxisY, fur.TickY, fur.LabelY, fur.InY
+	if !vertical {
+		line, marks, places, in = &fur.AxisX, fur.TickX, fur.LabelX, fur.InX
+	}
+	if showLine {
+		strokeShape(b, line, axis)
+	}
+	if !showTicks {
+		return
+	}
+	tickFont := th.Font(th.TickSize)
+	// A second horizontal axis's labels share a row exactly as the first
+	// one's do, so the same collision pass runs over them — two labels along
+	// the top of a panel run into each other on the same evidence.
+	keep := []bool(nil)
+	if !vertical {
+		keep = selectXLabels(b, fur, ticks, tickFont, th.TickLabelPad)
+	}
+	for i, t := range ticks {
+		if !inFurniture(in, i) {
+			continue
+		}
+		if axis.Visible() {
+			strokeShape(b, shapeAt(marks, i), axis)
+		}
+		if t.Label == "" || !labels || (keep != nil && !keep[i]) {
+			continue
+		}
+		b.Text(labelRun(t.Label, tickFont, places[i], th.TickColor))
+	}
+}
+
+// inFurniture reports whether tick i falls inside the panel. A coord that
+// reported no answer for it has nothing to draw.
+func inFurniture(in []bool, i int) bool { return i < len(in) && in[i] }
+
+// labelRun is one tick label, placed where the coord put it.
+func labelRun(text string, font ir.FontRef, at coord.Label, col ir.Color) ir.TextRun {
+	return ir.TextRun{
+		Text:     text,
+		Font:     font,
+		At:       at.At,
+		H:        at.H,
+		V:        at.V,
+		Rotation: at.Rotation,
+		Color:    col,
+	}
+}
+
+// selectXLabels greedily keeps every label that clears the previous kept one.
+// Greedy left-to-right is the right policy here: it always keeps the first and
+// preserves even spacing on a regular axis, which is what a reader expects.
+func selectXLabels(m layout.Measurer, fur *coord.Furniture, ticks []scale.Tick, font ir.FontRef, pad float32) []bool {
+	keep := make([]bool, len(ticks))
+	if !fur.XLabelsShareARow {
+		// Two labels on opposite sides of a ring can share an x and still be a
+		// finger apart, so the overlap test does not apply and every label is
+		// kept.
+		for i := range keep {
+			keep[i] = true
+		}
+		return keep
+	}
+	prevRight := float32(-1e30)
+	for i, t := range ticks {
+		if t.Label == "" || !inFurniture(fur.InX, i) || i >= len(fur.LabelX) {
+			continue
+		}
+		w := m.Measure(ir.TextRun{Text: t.Label, Font: font}).Advance
+		left := fur.LabelX[i].At.X - w/2
+		if left < prevRight+pad {
+			continue
+		}
+		keep[i] = true
+		prevRight = fur.LabelX[i].At.X + w/2
+	}
+	return keep
+}
+
+func drawTitles(b ir.Backend, lay layout.GridResult, th theme.Theme, c Chart) {
+	if c.Title != "" {
+		b.Text(ir.TextRun{
+			Text:  c.Title,
+			Font:  th.Font(th.TitleSize),
+			At:    lay.Title,
+			H:     ir.AlignCenter,
+			Color: th.TitleColor,
+		})
+	}
+	labelFont := th.Font(th.LabelSize)
+	if c.XTitle != "" {
+		b.Text(ir.TextRun{
+			Text:  c.XTitle,
+			Font:  labelFont,
+			At:    lay.XTitle,
+			H:     ir.AlignCenter,
+			Color: th.LabelColor,
+		})
+	}
+	if c.YTitle != "" {
+		b.Text(ir.TextRun{
+			Text:     c.YTitle,
+			Font:     labelFont,
+			At:       lay.YTitle,
+			H:        ir.AlignCenter,
+			Rotation: -halfPi,
+			Color:    th.LabelColor,
+		})
+	}
+	if c.X2Title != "" && c.X2 != nil {
+		b.Text(ir.TextRun{
+			Text:  c.X2Title,
+			Font:  labelFont,
+			At:    lay.X2Title,
+			H:     ir.AlignCenter,
+			Color: th.LabelColor,
+		})
+	}
+	if c.Y2Title != "" && c.Y2 != nil {
+		// A quarter turn the other way, so that the right-hand title reads
+		// from the outside of the chart exactly as the left-hand one does.
+		// Rotating both the same way would leave one of them upside down to a
+		// reader standing where that axis is.
+		b.Text(ir.TextRun{
+			Text:     c.Y2Title,
+			Font:     labelFont,
+			At:       lay.Y2Title,
+			H:        ir.AlignCenter,
+			Rotation: halfPi,
+			Color:    th.LabelColor,
+		})
+	}
+}
+
+// halfPi is a quarter turn. The Y axis title reads bottom-to-top, which is a
+// rotation of -90 degrees in screen coordinates.
+const halfPi = 1.5707963267948966
+
+func drawLayers(b ir.Backend, p Panel, plot ir.Rect, th theme.Theme, obs Observer, rows geom.Rows, cd coord.Coord, hidden []bool) error {
+	if plot.Empty() || len(p.Layers) == 0 {
+		return nil
+	}
+	// What a panel clips to is the coord's answer: the rectangle, or the disc
+	// inscribed in it.
+	var clip ir.Path
+	cd.Clip(&clip, plot)
+	b.Push(&clip, ir.Identity)
+	defer b.Pop()
+
+	var labels *labelPlacer
+	for i, g := range p.Layers {
+		if isHidden(hidden, i) {
+			// Not drawn and not announced: a hidden layer has no marks, so a
+			// pointer where it used to be must find whatever is behind it
+			// rather than a mark nobody can see.
+			continue
+		}
+		x, y := p.axesOf(g)
+		f := geom.Frame{Area: plot, X: x, Y: y, Coord: cd, Theme: th, Index: i, Rows: rows}
+		if request, ok := g.(geom.LabelAvoider); ok && request.AvoidsLabels() {
+			if labels == nil {
+				labels = acquireLabels(plot, b)
+				defer releaseLabels(labels)
+			}
+			f.Labels = labels
+		}
+		if obs != nil {
+			// Which scales this layer reads are told before the layer is
+			// opened, so an observer that indexes the marks that follow knows
+			// which to invert them through. An observer that does not care is
+			// not asked.
+			if ax, ok := obs.(LayerAxes); ok {
+				ax.LayerAxes(x, y)
+			}
+			obs.Layer(i, layerLabel(g, f))
+		}
+		if err := g.Build(b, f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// layerLabel is what the layer calls itself: its legend entry, or failing
+// that what it was configured with.
+//
+// The fallback is not redundant. A layer coloured from a continuous scale
+// contributes a colourbar rather than a legend entry, so it has no legend
+// label at all — and it is exactly the layer a reader is most likely to point
+// at. An unlabelled annotation still has no name, and gets none.
+func layerLabel(g geom.Geom, f geom.Frame) string {
+	if e, ok := g.Legend(f); ok && e.Label != "" {
+		return e.Label
+	}
+	d, ok := geom.Describe(g)
+	if !ok {
+		return ""
+	}
+	if d.Label != "" {
+		return d.Label
+	}
+	return d.Y
+}
+
+func drawLegend(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer, hidden []bool) {
+	entries := g.entries
+	if len(entries) == 0 {
+		return
+	}
+	rows, _ := obs.(LegendEntry)
+	if th.LegendBG.A != 0 || th.LegendBorder.A != 0 {
+		var p ir.Path
+		p.Rect(box)
+		if th.LegendBG.A != 0 {
+			b.FillPath(&p, ir.Solid(th.LegendBG), ir.NonZero)
+		}
+		if th.LegendBorder.A != 0 {
+			b.StrokePath(&p, ir.Stroke{Color: th.LegendBorder, Width: 1})
+		}
+	}
+
+	labelFont := th.Font(th.LabelSize)
+	mm := b.Measure(ir.TextRun{Text: "Hg", Font: labelFont})
+	entryH := mm.Height()
+
+	x := box.Min.X + th.LegendPadding
+	y := box.Min.Y + th.LegendPadding
+	for i, e := range entries {
+		cy := y + entryH/2
+		layer := -1
+		if i < len(g.layers) {
+			layer = g.layers[i]
+		}
+		off := layer >= 0 && isHidden(hidden, layer)
+
+		// A hidden series is dimmed rather than dropped. A row that vanished
+		// would take with it the only way of getting the series back, and a
+		// legend whose length changed as it was clicked would move the rows
+		// under the pointer.
+		swatch, label := e, th.LegendColor
+		if off {
+			swatch.Color = dim(swatch.Color)
+			label = dim(label)
+		}
+		drawSwatch(b, swatch, th, x, cy)
+		b.Text(ir.TextRun{
+			Text:  e.Label,
+			Font:  labelFont,
+			At:    ir.Point{X: x + th.LegendSwatch + th.LegendGap, Y: cy},
+			V:     ir.AlignMiddle,
+			Color: label,
+		})
+
+		// The row's own rectangle, spanning the legend so that the gap
+		// between a swatch and its label is part of the same target. It is
+		// announced rather than drawn: a legend a pointer can act on has to be
+		// findable, and nothing here is a mark.
+		if rows != nil {
+			rows.LegendEntry(layer, e.Label, ir.R(
+				box.Min.X, y, box.Max.X, y+entryH,
+			), off)
+		}
+		y += entryH + th.LegendGap
+	}
+}
+
+// dim is how a legend says a series is turned off: the same colour at a third
+// of its opacity, so the row still reads as itself rather than as a different
+// entry.
+func dim(c ir.Color) ir.Color {
+	c.A = uint8(float64(c.A) / 3)
+	return c
+}
+
+func drawSwatch(b ir.Backend, e geom.LegendEntry, th theme.Theme, x, cy float32) {
+	w := th.LegendSwatch
+	switch e.Kind {
+	case geom.SwatchMarker:
+		b.Markers(e.Marker, []ir.Point{{X: x + w/2, Y: cy}}, ir.MarkerStyle{
+			Size: th.MarkerSize,
+			Fill: e.Color,
+		})
+	case geom.SwatchBox:
+		var p ir.Path
+		p.Rect(ir.R(x, cy-w/2, x+w, cy+w/2))
+		b.FillPath(&p, ir.Solid(e.Color), ir.NonZero)
+	default: // geom.SwatchLine
+		width := e.Width
+		if width <= 0 {
+			width = th.LineWidth
+		}
+		b.Polyline([]ir.Point{{X: x, Y: cy}, {X: x + w, Y: cy}}, ir.Stroke{
+			Color: e.Color,
+			Width: width,
+			Cap:   ir.CapRound,
+			Dash:  e.Dash,
+		})
+	}
+}

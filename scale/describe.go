@@ -1,0 +1,504 @@
+package scale
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/palette"
+)
+
+// Kind names a scale's type. It is the word a written-down chart carries in
+// place of the constructor that built the scale.
+type Kind string
+
+// The scale kinds.
+const (
+	KindLinear  Kind = "linear"
+	KindLog     Kind = "log"
+	KindSymLog  Kind = "symlog"
+	KindTime    Kind = "time"
+	KindOrdinal Kind = "ordinal"
+)
+
+// Desc is a scale reduced to what configures it.
+//
+// It is the same bargain [github.com/timzifer/figure/geom.Desc] makes: a
+// Scale is an interface over an unexported type, which is right for mapping
+// values and useless for writing one down, so every scale here answers
+// [Describer] and [FromDesc] builds one back.
+//
+// # What does not survive
+//
+// A tick formatter is a Go function. [Format], [LogFormat], [SymLogFormat] and
+// [TimeFormat] therefore have no place in a Desc, and a scale carrying one
+// says so through Formatted — a chart that is written down and read back
+// labels its ticks the standard way. Nothing else about the scale is lost.
+//
+// The *declarative* spelling of the same choice does survive, which is what
+// [NumberFormat] and [TimeLayout] are for: Format, Layout and Locale below
+// hold it, and a chart configured in a document can say how its ticks read.
+// A scale carrying both writes both, and the function is what it uses — a
+// document that dropped the spec would silently change what the chart says
+// the first time somebody deleted the Go code.
+type Desc struct {
+	// Kind is which scale this is.
+	Kind Kind
+
+	// Min and Max are the domain. They are meaningful only when Fixed is set;
+	// a trained domain belongs to the data, not to the scale.
+	Min, Max float64
+	// Fixed reports a domain pinned at construction by [Domain], [LogDomain]
+	// or [SymLogDomain], or afterwards by [Zoomer.SetDomain].
+	Fixed bool
+
+	// Nice and Zero are the linear and log framing options.
+	Nice, Zero bool
+	// TickValues is a linear scale's pinned tick sequence, ascending, and is
+	// empty for an axis that chooses its own. See [TickValues].
+	TickValues []float64
+	// Base is the log or symlog base, and Threshold the symlog linear region.
+	Base, Threshold float64
+	// MinorTicks reports the unlabelled subdivisions of a log or symlog axis.
+	MinorTicks bool
+
+	// Origin is a time scale's epoch, in Unix nanoseconds: the instant its
+	// domain values are measured from. It is zero for every other kind, and
+	// for a time scale left on the Unix epoch. It is not a formatting choice
+	// like Location is — it decides what the numbers in Min and Max *mean* —
+	// so a document that dropped it would read back a different axis. See
+	// [Origin].
+	Origin int64
+
+	// Categories is an ordinal scale's fixed category set, empty when it
+	// discovers its categories from the data. Padding is the fraction of each
+	// slot left blank.
+	Categories []string
+	Padding    float64
+
+	// Location is a time scale's zone, by IANA name.
+	Location string
+
+	// Formatted reports a scale carrying a formatter that a Desc cannot hold.
+	Formatted bool
+
+	// Format is the declarative tick format of a numeric scale, as
+	// [NumberFormat] spells it, and empty for a scale that labels its ticks
+	// the standard way.
+	Format string
+	// Layout is a time scale's fixed tick layout, as [TimeLayout] spells it —
+	// a Go reference layout — and empty for a scale choosing one per tick
+	// spacing.
+	Layout string
+	// Locale is the name of the language the labels are punctuated and named
+	// in, and empty for [English]. It is a name rather than the tables
+	// themselves for the reason a registered scale kind is a name: a document
+	// carries what it is, and the process carries what it means. See
+	// [RegisterLocale].
+	Locale string
+}
+
+// Describer is implemented by a scale that can say what it is. It is optional:
+// a third-party scale that does not implement it still draws, and is simply
+// not serializable.
+type Describer interface {
+	// Describe returns the scale's configuration.
+	Describe() Desc
+}
+
+// Describe reports s's configuration, or ok == false if s cannot describe
+// itself.
+func Describe(s Scale) (Desc, bool) {
+	d, ok := s.(Describer)
+	if !ok {
+		return Desc{}, false
+	}
+	return d.Describe(), true
+}
+
+// ErrUnknownKind reports a Desc naming a scale this package does not have.
+var ErrUnknownKind = fmt.Errorf("figure/scale: unknown scale kind")
+
+// FromDesc builds the scale d describes. A kind this package does not define
+// is built by whoever registered it — see [Register] — and one nobody did is
+// [ErrUnknownKind].
+func FromDesc(d Desc) (Scale, error) {
+	switch d.Kind {
+	case KindLinear, "":
+		f, err := parseNumberFormat(d.Format)
+		if err != nil {
+			return nil, err
+		}
+		var opts []LinearOption
+		if d.Nice {
+			opts = append(opts, Nice())
+		}
+		if d.Zero {
+			opts = append(opts, Zero())
+		}
+		if d.Fixed {
+			opts = append(opts, Domain(d.Min, d.Max))
+		}
+		if len(d.TickValues) > 0 {
+			opts = append(opts, TickValues(d.TickValues...))
+		}
+		opts = append(opts, func(l *linear) { l.numFormat = f; l.loc = localeNamed(d.Locale) })
+		return Linear(opts...), nil
+
+	case KindLog:
+		opts := []LogOption{LogMinorTicks(d.MinorTicks)}
+		if d.Base > 1 {
+			opts = append(opts, LogBase(d.Base))
+		}
+		if d.Nice {
+			opts = append(opts, LogNice())
+		}
+		if d.Fixed {
+			opts = append(opts, LogDomain(d.Min, d.Max))
+		}
+		f, err := parseNumberFormat(d.Format)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, func(l *logScale) { l.numFormat = f; l.loc = localeNamed(d.Locale) })
+		return Log(opts...), nil
+
+	case KindSymLog:
+		opts := []SymLogOption{SymLogMinorTicks(d.MinorTicks)}
+		if d.Base > 1 {
+			opts = append(opts, SymLogBase(d.Base))
+		}
+		if d.Threshold > 0 {
+			opts = append(opts, SymLogThreshold(d.Threshold))
+		}
+		if d.Fixed {
+			opts = append(opts, SymLogDomain(d.Min, d.Max))
+		}
+		f, err := parseNumberFormat(d.Format)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, func(s *symlogScale) { s.numFormat = f; s.loc = localeNamed(d.Locale) })
+		return SymLog(opts...), nil
+
+	case KindTime:
+		var opts []TimeOption
+		if d.Location != "" {
+			loc, err := time.LoadLocation(d.Location)
+			if err != nil {
+				return nil, fmt.Errorf("figure/scale: time zone %q: %w", d.Location, err)
+			}
+			opts = append(opts, In(loc))
+		}
+		if d.Origin != 0 {
+			opts = append(opts, Origin(time.Unix(0, d.Origin)))
+		}
+		if d.Layout != "" {
+			opts = append(opts, TimeLayout(d.Layout))
+		}
+		opts = append(opts, func(t *timeScale) { t.locale = localeNamed(d.Locale) })
+		s := Time(opts...)
+		if d.Fixed {
+			s.(Zoomer).SetDomain(d.Min, d.Max)
+		}
+		return s, nil
+
+	case KindOrdinal:
+		opts := []OrdinalOption{OrdinalPadding(d.Padding)}
+		if len(d.Categories) > 0 {
+			opts = append(opts, Categories(d.Categories...))
+		}
+		return Ordinal(opts...), nil
+	}
+	if build, ok := registered(d.Kind); ok {
+		return build(d)
+	}
+	return nil, fmt.Errorf("%w: %q", ErrUnknownKind, d.Kind)
+}
+
+func (l *linear) Describe() Desc {
+	d := Desc{
+		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Fixed: l.fixed,
+		Formatted: l.format != nil, Format: l.numFormat.spec, Locale: localeName(l.loc),
+	}
+	if l.fixed {
+		d.Min, d.Max = l.dmin, l.dmax
+	}
+	if len(l.ticks) > 0 {
+		d.TickValues = append([]float64(nil), l.ticks...)
+	}
+	return d
+}
+
+func (l *logScale) Describe() Desc {
+	d := Desc{
+		Kind: KindLog, Base: l.base, Nice: l.nice, Fixed: l.fixed,
+		MinorTicks: l.minor, Formatted: l.format != nil,
+		Format: l.numFormat.spec, Locale: localeName(l.loc),
+	}
+	if l.fixed {
+		d.Min, d.Max = l.dmin, l.dmax
+	}
+	return d
+}
+
+func (s *symlogScale) Describe() Desc {
+	d := Desc{
+		Kind: KindSymLog, Base: s.base, Threshold: s.thr, Fixed: s.fixed,
+		MinorTicks: s.minor, Formatted: s.format != nil,
+		Format: s.numFormat.spec, Locale: localeName(s.loc),
+	}
+	if s.fixed {
+		d.Min, d.Max = s.dmin, s.dmax
+	}
+	return d
+}
+
+func (s *timeScale) Describe() Desc {
+	d := Desc{
+		Kind: KindTime, Fixed: s.fixed, Origin: s.origin, Formatted: s.format != nil,
+		Layout: s.layout, Locale: localeName(s.locale),
+	}
+	if s.loc != nil {
+		d.Location = s.loc.String()
+	}
+	if s.fixed {
+		d.Min, d.Max = s.dmin, s.dmax
+	}
+	return d
+}
+
+// Describe on an ordinal scale reports a fixed category set and not a
+// discovered one. The distinction is the same one [Cloner] draws: a fixed list
+// is the axis, a discovered one is the data, and the data is written down
+// separately.
+func (o *ordinal) Describe() Desc {
+	d := Desc{Kind: KindOrdinal, Padding: o.padding}
+	if o.fixed {
+		d.Categories = append([]string(nil), o.labels...)
+	}
+	return d
+}
+
+var (
+	_ Describer = (*linear)(nil)
+	_ Describer = (*logScale)(nil)
+	_ Describer = (*symlogScale)(nil)
+	_ Describer = (*timeScale)(nil)
+	_ Describer = (*ordinal)(nil)
+
+	_ Zoomer = (*linear)(nil)
+	_ Zoomer = (*logScale)(nil)
+	_ Zoomer = (*symlogScale)(nil)
+	_ Zoomer = (*timeScale)(nil)
+)
+
+// ColorKind names a colour scale's type.
+type ColorKind string
+
+// The colour scale kinds.
+const (
+	KindSequential ColorKind = "sequential"
+	KindDiverging  ColorKind = "diverging"
+	// KindQualitative is a discrete scale: one colour per category, from a
+	// qualitative palette rather than from a ramp. See [Qualitative].
+	KindQualitative ColorKind = "qualitative"
+	// KindNamed is a discrete scale whose categories are coloured by name
+	// rather than by the order they appear in. See [Named].
+	KindNamed ColorKind = "named"
+	// KindThreshold cuts the domain at boundaries given explicitly. See
+	// [Threshold].
+	KindThreshold ColorKind = "threshold"
+	// KindQuantize cuts it into equal classes. See [Quantize].
+	KindQuantize ColorKind = "quantize"
+	// KindQuantile cuts it so that each class holds equally many
+	// observations. See [Quantile].
+	KindQuantile ColorKind = "quantile"
+)
+
+// ColorDesc is a colour scale reduced to what configures it.
+//
+// Ramp is a name from [palette.RampByName] rather than a list of colours: a
+// registered ramp is a word, and a chart that named one should read back as
+// having named it. A ramp nobody registered has no name, so Colors carries it
+// literally instead — an unregistered ramp is still a ramp, and losing it
+// would be worse than spelling it out.
+//
+// A [KindQualitative] scale uses the same two fields for its palette, named
+// through [palette.QualitativeByName]. Min, Max, Fixed and Center have no
+// meaning for one: its domain is the labels it has been shown, and those are
+// the data rather than the scale — the same line [Desc] draws for a discovered
+// ordinal domain.
+type ColorDesc struct {
+	Kind      ColorKind
+	Ramp      string
+	Colors    palette.Ramp
+	Min, Max  float64
+	Fixed     bool
+	Center    float64
+	Reverse   bool
+	Undefined ir.Color
+
+	// Transform is the shape of the ramp's traversal of the domain, empty for
+	// the linear default. Base and Constant configure it: the logarithm's
+	// base, and a symmetric logarithm's linear threshold. Zero means the
+	// default for both, which is what an omitted field in a document reads as.
+	//
+	// They are separate from Kind because they are a separate choice: a
+	// diverging ramp over a log-fold change is diverging *and* logarithmic,
+	// and folding the two into one word would make one of them unsayable.
+	Transform ColorTransform
+	Base      float64
+	Constant  float64
+
+	// Labels are a [KindNamed] scale's enumerated categories, sorted, with
+	// Colors holding the colour of each index for index. Only the categories
+	// the caller named are written: one the data happened to contain is data
+	// rather than configuration, the same line this struct draws for a
+	// classed scale's derived breaks. Fallback is the palette that scale
+	// colours an unnamed category from, spelled out where it has no
+	// registered name — Ramp carries the name where it has one.
+	Labels   []string
+	Fallback palette.Ramp
+
+	// Breaks are a [KindThreshold] scale's class boundaries, and Classes the
+	// class count of a [KindQuantize] or [KindQuantile] one. Each kind carries
+	// only its own: boundaries a scale derives from the data are not
+	// configuration, and a document that pinned them would stop them being
+	// derived the next time it is drawn over different rows.
+	Breaks  []float64
+	Classes int
+}
+
+// ColorDescriber is implemented by a colour scale that can say what it is.
+type ColorDescriber interface {
+	// DescribeColor returns the scale's configuration.
+	DescribeColor() ColorDesc
+}
+
+// DescribeColor reports s's configuration, or ok == false if s cannot describe
+// itself.
+func DescribeColor(s ColorScale) (ColorDesc, bool) {
+	d, ok := s.(ColorDescriber)
+	if !ok {
+		return ColorDesc{}, false
+	}
+	return d.DescribeColor(), true
+}
+
+// ColorFromDesc builds the colour scale d describes. A kind this package does
+// not define is built by whoever registered it — see [RegisterColor].
+func ColorFromDesc(d ColorDesc) (ColorScale, error) {
+	if d.Kind == KindNamed {
+		if len(d.Labels) != len(d.Colors) {
+			return nil, fmt.Errorf("figure/scale: a named colour scale has %d labels and %d colours", len(d.Labels), len(d.Colors))
+		}
+		colors := make(map[string]ir.Color, len(d.Labels))
+		for i, label := range d.Labels {
+			colors[label] = d.Colors[i]
+		}
+		fallback := palette.Qualitative(d.Fallback)
+		if d.Ramp != "" {
+			p, ok := palette.QualitativeByName(d.Ramp)
+			if !ok {
+				return nil, fmt.Errorf("figure/scale: unknown qualitative palette %q", d.Ramp)
+			}
+			fallback = p
+		}
+		opts := []ColorOption{ColorUndefined(d.Undefined), ColorFallback(fallback)}
+		if d.Reverse {
+			opts = append(opts, ColorReverse())
+		}
+		return Named(colors, opts...), nil
+	}
+	if d.Kind == KindQualitative {
+		q := palette.Qualitative(d.Colors)
+		if d.Ramp != "" {
+			p, ok := palette.QualitativeByName(d.Ramp)
+			if !ok {
+				return nil, fmt.Errorf("figure/scale: unknown qualitative palette %q", d.Ramp)
+			}
+			q = p
+		}
+		opts := []ColorOption{ColorUndefined(d.Undefined)}
+		if d.Reverse {
+			opts = append(opts, ColorReverse())
+		}
+		return Qualitative(q, opts...), nil
+	}
+
+	ramp := d.Colors
+	if d.Ramp != "" {
+		r, ok := palette.RampByName(d.Ramp)
+		if !ok {
+			return nil, fmt.Errorf("figure/scale: unknown colour ramp %q", d.Ramp)
+		}
+		ramp = r
+	}
+	opts := []ColorOption{ColorUndefined(d.Undefined)}
+	if d.Fixed {
+		opts = append(opts, ColorDomain(d.Min, d.Max))
+	}
+	if d.Reverse {
+		opts = append(opts, ColorReverse())
+	}
+	switch d.Transform {
+	case TransformLog:
+		opts = append(opts, ColorLog(d.Base))
+	case TransformSymLog:
+		opts = append(opts, ColorSymLog(d.Base, d.Constant))
+	case TransformLinear:
+	default:
+		return nil, fmt.Errorf("figure/scale: unknown colour transform %q", d.Transform)
+	}
+	switch d.Kind {
+	case KindDiverging:
+		return Diverging(ramp, append(opts, ColorCenter(d.Center))...), nil
+	case KindSequential, "":
+		return Sequential(ramp, opts...), nil
+	case KindThreshold:
+		return Threshold(ramp, d.Breaks, opts...), nil
+	case KindQuantize:
+		return Quantize(ramp, d.Classes, opts...), nil
+	case KindQuantile:
+		return Quantile(ramp, d.Classes, opts...), nil
+	}
+	if build, ok := registeredColor(d.Kind); ok {
+		return build(d)
+	}
+	return nil, fmt.Errorf("%w: %q", ErrUnknownKind, d.Kind)
+}
+
+// DescribeColor reports the ramp the scale was *given*, not the one it holds:
+// a reversed scale reverses its ramp once at construction, so naming the ramp
+// it ended up with would produce a spec that reverses it twice.
+func (c *colorScale) DescribeColor() ColorDesc {
+	d := ColorDesc{
+		Kind: KindSequential, Center: c.center, Reverse: c.reverse,
+		Fixed: c.fixed, Undefined: c.undef, Transform: c.xf.kind,
+	}
+	if c.xf.kind != TransformLinear {
+		d.Base = c.xf.base
+		if c.xf.kind == TransformSymLog {
+			d.Constant = c.xf.thr
+		}
+	}
+	if c.diverging {
+		d.Kind = KindDiverging
+	}
+	if c.fixed {
+		d.Min, d.Max = c.dmin, c.dmax
+	}
+	ramp := c.ramp
+	if c.reverse {
+		ramp = ramp.Reverse()
+	}
+	if name, ok := palette.RampName(ramp); ok {
+		d.Ramp = name
+	} else {
+		d.Colors = append(palette.Ramp(nil), ramp...)
+	}
+	return d
+}
+
+var _ ColorDescriber = (*colorScale)(nil)

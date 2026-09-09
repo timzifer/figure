@@ -1,0 +1,1128 @@
+# Working in this repository
+
+Notes for anyone — human or agent — making changes here. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the commands; this file is about the
+constraints that are easy to break without noticing.
+
+## The one rule
+
+**The core module must never gain a dependency.** `go.mod` at the repository
+root has no `require` block, and it stays that way. Anything that needs
+`gogpu/gg`, `gogpu/gogpu`, `x/image`, Arrow, or anything else belongs in a
+nested module — `backend/gg`, `backend/gg/gpu`, `backend/window` and `arrow/v18` are
+the four that exist. `syscall/js` is the standard library, which is why the
+browser backend is in the core rather than beside them.
+
+CI checks it:
+
+```sh
+go list -deps ./... | grep -v '^github.com/timzifer/figure' | grep '\.'
+```
+
+If that prints anything, the build fails. This is the promise the whole
+positioning rests on — see [ADR 0001](docs/adr/0001-module-layout.md).
+
+## Layer discipline
+
+```
+data, stat                                    →  rows in, rows out
+geom, scale, coord, facet, layout, render     →  produce IR
+                                                 (layout is internal/layout:
+                                                 render is its one caller)
+ir                                            →  the interface
+interact                                      →  reads IR back
+spec, a11y                                    →  write the model down
+mathtext                                      →  places text, measures through IR
+backend/svg, backend/pdf, backend/canvas,     →  consume IR
+backend/gg, backend/window
+```
+
+- A geom must not import a backend, know about SVG, or measure text except
+  through `ir.Backend.Measure`.
+- `stat` knows about numbers and nothing else — no scales, no theme, no geoms.
+  A reduction that needed one of those would be a geom in the wrong package.
+- A backend must not import `geom`, `scale`, `theme` or `render`. That is why
+  `Live.Bind` — which turns a wheel event into a zoom — is in the root package
+  under a js build tag and not in `backend/canvas`: wiring input is not drawing.
+- `render` is the only package that knows the drawing order of a chart. A coord
+  reports where a grid line, an axis line and a tick label go; `render` strokes
+  them, in the order it always did. A coord that drew its own rings would be a
+  second drawing order — see [ADR 0018](docs/adr/0018-coordinate-systems.md).
+- `coord` knows about scales, points and paths, and nothing else. It must not
+  import `theme`: the lengths it needs to place a tick mark travel as
+  `coord.Metrics`.
+- `spec` may read every model package and must never be read by one. A geom
+  that knew about JSON would be a geom in the wrong package; `geom.Desc`,
+  `scale.Desc` and `facet.Desc` are how a model type says what it is without
+  knowing what will be done with the answer.
+- `a11y` sits exactly where `spec` does, for the same reason: a geom that knew
+  what a screen reader was would be a geom in the wrong package.
+- `mathtext` neither draws nor knows about a chart. It is given a label, a font
+  and a `Measure`, and it answers with positions — which is why it can be
+  installed by wrapping the backend and reach every label at once.
+- `interact` consumes IR and scales and produces neither. It wraps a backend
+  rather than replacing one.
+
+If a change needs to cross one of these lines, that is a signal the seam is in
+the wrong place — say so rather than routing around it.
+
+## Things that will bite
+
+**Golden files are compared structurally, not byte for byte.** The SVG emitter
+fixes attribute order and number formatting on purpose, so two runs on one
+machine are identical — but arm64 and amd64 disagree in the last bit of a
+float32, because Go contracts `a*b + c` into an FMA on one and not the other. So
+`internal/svgdiff` compares everything but the numbers exactly and allows
+coordinates a hundredth of a pixel. If output changes beyond that, the golden
+tests fail; that is correct. Regenerate with `-update`, read the diff, and only
+then commit. **Never widen a tolerance to make a failure go away.**
+
+**Documentation figures are generated.** Everything in `docs/images/` comes from
+`backend/gg/cmd/gallery`. Never hand-edit them. A test and a CI job both check
+they match the code.
+
+**`backend/gg` must not import `gg/gpu`.** Importing it activates the GPU tier,
+pulls `wgpu` and `goffi` into the build, and makes CI need graphics hardware.
+The CPU rasterizer is the supported path —
+[ADR 0006](docs/adr/0006-gg-coupling-surface.md).
+
+**gg is pinned exactly.** Upgrading it is a deliberate change with its own
+commit, not a side effect of `go get -u`.
+
+**Scales place a value with one explicit rounding, and it is not redundant.**
+`scale.place` writes `rlo + float32(float32(t)*(rhi-rlo))`. The inner
+conversion looks like a no-op — `t` is already being converted — and it is not:
+it is what stops Go contracting the multiply and the add into a fused
+multiply-add. The spec permits that contraction "possibly across statements",
+arm64 takes it and amd64 does not, and the result is a coordinate one float32
+ulp apart on the two.
+
+An ulp is invisible in a chart, which is why the golden files tolerate one. It
+is not invisible to a *decision*: `stat.LTTB` picks the row forming the largest
+triangle, so two candidates a hair apart swap places and a whole vertex moves.
+That is how this was found — a documentation figure that differed between
+architectures by a chosen sample rather than by a bit. The same rounding is
+therefore forced in LTTB's own area computation. Do not "simplify" either one
+away; nothing in the toolchain will tell you that you have.
+
+**Scales snap their endpoints.** `Map` returns the exact range bounds for the
+exact domain bounds. Without that, a tick on the plot edge lands a float32 ulp
+outside it and gets culled. There is a test; do not "simplify" it away. Every
+scale does this, including the ones added in v0.2.
+
+**There is one layout solver, and every chart goes through it.**
+`layout.Compute` is `layout.Panels` over a one-by-one grid, and `render.Draw`
+resolves a single-panel chart into a one-panel grid. That is deliberate — see
+[ADR 0010](docs/adr/0010-panel-layout.md). Adding a second path for "the simple
+case" reintroduces exactly the divergence this arrangement exists to prevent,
+and the golden files would only cover one of them.
+
+**Panels sharing an axis share the scale object.** So the device range is set
+per panel, twice: once before the furniture pass and once before the data pass.
+Dropping the second call leaves every panel but the last drawing its data where
+the last panel's axis is. There is a test.
+
+**A track shares the panel's scale object, and that is the whole feature.**
+`Plot.tracked` gives every track panel the chart's own scale for the axis it
+runs along — `c.X` for a bottom or top band, `c.Y` for a left or right one. A zoom reaches a scale
+through `scale.Zoomer.SetDomain`, so one object means the panel and its bands
+move together by construction rather than by two handlers agreeing. Cloning it
+there — which is what `freeScale` does for a *free facet axis*, and looks like
+the tidier thing to do — compiles, draws a chart that looks right, and breaks
+every acceptance criterion the feature has. The same trap is why
+`scale.Cloner` and `scale.Snapshotter` are opposites; see
+[ADR 0031](docs/adr/0031-tracks.md). A track's own Y is unzoomable for free,
+because `zoomAxis` no-ops on a scale that is not a `Zoomer` and `scale.Ordinal`
+deliberately is not one. There is a test for each half.
+
+**A fixed row's arithmetic is written to be bit-identical when nothing is
+fixed.** `layout.rowHeights` divides once and multiplies once rather than
+summing, because a float32 sum of n equal terms is not always their product,
+and the guide column is measured against that total. Rewriting it as the
+obvious loop moves every golden file in the repository by an ulp — which the
+structural comparison will *not* catch, because it tolerates exactly that.
+
+**A Smith coord makes a scale's range its own domain.** `coord.Smith.Frame`
+calls `SetRange(lo, hi)` with the scale's *own domain*, so that `Map` is the
+identity and the pair reaching `Point` is a normalised impedance rather than a
+pixel. Choosing what the interval means is what a coord does — Cartesian chooses
+a distance along an edge, Polar chooses radians and pixels — so this is the
+mechanism and not an exception to it. Two consequences: the coord assumes an
+**affine** scale on each axis (a log Smith axis is a different chart, and the
+coord does not guess which), and a zoom moves nothing, because the next `Frame`
+re-derives the range from the domain it was just handed. Anything new that
+assumes "a scale's range is in pixels" is wrong under this coord and probably
+under the next one. See [ADR 0033](docs/adr/0033-smith-charts.md).
+
+**A coord may draw one grid line per tick, and may label nothing the scale did
+not.** `render.drawAxes` walks `for i, t := range xTicks`, takes the geometry
+from `fur.GridX[i]` and the *text* from `t.Label`. That is why a Smith chart's
+columns are an impedance rather than the reflection coefficient an instrument
+reports: with Γ on the axes the impedance grid would have no tick behind it. It
+is also why there are no VSWR circles. Before reaching for a second grid family,
+read ADR 0033's "Revisit if" — widening this is one decision, not several.
+
+**And check first whether the family is furniture at all.**
+[ADR 0050](docs/adr/0050-locus-annotations.md) is the proposed answer for the
+four families 0033 declined, and it does not widen anything: a curve given by a
+formula rather than by a tick is an *annotation* defined in data space, so the
+coord draws it through `Point` like any other mark and `render` never sees it.
+A `Shape` may also hold more than one subpath, which is how a ternary chart's
+third grid family is drawn without a third tick list
+([ADR 0051](docs/adr/0051-barycentric-coord.md)). What genuinely still needs the
+wider seam is a *labelled* family with no tick behind it — a projection's
+graticule, a ternary's third ladder — and that is one decision for all of them.
+
+**PDF is figure's own emitter, not `gg-pdf`.** That library cannot draw
+geometry — its path operations reach a stub in `gxpdf` — so the roadmap's plan
+of routing PDF through gg's recording API would have produced pages with tick
+labels and nothing else. `gg/recording` therefore stays out of `backend/gg`,
+and [ADR 0006](docs/adr/0006-gg-coupling-surface.md)'s import rule is unchanged.
+See [ADR 0009](docs/adr/0009-pdf-backend.md) for the evidence.
+
+**The PDF backend measures with the font it draws with, whichever font that
+is.** `internal/fontmetrics` carries Helvetica's advance table and PDF's
+base-14 Helvetica is that font; an *embedded* face measures through
+`embeddedFace`, out of its own `hmtx` and `hhea`
+([ADR 0038](docs/adr/0038-embedded-fonts.md)). Every other backend
+approximates; this one does not, and the promise has to survive the font
+changing — measuring against Helvetica and drawing in Noto Sans sizes every
+margin from a typeface the document does not contain. Do not "improve" either
+half by measuring with something else.
+
+**An embedded font's glyphs are numbered on first use, and that is what makes
+writing a PDF one pass.** A content stream names glyphs by id and a subset's
+ids depend on what the whole document drew, so a writer that waited would have
+to buffer every text run in the file. Numbering on first use inverts it, and
+`sfnt.Font.Subset` honours the order it is given — which is also the only order
+that is a pure function of the drawing, per ADR 0012. Two things there are
+load-bearing. A composite glyph's component ids are references into the same
+font and are **rewritten** to the new numbering; copying one unrewritten draws
+a plausible wrong letter, which is the worst kind of wrong. And the subset tag
+comes from the face's index rather than from a hash of the glyphs, because a
+hash would make the file depend on which labels the chart happened to draw and
+the golden tests compare bytes.
+
+**Colour ramps interpolate in linear light.** `palette.Lerp` decodes sRGB,
+blends, and re-encodes. Averaging the encoded bytes instead is about 20% too
+dark at the midpoint, which shows up as a band across a gradient. gg composites
+in linear space for the same reason. There is a test that pins the midpoint of
+black-to-white at 188, not 128.
+
+**A geom must not assume a scale accepts every finite value.** A log scale has
+no position for zero and returns NaN from `Map`. Geoms ask `scale.Definite`
+through `geom.defined` and treat such a row as missing, so a NaN coordinate
+never reaches a backend — [ADR 0008](docs/adr/0008-categorical-axes.md). Adding
+a geom means computing `scratch.plottable` once and using it, not re-testing
+`finite` per traversal: the traversals have to agree about where the holes are.
+
+**Per-mark colour batches; it does not widen the IR.** `geom.groupByColor`
+emits one drawing call per distinct colour. Adding a per-vertex colour channel
+to `ir.Backend` is the thing that record exists to refuse —
+[ADR 0007](docs/adr/0007-per-mark-colour.md).
+
+**Decimation happens in `Build`, never in `Train`.** A geom trains on every row
+and reduces only when it draws, so an axis reports the data rather than the
+subset that survived — [ADR 0011](docs/adr/0011-decimation.md). Reducing in
+`Train`, or in the data layer, would make a chart's axis depend on how wide the
+chart is, and there is a test that catches it.
+
+**The reduction runs on device coordinates.** A pixel column is the unit the
+whole exercise is about, and on a log axis equal steps in data are not equal
+steps on screen. `stat.LTTB` and `stat.MinMax` are generic over `float32` and
+`float64` precisely so the device-space path costs no conversion.
+
+**Everything sized by the data comes from a pool.** `geom.scratch` holds the
+per-Build buffers and is returned at the end of the call, which is what makes a
+redrawn chart allocate the same handful of times over a million rows as over a
+thousand. Two consequences: a slice handed to a backend is **lent**, not given —
+a backend that keeps one will show the next frame's data, which is why
+`ir.Recorder` and `internal/irtest.Recorder` both copy — and a new allocation on
+the data path will fail `TestARenderDoesNotAllocatePerPoint` rather than merely
+slow things down. Find it with `-memprofile` and
+`pprof -sample_index=alloc_objects`, do not widen the gate. The gate is behind
+`//go:build !race` because the race detector allocates on figure's behalf, so
+run it without `-race` when you are checking it — and it is checked a second
+way, from real benchmark output, by `.github/scripts/allocgate.awk` in the
+`Benchmarks and the allocation gate` CI job.
+
+**The benchmark gate pins allocations, never times.** A shared CI runner cannot
+measure a nanosecond usefully, and a gate that flakes is a gate people learn to
+ignore. If you add a timing assertion there it will go red on an unlucky
+Tuesday and be deleted, taking the allocation checks with it.
+
+**A variadic interface method called per row allocates per row.** `Train(v)` on
+a `scale.Scale` cannot be proved non-escaping by the compiler, so the argument
+slice goes to the heap — a million times, on a million-row column. `Train` is
+documented to ignore NaN and infinities, so the whole column goes in one call.
+The same shape will appear again; look for it.
+
+**A parallel render must be byte-identical to a serial one.** Panels record into
+an `ir.Recorder` and replay **in panel order**, never in completion order —
+[ADR 0012](docs/adr/0012-parallel-panels.md). That is what lets one set of
+golden files cover both paths, and there is a test asserting the two produce
+identical bytes. A change that makes the order depend on scheduling silently
+halves the coverage of every golden file in the repository.
+
+**Panels on separate goroutines need `scale.Snapshotter`, not `scale.Cloner`.**
+Snapshot copies a scale *including* its trained domain; Clone deliberately does
+not, because it is for a free facet axis. They are opposites and neither is a
+substitute for the other. A scale implementing neither still works — the chart
+is drawn serially.
+
+**A density-raster figure embeds a PNG inside its SVG, and that payload is
+compared as pixels.** `docs/images/density.svg` carries a base64 deflate stream,
+and deflate output is the standard library's business rather than figure's —
+the same chart on two Go releases produces two different streams, which is
+exactly how this first went red. So the gallery lifts embedded payloads out of
+both documents and compares them with the same per-channel tolerance the PNG
+half already uses; the vector half, including the `<image>` element's own
+position and size, is still compared exactly. See
+`backend/gg/cmd/gallery/embedded.go`, and note this is not a widened tolerance
+but the same one applied to pixels rather than to an encoding of them. It is
+also why there is no golden SVG for a density chart in `testdata/golden`:
+pinning `compress/flate` is not a test of figure.
+
+**Do not compare device coordinates with `==` in a test.** `scale.place` now
+removes the fusion that a scale itself introduced, but everything downstream of
+it — a Catmull-Rom control point, a bar's half-width, a boxplot quantile — is
+still ordinary float arithmetic the compiler may contract. `geom`'s annotation
+tests carry `sameRect`/`samePoint` at `svgdiff.DefaultTolerance` for this, and
+`TestTheCoordinateSlackIsTheRightWidth` pins that slack from both sides. Exact
+comparisons were green on amd64 for three milestones and red on every macOS
+run.
+
+**A geom that holds data implements `geom.Faceter`; one that does not, must
+not.** Faceting splits the layers that have rows and replicates the ones that
+do not, which is why an `HLine` appears on every panel. Adding `Source`/`Subset`
+to an annotation would make a threshold vanish from every panel but the one its
+value happens to fall in.
+
+**A watched render must draw exactly what an unwatched one draws.**
+`interact.Index.Watch` wraps a backend and indexes what it sees; every method
+forwards first and indexes second. There is a test comparing the two traces
+call for call, and `TestAWatchedRenderDrawsWhatAnUnwatchedOneDoes` compares the
+SVG bytes. A probe that changed anything would silently halve the coverage of
+every golden file, the same way a scheduling-dependent panel order would.
+
+**A watched render is serial, on purpose.** `render.Chart.Observer` forces the
+serial path in `concurrent`. The observer is told which layer is drawing so a
+caller can attribute the calls that follow; two panels drawing at once have no
+order to be told in. Do not "optimise" this by giving each panel its own
+observer — the index would then depend on scheduling, and so would every
+tooltip.
+
+**Hit-testing indexes one mark per subpath, not one per call.** A layer draws
+all its bars in a single path, because `geom.groupByColor` batches by colour. A
+mark per call would make the row of bars one shape, so pointing at the fourth
+bar would report whichever corner of whichever bar happened to be nearest.
+There is a test.
+
+**A geom reports its rows separately from what it draws, and that is the
+whole point.** `geom.Rows` takes the positions a row landed at, not the points
+of a drawing call — a smoothed line is a Bézier path whose control points are
+not measurements, a staircase draws two points per row, a bar is four corners
+around one value. Attributing rows to a call's points would attribute them to
+whichever encoding the geom happened to use, and would be wrong for three of
+the six geoms that have rows. There is a test per geom.
+
+**Row reporting is gated on `Frame.Rows != nil` at every step.** `acquire(f)`
+records it on the scratch as `wantRows`, and `rowsOf`, `sourceRows` and the
+interpolated series' row list all check it. An ordinary render must keep
+costing exactly what it did — `BenchmarkFrame1k` did not move when row
+identity landed (76 allocations then; the current count is in
+[docs/benchmarks.md](docs/benchmarks.md)), and `BenchmarkWatchedFrame`
+against `BenchmarkWatchedFrameRows` is pinned flat.
+
+**A row is reported in the caller's table, not in the cut figure made.**
+Faceting cuts each layer with `data.Rows`, and a row number relative to that
+cut is a row number in a table nobody holds. `series.origin` comes from
+`data.Origins` and `series.rowAt` resolves through it. A geom that collects its
+own element list — a scatter, a bar, both for per-mark colour — must report
+through `scratch.sourceRows` rather than handing over the element numbers: the
+two lists look identical and mean different things, and a faceted chart is
+where that shows.
+
+**A pinned scale domain skips nicing, and that is not an oversight.**
+`scale.Zoomer.SetDomain` sets `pinned` as well as `fixed`, and `effective()`
+returns the pinned domain before nicing or zero-forcing get a chance. An axis
+that snapped to round numbers after every wheel notch would not follow the
+pointer, and on a log axis nicing rounds the view out to whole decades. `fixed`
+alone stops *training*; `pinned` also stops *framing*.
+
+**A second axis is a scale on the chart and a binding on the layer, and five
+places had to learn it.** `render.Panel.axesOf` asks the layer through
+`geom.Describe` — not a method on `Geom`, which never gains one — so the chart
+and the document agree by construction
+([ADR 0037](docs/adr/0037-secondary-axis.md)). The two directions are
+independent: a layer may name `OnX2` and `OnY2` together. Four consequences are
+load-bearing. `Panel.setRange` frames the coord against the **secondary** pair as
+well as the primary one, or the layers on a second axis map through a scale
+with no device range. `coord.Opposite` is an optional interface and `Polar` deliberately does
+not implement it — a ring has no far side — so a chart that names a second axis
+under a polar coord simply does not draw one. The second axis draws **no grid
+lines**, and there is a test comparing the count against a one-axis chart:
+two ladders of rules at different values are a moiré, and which scale a line
+belongs to is unanswerable by looking. And `render.LayerAxes` is what makes a
+hit report the right number — an index that inverted every mark through the
+panel's own scales would name 4200 on a chart whose right axis reads 12 %,
+which is wrong by a *unit* on the feature whose whole purpose is that the units
+differ. The layout's right and top gutters are zero for a column or row with no
+second axis, which is what leaves every golden file unchanged; the guide column
+is anchored past the right one, because the width was already reserved and an
+anchor on the panel edge puts a legend on top of the labels. A facet's strip
+sits **outside** the top gutter: a strip between a panel and its own tick
+labels reads as though it named the axis.
+
+Steering has to move both. `Live.Wheel`, `ZoomTo`, `PanBy` and `Autoscale` all
+reach `Panel.Y2` as well as `Panel.Y`, or the two series slide apart under the
+reader's hand — a chart with two axes is one chart, so a zoom is one zoom.
+`interact.Panel` learns about the second axis from `LayerY` rather than from
+`Observer.Panel`, which carries the two scales a panel has always had and never
+gains a third.
+
+**An error bar's orientation is its encoding, and its bounds are derived in
+`Train`.** `Y2`/`ErrorBy` runs it vertically and `X2`/`ErrorXBy` horizontally —
+the rule `Rect` already follows about its edges, which is why there is no
+orientation option to contradict — and naming both is `ErrBothAxes` rather than
+a guess that depends on option order ([ADR 0036](docs/adr/0036-error-bars.md)).
+The bounds are computed in `Train` because the axis has to describe them: an
+interval whose top runs off the plot is the reading the chart was opened for,
+which is the same boundary ADR 0019 draws for a stack's totals. `errorGeom.half`
+is measured once per `Train` out of a buffer the layer keeps — `smallestGap`
+sorts, and asking it per row is what made a bar layer quadratic once already.
+And every segment goes through the coord: a cap drawn as two device points
+would be a straight line under a polar coord, where the mark is an arc.
+
+**A tick label has two spellings and the Go one wins, but both are written
+down.** `scale.Format` takes a function and `scale.NumberFormat` takes a spec;
+`Desc` carries `Formatted` *and* `Format`, because a Desc that dropped the spec
+when a function was present would silently change the chart the day somebody
+deleted the Go code — [ADR 0035](docs/adr/0035-label-format-and-locale.md). Two
+things there are easy to break. A spec that names no precision must keep the
+axis's own, which is derived from the tick *step* and is what keeps a column of
+labels aligned: that is why `autoFor` returns a description rather than a
+formatter, and why the two meet in `numberFormat.label`. And an unlocalised
+scale must take the *old* path exactly — `punctuate` with English's separators
+is the identity on `strconv`'s output, and a time scale with no locale calls
+`time.Format` itself rather than the layout-splitting path — because that is
+what leaves every golden file in the repository unchanged. There is a test
+asserting that naming English changes nothing; do not "simplify" the default
+branch away.
+
+**A locale reaches a chart's axes by a walk, and the walk is the feature.**
+`figure.Locale` localises the scales in the *chart description*, after it is
+built, which is what reaches a track's own scale and a free facet axis's clone
+— neither of which the caller holds. Setting it in `Plot.X` instead compiles
+and misses both. It happens before the parallel path, and a locale is read
+from then on and never written, so there is nothing for `Snapshotter` to fix.
+
+**A null is a missing value, and only a numeric column can say so by itself.**
+`""` is a string somebody may have measured and the zero time is an instant, so
+absence in a text or temporal column is stated beside the values through
+`data.Nulls` rather than inside them — [ADR 0034](docs/adr/0034-null-values.md).
+It is read in exactly one place, `geom.column`, which writes NaN whatever the
+column is stored as; every policy, traversal and mark downstream is the
+machinery that already handled a NaN, and no geom knows about nulls. Three
+things there are load-bearing. A column with **no** nulls must answer `ok ==
+false`, because that answer is what every reader decides between the borrowed
+column and a copy on — a mask of all false makes a chart copy a column to
+change none of it. `masks` compares the mask against the values before copying,
+so an Arrow numeric column, whose nulls are already NaN, is still handed on
+untouched. And `series.detach` copies before writing, because `s.x` may be the
+caller's own slice: a neighbouring column's null takes a row's *position* away,
+and doing that in place edits the table rather than the chart. A genuine `""`
+is still a category and there is a test for it — dropping every empty string
+passes every null test and is a different feature.
+
+**`data.Stream` is deliberately not a `data.Source`.** A Source is read column
+by column over several calls, and a table appended to between two of them
+disagrees with itself. `Snapshot` freezes and swaps; `Source()` reads whatever
+the last snapshot froze. Making Stream implement Source would compile, and
+would produce a chart with more timestamps than values under load. The two
+buffers are reused, so a snapshot is valid only until the next one — that is
+the price of the frame costing no allocations, and it is why Snapshot belongs
+between frames rather than during one.
+
+**Unwrap a ring buffer before rewriting it, not while.** `Stream.compact`
+resolves every slot number first and rewrites the columns afterwards, and takes
+the *old* window as a parameter. `at` answers from the ring's current length,
+so rewriting the first column changes the answer for the second — a bug that
+only appears on the second column, and only after the ring has wrapped. There
+is a test.
+
+**Damage is per drawing call, and reports `ok == false` rather than guessing.**
+`ir.Damage` compares two recordings call for call; a different call count, a
+different kind, or a moved transform means the chart's *structure* changed and
+the answer is a full repaint. Do not make it clever about realigning: a list of
+rectangles that describes half a frame is worse than repainting the frame.
+
+**`ir.Partial.Damage(nil)` means the whole frame, and an empty list never
+arrives.** A frame identical to the last one is not painted at all rather than
+painted with no damage, which is why the nil case is unambiguous.
+
+**A Stroke cannot be compared with `==`.** It holds a dash slice. `ir` carries
+`Stroke.same`, `Fill.same` and `MarkerStyle.same` for this; reach for those
+rather than adding a comparison that compiles today because the field you would
+have missed happens not to be there yet.
+
+**The JSON spec writes what a mark uses, not what it was given.** A geom
+accepts every option and ignores the ones it has no use for, which is what
+keeps the option set one namespace; a *document* listing a line's whisker
+extent would read as though that meant something. `spec.writeMarkProps` decides
+per mark. Adding an option means adding it there too, and the round-trip test
+in `spec/` is what catches forgetting.
+
+**`geom.Desc` and `scale.Desc` are complete, not partial.** Every field with a
+non-zero default — `BarWidth`, `Whisker`, `Outliers`, `Extend`, `Opacity` —
+carries the value the layer is actually using, so nothing downstream has to
+know what the defaults are. `Opacity` is `-1` when unset, matching `config`.
+
+**The canvas backend builds one path string per drawing call.** Crossing the
+WebAssembly boundary is what costs in a browser: a five-hundred-point line is
+one `Path2D` and one `stroke`, not five hundred `lineTo` calls. There is a test
+that fails if a chart over five hundred rows starts making more than a hundred
+context calls, and one that fails if `beginPath` reappears.
+
+**`backend/canvas` is empty except on js/wasm, and that is what the doc.go is
+for.** Every implementation file carries `//go:build js && wasm`; `doc.go`
+carries no constraint, so `go build ./...` on a server has a package to build
+rather than an error. Its tests run under node in CI, against a recording
+context — node has no canvas, and a test that needed one would be a test nobody
+could run.
+
+**`backend/gg` still must not import `gg/gpu`, and the GPU tier is a module
+below it.** `backend/gg/gpu` is nested *inside* `backend/gg` so that the raster
+backend's own module graph stays gg, `x/image` and the core; importing the tier
+is the whole opt-in — [ADR 0022](docs/adr/0022-gpu-tier.md). Moving the blank
+import up one directory would put `wgpu`, `naga` and `goffi` into every program
+that renders a PNG, and would cost the module its js/wasm target.
+
+**gogpu is pinned exactly, and its pin is tied to gg's.** `backend/window`
+requires gogpu v0.52.1 because that is the release whose `gputypes` and
+`gpucontext` resolve to the versions gg v0.52.5 compiles against. A newer gogpu
+pulls a `gputypes` that gg at this pin does not build with, and the failure is a
+wall of "too many arguments" inside gg's internals rather than anything naming a
+version. Upgrade the two together or not at all.
+
+**A backend wrapper hides the optional interfaces of what it wraps.** `Damage`,
+`Resize` and `Describe` are all reached by type assertion, so a wrapper that
+does not declare them silently drops them. `ir.Recorder` and `interact`'s probe
+both forward `Describe`; `render.Draw` keeps the *unwrapped* backend for the
+semantics question, because it wraps the backend to install a typesetter. A
+`<title>` that quietly disappears from interactive charts only is what this
+costs when it is forgotten, and there is a test.
+
+**A description costs a pass over the data, so a render must not take one.**
+`Plot.Describe` is a method that does work rather than an option that sets a
+flag: it reads every plotted column. The title alone is free and is always
+written; the long description is written when someone asked for one. Wiring the
+description into `chart()` so that every frame recomputes it would put a data
+pass in the frame budget, and `TestARenderDoesNotAllocatePerPoint` would not
+notice — it counts allocations, not passes.
+
+**Redundant encoding is a default, not an override.** `theme.Redundant` fills in
+a dash and a marker ladder, and `config.dashFor`/`markerFor` use them only when
+the layer set neither `geom.Dash` nor `geom.Shape`. That is why `config` carries
+`markerSet` beside `dashSet` and why `geom.Desc` carries `MarkerSet`: a circle
+is both the zero value and a shape somebody may have asked for, and without the
+flag a round trip through the spec turns an unset shape into a pinned one.
+
+**A time domain is nanoseconds since the scale's origin, not since 1970.**
+`scale.Origin` moves it, `scale.ValueOf`/`InstantOf` convert across it, and
+`geom.column` uses them — so a time column is read in the axis's own space.
+The default origin is the Unix epoch, which is exactly `scale.Nanos`, so nothing
+changes for a scale that never asked. What does change is that `scale.Nanos` is
+the wrong conversion to reach for near a rebased axis: the domain values, the
+`Invert` results and the `Desc` bounds are all measured from the origin, and the
+JSON spec writes it out for that reason.
+
+**The raster backend draws italic now, and `WithFont` takes three fonts.**
+`ir.FontRef.Italic` has existed since v0.1 and `backend/gg` ignored it, which
+was invisible until a typesetter started producing italic runs — at which point
+the PNG and the SVG of the same chart would have disagreed in the
+documentation. The default set parses `goitalic` alongside `goregular` and
+`gobold`; a caller supplying their own passes nil for a style they do not have,
+and gets the regular face for it.
+
+**A typeset label is measured by laying it out.** `render`'s `mathBackend`
+answers `Measure` from the typesetter and `Text` from the same layout, so the
+margin a title is given is the width the title turns out to have. Measuring the
+markup and drawing the notation would leave a fraction hanging out of the
+canvas, and nothing would fail.
+
+**A resized frame is not comparable with the last one.** `Live.Resize` clears
+`drawn`, because every coordinate moved and there is no damage to compute. It
+also keeps whatever the scales were zoomed to, on purpose: a reader who dragged
+a view into place has not asked to leave it.
+
+**A position adjustment is derived in `Train` and drawn in `Build`, and both
+halves are forced.** `render.Draw` trains every layer before it measures
+anything, because tick labels need a domain — so a stacked bar's Y scale has to
+be trained on the *totals*, or the tallest stack runs off the top of an axis
+that describes rows nobody can see. `geom.groups.train` therefore computes the
+per-row `(lo, hi)` pair, and `Build` only maps it through the scales. This is
+the same boundary ADR 0011 draws for decimation, drawn for the same reason: what
+a chart's axis says must not depend on how wide the chart is. See
+[ADR 0019](docs/adr/0019-position-adjustments.md).
+
+**A stacked layer's holes are decided once, and both traversals read that
+answer.** `groups.ok` is computed in `Train` and an unplottable row gets `NaN`
+bounds, so the cumulative sum and the drawing traversal agree about where the
+holes are. A NaN the sum skipped but the draw did not would shift every segment
+above it — there is a test, and it compares a table with a hole against the same
+table with the row removed.
+
+**A grouped layer's buffers live on the layer, not in the frame's pool.** The
+group index, the row lists and the derived bounds are refilled by every `Train`
+out of memory the geom keeps: `Train` runs as often as `Build` does, and a chart
+redrawn over a live table would otherwise allocate its group index per frame.
+`TestAStackedLayerDoesNotAllocatePerPoint` is what holds that. Note that the
+rows of each group are listed once, in `groups.split`, rather than found by
+scanning the table per group — the scan is what makes a chart with many series
+quadratic.
+
+**There is exactly one scratch per `Build`, and a helper takes the caller's
+rather than acquiring its own.** Two scratches held at once put two objects with
+*disjoint* buffers into one pool; whichever comes back in the other's role next
+frame has to grow the other's buffers, which is a per-row allocation on the path
+whose whole point is not having one. `geom.eachGroup` therefore takes a
+`*scratch` parameter. This shipped broken for exactly one commit and cost a
+grouped frame 127 kB and seven allocations it did not need; nothing failed
+except the allocation gate, which is what the gate is for.
+
+**A gated benchmark measures on one processor, and that is what makes its count
+reproducible.** `sync.Pool` keeps a private slot per P. A render Gets its
+scratch and Puts it back on one goroutine — but a frame takes milliseconds, the
+scheduler preempts asynchronously every ten of them, and a goroutine that
+resumes on a different P finds its own scratch stranded in the old P's private
+slot, which nothing can steal from. That frame then refills every buffer it
+needs: about sixty allocations that have nothing to do with the data, landing
+in one iteration out of a few dozen. Over ten iterations that is the difference
+between 54 and 68 allocs/op for the same code, and it is why three gates in
+`allocgate.awk` used to be budgets with an apology attached.
+
+`onOnePGate` in `alloc_test.go` pins the measurement, and the counts are now
+bit-identical across runs — `flat()` compares every pair again. Add it to any
+new benchmark whose number the gate reads; leave it off the parallel ones,
+which measure panels on several goroutines and are gated on nothing.
+`testing.AllocsPerRun` pins the same way, which is why the test half of the
+gate was steady all along while the benchmark half was not. A pool miss is a
+real cost that a real chart pays occasionally; it is simply not the cost this
+gate measures, which is whether a frame allocates *per row*.
+
+**Group order is order of first appearance, and `geom.Order` is the only thing
+that changes it.** Map iteration order is not an order; ADR 0012 requires a
+parallel render to be byte-identical to a serial one, and `scale.Qualitative`,
+`geom.groupByColor` and `boxplot.summarise` all already establish the
+convention.
+
+**A grouped `Bar` and `Area` stack by default; nothing else does.** That is
+`config.stackFor`, and it is why `geom.Desc` carries `Stack` *and* `StackSet` —
+`NoStack` is both the zero value and an adjustment somebody may have asked for,
+exactly as `Dash`/`DashSet` and `Marker`/`MarkerSet` already are. Without the
+flag, a round trip through the spec turns a grouped bar's default into a pinned
+"do not stack", and the chart silently changes.
+
+**Which guide a layer contributes follows from the kind of colour scale it was
+handed.** `scale.Qualitative` is a `ColorScale` — it rides that interface the way
+`scale.Categorical` rides `Scale` — so `geom.ColorBy` takes either kind, and
+`config.colorGuide` returns false for a discrete one while `config.legends`
+returns an entry per category. A colourbar over eight categories would be a ramp
+through colours nothing is painted with.
+
+**A layer that implements `geom.Legender` is not asked for `Legend` as well.**
+`geom.Legends` prefers the list; `geom.LegendsOr` is the fallback written once,
+and a geom that answers `Legends` without it silently loses its single entry.
+There is a test — it was the first thing that broke when the interface landed.
+
+**A rect and a region are both `("rect", "")` in the document, and the encoding
+is what tells them apart.** `spec.geomMark` is passed the layer's encoding for
+that one reason: a rect with a *field* is data, a rect with a *datum* is an
+annotation. Dropping the parameter compiles and turns every heatmap into a
+four-literal annotation.
+
+**A coord is a value, and `Frame` hands one back rather than moving the
+receiver.** `coord.Coord.Frame(area, x, y)` returns the coord positioned in that
+panel; the chart's own coord is never written to. That is not style — panels are
+built on separate goroutines (ADR 0012), and a coord that remembered which panel
+it was in would be a data race with no `Snapshotter` to fix it. `render.Panel`
+may carry a coord of its own; a facet's panels do not, because the panels of a
+facet are one plot over different rows, and a grid's cells do, because they are
+separate plots sharing a canvas.
+
+**`Cartesian` is the identity, and the golden files are the proof.**
+`cartesian.Area` writes the same four corners in the same order as
+`ir.Path.Rect`, `Edge` is one `LineTo`, `Clip` is the rectangle, and a straight
+run still reaches the backend as a `Polyline` rather than as a stroked path.
+Every one of those is load-bearing: the argument that the coordinate stage
+changed nothing is that the committed golden files still match, and each of them
+is a way to break it silently. `geom.strokeRun` is where the polyline/path
+choice lives; do not "simplify" it into always building a path.
+
+**A geom works in mapped space and lets the coord place the point.** What
+`scale.Map` returns is a position in an interval, which under Cartesian happens
+to be a device coordinate and under Polar is an angle or a radius. So a geom
+that computes a midpoint, a corner or a staircase step computes it *before* the
+coord, never after: `geom.stepColumns` builds the staircase out of the mapped
+columns for exactly this reason, because the corner of a step is a statement
+about the data and not about where two device points happened to land.
+
+**The per-point call has a batch form and the geoms use it.**
+`coord.Coord.Points(dst, xs, ys)` is called once per run, not once per row: a
+per-row interface method is the shape that cost a million allocations on a
+million-row column once already, and `scratch.marks` gathers the surviving rows
+into a contiguous pair so there is one call. `BenchmarkPolar1k` against
+`BenchmarkPolar100k` in `.github/scripts/allocgate.awk` and
+`TestAPolarRenderDoesNotAllocatePerPoint` are the gates, and a polar coord does
+not decimate — so those benchmarks really do draw every row.
+
+**Furniture is filled, not returned, and `Reset` reaches past the length.**
+`render` keeps one `coord.Furniture` in a pool for the whole furniture pass and
+resets it between panels. `coord.resetShapes` empties every shape the slice has
+*ever* held rather than only the ones inside its current length, because
+`side.next` hands those back out on the next frame — a shape still holding last
+frame's points would draw them again, on a chart with fewer ticks than the last
+one. Returning the struct by value instead costs a steady-state frame about
+twenty allocations; that was measured, and it is why the signature differs from
+the one ADR 0018 sketched.
+
+**A hit on a filled mark is decided against the outline, not the box.**
+`interact.inside` ray-casts the subpath the drawing call carried. Until v0.8
+every filled mark figure drew was a rectangle, so its bounding box *was* its
+shape; a pie's wedges have boxes that overlap almost completely, and a hit
+decided on the box alone names whichever wedge was indexed last. The row behind
+an area hit is then the nearest reported position *inside that shape's box*,
+measured from the pointer rather than from the corner the hit reports — a corner
+of a tall bar is nearer to the neighbouring bar's row than to its own, and every
+slice of a pie shares the corner in the middle.
+
+**A break-out is a displacement the coord computes and the geom applies.**
+`coord.Exploder` answers how far a mark moves when it is broken out of the
+middle; `geom` moves the points the `Area` call appended, in place. That split
+is the coordinate stage's own: a coord reports geometry and does not draw. Two
+consequences are load-bearing. `coord.Cartesian` deliberately does **not**
+implement `Exploder`, so `geom.Explode` on a Cartesian chart draws exactly what
+it drew — that silence is what keeps every golden file unchanged by an option
+every geom now accepts, and making Cartesian answer would move every bar of a
+layer the same way, which is a translation rather than a reading. And the
+displacement is applied to the mark's path rather than to its extent: a
+broken-out slice keeps the angle and the radii the data gave it, and growing the
+radius instead would move the ink *and* the reading. See
+[ADR 0026](docs/adr/0026-breaking-a-mark-out.md).
+
+**A run's displacement buffer is tested by length, not against nil.** The
+batching runs come back from the scratch pool emptied rather than cleared away,
+so a layer that breaks nothing out is handed a non-nil `offs` with nothing in
+it. `geom.offsetAt` therefore compares `i >= len(offs)`. Testing for nil there
+compiles, passes every test with a fresh pool, and panics on the second frame of
+a chart drawn after a broken-out one.
+
+**A bar's slot is measured once per Train, out of a buffer the layer keeps.**
+Two mistakes lived in one line here, and both are worth recognising again.
+`smallestGap` sorts, and `barGeom.halfWidth` asked it for the answer *per row* —
+which made a bar layer quadratic in its rows: a ring of sixteen thousand slices
+spent 2.5 seconds a frame, of which 64 % was that sort. And `smallestGap`
+allocated the copy it sorted, so even once per `Train` it was a copy of the
+column **per frame** — 800 kB of the 810 kB a hundred-thousand-slice frame
+allocated, which is also enough garbage to drive the collections that empty the
+scratch pool. It is `barGeom.gap` now, measured in `Train` out of `barGeom.gaps`
+— `smallestGap(buf, vs)` hands the buffer back — and `Rect` and `Boxplot` keep
+one each for the same reason. The buffer lives on the layer rather than in the
+frame's pool because `Train` runs outside a `Build`, where there is no scratch
+to take; that is the same argument the group index already makes.
+
+**A stat evaluated on a grid pins the grid's ends, and never truncates a
+kernel.** Both halves of that are the same bug, and it shipped for exactly one
+CI run — green on amd64, red on macOS. `lo + float64(i)*step` is a multiply and
+an add, which Go may contract into an FMA "possibly across statements"; arm64
+takes it and amd64 does not, so a grid of sixty-one points over [-3, 3] ended
+at 3 on one machine and 3.0000000000000004 on the other. That is one ulp, and
+one ulp is invisible — until it lands on the far side of a *decision*. `AppendKDE`
+skipped any sample past four bandwidths, so the endpoint's kernel was summed on
+one architecture and dropped on the other, and a density that was symmetric on
+one was not on the other.
+
+`stat.gridAt` now hands back the ends exactly rather than computing them, which
+is the same "do not compute what is known" fix `scale.place` carries for the
+same arithmetic; `AppendKDE` and `AppendLoess` both use it. And the kernel is
+summed in full: a cutoff is a discontinuity, so the estimate depended on the
+last bit of its argument, and it was not buying an order of growth either — the
+loop visits every row either way and the cutoff saved an `exp`.
+`TestADensityHasNoCliffInItsTail` and `TestAnEvaluationGridEndsExactlyOnItsBounds`
+are what hold both, and the first fails on *every* architecture, which is the
+point: a property that only one machine can check is a property nobody checks.
+
+**A distribution stat runs in `Train`; a device-space one runs in `Build`.**
+ADR 0011 puts decimation in `Build` on the rule that what a chart's axis reports
+must not depend on how wide the chart is. A histogram, a violin, an ECDF and a
+trend are the same rule pointing the other way: their output *is* what the axis
+has to describe — counts, a fraction, a fit — so they are computed in `Train`
+and the scales are trained on the answer. Two marks are the exception because
+what they compute is a length on screen: `geom.Hexbin` bins over the plot
+rectangle, and `geom.Beeswarm` places its marks against a marker diameter. See
+[ADR 0028](docs/adr/0028-distribution-stats.md).
+
+**A hexbin has no colourbar, and that is the price of regular hexagons.** Its
+counts are not known until the plot rectangle is, and the guide column is
+measured before that. Adding one means either binning in data space — cells that
+are hexagons in the data and something else on screen — or measuring the guides
+twice. Both are worse than shading from a faded colour to the full one.
+
+**`stat` does no sorting, and the geoms keep the buffers.** `Quantile`, `ECDF`
+and `Loess` take ordered columns; `Silverman` takes two spread measures rather
+than computing an IQR. Sorting inside a stat means either mutating the caller's
+column or allocating a copy of it per frame, and a chart redrawn every frame
+already keeps a buffer. Every distribution geom therefore carries its own sort
+buffer on the layer, for the reason `barGeom.gaps` does: `Train` runs outside a
+`Build`, where there is no scratch to take.
+
+**`stat.Bin` is the 1-D histogram now.** The 2-D binner that used to be called
+`Bin` is `stat.BinGrid`, beside `stat.BinHex`. The three are named after what
+they fill, and "bin" without a qualifier means the histogram.
+
+**A hexagonal lattice is not d3-hexbin's.** `Hex.Cell` follows its structure and
+corrects its metric: both work in lattice coordinates where a column step is 1
+and a row step is 1, but on screen those are √3·r and 1.5·r, so comparing
+`px² + py²` there mixes units and misplaces points near the interlocking band.
+The vertical term carries `(dy/dx)² = 3/4`, and
+`TestEveryHexPointLandsInItsNearestCell` checks the defining property directly.
+Without it the picture grows seams along every second row.
+
+**A sized layer draws circles, not markers, and that is the IR's doing.**
+`ir.Backend.Markers` carries one `MarkerStyle` per call, so a per-row size would
+be a drawing call per row — the cost ADR 0007 refused for colour. `geom.SizeBy`
+therefore emits one path per colour with a circle per subpath, which also gives
+a pointer the bubble it is inside rather than the nearest centre. Do not
+"restore" marker shapes there: it would be a call per row again.
+
+**A size scale's range is set by `render`, not by the geom.** A geom cannot set
+it in `Build` — panels are built on separate goroutines and a shared scale
+written from two of them is a data race with no `Snapshotter` to fix it — and
+`Geom.Train` has no theme. So `sizeGuides` sets it once per scale on the serial
+path, before the guides are measured and before any mark reads it. A range the
+caller pinned with `scale.SizeRange` outranks it, exactly as a pinned domain
+outranks training.
+
+**The guide column is one list, and a fourth kind must not make it four.**
+`layout.Guide` carries what the solver needs of any guide and `GridResult.Guides`
+is the boxes, parallel and in order. v0.9 generalised it once rather than
+extending it twice — see
+[ADR 0027](docs/adr/0027-size-channel-and-the-guide-column.md). Adding a kind is
+a `GuideKind` constant, a measuring function and a drawing function; adding a
+field to `Grid` is the thing that arrangement exists to refuse.
+
+**A histogram ignores `GroupBy` on purpose.** Two overlapping histograms hide
+each other exactly where the comparison is. `Violin`, `Ridgeline` and `ECDF` are
+the three marks that answer that question without overplotting, and each takes
+the series column. Do not "fix" it by stacking or dodging bins.
+
+**A text layer measures while it builds, and that is the one call it may
+make.** `geom.Text` asks `ir.Backend.Measure` how wide each label is, because a
+label that overruns its box reads as belonging to the neighbouring row and only
+the layer knows both. `render.syncMeasurer` serialises those calls onto one font
+stack: panels build on separate goroutines, and two of them disagreeing about
+how wide a label is would draw different text in the same box. Measure is the
+*only* backend call a geom may make during `Build`; anything else belongs in the
+drawing calls it emits.
+
+**A truncated label is cached per row, and that is what keeps the text path off
+the allocation gate.** Cutting a label builds a string, which is the one place a
+per-row allocation could hide behind work that has to happen anyway.
+`textGeom.remember` hands back last frame's string when the cut has not moved, so
+a chart redrawn at the same size builds none — `BenchmarkLabelled1k` against
+`BenchmarkLabelled10k` and `TestALabelledRenderDoesNotAllocatePerPoint` are what
+hold it. The cache lives on the layer rather than in the scratch pool because it
+has to survive a `Build`, the same argument `barGeom.gaps` makes.
+
+**A text layer's box is the box `Rect` would draw, and its anchor is clamped to
+what is visible.** The same options handed to both marks label the rectangles
+exactly, which is why the slot rule for an unnamed edge is `spanOn` rather than
+anything of its own. The clamp is against `coord.Extent` rather than the plot
+rectangle — that is the interval the scales map into, so it means something
+under a polar coord too — and it is what puts the label in the middle of a bar
+that is half scrolled off the edge rather than off-screen with the box's true
+centre. The room a label has is measured as the chord between the box's mapped
+edges, because under polar the box's width is an angle and what a label needs is
+a length.
+
+**`geom.Align` records having been told, for the reason `Dash` and `Shape` do.**
+The start of a run on the baseline is the zero value *and* an alignment somebody
+may have asked for, and a text layer centres a label in its box when nobody has.
+Without `config.alignSet` and `Desc.AlignSet` a round trip through the spec turns
+that default into a pinned left edge and the chart silently changes.
+
+**A note and a text layer are both `"text"` in the document, and the encoding is
+what tells them apart.** `spec.geomMark` asks `hasField`, exactly as it does for
+a rect against a region: a text mark with a `text` *field* is data, one placed at
+literal values is an annotation. Adding a channel to `spec.Encoding` means adding
+it to `hasField` too, or a layer encoded only by that channel reads back as an
+annotation.
+
+**Responsive scaling multiplies lengths and must not mutate a shared theme.**
+`theme.Scaled` copies every dash slice it touches rather than scaling in place —
+`theme.Light` is a package variable, and scaling its grid dash would scale it
+for every chart in the process, once per render. There is a reason that is a
+sentence in the code as well as here.
+
+### A relational layout is in the unit square, and the two coords disagree about Y
+
+`Treemap`, `Icicle`, `Sankey` and `Arc` all put their span on X in `[0, 1]` and
+their height on Y in `[0, 1]`, and both scales are trained on exactly that. Four
+things about that will bite.
+
+**The rim is `y = 1` and the hub is `y = 0`, and the choice is not free.** A
+Cartesian panel flips Y — `y.SetRange(area.Max.Y, area.Min.Y)` in
+`coord/coord.go` — so `y = 1` is the top of the plot. A polar one does not —
+`rad.SetRange(q.r0, q.r1)` in `coord/polar.go` — so `y = 1` is the outer rim.
+`rim = y1` is the one convention that makes a sunburst and a chord diagram work
+with one pair of scales. It also means the Cartesian readings are unusually
+oriented: an icicle grows upward from a root along the bottom. That is the
+price, and it is written down in
+[ADR 0039](docs/adr/0039-relational-layouts.md) rather than worked around.
+
+**A recipe wants `coord.Polar()` and never `coord.Pie()`.** `Pie` is
+`Polar(Theta(FromY))`, which sweeps the *Y* axis round the circle. These marks'
+Y is their depth, so a sunburst under `Pie` draws concentric wedges of the depth
+axis — which is nonsense that renders without erroring.
+
+**The interning is in the geom, not in `stat`.** `stat` takes `[]int` node ids
+and never sees a name. Which node is "first" decides everything downstream —
+the column a sankey's node stands in, the way round a chord diagram goes, the
+palette entry each node takes — and that order has to come from the table rather
+than from a map ([ADR 0012](docs/adr/0012-parallel-panels.md)). The map in
+`geom/relational.go` is only ever asked *whether* it has seen a name, never what
+it holds, and it is `clear`ed rather than replaced so the buckets survive a
+frame. A map made per `Train` is the allocation the gate exists to catch.
+
+**A treemap squarifies in `Build`, against the panel.** It optimises an aspect
+ratio *on screen*, so packing the unit square and stretching the result into a
+wide panel defeats the algorithm. It is the third instance of
+[ADR 0028](docs/adr/0028-distribution-stats.md)'s exception, after the hexagonal
+lattice and the beeswarm. It walks the tree breadth-first out of a pooled queue
+rather than recursing, and writes only to the scratch — `Build` has to be safe
+to run concurrently with itself.
+
+**`coord.Edge` takes device points.** Handing it the values the scales produced
+asks a polar coord to read an angle as an abscissa, and it draws a shape nobody
+can recognise — which is exactly the bug the chord diagram's first golden file
+caught and no unit test did. `geom.edgeAlong` is the shared spelling, and it
+splits a wide span because `Edge` joins two points the *short* way round.
+
+**A stroked outline hit-tests above the shape it outlines.** `interact` ranks a
+vertex above an area, so bordering a treemap cell would make every hover report
+a corner. That is why the separation between cells is `geom.Padding` — room —
+and not ink, and why these marks stroke only when the caller named both a
+`Fill` and a `Color`. `geom.Rect` has the same rule for the same reason.
+
+**A key is read from the *plot's* layer, never the panel's.** On a faceted
+chart those are different objects: a panel holds a `geom.Faceter` `Subset` copy
+whose `Source` is the cut, one panel's worth of rows, while a `Hit.Row` has
+already been resolved back through `data.Subset` to the table the caller handed
+in. Reading the cut with a handed-in row number indexes the wrong table — and
+does it silently, with a plausible answer, which is the worst kind. The layer
+index is the same in both because a facet preserves layer order.
+`TestKeyIsReadFromTheHandedInTable` is the bug written down.
+
+**A transition's row set is the union of its two states, and it is fixed.** An
+entering row exists at `f == 0` and an exiting one at `f == 1`. That is not
+tidiness: it keeps the frame's *structure* identical between frames, which is
+the condition `ir.Damage` needs to report the two comparable. A blend whose row
+count changed partway through would make every frame a full repaint while the
+picture stayed perfectly correct — so the test asserts on what the backend was
+told to repaint (`irtest.Recorder.Whole`) rather than on anything visible. The
+same trap is why `Transition.Rescale` pins the domains: a `Nice` axis
+re-rounds, a changed tick *count* is a structural change, and that is the full
+repaint again.
+
+**Only numbers and times tween.** A string is a name rather than a quantity —
+half of "ingest" is not a node — so a string column takes the end state's value
+and anything a geom decides from one decides it abruptly: a categorical slot, a
+discrete colour class, a `GroupBy` membership. `data.Hold` is how a *number*
+that is really a name gets the same treatment. And a `data.Stream` cannot be
+tweened at all: under a `Window` ring the row numbers slide, which is the whole
+reason a key exists.
+
+**A counting label needs `data.Round`, and that is not a formatting bug.**
+`geom.Text` re-spells its column through `data.Labels` in `Train`, every frame,
+so a *numeric* `geom.TextBy` column animates by itself — which is the useful
+half of "animated text" and works with nothing added. But `data.FormatNumber`
+spells a float at full precision, deliberately, because a facet panel key, a
+categorical tick and a text label all go through it and must agree; so an
+interpolated value reads `33.300000000000004`. Round the **value**, not the
+spelling. A format option on `geom.Text` would put a second spelling of a
+number into the model, which is what ADR 0035 exists to prevent. A *string*
+label snaps and cannot be faded — a cross-fade needs per-row opacity, the IR
+change ADR 0007 refuses — but its position still moves, which is usually the
+shape wanted anyway.
+
+**Watching a render is serial, and animating a watched one is too.** An
+`Observer` or a `RowSink` takes the serial path in `render/parallel.go`, so a
+chart that is being hovered does not build its panels concurrently. That is a
+property of watching, not of animating, but it is where someone will notice it.
+
+## Open questions
+
+[CONCEPT.md §17](CONCEPT.md#17-open-decisions) lists the design decisions that
+were genuinely open. All seven are closed and recorded in [docs/adr](docs/adr):
+§17.3, Vega-Lite spec fidelity, was settled in v0.5 by
+[ADR 0014](docs/adr/0014-json-spec.md), and §17.7, the third-party extension
+API, was the last — held open on purpose until the v1 freeze and settled there
+by [ADR 0029](docs/adr/0029-extension-model.md). A question that opens after
+v1.0 is answered the same way: with a record in `docs/adr`, never in passing.
+The most recent, [ADR 0030](docs/adr/0030-arrow-major-version.md), is the
+Arrow adapter's major version, which is why its import path ends in `/v18`.
+
+Optional interfaces are how this codebase extends a type without breaking
+everyone who implements it: `scale.Definite`, `scale.Categorical`,
+`scale.Band`, `scale.Cloner`, `scale.Snapshotter`, `scale.Zoomer`,
+`scale.Describer`, `scale.ColorDescriber`, `scale.DiscreteColorScale`,
+`scale.SizeDescriber`, `scale.Temporal`, `geom.Faceter`, `geom.Guided`,
+`geom.Sized`, `geom.Legender`, `geom.Describer`, `coord.Describer`,
+`coord.Exploder`, `ir.Partial`, `ir.Semantics`, `ir.Resizer`,
+`mathtext.Plainer`. Reach for one before adding a method to `Scale`, `Geom` or
+`Backend`. `geom.Legender` is the newest and the argument is worth keeping in
+view: a pie, a stack and a waffle contribute N legend entries from one layer,
+and adding a second method to `Geom` for them would have broken every
+implementation and spent the v1.0 freeze before the evidence for it existed.
+
+`Cloner`, `Snapshotter` and `Zoomer` are three different things and none
+substitutes for another: Clone hands back an *untrained* copy for a free facet
+axis, Snapshot an *exact* copy for another goroutine, and SetDomain changes the
+scale in place for a pan or a zoom.
+
+## Scope
+
+The roadmap in [CONCEPT.md §14](CONCEPT.md#14-roadmap--milestones) is what this
+project is doing and in what order. Everything through v0.9 has shipped, and so
+has everything the v1.0 line asks for short of the tag itself: the API audit,
+the extension model, the docs, the gallery and the benchmark suite. What is
+left for v1.0 is the release — the order is in
+[CONTRIBUTING](CONTRIBUTING.md#releasing) — and everything after it is listed
+under *Beyond v1.0*. Adding a stub for one of those is not progress towards it:
+the seams exist, that is enough.
+
+Things v1.4 deliberately did not do. There is **no node-link layout**: a force
+simulation's whole method is to run until it settles, so it cannot be a pure
+function of its input at a bounded sweep count that also looks good, and
+[ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own terms
+first. There is **no Venn and no UpSet** — the first is a circle-packing
+optimiser, the second a matrix chart rather than a relational layout. A
+relational mark **ignores `geom.SizeBy`**, because a size per node is
+meaningless when the value already is the size. A **sankey does not reorder its
+nodes to reduce crossings**: that means a sort per sweep, and a sort is where a
+layout stops being a pure function of its input and starts depending on how a
+tie was broken — `geom.Order` is how a caller asks for a different order, by
+sorting its own rows. A **treemap draws its leaves only**, because an internal
+node's rectangle is the union of its children's and the nesting shows as
+padding. And a **hit on one of these reports the layout's own coordinates**
+rather than anything in the table: for these marks the row is the reading, which
+is the first time that has been true and is
+[ADR 0015](docs/adr/0015-hit-testing.md)'s revisit clause rather than this
+record's.
+
+Things v0.9 deliberately did not do. A **hexbin has no colourbar**, for the
+ordering reason above. A **histogram ignores `GroupBy`**. A **sized layer draws
+circles** and ignores `geom.Shape`: a marker ladder is a redundant encoding for
+telling series apart, and a bubble cloud is one series. A **violin's widths are
+normalised against the widest density in the layer**, so the violins are compared
+by shape rather than by sample size — `geom.Bandwidth` is what makes two groups
+strictly comparable, and without it each group is smoothed by its own spread.
+There is **no contour and no QQ plot**: the first needs a marching-squares stat
+that nothing else shares, and the second is an ECDF against a theoretical
+quantile function, which is a distribution library rather than a chart. And
+`geom.Ridgeline` is the **first geom that refuses a scale outright** — it errors
+on a continuous Y axis rather than drawing every ridge on top of the last.
+
+Things v1.2 deliberately did not do. A Smith chart has **no constant-|Γ| (VSWR)
+circles, no constant-Q arcs and no combined ZY overlay** — each is a third grid
+family against two tick lists, per the trap above — and it reads a **normalised
+impedance** rather than the reflection coefficient a VNA reports, for the same
+reason. `coord.SmithZ` is the bridge. It does not implement `coord.Exploder`:
+the middle of a Smith chart is a matched load, not an origin of magnitude, so
+there is no direction away from it that means anything. And it does not zoom.
+
+Things v0.8 deliberately did not do. There is no **geographic projection**: a
+projection transforms every point with no linear interval underneath it, which
+is a wider seam than this one, and ADR 0018 says it is argued on its own
+evidence rather than smuggled in as a third `Coord`. A polar coord **does not
+decimate**, per that record's fourth property. `layout` is **untouched** — a
+polar coord inscribes itself in whatever rectangle the solver gives it, and
+gutter rules that understand a radial axis are a later milestone. A radar's
+contour closes because `geom.Closed` says so, not because the coord guessed:
+whether a series wraps is a fact about the series, and a polar time series
+spiralling through three revolutions does not wrap. And a curve is hit-tested as
+its control polygon, so a filled shape can be pointed at a little way outside
+its ink at a bulge.
+
+Things the v0.8 sugar deliberately did not do. There is no `geom.Slice` and
+there are no `Inner`/`Outer` channels: `Geom.Train` is handed the two scales and
+no coord, so a layer cannot know at training time which of them is the radius —
+a channel that only exists under one coord would be the pie geom this project
+does not have. The break-out is **per row rather than per group**, because that
+is what a channel means everywhere else; a donut has one row per slice, so the
+distinction only shows on a stack of several rows per series, whose segments
+move independently. Only `Bar` and `Rect` honour it, because they are the marks
+that draw an annular sector — a broken-out line has no ring to leave. And a
+layer that asks for a break-out under a coord that cannot answer draws what it
+drew, silently: an error would make every Cartesian chart's option list
+conditional on a coord chosen somewhere else.
+
+Things v0.7 deliberately did not do. A grouped **line, step and scatter do not
+stack**: two series drawn over one another are two readings, and adding them
+would invent a third nobody measured. Stacking accumulates in group order, so a
+stack of mixed signs runs each segment from where the last one ended rather than
+splitting into a positive and a negative half. `geom.WidthBy` gives a bar its
+width from a column and does **not** reposition the slots — a marimekko is one
+layer whose X column already holds each column's centre, and unequal slots that
+label themselves are an axis question rather than an adjustment one. A group
+index is per layer, so a facet whose panels hold different groups needs an
+explicit `scale.Qualitative` for a series to keep its colour across panels. And
+a group column that is numeric or temporal is formatted into a label per row,
+which is a cost of naming a category with a number rather than of grouping: the
+allocation gate uses a text column, which is what a series column is.
+
+Things v0.6 deliberately did not do. The GPU tier is opt-in beta and stays that
+way past v1.0 — for server-side stills the CPU rasterizer and the vector
+emitters are the supported path. The window is compiled by CI and never opened
+by it, because a runner has no display; what is tested is everything that is not
+the window, which is the same hole `backend/canvas` has about a browser. The
+built-in typesetter is a deliberately small subset: no matrices, no growing
+delimiters, no document-class macros, and a label needing those wants an engine
+plugged into `mathtext.Typesetter`. Accessibility stops at the document: no
+per-mark `<title>`, no tab order through the marks, no reduced-motion or
+contrast handling — a chart with ten thousand points has no useful reading as
+ten thousand elements, and the data table is the better answer to the same
+question. And a description is a snapshot: data that changes afterwards leaves
+it stale, which is why `Describe` is a call rather than a flag.
+
+Things v0.5 deliberately did not do. There was no native window and no GPU tier;
+both landed in v0.6 and both needed GoGPU packages that milestone did not touch.
+A hit
+reports data values rather than a row number, because carrying row identity
+through decimation is bookkeeping the design avoids. Damage is per drawing
+call, so moving one point of a line repaints the line's box. And the browser
+path is canvas 2D, not WebGPU — gg has no `syscall/js` in it at the pinned
+version, so there was no WebGPU path to take
+([ADR 0017](docs/adr/0017-browser-backend.md)).
+
+Things v0.4 deliberately did not do, in case they look like oversights.
+`stat` carries the decimation family and nothing else: smoothing, regression and
+hexbin are stats rather than big-data machinery, and they belong with the geoms
+that would draw them. There is no `StreamSource` and no snapshot/swap, because
+the interesting half of streaming is damage-aware repaint and that needs the
+interactive backends. Training the scales and splitting a facet's rows are still
+serial — only the data pass is parallel — and making them parallel is a
+different decision with a different shape. And the Arrow adapter does not handle
+`float16`, decimals or extension types; nothing that plots produces them yet,
+and an untested conversion is worse than an absent one.
+
+One thing v0.3 deliberately did not do, still true: a colourbar is vertical, in
+the guide column; a horizontal one under the plot is a layout question, not a
+drawing one. The other — "a PDF is one page with no embedded font: text outside
+WinAnsi becomes `?`" — is half closed. It is still one page, and the *default*
+is still Helvetica and WinAnsi, byte for byte; `pdf.WithFont` is the way past
+it ([ADR 0038](docs/adr/0038-embedded-fonts.md)), and there is no per-glyph
+fallback: a document draws every label in the face it was given, because a
+fallback chain is a font-matching policy and a plotting library is the wrong
+place to hold one.

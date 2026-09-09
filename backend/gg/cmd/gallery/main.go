@@ -1,0 +1,1323 @@
+// Command gallery renders every figure used in the README and the docs.
+//
+// It lives in the gg module because it is the only place that can produce both
+// halves of each figure: the SVG comes from figure's built-in emitter, the PNG
+// from this backend. Rendering both from one specification is also the
+// cross-backend check — if the two ever stop agreeing, a figure will visibly
+// disagree with itself.
+//
+// CI runs this with -check, which regenerates every figure into a scratch
+// directory and fails if anything differs from what is committed. So the images
+// in the README can never drift away from the code that produced them.
+package main
+
+import (
+	"bytes"
+	"errors"
+	"flag"
+	"fmt"
+	"math"
+	"os"
+	"path/filepath"
+	"sort"
+	"time"
+
+	"github.com/timzifer/figure"
+	ggbackend "github.com/timzifer/figure/backend/gg"
+	"github.com/timzifer/figure/coord"
+	"github.com/timzifer/figure/data"
+	"github.com/timzifer/figure/facet"
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/internal/svgdiff"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/mathtext"
+	"github.com/timzifer/figure/palette"
+	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/theme"
+)
+
+func main() {
+	dir := flag.String("dir", filepath.Join("docs", "images"), "output directory")
+	check := flag.Bool("check", false, "verify the committed figures are up to date instead of writing them")
+	flag.Parse()
+
+	if err := run(*dir, *check); err != nil {
+		fmt.Fprintln(os.Stderr, "gallery:", err)
+		os.Exit(1)
+	}
+}
+
+func run(dir string, check bool) error {
+	if check {
+		return verify(dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, f := range figures() {
+		svg, png, err := f.render()
+		if err != nil {
+			return fmt.Errorf("%s: %w", f.name, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, f.name+".svg"), svg, 0o644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dir, f.name+".png"), png, 0o644); err != nil {
+			return err
+		}
+		fmt.Printf("wrote %s.svg (%d bytes) and %s.png (%d bytes)\n", f.name, len(svg), f.name, len(png))
+	}
+	return nil
+}
+
+// verify re-renders every figure and compares it to what is on disk.
+//
+// Both halves are compared with a tolerance, for the same underlying reason:
+// floating-point results are not bit-identical across architectures. In the SVG
+// half everything but the numbers must match exactly and coordinates may differ
+// by a hundredth of a pixel (see internal/svgdiff); in the PNG half a small
+// per-channel difference is allowed. Neither tolerance is wide enough to hide a
+// real change to a chart.
+func verify(dir string) error {
+	var problems []string
+	for _, f := range figures() {
+		svg, png, err := f.render()
+		if err != nil {
+			return fmt.Errorf("%s: %w", f.name, err)
+		}
+		if msg := compareSVG(filepath.Join(dir, f.name+".svg"), svg); msg != "" {
+			problems = append(problems, msg)
+		}
+		if msg := compareImage(filepath.Join(dir, f.name+".png"), png); msg != "" {
+			problems = append(problems, msg)
+		}
+	}
+	if len(problems) > 0 {
+		sort.Strings(problems)
+		for _, p := range problems {
+			fmt.Fprintln(os.Stderr, " ", p)
+		}
+		return errors.New("figures are out of date; run `go run ./backend/gg/cmd/gallery` and commit the result")
+	}
+	fmt.Println("all figures up to date")
+	return nil
+}
+
+// compareSVG checks a freshly rendered figure against the committed one.
+// "got" is what the code produces now, "want" is what is on disk — the same
+// convention the golden tests use, so the failure messages read the same way.
+//
+// A figure carrying an embedded raster has that raster compared as an image
+// rather than as the base64 deflate stream it is written as; see embedded.go
+// for why. Everything else — the vector half, and the <image> element's own
+// position and size — is compared exactly, as before.
+func compareSVG(path string, got []byte) string {
+	want, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s: %v", path, err)
+	}
+	gotDoc, gotRasters := splitEmbedded(got)
+	wantDoc, wantRasters := splitEmbedded(want)
+	if msg := compareEmbedded(path, gotRasters, wantRasters); msg != "" {
+		return msg
+	}
+	if ok, why := svgdiff.Equal(gotDoc, wantDoc, svgdiff.DefaultTolerance); !ok {
+		return fmt.Sprintf("%s: %s", path, why)
+	}
+	return ""
+}
+
+func compareImage(path string, want []byte) string {
+	got, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s: %v", path, err)
+	}
+	diff, err := pngDiff(got, want)
+	if err != nil {
+		return fmt.Sprintf("%s: %v", path, err)
+	}
+	if diff > pngTolerance {
+		return fmt.Sprintf("%s: differs (%.4f%% of channels beyond tolerance)", path, diff*100)
+	}
+	return ""
+}
+
+// figure is one documented chart.
+//
+// Most are a single plot, described by build. A figure that documents subplots
+// is a grid of plots instead, described by grid; exactly one of the two is set.
+type plate struct {
+	name  string
+	width int
+	high  int
+	build func(*figure.Plot)
+	grid  func(*figure.Grid)
+	theme theme.Theme
+	title string
+	// opts are extra plot options, for a figure documenting something that is
+	// configured at construction rather than added as a layer — a typesetter,
+	// a responsive theme, an axis title.
+	opts []figure.Option
+}
+
+// chart is anything that can be rendered into a target: a plot, or a grid of
+// them. Both halves of every figure go through it, which is what keeps the SVG
+// and the PNG two renders of one specification.
+type chart interface {
+	Render(figure.Target) error
+}
+
+func (f plate) chart() chart {
+	if f.grid != nil {
+		g := figure.NewGrid(2,
+			figure.GridTheme(f.theme),
+			figure.GridSize(f.width, f.high),
+			figure.GridTitle(f.title),
+		)
+		f.grid(g)
+		return g
+	}
+	p := figure.New(append([]figure.Option{
+		figure.Theme(f.theme),
+		figure.Size(f.width, f.high),
+		figure.Title(f.title),
+	}, f.opts...)...)
+	f.build(p)
+	return p
+}
+
+func (f plate) render() (svg, png []byte, err error) {
+	var sb bytes.Buffer
+	if err := f.chart().Render(figure.SVGWriter(&sb)); err != nil {
+		return nil, nil, err
+	}
+	var pb bytes.Buffer
+	if err := f.chart().Render(ggbackend.Writer(&pb, ggbackend.FormatPNG)); err != nil {
+		return nil, nil, err
+	}
+	return sb.Bytes(), pb.Bytes(), nil
+}
+
+func figures() []plate {
+	return []plate{
+		qqFigure(),
+		labelsFigure(),
+		{
+			name: "signal", width: 800, high: 400, theme: theme.Dark, title: "Signal",
+			build: func(p *figure.Plot) {
+				times, values := damped()
+				src := figure.NewTable().Time("t", times).Float64("y", values)
+				p.X(scale.Time())
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(geom.Line(src,
+					geom.X("t"), geom.Y("y"),
+					geom.Color(palette.SkyBlue),
+					geom.Tension(0.4),
+				))
+			},
+		},
+		{
+			name: "series", width: 800, high: 400, theme: theme.Light, title: "Three series",
+			build: func(p *figure.Plot) {
+				xs := ramp(0, 10, 120)
+				src := figure.Float64Columns(map[string][]float64{
+					"x":      xs,
+					"linear": apply(xs, func(x float64) float64 { return x }),
+					"square": apply(xs, func(x float64) float64 { return x * x / 10 }),
+					"root":   apply(xs, func(x float64) float64 { return 3 * math.Sqrt(x) }),
+				})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(
+					geom.Line(src, geom.X("x"), geom.Y("linear"), geom.Label("linear")),
+					geom.Line(src, geom.X("x"), geom.Y("square"), geom.Label("square"), geom.Dash(6, 4)),
+					geom.Line(src, geom.X("x"), geom.Y("root"), geom.Label("root"), geom.Dash(2, 3)),
+				)
+			},
+		},
+		{
+			name: "scatter", width: 700, high: 420, theme: theme.Light, title: "Scatter",
+			build: func(p *figure.Plot) {
+				xs, a, b := clusters()
+				src := figure.Float64Columns(map[string][]float64{"x": xs, "a": a, "b": b})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(
+					geom.Scatter(src, geom.X("x"), geom.Y("a"), geom.Label("group A"),
+						geom.Shape(ir.MarkerCircle), geom.Size(7)),
+					geom.Scatter(src, geom.X("x"), geom.Y("b"), geom.Label("group B"),
+						geom.Shape(ir.MarkerDiamond), geom.Size(7)),
+				)
+			},
+		},
+		{
+			name: "bars", width: 700, high: 400, theme: theme.Light, title: "Response time distribution",
+			build: func(p *figure.Plot) {
+				// Bin centres on a continuous axis. A histogram is the bar
+				// chart that genuinely wants a numeric X: the gaps between
+				// bins carry meaning, which is exactly what an ordinal axis
+				// throws away.
+				bins := ramp(5, 95, 10)
+				counts := []float64{18, 47, 82, 96, 71, 44, 25, 13, 6, 2}
+				src := figure.Float64Columns(map[string][]float64{"ms": bins, "count": counts})
+				p.X(scale.Linear())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Bar(src, geom.X("ms"), geom.Y("count"), geom.Color(palette.Green)))
+			},
+		},
+		{
+			name: "area", width: 700, high: 400, theme: theme.Light, title: "Estimate and interval",
+			build: func(p *figure.Plot) {
+				xs := ramp(0, 12, 120)
+				src := figure.Float64Columns(map[string][]float64{
+					"x":  xs,
+					"y":  apply(xs, func(x float64) float64 { return math.Sin(x) + x/6 }),
+					"lo": apply(xs, func(x float64) float64 { return math.Sin(x) + x/6 - 0.3 - x/20 }),
+					"hi": apply(xs, func(x float64) float64 { return math.Sin(x) + x/6 + 0.3 + x/20 }),
+				})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(
+					geom.Area(src, geom.X("x"), geom.Y("hi"), geom.Y2("lo"),
+						geom.Label("interval"), geom.Color(palette.SkyBlue), geom.Width(1)),
+					geom.Line(src, geom.X("x"), geom.Y("y"),
+						geom.Label("estimate"), geom.Color(palette.Blue)),
+				)
+			},
+		},
+		{
+			name: "steps", width: 700, high: 380, theme: theme.Dark, title: "Replicas over the day",
+			build: func(p *figure.Plot) {
+				hours := ramp(0, 23, 24)
+				replicas := []float64{2, 2, 2, 2, 2, 3, 5, 8, 12, 14, 14, 13, 13, 14, 15, 15, 13, 10, 7, 5, 4, 3, 2, 2}
+				src := figure.Float64Columns(map[string][]float64{"hour": hours, "n": replicas})
+				p.X(scale.Linear())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Step(src, geom.X("hour"), geom.Y("n"),
+					geom.Color(palette.Yellow), geom.Width(2)))
+			},
+		},
+		{
+			name: "categories", width: 700, high: 400, theme: theme.Light, title: "Sales by region",
+			build: func(p *figure.Plot) {
+				src := figure.NewTable().
+					String("region", []string{"north", "south", "east", "west", "central", "overseas"}).
+					Float64("sales", []float64{18, 42, 31, 25, 37, 12})
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Bar(src, geom.X("region"), geom.Y("sales"),
+					geom.ColorBy("sales", scale.Sequential(palette.Viridis))))
+			},
+		},
+		{
+			name: "boxplot", width: 700, high: 400, theme: theme.Light, title: "Latency by cohort",
+			build: func(p *figure.Plot) {
+				keys, vals := cohorts()
+				src := figure.NewTable().String("cohort", keys).Float64("ms", vals)
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(geom.Boxplot(src, geom.X("cohort"), geom.Y("ms"), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			name: "logscale", width: 700, high: 400, theme: theme.Dark, title: "Requests per second",
+			build: func(p *figure.Plot) {
+				xs := ramp(0, 14, 140)
+				src := figure.Float64Columns(map[string][]float64{
+					"week":  xs,
+					"rps":   apply(xs, func(x float64) float64 { return 5 * math.Exp(0.72*x) }),
+					"floor": apply(xs, func(x float64) float64 { return 5 * math.Exp(0.45*x) }),
+				})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Log(scale.LogNice()))
+				p.Add(
+					geom.Line(src, geom.X("week"), geom.Y("rps"),
+						geom.Label("actual"), geom.Color(palette.Green)),
+					geom.Line(src, geom.X("week"), geom.Y("floor"),
+						geom.Label("plan"), geom.Color(palette.Orange), geom.Dash(6, 4)),
+				)
+			},
+		},
+		{
+			name: "facets", width: 800, high: 460, theme: theme.Light, title: "Throughput by region",
+			build: func(p *figure.Plot) {
+				regions, hours, rps := fleet()
+				src := figure.NewTable().
+					String("region", regions).
+					Float64("hour", hours).
+					Float64("rps", rps)
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Line(src, geom.X("hour"), geom.Y("rps"),
+					geom.Color(palette.Blue), geom.Label("throughput")))
+				p.Add(geom.HLine(60, geom.Label("target")))
+				p.Facet(facet.Wrap("region", facet.Columns(3)))
+			},
+		},
+		{
+			name: "annotations", width: 760, high: 400, theme: theme.Light, title: "Latency against its budget",
+			build: func(p *figure.Plot) {
+				xs := ramp(0, 60, 180)
+				src := figure.Float64Columns(map[string][]float64{
+					"minute": xs,
+					"p99": apply(xs, func(x float64) float64 {
+						return 190 + 45*math.Sin(x/7) + 12*math.Sin(x/2.3)
+					}),
+				})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(
+					geom.HBand(170, 210, geom.Label("tolerance")),
+					geom.VBand(22, 26, geom.Fill(palette.Orange), geom.Opacity(0.18), geom.Label("deploy")),
+					geom.Line(src, geom.X("minute"), geom.Y("p99"),
+						geom.Color(palette.Blue), geom.Label("p99")),
+					geom.HLine(250, geom.Label("SLO")),
+					geom.Note(1, 246, "budget", geom.FontSize(11), geom.Align(ir.AlignStart, ir.AlignTop)),
+				)
+			},
+		},
+		{
+			name: "decimation", width: 800, high: 400, theme: theme.Light,
+			title: "A quarter of a million samples",
+			build: func(p *figure.Plot) {
+				xs, ys := trace(250_000)
+				src := figure.Float64Columns(map[string][]float64{"i": xs, "v": ys})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice()))
+				// No option asks for the reduction: the layer sees a quarter of
+				// a million rows against eight hundred pixel columns and picks
+				// one. The spike is still full height.
+				p.Add(geom.Line(src, geom.X("i"), geom.Y("v"), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			name: "density", width: 760, high: 440, theme: theme.Light,
+			title: "A million points",
+			build: func(p *figure.Plot) {
+				xs, ys := cloud(1_000_000)
+				src := figure.Float64Columns(map[string][]float64{"x": xs, "y": ys})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice()))
+				// Markers this dense would bury each other and the picture would
+				// be decided by row order, so the layer counts per cell and
+				// draws the counts instead.
+				p.Add(geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			// Two v0.6 features that are only visible in a picture: notation in
+			// the labels, and layers told apart by dash and shape as well as by
+			// colour. The theme is the light one with redundant encoding turned
+			// on, which is one option rather than a second theme.
+			name: "notation", width: 760, high: 420,
+			theme: theme.Light.With(theme.Redundant(true)),
+			title: `Standard error of $\bar{x}$`,
+			opts: []figure.Option{
+				figure.Math(mathtext.TeX()),
+				figure.XTitle(`sample size $n$`),
+				figure.YTitle(`$\frac{\sigma}{\sqrt{n}}$ (mV)`),
+				figure.Legend(true),
+			},
+			build: func(p *figure.Plot) {
+				ns := ramp(4, 64, 31)
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				src := figure.Float64Columns(map[string][]float64{
+					"n":       ns,
+					"sigma-1": apply(ns, func(n float64) float64 { return 1 / math.Sqrt(n) }),
+					"sigma-2": apply(ns, func(n float64) float64 { return 2 / math.Sqrt(n) }),
+					"sigma-3": apply(ns, func(n float64) float64 { return 3 / math.Sqrt(n) }),
+				})
+				for i, col := range []string{"sigma-1", "sigma-2", "sigma-3"} {
+					p.Add(geom.Line(src, geom.X("n"), geom.Y(col),
+						geom.Label(fmt.Sprintf(`$\sigma = %d$`, i+1))))
+				}
+			},
+		},
+		{
+			name: "stacked", width: 700, high: 420, theme: theme.Light, title: "Revenue by product",
+			build: func(p *figure.Plot) {
+				quarters, products, revenue := ledger()
+				src := figure.NewTable().
+					String("quarter", quarters).
+					String("product", products).
+					Float64("revenue", revenue)
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				// One layer over a long table: the series column makes the
+				// stack, and the discrete scale names and colours it.
+				p.Add(geom.Bar(src,
+					geom.X("quarter"), geom.Y("revenue"),
+					geom.GroupBy("product"),
+					geom.ColorBy("product", scale.Qualitative(palette.OkabeIto)),
+				))
+			},
+		},
+		{
+			name: "stream", width: 760, high: 400, theme: theme.Light, title: "Traffic by channel",
+			build: func(p *figure.Plot) {
+				days, channels, visits := channels()
+				src := figure.NewTable().
+					Float64("day", days).
+					String("channel", channels).
+					Float64("visits", visits)
+				p.X(scale.Linear())
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(geom.Area(src,
+					geom.X("day"), geom.Y("visits"),
+					geom.GroupBy("channel"),
+					geom.Stack(geom.StackWiggle),
+					geom.Order(geom.OrderInsideOut),
+					geom.ColorBy("channel", scale.Qualitative(palette.OkabeIto)),
+				))
+			},
+		},
+		{
+			name: "heatmap", width: 740, high: 400, theme: theme.Light, title: "Calls per hour",
+			build: func(p *figure.Plot) {
+				days, hours, calls := switchboard()
+				src := figure.NewTable().
+					String("day", days).
+					String("hour", hours).
+					Float64("calls", calls)
+				// A cell with no second column on either axis fills its slot,
+				// so a heatmap is a rect and a ramp and nothing else.
+				p.X(scale.Ordinal(scale.OrdinalPadding(0)))
+				p.Y(scale.Ordinal(scale.OrdinalPadding(0)))
+				p.Add(geom.Rect(src, geom.X("day"), geom.Y("hour"),
+					geom.ColorBy("calls", scale.Sequential(palette.Viridis))))
+			},
+		},
+		{
+			// A pie is not a new mark. It is the stacked bar of the plate
+			// above, drawn in a polar coord that takes theta from the Y axis —
+			// so the stacked total becomes a whole turn and each segment
+			// becomes a slice. A hole makes it a donut, and the hole is an
+			// annulus: the radial scale starts there, so nothing is drawn
+			// inside it and nothing can be pointed at there either.
+			name: "pie", width: 620, high: 400, title: "Browser share",
+			theme: theme.Light.With(
+				theme.Grid(false, false),
+				theme.AxisLines(false, false),
+				theme.Ticks(false, false),
+			),
+			opts: []figure.Option{
+				figure.Coord(coord.Polar(coord.Theta(coord.FromY), coord.Hole(0.45))),
+			},
+			build: func(p *figure.Plot) {
+				names, share := browserShare()
+				src := figure.NewTable().
+					Float64("all", make([]float64, len(names))).
+					Float64("share", share).
+					String("browser", names)
+				// Neither scale is niced: the ring closes because the stacked
+				// domain ends at the total, and a domain rounded up to the next
+				// round number would leave a wedge of nothing at twelve
+				// o'clock. The X scale is one slot wide and fills the radius.
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Bar(src, geom.X("all"), geom.Y("share"),
+					geom.GroupBy("browser"),
+					geom.ColorBy("browser", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// The v0.8 sugar, and still not a new mark. A slice's two radial
+			// edges are two columns — geom.X and geom.X2, the pair a gantt bar
+			// has used since v0.7 — so how far a slice reaches is a second
+			// measure rather than a constant the coord chose. geom.ExplodeBy
+			// then moves one slice out of the ring along its own bisector
+			// without changing anything it says; the gap is where it came
+			// from. See docs/adr/0026-breaking-a-mark-out.md.
+			name: "donut", width: 620, high: 440, title: "Spend against each team's budget",
+			theme: theme.Light.With(
+				theme.Grid(false, false),
+				theme.AxisLines(false, false),
+				theme.Ticks(false, false),
+			),
+			opts: []figure.Option{figure.Coord(coord.Pie(coord.Radius(0.95)))},
+			build: func(p *figure.Plot) {
+				teams, share, floor, used, pull := budgets()
+				src := figure.NewTable().
+					String("team", teams).
+					Float64("share", share).
+					Float64("floor", floor).
+					Float64("used", used).
+					Float64("pull", pull)
+				// The radial domain is fixed so that the rim means the whole
+				// budget rather than the biggest of these five; the angular
+				// one is not niced, so the ring closes.
+				p.X(scale.Linear(scale.Domain(0, 1)))
+				p.Y(scale.Linear())
+				p.Add(geom.Bar(src,
+					geom.X("floor"), geom.X2("used"), geom.Y("share"),
+					geom.GroupBy("team"), geom.ExplodeBy("pull"),
+					geom.ColorBy("team", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// A radar is not a new mark either: it is a line over an ordinal
+			// angular axis. Two things make it read as one — its edges are
+			// chords rather than arcs, and the contour closes back to the
+			// first axis.
+			name: "radar", width: 620, high: 440, theme: theme.Dark, title: "Two designs",
+			opts: []figure.Option{figure.Coord(coord.Polar(coord.Chord()))},
+			build: func(p *figure.Plot) {
+				axes, designs, scores := designScores()
+				src := figure.NewTable().
+					String("axis", axes).
+					String("design", designs).
+					Float64("score", scores)
+				p.X(scale.Ordinal(scale.OrdinalPadding(0)))
+				p.Y(scale.Linear(scale.Domain(0, 10)))
+				p.Add(geom.Area(src, geom.X("axis"), geom.Y("score"),
+					geom.GroupBy("design"), geom.Stack(geom.NoStack), geom.Closed(true),
+					geom.ColorBy("design", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// The v0.9 marks. A histogram is the first mark whose Y axis holds
+			// values that appear in no column: the counts are computed in
+			// Train, and the axis is trained on them rather than on the rows.
+			// The bins are Freedman–Diaconis unless told otherwise.
+			name: "histogram", width: 700, high: 400, theme: theme.Light, title: "Request latency",
+			opts: []figure.Option{figure.XTitle("milliseconds"), figure.YTitle("requests")},
+			build: func(p *figure.Plot) {
+				src := figure.Float64Columns(map[string][]float64{"ms": latencies()})
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Histogram(src, geom.X("ms"), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			// The same kind of question with no parameter in it: an ECDF picks
+			// no bins and no bandwidth, and it takes a series column, so three
+			// distributions compare on one axis without hiding each other.
+			name: "ecdf", width: 700, high: 400, theme: theme.Light, title: "Scores by cohort, cumulative",
+			opts: []figure.Option{figure.XTitle("score"), figure.YTitle("fraction of cohort")},
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear())
+				p.Add(geom.ECDF(cohortScores(), geom.X("score"), geom.GroupBy("cohort"),
+					geom.ColorBy("cohort", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// The chart a boxplot cannot draw: distributions with the same
+			// quartiles and different shapes, split again by region. The
+			// bandwidth is pinned so that the two regions are smoothed the
+			// same amount, and a difference in shape is a difference in data.
+			name: "violin", width: 760, high: 420, theme: theme.Light, title: "Latency by service",
+			opts: []figure.Option{figure.YTitle("milliseconds"), figure.Legend(true)},
+			build: func(p *figure.Plot) {
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+				p.Add(geom.Violin(serviceLatencies(),
+					geom.X("service"), geom.Y("ms"),
+					geom.GroupBy("region"), geom.Bandwidth(3),
+					geom.ColorBy("region", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// Twelve densities down one axis. The months are pinned in
+			// calendar order rather than discovered, because a ridgeline is
+			// read down its axis, and the ridges overlap on purpose.
+			name: "ridgeline", width: 700, high: 520, theme: theme.Light, title: "Daily maximum, by month",
+			opts: []figure.Option{figure.XTitle("degrees")},
+			build: func(p *figure.Plot) {
+				months, src := monthlyTemperatures()
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Ordinal(scale.Categories(months...)))
+				p.Add(geom.Ridgeline(src, geom.X("degrees"), geom.Y("month"),
+					geom.Overlap(2.2), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			// Every observation, and none hidden: a swarm is honest about a
+			// cohort of nine in a way a violin over nine rows is not. The
+			// placement is deterministic, so this figure is the same on
+			// every machine.
+			name: "beeswarm", width: 700, high: 400, theme: theme.Light, title: "Scores by cohort",
+			opts: []figure.Option{figure.YTitle("score")},
+			build: func(p *figure.Plot) {
+				p.X(scale.Ordinal())
+				// The domain is pinned rather than niced so that the highest
+				// score sits inside the frame rather than on its edge.
+				p.Y(scale.Linear(scale.Domain(30, 85)))
+				p.Add(geom.Beeswarm(cohortScores(), geom.X("cohort"), geom.Y("score"),
+					geom.Size(7), geom.Color(palette.Blue)))
+			},
+		},
+		{
+			// Fifty thousand rows and a fit through them. The hexbin says how
+			// many are where — binned over the plot rectangle, so the cells
+			// are regular hexagons on the page — and the loess trend says what
+			// they are doing.
+			name: "hexbin", width: 760, high: 460, theme: theme.Light, title: "Fifty thousand observations",
+			opts: []figure.Option{figure.Legend(false)},
+			build: func(p *figure.Plot) {
+				src := hexcloud(50000)
+				p.X(scale.Linear(scale.Nice()))
+				p.Y(scale.Linear(scale.Nice()))
+				p.Add(
+					geom.Hexbin(src, geom.X("x"), geom.Y("y"),
+						geom.DensityCells(7), geom.Color(palette.Blue)),
+					geom.Trend(src, geom.X("x"), geom.Y("y"),
+						geom.Span(0.15), geom.Color(palette.Orange), geom.Width(2.5)),
+				)
+			},
+		},
+		{
+			// The size channel. Four columns, three channels, and the key for
+			// the third one beside the legend in the guide column. Area rather
+			// than radius: a country with twice the population is drawn with
+			// twice the ink. See docs/adr/0027.
+			name: "bubbles", width: 760, high: 460, theme: theme.Light, title: "Income and life expectancy",
+			opts: []figure.Option{
+				figure.XTitle("income per person"), figure.YTitle("years"), figure.Legend(true),
+			},
+			build: func(p *figure.Plot) {
+				p.X(scale.Log(scale.LogNice()))
+				// Pinned for the same reason as the swarm: a bubble has a
+				// radius, and the largest one must not be cut by the frame.
+				p.Y(scale.Linear(scale.Domain(55, 85)))
+				p.Add(geom.Scatter(nations(),
+					geom.X("income"), geom.Y("years"),
+					geom.SizeBy("people", scale.Size()),
+					geom.ColorBy("region", scale.Qualitative(palette.OkabeIto)),
+					geom.Label("population (millions)")))
+			},
+		},
+		{
+			name: "errorbars", width: 700, high: 400, theme: theme.Light,
+			title: "Mean latency, with its 95 % interval",
+			build: func(p *figure.Plot) {
+				src := figure.NewTable().
+					String("service", []string{"auth", "search", "cart", "checkout", "media"}).
+					Float64("mean", []float64{42, 118, 63, 91, 210}).
+					Float64("ci", []float64{6, 22, 9, 14, 38})
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero(), scale.NumberFormat("# ms")))
+				// The bars are faded and the intervals are not, because the
+				// interval is the reading this figure is about and a solid
+				// bar behind it hides the marker at the mean.
+				ink := palette.OkabeIto.At(0)
+				p.Add(
+					geom.Bar(src, geom.X("service"), geom.Y("mean"),
+						geom.Fill(palette.Lerp(ir.RGB(255, 255, 255), ink, 0.3)),
+						geom.Label("mean")),
+					geom.ErrorBar(src, geom.X("service"), geom.Y("mean"), geom.ErrorBy("ci"),
+						geom.Color(ink), geom.Width(1.5)),
+				)
+			},
+		},
+		{
+			name: "twoaxes", width: 760, high: 420, theme: theme.Light,
+			title: "Revenue and margin",
+			opts:  []figure.Option{figure.YTitle("revenue (k€)"), figure.Y2Title("margin")},
+			build: func(p *figure.Plot) {
+				src := figure.NewTable().
+					String("month", []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun"}).
+					Float64("revenue", []float64{820, 910, 870, 1040, 1180, 1120}).
+					Float64("margin", []float64{0.11, 0.13, 0.09, 0.15, 0.18, 0.16})
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero(), scale.NumberFormat("#,")))
+				p.Y2(scale.Linear(scale.Nice(), scale.Zero(), scale.NumberFormat("#.0%")))
+				p.Add(
+					geom.Bar(src, geom.X("month"), geom.Y("revenue"),
+						geom.Color(palette.OkabeIto.At(0)), geom.Label("revenue")),
+					geom.Line(src, geom.X("month"), geom.Y("margin"), geom.OnY2(),
+						geom.Color(palette.OkabeIto.At(1)), geom.Width(2), geom.Label("margin")),
+				)
+			},
+		},
+		{
+			name: "twoextents", width: 720, high: 400, theme: theme.Light,
+			title: "Oven temperature through a run",
+			opts: []figure.Option{
+				figure.XTitle("elapsed (min)"),
+				figure.X2Title("cycle"),
+				// The fill and the line are one reading in two layers, so the
+				// legend would name it twice and explain nothing.
+				figure.Legend(false),
+			},
+			build: func(p *figure.Plot) {
+				// One reading with two rulers under it, which is the common
+				// shape of this chart: the operator thinks in cycles and the
+				// process engineer in minutes, and neither should have to
+				// divide in their head.
+				mins := ramp(0, 120, 240)
+				temp := apply(mins, func(t float64) float64 {
+					return 20 + 160*(1-math.Exp(-t/18)) - 12*math.Sin(t/4)
+				})
+				src := figure.Float64Columns(map[string][]float64{"t": mins, "c": temp})
+
+				p.X(scale.Linear(scale.Domain(0, 120)))
+				// The top axis carries no layer of its own: it is the same
+				// extent counted differently, one cycle every five minutes, so
+				// its domain is pinned rather than trained. An axis nobody
+				// draws on is still a statement about the chart.
+				p.X2(scale.Linear(scale.Domain(0, 24)))
+				p.Y(scale.Linear(scale.Nice(), scale.Zero(), scale.NumberFormat("# °C")))
+				p.Add(
+					geom.Area(src, geom.X("t"), geom.Y("c"),
+						geom.Fill(palette.Lerp(ir.RGB(255, 255, 255), palette.OkabeIto.At(1), 0.3))),
+					geom.Line(src, geom.X("t"), geom.Y("c"),
+						geom.Color(palette.OkabeIto.At(1)), geom.Width(1.5)),
+				)
+			},
+		},
+		{
+			// The third coordinate system, and still not a new mark. A Smith
+			// chart is a geom.Line over two columns holding a normalised
+			// impedance, in a coord that maps the pair through Γ = (z−1)/(z+1)
+			// — which carries the whole right half-plane onto the disc. Its
+			// grid is not drawn by anything: the constant-resistance circles
+			// are what the X ticks look like once the coord has had them, and
+			// the constant-reactance arcs are the Y ticks, so render draws it
+			// with the same two loops it draws a Cartesian grid with.
+			// scale.TickValues asks for the six values a paper chart is printed
+			// at. See docs/adr/0033-smith-charts.md.
+			name: "smith", width: 620, high: 560, theme: theme.Light,
+			title: "A patch antenna across its band",
+			opts: []figure.Option{
+				figure.Coord(coord.Smith()),
+				// A Smith chart's one layer is the locus; there is nothing for
+				// a legend to name.
+				figure.Legend(false),
+			},
+			build: func(p *figure.Plot) {
+				re, im := s11Sweep(121)
+				r, x := make([]float64, len(re)), make([]float64, len(re))
+				for i := range re {
+					r[i], x[i] = coord.SmithZ(re[i], im[i])
+				}
+				// Pinned, not trained: the chart's extent is the whole disc
+				// whatever the data does, and a near-open reflection is a
+				// resistance in the thousands that would drag every tick into
+				// the last pixel before the rim.
+				p.X(scale.Linear(scale.Domain(0, 50),
+					scale.TickValues(0, 0.2, 0.5, 1, 2, 5)))
+				p.Y(scale.Linear(scale.Domain(-50, 50),
+					scale.TickValues(-5, -2, -1, -0.5, -0.2, 0.2, 0.5, 1, 2, 5)))
+				p.Add(geom.Line(figure.NewTable().Float64("r", r).Float64("x", x),
+					geom.X("r"), geom.Y("x"), geom.Color(palette.OkabeIto[1])))
+				best := bestMatch(re, im)
+				p.Add(geom.Scatter(figure.NewTable().
+					Float64("r", []float64{r[0], r[best], r[len(r)-1]}).
+					Float64("x", []float64{x[0], x[best], x[len(x)-1]}),
+					geom.X("r"), geom.Y("x"), geom.Color(palette.OkabeIto[0])))
+			},
+		},
+		{
+			// The last bucket of docs/chart-types.md, and the first of its two
+			// halves: a hierarchy packed into rectangles, each with an area
+			// proportional to its value. The packing runs against the panel
+			// rather than against the unit square, because a squarified treemap
+			// optimises a shape on screen — see ADR 0039.
+			name: "treemap", width: 700, high: 420, title: "Disk by directory",
+			theme: bareLayout(theme.Light),
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Treemap(diskUsage(),
+					geom.ID("path"), geom.Parent("under"), geom.Value("kb"),
+					geom.Padding(0.006),
+					geom.ColorBy("group", scale.Qualitative(palette.OkabeIto))))
+			},
+		},
+		{
+			// A sunburst is not a new mark either. It is the icicle the same
+			// layer draws under a Cartesian coord, wrapped round a circle — the
+			// hierarchy's span goes round and its depth goes out, so the root
+			// is at the middle and the leaves are at the rim.
+			name: "sunburst", width: 520, high: 440, title: "Disk by directory",
+			theme: bareLayout(theme.Light),
+			opts:  []figure.Option{figure.Coord(coord.Polar(coord.Hole(0.12)))},
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Icicle(diskUsage(),
+					geom.ID("path"), geom.Parent("under"), geom.Value("kb"),
+					geom.Padding(0.004)))
+			},
+		},
+		{
+			// The other half: an edge list as a flow. A node stands one column
+			// past the deepest source that reaches it, and a band is as thick
+			// as what it carries — the same thickness at both ends, which is
+			// the one quantity the picture asserts.
+			name: "sankey", width: 700, high: 400, title: "Requests per second",
+			theme: bareLayout(theme.Light),
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Sankey(requestFlow(),
+					geom.From("from"), geom.To("to"), geom.Value("rps"),
+					geom.Padding(0.03)))
+			},
+		},
+		{
+			// The Cartesian half of the pair below, and the figure that would
+			// have shown the ribbons closing to nothing over their apexes if it
+			// had existed when they did. Each band is as thick as the traffic
+			// it carries and arcs as high as it reaches.
+			name: "arc", width: 620, high: 400, title: "Service traffic",
+			theme: bareLayout(theme.Light),
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Arc(requestFlow(),
+					geom.From("from"), geom.To("to"), geom.Value("rps"),
+					geom.Padding(0.01)))
+			},
+		},
+		{
+			// And the second recipe. This is an arc diagram with its rail moved
+			// to the rim: geom.Baseline is the whole difference, and the coord
+			// does the rest.
+			name: "chord", width: 520, high: 440, title: "Service traffic",
+			theme: bareLayout(theme.Light),
+			opts:  []figure.Option{figure.Coord(coord.Polar())},
+			build: func(p *figure.Plot) {
+				p.X(scale.Linear())
+				p.Y(scale.Linear())
+				p.Add(geom.Arc(requestFlow(),
+					geom.From("from"), geom.To("to"), geom.Value("rps"),
+					geom.Baseline(1), geom.Padding(0.01)))
+			},
+		},
+		{
+			name: "subplots", width: 800, high: 480, theme: theme.Dark, title: "Fleet overview",
+			grid: func(g *figure.Grid) {
+				xs := ramp(0, 12, 120)
+				add := func(title string, fn func(float64) float64, c int) {
+					p := figure.New(figure.Title(title))
+					p.X(scale.Linear(scale.Nice()))
+					p.Y(scale.Linear(scale.Nice()))
+					p.Add(geom.Line(figure.Float64Columns(map[string][]float64{
+						"x": xs, "y": apply(xs, fn),
+					}), geom.X("x"), geom.Y("y"), geom.Color(palette.OkabeIto.At(c))))
+					g.Add(p)
+				}
+				add("latency", func(x float64) float64 { return 50 + 20*math.Sin(x) }, 0)
+				add("throughput", func(x float64) float64 { return 900 * math.Exp(-x/9) }, 1)
+				add("errors", func(x float64) float64 { return 3 * math.Sin(x/2) * math.Sin(x/2) }, 2)
+				add("saturation", func(x float64) float64 { return 0.45 + 0.3*math.Sin(x/3) }, 3)
+			},
+		},
+	}
+}
+
+// budgets is five teams: what each spent as a share of the total, where its
+// slice starts, how much of its own budget it used, and how far it is broken
+// out of the ring. Growth is the one over budget, and the one pulled out.
+func budgets() (teams []string, share, floor, used, pull []float64) {
+	return []string{"platform", "data", "growth", "support", "design"},
+		[]float64{32, 24, 18, 14, 12},
+		[]float64{0.35, 0.35, 0.35, 0.35, 0.35},
+		[]float64{0.92, 0.78, 1, 0.55, 0.66},
+		[]float64{0, 0, 0.12, 0, 0}
+}
+
+// browserShare is a market share that adds to a hundred, so the ring closes on
+// itself rather than on a rounding error.
+func browserShare() (names []string, share []float64) {
+	return []string{"chrome", "safari", "firefox", "edge", "other"},
+		[]float64{46, 24, 14, 11, 5}
+}
+
+// designScores is two designs rated on five axes: the long-table shape a
+// grouped layer draws from, which is what makes a radar one layer rather than
+// two.
+func designScores() (axes, designs []string, scores []float64) {
+	byDesign := map[string][]float64{
+		"prism": {8, 6, 9, 4, 7},
+		"lens":  {5, 9, 6, 8, 5},
+	}
+	for _, design := range []string{"prism", "lens"} {
+		for i, axis := range []string{"speed", "clarity", "range", "cost", "weight"} {
+			axes = append(axes, axis)
+			designs = append(designs, design)
+			scores = append(scores, byDesign[design][i])
+		}
+	}
+	return axes, designs, scores
+}
+
+// ledger builds four quarters of revenue for three products: one row per
+// (quarter, product) pair, which is the long-table shape a grouped layer draws
+// from — twelve rows and one layer, not three layers of four.
+func ledger() (quarters, products []string, revenue []float64) {
+	for q, quarter := range []string{"Q1", "Q2", "Q3", "Q4"} {
+		for i, product := range []string{"prism", "lens", "filter"} {
+			quarters = append(quarters, quarter)
+			products = append(products, product)
+			revenue = append(revenue, 20+float64(q)*4+float64(i)*9-float64(q*i))
+		}
+	}
+	return quarters, products, revenue
+}
+
+// channels builds eight weeks of traffic for four channels, deterministically.
+func channels() (days []float64, names []string, visits []float64) {
+	for d := range 56 {
+		for i, name := range []string{"search", "social", "direct", "email"} {
+			t := float64(d) / 8
+			days = append(days, float64(d))
+			names = append(names, name)
+			visits = append(visits, math.Max(40+30*math.Sin(t/2+float64(i)*1.7)+8*math.Sin(t*3+float64(i)), 1))
+		}
+	}
+	return days, names, visits
+}
+
+// switchboard builds one cell per (weekday, hour) pair: two peaks in the day,
+// tailing off towards the end of the week.
+func switchboard() (days, hours []string, calls []float64) {
+	for d, name := range []string{"mon", "tue", "wed", "thu", "fri"} {
+		for h := 8; h < 18; h++ {
+			days = append(days, name)
+			hours = append(hours, fmt.Sprintf("%02d:00", h))
+			v := 60*math.Exp(-math.Pow(float64(h)-10, 2)/6) +
+				45*math.Exp(-math.Pow(float64(h)-15, 2)/8)
+			calls = append(calls, v*(1-float64(d)*0.12))
+		}
+	}
+	return days, hours, calls
+}
+
+// fleet builds five regions of hourly throughput, deterministically. A fixed
+// formula rather than math/rand is what makes -check meaningful.
+func fleet() (regions []string, hours, rps []float64) {
+	for ri, name := range []string{"north", "south", "east", "west", "central"} {
+		for h := range 24 {
+			regions = append(regions, name)
+			hours = append(hours, float64(h))
+			base := 40 + 12*float64(ri)
+			rps = append(rps, base+18*math.Sin(float64(h)/3.8+float64(ri)))
+		}
+	}
+	return regions, hours, rps
+}
+
+// cohorts builds three deterministic latency distributions, each with a tail.
+// A fixed recurrence rather than math/rand keeps the figure byte-stable across
+// Go releases, which is what makes -check meaningful.
+func cohorts() ([]string, []float64) {
+	names := []string{"alpha", "beta", "gamma"}
+	var keys []string
+	var vals []float64
+	for g, name := range names {
+		for i := range 40 {
+			t := float64(i) / 40
+			v := 24 + float64(g)*7 + 9*math.Sin(9*t+float64(g)) + 3*math.Sin(37*t) + 2*math.Cos(61*t)
+			keys, vals = append(keys, name), append(vals, v)
+		}
+		// One tail observation per cohort, so the outlier path is exercised by
+		// a figure and not only by a test.
+		keys, vals = append(keys, name), append(vals, 62+float64(g)*5)
+	}
+	return keys, vals
+}
+
+// trace builds a long, detailed signal with one spike in it: the shape that
+// needs decimating, and the feature that catches a reduction which flattens.
+// A fixed recurrence rather than math/rand keeps the figure byte-stable.
+func trace(n int) (xs, ys []float64) {
+	xs = make([]float64, n)
+	ys = make([]float64, n)
+	for i := range n {
+		t := float64(i) / float64(n)
+		xs[i] = float64(i)
+		ys[i] = math.Sin(6*math.Pi*t) +
+			0.35*math.Sin(211*math.Pi*t) +
+			0.18*math.Sin(1013*math.Pi*t)
+	}
+	ys[n/3] = 2.6
+	return xs, ys
+}
+
+// cloud builds a correlated point cloud: the overplotted scatter a density
+// raster exists for.
+//
+// The generator is written out here rather than taken from math/rand so that
+// the figure is byte-stable for -check no matter what any library does later.
+// A low-discrepancy sequence would be shorter, but it lays the points on a
+// lattice, and a picture of a lattice is not a picture of a point cloud.
+func cloud(n int) (xs, ys []float64) {
+	xs = make([]float64, n)
+	ys = make([]float64, n)
+	var seed uint64 = 0x9e3779b97f4a7c15
+	next := func() float64 {
+		// splitmix64, then the top 53 bits as a fraction of one.
+		seed += 0x9e3779b97f4a7c15
+		z := seed
+		z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+		z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+		z ^= z >> 31
+		return float64(z>>11) / (1 << 53)
+	}
+	for i := range n {
+		u, v := next(), next()
+		r := math.Sqrt(-2 * math.Log(u+1e-15))
+		a, b := r*math.Cos(2*math.Pi*v), r*math.Sin(2*math.Pi*v)
+		xs[i] = a
+		ys[i] = 0.65*a + 0.76*b
+	}
+	return xs, ys
+}
+
+// --- sample data ---------------------------------------------------------
+
+func damped() ([]time.Time, []float64) {
+	const n = 240
+	start := time.Date(2026, time.March, 14, 9, 0, 0, 0, time.UTC)
+	times := make([]time.Time, n)
+	values := make([]float64, n)
+	for i := range n {
+		times[i] = start.Add(time.Duration(i) * 15 * time.Second)
+		x := float64(i) / n
+		values[i] = math.Exp(-2*x) * math.Sin(12*math.Pi*x)
+	}
+	return times, values
+}
+
+func ramp(lo, hi float64, n int) []float64 {
+	out := make([]float64, n)
+	for i := range out {
+		if n == 1 {
+			out[i] = lo
+			continue
+		}
+		out[i] = lo + (hi-lo)*float64(i)/float64(n-1)
+	}
+	return out
+}
+
+func apply(xs []float64, fn func(float64) float64) []float64 {
+	out := make([]float64, len(xs))
+	for i, x := range xs {
+		out[i] = fn(x)
+	}
+	return out
+}
+
+// clusters builds two deterministic point clouds. A fixed recurrence rather
+// than math/rand keeps the figures byte-stable across Go releases, which is
+// what makes the -check mode meaningful.
+func clusters() (xs, a, b []float64) {
+	const n = 45
+	xs = make([]float64, n)
+	a = make([]float64, n)
+	b = make([]float64, n)
+	for i := range n {
+		t := float64(i) / n
+		xs[i] = t * 10
+		a[i] = 4 + 3*math.Sin(7*t) + 0.8*math.Sin(31*t)
+		b[i] = 9 - 2.5*math.Cos(5*t) + 0.6*math.Cos(23*t)
+	}
+	return xs, a, b
+}
+
+// The v0.9 samples. Everything here is a fixed sequence rather than math/rand,
+// for the same reason as everything else in this file: a figure that came out
+// differently on every run could not be checked against what is committed.
+
+// latencies is two thousand lognormal request times.
+func latencies() []float64 {
+	out := make([]float64, 2000)
+	for i := range out {
+		out[i] = lognormalAt(i*11+11, 3.6, 0.55)
+	}
+	return out
+}
+
+// serviceLatencies is three services in two regions; checkout has a second
+// hump, a slow path some requests take, which is what a violin shows and a
+// boxplot summarises away.
+func serviceLatencies() *data.Table {
+	names := []string{"auth", "search", "checkout"}
+	regions := []string{"eu", "us"}
+	var vals []float64
+	var svc, region []string
+	for i := range 900 {
+		s := i % 3
+		r := (i / 3) % 2
+		v := lognormalAt(i, 3.2+0.35*float64(s)+0.2*float64(r), 0.4)
+		if s == 2 && i%7 == 0 {
+			v *= 3
+		}
+		vals = append(vals, v)
+		svc = append(svc, names[s])
+		region = append(region, regions[r])
+	}
+	return figure.NewTable().Float64("ms", vals).String("service", svc).String("region", region)
+}
+
+// monthlyTemperatures is a year of daily maxima: a sinusoid through the
+// months, with the spread widening in winter.
+func monthlyTemperatures() (months []string, src *data.Table) {
+	months = []string{
+		"jan", "feb", "mar", "apr", "may", "jun",
+		"jul", "aug", "sep", "oct", "nov", "dec",
+	}
+	var temps []float64
+	var month []string
+	for m, name := range months {
+		mid := 11 + 9*math.Sin(2*math.Pi*(float64(m)-3)/12)
+		spread := 3.5 + 1.5*math.Cos(2*math.Pi*float64(m)/12)
+		for i := range 220 {
+			temps = append(temps, mid+spread*noise(m*997+i))
+			month = append(month, name)
+		}
+	}
+	return months, figure.NewTable().Float64("degrees", temps).String("month", month)
+}
+
+// cohortScores is two cohorts of sixty and one of nine.
+func cohortScores() *data.Table {
+	names := []string{"control", "variant A", "variant B"}
+	sizes := []int{60, 60, 9}
+	var scores []float64
+	var cohort []string
+	for c, name := range names {
+		for i := range sizes[c] {
+			scores = append(scores, 50+float64(c)*6+9*noise(c*613+i))
+			cohort = append(cohort, name)
+		}
+	}
+	return figure.NewTable().Float64("score", scores).String("cohort", cohort)
+}
+
+// hexcloud is n rows scattered about a curve.
+func hexcloud(n int) data.Source {
+	xs, ys := make([]float64, n), make([]float64, n)
+	for i := range n {
+		x := 10 * float64(i) / float64(n-1)
+		xs[i] = x
+		ys[i] = math.Sin(x)*3 + x/3 + 1.2*noise(i)
+	}
+	return figure.Float64Columns(map[string][]float64{"x": xs, "y": ys})
+}
+
+// nations is eight countries: income, life expectancy, population, region.
+func nations() *data.Table {
+	return figure.NewTable().
+		Float64("income", []float64{1500, 4200, 12800, 31000, 46000, 58000, 9800, 24000}).
+		Float64("years", []float64{58, 66, 72, 78, 81, 82, 70, 76}).
+		Float64("people", []float64{212, 1420, 274, 51, 68, 335, 84, 38}).
+		String("region", []string{
+			"Africa", "Asia", "Asia", "Europe",
+			"Europe", "Americas", "Africa", "Americas",
+		})
+}
+
+func lognormalAt(i int, mu, sigma float64) float64 {
+	return math.Exp(mu + sigma*noise(i))
+}
+
+// noise is a deterministic pseudo-normal deviate: the sum of twelve values from
+// a fixed linear congruential sequence, minus six — the Irwin–Hall
+// approximation, and exactly reproducible.
+func noise(i int) float64 {
+	v := uint64(i)*2862933555777941757 + 3037000493
+	sum := 0.0
+	for range 12 {
+		v = v*6364136223846793005 + 1442695040888963407
+		sum += float64(v>>11) / float64(uint64(1)<<53)
+	}
+	return sum - 6
+}
+
+// s11Sweep is a synthesised reflection measurement: the textbook model of a
+// patch antenna — a parallel RLC resonance behind the inductance of its feed —
+// swept across the band it is resonant in. It stands in for a Touchstone file,
+// which is a data source rather than a chart.
+//
+// The loop it traces is the shape the chart is read for: how tightly the locus
+// curls, and how close to the middle it passes.
+func s11Sweep(n int) (re, im []float64) {
+	const (
+		z0 = 50.0     // the system impedance, in ohms
+		r  = 50.0     // the resonance's shunt resistance
+		l  = 0.663e-9 // henries
+		c  = 6.63e-12 // farads
+		lf = 1.0e-9   // the feed inductance, which tilts the loop
+	)
+	re, im = make([]float64, n), make([]float64, n)
+	for i := range n {
+		f := 2.0e9 + 0.8e9*float64(i)/float64(n-1)
+		w := 2 * math.Pi * f
+		y := complex(1/r, w*c-1/(w*l))
+		z := (complex(0, w*lf) + 1/y) / z0
+		g := (z - 1) / (z + 1)
+		re[i], im[i] = real(g), imag(g)
+	}
+	return re, im
+}
+
+// bestMatch is the index of the sample closest to the middle of the chart,
+// which is the frequency the antenna is actually tuned to. It is the one
+// reading a Smith chart makes that a magnitude plot cannot: where the locus
+// passes, not merely how near it gets.
+func bestMatch(re, im []float64) int {
+	best, at := math.Inf(1), 0
+	for i := range re {
+		if d := math.Hypot(re[i], im[i]); d < best {
+			best, at = d, i
+		}
+	}
+	return at
+}
+
+// bareLayout is the theme a mark that places its own layout wants, for the
+// reason a pie wants one: both its axes describe the unit square, and an axis
+// reading 0 … 1 beside a treemap is a ladder of numbers that mean nothing.
+func bareLayout(t theme.Theme) theme.Theme {
+	return t.With(
+		theme.Grid(false, false),
+		theme.AxisLines(false, false),
+		theme.Ticks(false, false),
+	)
+}
+
+// diskUsage is a small directory tree: one row per node, the node above it, and
+// the size of the leaves. The group column is the top-level directory each row
+// belongs to, so that a subtree is one colour rather than each file its own.
+func diskUsage() figure.Source {
+	return figure.NewTable().
+		String("path", []string{
+			"/", "src", "docs", "test",
+			"geom", "scale", "coord", "render",
+			"guide", "adr",
+			"unit", "golden",
+		}).
+		String("under", []string{
+			"", "/", "/", "/",
+			"src", "src", "src", "src",
+			"docs", "docs",
+			"test", "test",
+		}).
+		String("group", []string{
+			"", "src", "docs", "test",
+			"src", "src", "src", "src",
+			"docs", "docs",
+			"test", "test",
+		}).
+		Float64("kb", []float64{
+			0, 0, 0, 0,
+			420, 180, 260, 310,
+			150, 90,
+			200, 110,
+		})
+}
+
+// requestFlow is where a service's traffic goes: one row per edge, its two ends
+// and how many requests a second run along it.
+func requestFlow() figure.Source {
+	return figure.NewTable().
+		String("from", []string{"web", "web", "mobile", "mobile", "api", "api", "api"}).
+		String("to", []string{"api", "cdn", "api", "cdn", "cache", "db", "search"}).
+		Float64("rps", []float64{620, 180, 340, 120, 500, 300, 160})
+}

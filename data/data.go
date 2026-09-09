@@ -1,0 +1,231 @@
+// Package data is figure's data layer: columnar, batch-oriented access to a
+// table of values.
+//
+// The interface returns whole typed columns, never one value at a time. Scalar
+// access is the single easiest way to make a plotting library slow, and a
+// columnar shape is also what lets a []float64-backed source be borrowed
+// instead of copied.
+package data
+
+import "time"
+
+// Source exposes columnar, batch access to a table.
+//
+// Implementations return read-only views: the caller must not mutate a
+// returned slice, and figure never does. An implementation that already holds
+// its data as a Go slice should return that slice directly rather than
+// copying.
+//
+// # Stability
+//
+// Source is implemented outside this module, so it never gains a method. A
+// fourth column kind — exact integers, booleans, durations — arrives as an
+// optional interface beside it, the way [Subset] did, and a caller that wants
+// one asks for it with a type assertion and falls back when it is absent.
+type Source interface {
+	// Len reports the number of rows. Every column has this length.
+	Len() int
+
+	// Columns lists the available column names. The order is stable across
+	// calls on the same Source.
+	Columns() []string
+
+	// Float64Column returns a numeric column by name. ok is false if the
+	// column does not exist or is not numeric.
+	Float64Column(name string) (data []float64, ok bool)
+
+	// TimeColumn returns a time column by name. ok is false if the column does
+	// not exist or is not temporal.
+	TimeColumn(name string) (data []time.Time, ok bool)
+
+	// StringColumn returns a categorical column by name. ok is false if the
+	// column does not exist or is not textual.
+	StringColumn(name string) (data []string, ok bool)
+}
+
+// Float64Columns builds a Source over the given numeric columns.
+//
+// The slices are borrowed, not copied: the returned Source aliases the caller's
+// memory, and mutating it afterwards mutates what figure will plot. All
+// columns must have the same length; Float64Columns panics otherwise, because
+// a ragged table is a programming error rather than a runtime condition.
+func Float64Columns(cols map[string][]float64) Source {
+	s := &float64Source{cols: cols, names: sortedKeys(cols)}
+	for i, n := range s.names {
+		if i == 0 {
+			s.n = len(cols[n])
+			continue
+		}
+		if len(cols[n]) != s.n {
+			panic("figure/data: Float64Columns: column " + n + " has a different length than " + s.names[0])
+		}
+	}
+	return s
+}
+
+type float64Source struct {
+	cols  map[string][]float64
+	names []string
+	n     int
+}
+
+func (s *float64Source) Len() int          { return s.n }
+func (s *float64Source) Columns() []string { return s.names }
+
+func (s *float64Source) Float64Column(name string) ([]float64, bool) {
+	c, ok := s.cols[name]
+	return c, ok
+}
+
+func (s *float64Source) TimeColumn(string) ([]time.Time, bool) { return nil, false }
+
+func (s *float64Source) StringColumn(string) ([]string, bool) { return nil, false }
+
+// Table is a Source that mixes numeric, temporal and categorical columns.
+//
+// It is the general-purpose implementation: use it when a chart plots time or
+// a category against values, which is the common case for the Time and Ordinal
+// scales.
+type Table struct {
+	nums  map[string][]float64
+	times map[string][]time.Time
+	strs  map[string][]string
+	names []string
+	n     int
+	fixed bool // true once the row count has been established
+
+	// nulls holds a mask per column that has one, and nothing for a column
+	// that does not — see [Table.WithNulls]. A table nobody told about a
+	// null carries no map at all, which is what makes [Table.Nulls] free
+	// for every table written before the interface existed.
+	nulls map[string][]bool
+}
+
+// NewTable returns an empty Table.
+func NewTable() *Table {
+	return &Table{
+		nums:  map[string][]float64{},
+		times: map[string][]time.Time{},
+		strs:  map[string][]string{},
+	}
+}
+
+// Float64 adds a numeric column, borrowing the slice. It returns t so calls
+// can be chained. It panics if the column length disagrees with columns
+// already added, or if the name is already taken.
+func (t *Table) Float64(name string, v []float64) *Table {
+	t.claim(name, len(v))
+	t.nums[name] = v
+	return t
+}
+
+// Time adds a temporal column, borrowing the slice. It returns t so calls can
+// be chained. It panics if the column length disagrees with columns already
+// added, or if the name is already taken.
+func (t *Table) Time(name string, v []time.Time) *Table {
+	t.claim(name, len(v))
+	t.times[name] = v
+	return t
+}
+
+// String adds a categorical column, borrowing the slice. It returns t so calls
+// can be chained. It panics if the column length disagrees with columns
+// already added, or if the name is already taken.
+//
+// Plot such a column against a [scale.Ordinal] axis; a continuous scale has no
+// position for a category name and a geom says so rather than guessing one.
+func (t *Table) String(name string, v []string) *Table {
+	t.claim(name, len(v))
+	t.strs[name] = v
+	return t
+}
+
+func (t *Table) claim(name string, n int) {
+	if _, dup := t.nums[name]; dup {
+		panic("figure/data: duplicate column " + name)
+	}
+	if _, dup := t.times[name]; dup {
+		panic("figure/data: duplicate column " + name)
+	}
+	if _, dup := t.strs[name]; dup {
+		panic("figure/data: duplicate column " + name)
+	}
+	if t.fixed && n != t.n {
+		panic("figure/data: column " + name + " has a different length than the existing columns")
+	}
+	t.n, t.fixed = n, true
+	t.names = append(t.names, name)
+}
+
+// Len reports the number of rows.
+func (t *Table) Len() int { return t.n }
+
+// Columns lists the column names in insertion order.
+func (t *Table) Columns() []string { return t.names }
+
+// Float64Column returns a numeric column by name.
+func (t *Table) Float64Column(name string) ([]float64, bool) {
+	c, ok := t.nums[name]
+	return c, ok
+}
+
+// TimeColumn returns a temporal column by name.
+func (t *Table) TimeColumn(name string) ([]time.Time, bool) {
+	c, ok := t.times[name]
+	return c, ok
+}
+
+// StringColumn returns a categorical column by name.
+func (t *Table) StringColumn(name string) ([]string, bool) {
+	c, ok := t.strs[name]
+	return c, ok
+}
+
+// WithNulls marks rows of an existing column as absent, borrowing the mask. It
+// returns t so calls can be chained. It panics if the column does not exist or
+// the mask is not one flag per row.
+//
+// A text or temporal column needs this because it has no NaN to be missing
+// with: "" is a string somebody may have measured and the zero time is an
+// instant, so absence has to be said beside the values rather than inside
+// them. A numeric column may use it too, and the two spellings agree — a NaN
+// and a marked row are both missing, and neither outranks the other.
+//
+// A mask that marks nothing is not stored: [Nulls] answers "no nulls" either
+// way, and a reader that asked would otherwise copy a column to change none of
+// it.
+func (t *Table) WithNulls(name string, null []bool) *Table {
+	if !t.has(name) {
+		panic("figure/data: no column " + name + " to mark null")
+	}
+	if len(null) != t.n {
+		panic("figure/data: null mask for column " + name + " has a different length than the columns")
+	}
+	if !AnyNull(null) {
+		return t
+	}
+	if t.nulls == nil {
+		t.nulls = map[string][]bool{}
+	}
+	t.nulls[name] = null
+	return t
+}
+
+// Nulls implements [Nulls]. ok is false for a column with no nulls, which is
+// every column of a table that was never told about one.
+func (t *Table) Nulls(name string) ([]bool, bool) {
+	c, ok := t.nulls[name]
+	return c, ok
+}
+
+// has reports whether the table carries a column of that name, of any type.
+func (t *Table) has(name string) bool {
+	if _, ok := t.nums[name]; ok {
+		return true
+	}
+	if _, ok := t.times[name]; ok {
+		return true
+	}
+	_, ok := t.strs[name]
+	return ok
+}

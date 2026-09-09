@@ -1,0 +1,494 @@
+package figure_test
+
+import (
+	"bytes"
+	"errors"
+	"flag"
+	"math"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/timzifer/figure"
+	"github.com/timzifer/figure/backend/svg"
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/internal/svgdiff"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/palette"
+	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/theme"
+)
+
+var update = flag.Bool("update", false, "rewrite the golden SVG files")
+
+// golden compares an SVG render against testdata/golden/<name>.svg.
+//
+// Golden files are written in pretty mode, one element per line, so that a
+// failure shows up as a handful of changed lines in a diff rather than as one
+// enormous line.
+//
+// Everything except numbers is compared byte for byte; coordinates are allowed
+// to differ by a hundredth of a pixel. That is not slack for sloppy rendering —
+// it is the width of a float32 unit in the last place, which arm64 and amd64
+// genuinely disagree about because Go contracts a*b+c into an FMA on one and
+// not the other. See internal/svgdiff for the full reasoning.
+func golden(t *testing.T, name string, p *figure.Plot) {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := p.Render(figure.SVGWriter(&buf, svg.Pretty())); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := buf.Bytes()
+
+	path := filepath.Join("testdata", "golden", name+".svg")
+	if *update {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("updated %s", path)
+		return
+	}
+
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%v (run `go test ./... -update` to create it)", err)
+	}
+	if ok, why := svgdiff.Equal(got, want, svgdiff.DefaultTolerance); !ok {
+		t.Errorf("%s differs from the golden file: %s", name, why)
+	}
+}
+
+// --- the charts ----------------------------------------------------------
+
+func TestGoldenLineChart(t *testing.T) {
+	xs := ramp(0, 10, 40)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"y": apply(xs, func(v float64) float64 { return math.Sin(v) }),
+	})
+	p := figure.New(
+		figure.Size(640, 400),
+		figure.Title("Sine"),
+		figure.XTitle("x"),
+		figure.YTitle("sin x"),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Blue)))
+	golden(t, "line", p)
+}
+
+func TestGoldenMultiSeriesWithLegend(t *testing.T) {
+	xs := ramp(0, 4, 25)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"a": apply(xs, func(v float64) float64 { return v }),
+		"b": apply(xs, func(v float64) float64 { return v * v }),
+	})
+	p := figure.New(figure.Size(640, 400), figure.Title("Two series"))
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+	p.Add(
+		geom.Line(src, geom.X("x"), geom.Y("a"), geom.Label("linear")),
+		geom.Line(src, geom.X("x"), geom.Y("b"), geom.Label("square"), geom.Dash(5, 3)),
+	)
+	golden(t, "legend", p)
+}
+
+func TestGoldenScatterAndBars(t *testing.T) {
+	t.Run("scatter", func(t *testing.T) {
+		xs := ramp(0, 6, 20)
+		src := figure.Float64Columns(map[string][]float64{
+			"x": xs,
+			"y": apply(xs, func(v float64) float64 { return math.Cos(v) }),
+		})
+		p := figure.New(figure.Size(480, 320), figure.Title("Scatter"))
+		p.Add(geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Shape(ir.MarkerDiamond)))
+		golden(t, "scatter", p)
+	})
+
+	t.Run("bars", func(t *testing.T) {
+		src := figure.Float64Columns(map[string][]float64{
+			"x": {1, 2, 3, 4, 5},
+			"y": {3, 7, 4, 9, 6},
+		})
+		p := figure.New(figure.Size(480, 320), figure.Title("Bars"))
+		p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+		p.Add(geom.Bar(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Green)))
+		golden(t, "bars", p)
+	})
+}
+
+func TestGoldenTimeAxisDarkTheme(t *testing.T) {
+	const n = 120
+	start := time.Date(2026, time.March, 14, 9, 0, 0, 0, time.UTC)
+	times := make([]time.Time, n)
+	values := make([]float64, n)
+	for i := range n {
+		times[i] = start.Add(time.Duration(i) * 30 * time.Second)
+		x := float64(i) / n
+		values[i] = math.Exp(-2*x) * math.Sin(8*math.Pi*x)
+	}
+	src := figure.NewTable().Time("t", times).Float64("y", values)
+
+	p := figure.New(
+		figure.Theme(theme.Dark),
+		figure.Size(720, 400),
+		figure.Title("Signal"),
+		figure.YTitle("amplitude"),
+	)
+	p.X(scale.Time())
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(src, geom.X("t"), geom.Y("y"), geom.Color(palette.SkyBlue), geom.Tension(0.4)))
+	golden(t, "time-dark", p)
+}
+
+func TestGoldenAreaBand(t *testing.T) {
+	xs := ramp(0, 8, 40)
+	src := figure.Float64Columns(map[string][]float64{
+		"x":  xs,
+		"lo": apply(xs, func(v float64) float64 { return math.Sin(v) - 0.4 - 0.05*v }),
+		"hi": apply(xs, func(v float64) float64 { return math.Sin(v) + 0.4 + 0.05*v }),
+		"y":  apply(xs, func(v float64) float64 { return math.Sin(v) }),
+	})
+	p := figure.New(
+		figure.Size(640, 400),
+		figure.Title("Estimate and interval"),
+		figure.Legend(false),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(
+		geom.Area(src, geom.X("x"), geom.Y("hi"), geom.Y2("lo"),
+			geom.Color(palette.SkyBlue), geom.Width(1)),
+		geom.Line(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Blue)),
+	)
+	golden(t, "area", p)
+}
+
+func TestGoldenStepChart(t *testing.T) {
+	src := figure.Float64Columns(map[string][]float64{
+		"t": {0, 1, 2, 3, 4, 5, 6, 7},
+		"n": {2, 2, 5, 4, 4, 7, 3, 3},
+	})
+	p := figure.New(
+		figure.Size(560, 340),
+		figure.Title("Workers"),
+		figure.XTitle("hour"),
+	)
+	p.X(scale.Linear())
+	p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+	p.Add(geom.Step(src, geom.X("t"), geom.Y("n"), geom.Color(palette.Vermilion)))
+	golden(t, "step", p)
+}
+
+func TestGoldenLogAxis(t *testing.T) {
+	xs := ramp(0, 12, 60)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"y": apply(xs, func(v float64) float64 { return math.Exp(v * 0.8) }),
+	})
+	p := figure.New(
+		figure.Size(600, 400),
+		figure.Theme(theme.Dark),
+		figure.Title("Growth"),
+		figure.YTitle("requests"),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Log(scale.LogNice()))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Green)))
+	golden(t, "log", p)
+}
+
+func TestGoldenSymLogAxis(t *testing.T) {
+	xs := ramp(-6, 6, 49)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"y": apply(xs, func(v float64) float64 { return math.Copysign(math.Expm1(math.Abs(v)), v) }),
+	})
+	p := figure.New(
+		figure.Size(600, 400),
+		figure.Title("Signed residual"),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.SymLog(scale.SymLogThreshold(1)))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y"), geom.Color(palette.Purple)))
+	golden(t, "symlog", p)
+}
+
+func TestGoldenCategoricalBars(t *testing.T) {
+	src := figure.NewTable().
+		String("region", []string{"north", "south", "east", "west", "central"}).
+		Float64("sales", []float64{18, 42, 31, 25, 37})
+
+	p := figure.New(
+		figure.Size(560, 360),
+		figure.Title("Sales by region"),
+		figure.YTitle("k€"),
+	)
+	p.X(scale.Ordinal())
+	p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+	p.Add(geom.Bar(src, geom.X("region"), geom.Y("sales"),
+		geom.ColorBy("sales", scale.Sequential(palette.Viridis))))
+	golden(t, "categories", p)
+}
+
+func TestGoldenBoxplot(t *testing.T) {
+	groups := []string{"alpha", "beta", "gamma"}
+	var keys []string
+	var vals []float64
+	for g, name := range groups {
+		for i := range 24 {
+			// A fixed recurrence rather than math/rand, so the golden file is
+			// stable across Go releases.
+			t := float64(i) / 24
+			v := 10 + float64(g)*4 + 6*math.Sin(9*t+float64(g)) + 2*math.Sin(37*t)
+			keys, vals = append(keys, name), append(vals, v)
+		}
+		keys, vals = append(keys, name), append(vals, 30+float64(g))
+	}
+	src := figure.NewTable().String("group", keys).Float64("latency", vals)
+
+	p := figure.New(
+		figure.Size(560, 380),
+		figure.Title("Latency by cohort"),
+		figure.YTitle("ms"),
+	)
+	p.X(scale.Ordinal())
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Boxplot(src, geom.X("group"), geom.Y("latency"), geom.Color(palette.Blue)))
+	golden(t, "boxplot", p)
+}
+
+// --- behaviour -----------------------------------------------------------
+
+func TestRenderIsRepeatable(t *testing.T) {
+	src := figure.Float64Columns(map[string][]float64{"x": {0, 1, 2}, "y": {1, 3, 2}})
+	p := figure.New(figure.Size(300, 200), figure.Title("Repeat"))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
+
+	var a, b bytes.Buffer
+	if err := p.Render(figure.SVGWriter(&a)); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Render(figure.SVGWriter(&b)); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a.Bytes(), b.Bytes()) {
+		t.Fatal("rendering the same plot twice produced different output")
+	}
+}
+
+func TestRenderToFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "chart.svg")
+	src := figure.Float64Columns(map[string][]float64{"x": {0, 1}, "y": {0, 1}})
+	p := figure.New(figure.Size(200, 150))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
+
+	if err := p.Render(figure.SVG(path)); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the file was not written: %v", err)
+	}
+	if !bytes.HasSuffix(b, []byte("</svg>")) {
+		t.Fatal("the file on disk is not a complete document — Render must close the target")
+	}
+}
+
+func TestLegendAppearsAutomaticallyForMultipleLayers(t *testing.T) {
+	src := figure.Float64Columns(map[string][]float64{"x": {0, 1}, "a": {0, 1}, "b": {1, 0}})
+
+	one := figure.New(figure.Size(400, 300))
+	one.Add(geom.Line(src, geom.X("x"), geom.Y("a")))
+
+	two := figure.New(figure.Size(400, 300))
+	two.Add(
+		geom.Line(src, geom.X("x"), geom.Y("a")),
+		geom.Line(src, geom.X("x"), geom.Y("b")),
+	)
+
+	if strings.Contains(renderString(t, one), ">a<") {
+		t.Error("a single-layer plot should not draw a legend by default")
+	}
+	if !strings.Contains(renderString(t, two), ">a<") {
+		t.Error("a multi-layer plot should draw a legend by default")
+	}
+}
+
+func TestLegendCanBeForcedOff(t *testing.T) {
+	src := figure.Float64Columns(map[string][]float64{"x": {0, 1}, "a": {0, 1}, "b": {1, 0}})
+	p := figure.New(figure.Size(400, 300), figure.Legend(false))
+	p.Add(
+		geom.Line(src, geom.X("x"), geom.Y("a")),
+		geom.Line(src, geom.X("x"), geom.Y("b")),
+	)
+	if strings.Contains(renderString(t, p), ">a<") {
+		t.Error("Legend(false) did not suppress the legend")
+	}
+}
+
+func TestErrorsSurface(t *testing.T) {
+	t.Run("nil target", func(t *testing.T) {
+		if err := figure.New().Render(nil); err == nil {
+			t.Fatal("want an error")
+		}
+	})
+	t.Run("empty plot", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := figure.New().Render(figure.SVGWriter(&buf)); !errors.Is(err, figure.ErrNoLayers) {
+			t.Fatalf("err = %v, want ErrNoLayers", err)
+		}
+	})
+	t.Run("bad column", func(t *testing.T) {
+		src := figure.Float64Columns(map[string][]float64{"x": {1}})
+		p := figure.New()
+		p.Add(geom.Line(src, geom.X("x"), geom.Y("nope")))
+		var buf bytes.Buffer
+		if err := p.Render(figure.SVGWriter(&buf)); err == nil {
+			t.Fatal("want an error naming the missing column")
+		}
+	})
+	t.Run("unwritable file", func(t *testing.T) {
+		src := figure.Float64Columns(map[string][]float64{"x": {0, 1}, "y": {0, 1}})
+		p := figure.New()
+		p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
+		// A directory that does not exist cannot be created implicitly.
+		bad := filepath.Join(t.TempDir(), "no-such-dir", "chart.svg")
+		if err := p.Render(figure.SVG(bad)); err == nil {
+			t.Fatal("want an error")
+		}
+	})
+}
+
+func TestDefaultScalesAreLinear(t *testing.T) {
+	src := figure.Float64Columns(map[string][]float64{"x": {0, 1, 2}, "y": {0, 5, 10}})
+	p := figure.New(figure.Size(400, 300))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
+	// The step lands on 2.5, so every label in the column carries one decimal.
+	if got := renderString(t, p); !strings.Contains(got, ">10.0<") {
+		t.Errorf("expected a tick at 10 from the default linear scale:\n%s", got)
+	}
+}
+
+// --- helpers -------------------------------------------------------------
+
+func renderString(t *testing.T, p *figure.Plot) string {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := p.Render(figure.SVGWriter(&buf)); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	return buf.String()
+}
+
+func ramp(lo, hi float64, n int) []float64 {
+	out := make([]float64, n)
+	for i := range out {
+		out[i] = lo + (hi-lo)*float64(i)/float64(n-1)
+	}
+	return out
+}
+
+func apply(xs []float64, fn func(float64) float64) []float64 {
+	out := make([]float64, len(xs))
+	for i, x := range xs {
+		out[i] = fn(x)
+	}
+	return out
+}
+
+func TestGoldenThresholdLine(t *testing.T) {
+	xs := ramp(0, 12, 60)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"y": apply(xs, func(v float64) float64 { return 100 + 40*math.Sin(v) }),
+	})
+	p := figure.New(
+		figure.Size(640, 400),
+		figure.Title("Latency against its budget"),
+		figure.XTitle("minute"),
+		figure.YTitle("ms"),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice()))
+	// The band says where the limit is; the line says when it was over it.
+	p.Add(
+		geom.HBand(120, 140, geom.Extend(false)),
+		geom.Line(src, geom.X("x"), geom.Y("y"),
+			geom.ColorBy("y", scale.Threshold(
+				palette.Ramp{palette.Blue, palette.Orange, palette.Red},
+				[]float64{110, 120},
+			))),
+	)
+	golden(t, "line-threshold", p)
+}
+
+func TestGoldenStatusStep(t *testing.T) {
+	src := figure.NewTable().
+		Float64("minute", []float64{0, 3, 5, 9, 12, 16, 20}).
+		Float64("rate", []float64{80, 80, 0, 0, 55, 55, 80}).
+		String("state", []string{"RUN", "RUN", "FAULT", "FAULT", "WARTUNG", "WARTUNG", "RUN"})
+	p := figure.New(
+		figure.Size(640, 400),
+		figure.Title("Line 3, by machine state"),
+		figure.XTitle("minute"),
+		figure.YTitle("parts/min"),
+	)
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice(), scale.Zero()))
+	p.Add(geom.Step(src, geom.X("minute"), geom.Y("rate"),
+		geom.ColorBy("state", scale.Named(map[string]ir.Color{
+			"RUN":     palette.Green,
+			"FAULT":   palette.Red,
+			"WARTUNG": palette.Orange,
+		}))))
+	golden(t, "step-status", p)
+}
+
+// TestOneLayerPaintedFromCategoriesGetsALegend. A layer coloured per mark from
+// a discrete scale is several series in everything but name — the colour is
+// the only thing saying which mark is which category — and nothing but the
+// legend names them.
+func TestOneLayerPaintedFromCategoriesGetsALegend(t *testing.T) {
+	src := figure.NewTable().
+		Float64("x", []float64{0, 1, 2, 3}).
+		Float64("y", []float64{1, 2, 3, 4}).
+		Float64("load", []float64{1, 2, 3, 4}).
+		String("state", []string{"running", "running", "fault", "fault"})
+
+	p := figure.New(figure.Size(400, 300))
+	p.X(scale.Linear())
+	p.Y(scale.Linear())
+	p.Add(geom.Step(src, geom.X("x"), geom.Y("y"),
+		geom.ColorBy("state", scale.Named(map[string]ir.Color{
+			"running": palette.Green,
+			"fault":   palette.Red,
+		}))))
+	got := renderString(t, p)
+	for _, want := range []string{">running<", ">fault<"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the chart does not name %s", want)
+		}
+	}
+
+	// A classed scale is not this case: it contributes a colourbar, which
+	// names itself, so the default stays off.
+	q := figure.New(figure.Size(400, 300))
+	q.X(scale.Linear())
+	q.Y(scale.Linear())
+	q.Add(geom.Line(src, geom.X("x"), geom.Y("y"),
+		geom.ColorBy("load", scale.Threshold(palette.Viridis, []float64{2.5}))))
+	// The colourbar is titled after the colour column; a legend row would be
+	// titled after the Y column, which nothing else in this chart writes.
+	if strings.Contains(renderString(t, q), ">y<") {
+		t.Error("a classed line grew a legend entry beside its colourbar")
+	}
+}

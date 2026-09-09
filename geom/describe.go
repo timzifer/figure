@@ -1,0 +1,680 @@
+package geom
+
+import (
+	"fmt"
+
+	"github.com/timzifer/figure/data"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/scale"
+)
+
+// Mark names what a layer draws. It is the one word that decides which
+// constructor built a layer, and the hinge a serialized chart turns on.
+type Mark string
+
+// The marks. These are figure's own names for its layers; the JSON spec
+// translates them into its own vocabulary rather than the other way round, so
+// that this package stays ignorant of any wire format.
+const (
+	MarkLine    Mark = "line"
+	MarkScatter Mark = "scatter"
+	MarkBar     Mark = "bar"
+	MarkArea    Mark = "area"
+	MarkStep    Mark = "step"
+	MarkBoxplot Mark = "boxplot"
+	MarkRect    Mark = "rect"
+	MarkText    Mark = "text"
+
+	// The distribution marks. Each of them replaces the rows with a summary of
+	// where they are, so each of them decides one of its own axes: a histogram
+	// and a hexbin count, a violin and a ridgeline estimate a density, an ECDF
+	// accumulates, a trend fits. See package
+	// github.com/timzifer/figure/stat.
+	MarkHistogram Mark = "histogram"
+	MarkViolin    Mark = "violin"
+	MarkRidgeline Mark = "ridgeline"
+	MarkHexbin    Mark = "hexbin"
+	MarkBeeswarm  Mark = "beeswarm"
+	MarkECDF      Mark = "ecdf"
+	MarkQQ        Mark = "qq"
+	MarkTrend     Mark = "trend"
+
+	// The relational and hierarchical marks. Each reads an edge table rather
+	// than a pair of axes, and each places its own layout in the unit square —
+	// which is what lets the coordinate stage decide what it looks like. An
+	// icicle under a polar coord is a sunburst, and an arc diagram under one is
+	// a chord diagram; neither is a mark of its own. See
+	// docs/adr/0039-relational-layouts.md.
+	MarkTreemap Mark = "treemap"
+	MarkIcicle  Mark = "icicle"
+	MarkSankey  Mark = "sankey"
+	// MarkArc is the arc diagram, and it is spelled out rather than "arc"
+	// because Vega-Lite's arc is a pie wedge — a document naming that would
+	// round-trip into a mark this package cannot rebuild.
+	MarkArc Mark = "arc-diagram"
+
+	// MarkErrorBar is the interval mark: a rule between two bounds, with a cap
+	// at each end and a marker at the measurement.
+	MarkErrorBar Mark = "errorbar"
+
+	MarkHLine   Mark = "hline"
+	MarkVLine   Mark = "vline"
+	MarkHBand   Mark = "hband"
+	MarkVBand   Mark = "vband"
+	MarkSegment Mark = "segment"
+	MarkRegion  Mark = "region"
+	MarkNote    Mark = "note"
+)
+
+// Datum carries the values an annotation is placed by. A rule uses X0 or Y0
+// alone, a band a pair on one axis, a segment and a region all four.
+type Datum struct {
+	X0, Y0, X1, Y1 float64
+}
+
+// Desc is a layer reduced to what configures it: its mark, its data, the
+// columns it reads and the options it was given.
+//
+// It exists so that a chart can be written down and read back. A [Geom] is an
+// interface with three methods and no way to ask it what it is, which is right
+// for drawing and useless for serialization — so every layer in this package
+// answers [Describer], and [FromDesc] turns the answer back into a layer that
+// draws the same marks.
+//
+// A field left at its zero value means "not set", exactly as leaving the
+// corresponding [Option] out does. The fields that have a non-zero default —
+// BarWidth, Whisker, Outliers, Opacity, Extend — are filled in by [Describe]
+// with the default the layer is actually using, so a Desc is complete rather
+// than partial.
+type Desc struct {
+	// Mark is what the layer draws.
+	Mark Mark
+	// Source is the layer's data. It is nil for an annotation, which takes
+	// values rather than columns.
+	Source data.Source
+
+	// X, Y, X2 and Y2 name the columns mapped to the axes. ColorCol and
+	// ColorScale are [ColorBy]'s two halves.
+	X, Y, X2, Y2 string
+	ColorCol     string
+	ColorScale   scale.ColorScale
+
+	// Group names the series column, and Stack, Dodge, DodgePad, Order and
+	// WidthCol are the position adjustment defined over it.
+	//
+	// Stack carries the adjustment the layer is actually using rather than the
+	// one it was given — a grouped bar that was told nothing stacks, and a
+	// Desc that said NoStack for one would describe a different chart — and
+	// StackSet reports whether the layer chose it. The pair is [Dash] and
+	// DashSet again, and for the same reason: NoStack is both the zero value
+	// and an adjustment somebody may have asked for, and without the flag a
+	// round trip through the spec would turn a grouped bar's default into a
+	// pinned "do not stack".
+	Group    string
+	Stack    Stacking
+	StackSet bool
+	Dodge    bool
+	DodgePad float64
+	Order    Ordering
+	WidthCol string
+
+	// Key is the column that identifies a row across renders, from [KeyBy].
+	// Nothing in this package reads it; it is carried so that the layer can be
+	// written down and read back with the identity it was given.
+	Key string
+
+	// SizeCol and SizeScale are [SizeBy]'s two halves: the column each mark
+	// takes its size from, and the scale that turns a value into a diameter.
+	SizeCol   string
+	SizeScale scale.SizeScale
+
+	// Bins, BinLo and BinHi configure a [Histogram]: how many bins and over
+	// what interval. Zero and an empty interval mean the layer chooses.
+	Bins         int
+	BinLo, BinHi float64
+	// Bandwidth is the kernel width a [Violin] or a [Ridgeline] estimates with,
+	// Span the fraction of the rows one local fit of a [Trend] sees, Smooth how
+	// it fits, and Overlap how far a ridge rises. Each carries the value the
+	// layer is actually using.
+	Bandwidth float64
+	Span      float64
+	Smooth    Smoothing
+	Overlap   float64
+
+	// Explode is how far the layer's marks are broken out of the middle of the
+	// coord, as a fraction of its outer radius, and ExplodeCol the column that
+	// answers it per row. Zero and "" are a layer that stays where it is.
+	Explode    float64
+	ExplodeCol string
+
+	// From and To name an edge's two ends, ID and Parent a hierarchy's, and
+	// Value the magnitude of either. They are what a relational or
+	// hierarchical mark reads instead of X and Y — see [From] and [ID] for why
+	// the two pairs are spelled apart.
+	From, To      string
+	ID, ParentCol string
+	ValueCol      string
+	// Padding is the gap between the shapes such a layout places, as a
+	// fraction of the plot, and Thickness how much of its slot a node fills.
+	// Both are zero when the layer left them to the mark.
+	Padding   float64
+	Thickness float64
+
+	// Label names the layer in the legend.
+	Label string
+
+	// Datum places an annotation, and Text is a note's text. Both are unused
+	// by a layer that has a Source.
+	Datum Datum
+	Text  string
+
+	// TextCol is the column a [Text] layer reads its labels from, and Elide
+	// whether it truncates one that does not fit rather than dropping it.
+	// Both are unused by a layer that draws no text.
+	TextCol string
+	Elide   bool
+	// AvoidOverlap opts a text layer into panel-local collision avoidance.
+	AvoidOverlap bool
+
+	// The styling options, one field per [Option]. A nil Color or Fill means
+	// the layer takes its colour from the palette.
+	Color   *ir.Color
+	Fill    *ir.Color
+	Width   float32
+	Dash    []float32
+	DashSet bool
+	Tension float64
+	Missing Missing
+	// Marker is the shape a scatter draws, and MarkerSet reports whether the
+	// layer chose it. The pair is [Dash] and DashSet again, and for the same
+	// reason: a circle is both the zero value and a shape somebody may have
+	// asked for, and a theme's redundant encoding replaces the first but not
+	// the second.
+	Marker    ir.Marker
+	MarkerSet bool
+	// Closed reports a connected layer that joins its last mark back to its
+	// first — the radar contour of [Closed].
+	Closed bool
+	// OnY2 and OnX2 report a layer bound to the chart's secondary vertical or
+	// horizontal axis. They are independent: a layer may be on both. See
+	// [OnY2] and [OnX2].
+	OnY2     bool
+	OnX2     bool
+	Size     float32
+	BarWidth float64
+	Baseline float64
+	Opacity  float64
+	Steps    StepPos
+	Whisker  float64
+	Outliers bool
+	// MidCol is the column an [ErrorBar] marks its measurement at, ErrorCol
+	// and ErrorXCol the half-widths of a symmetric interval on each axis, and
+	// Caps whether the ends carry a crossbar. Caps needs no companion flag
+	// the way [Desc.DashSet] does: it defaults to true rather than to its zero
+	// value, so a document that says nothing and one that says false are
+	// already different.
+	MidCol    string
+	ErrorCol  string
+	ErrorXCol string
+	Caps      bool
+	Decimate  Decimation
+	Budget    int
+	CellSize  float64
+	FontSize  float64
+	HAlign    ir.HAlign
+	VAlign    ir.VAlign
+	// AlignSet is whether the layer was told how to align its text. The start
+	// of a run on the baseline is both the zero value and an alignment
+	// somebody may have asked for, and a [Text] layer centres a label in its
+	// box when nobody has — so without the flag a round trip would turn that
+	// default into a pinned left edge, exactly as it would for DashSet.
+	AlignSet bool
+	Rotation float64
+	Extend   bool
+
+	// Extra is what a third-party mark's own options set — see [Extra]. It is
+	// nil for a layer configured entirely from this package's options, and
+	// what the JSON spec carries as the mark's own properties for a mark this
+	// package did not define.
+	Extra map[string]any
+}
+
+// Describer is implemented by a layer that can say what it is.
+//
+// It is an optional interface, like [Faceter] and [Guided]: a third-party geom
+// that does not implement it still draws, and is simply not serializable. That
+// is a better failure than a half-written spec — see
+// [github.com/timzifer/figure/spec].
+type Describer interface {
+	// Describe returns the layer's configuration.
+	Describe() Desc
+}
+
+// Describe reports g's configuration, or ok == false if g cannot describe
+// itself.
+func Describe(g Geom) (Desc, bool) {
+	d, ok := g.(Describer)
+	if !ok {
+		return Desc{}, false
+	}
+	return d.Describe(), true
+}
+
+// ErrUnknownMark reports a Desc naming a mark this package does not have.
+var ErrUnknownMark = fmt.Errorf("figure/geom: unknown mark")
+
+// FromDesc builds the layer d describes.
+//
+// It is the inverse of [Describe] over every layer in this package: describing
+// a layer and rebuilding it produces one that draws the same marks. A layer
+// with data needs a Source; an annotation ignores one. A mark this package
+// does not define is built by whoever registered it — see [Register] — and
+// one nobody did is [ErrUnknownMark].
+func FromDesc(d Desc) (Geom, error) {
+	opts := d.options()
+	switch d.Mark {
+	case MarkHLine:
+		return HLine(d.Datum.Y0, opts...), nil
+	case MarkVLine:
+		return VLine(d.Datum.X0, opts...), nil
+	case MarkHBand:
+		return HBand(d.Datum.Y0, d.Datum.Y1, opts...), nil
+	case MarkVBand:
+		return VBand(d.Datum.X0, d.Datum.X1, opts...), nil
+	case MarkSegment:
+		return Segment(d.Datum.X0, d.Datum.Y0, d.Datum.X1, d.Datum.Y1, opts...), nil
+	case MarkRegion:
+		return Region(d.Datum.X0, d.Datum.Y0, d.Datum.X1, d.Datum.Y1, opts...), nil
+	case MarkNote:
+		return Note(d.Datum.X0, d.Datum.Y0, d.Text, opts...), nil
+	}
+
+	if build, ok := registered(d.Mark); ok {
+		// A registered mark decides for itself whether it needs a source.
+		return build(d)
+	}
+
+	if d.Source == nil {
+		return nil, fmt.Errorf("figure/geom: a %s layer needs a data source", d.Mark)
+	}
+	switch d.Mark {
+	case MarkLine:
+		return Line(d.Source, opts...), nil
+	case MarkScatter:
+		return Scatter(d.Source, opts...), nil
+	case MarkBar:
+		return Bar(d.Source, opts...), nil
+	case MarkArea:
+		return Area(d.Source, opts...), nil
+	case MarkStep:
+		return Step(d.Source, opts...), nil
+	case MarkBoxplot:
+		return Boxplot(d.Source, opts...), nil
+	case MarkText:
+		return Text(d.Source, opts...), nil
+	case MarkRect:
+		return Rect(d.Source, opts...), nil
+	case MarkHistogram:
+		return Histogram(d.Source, opts...), nil
+	case MarkViolin:
+		return Violin(d.Source, opts...), nil
+	case MarkRidgeline:
+		return Ridgeline(d.Source, opts...), nil
+	case MarkHexbin:
+		return Hexbin(d.Source, opts...), nil
+	case MarkBeeswarm:
+		return Beeswarm(d.Source, opts...), nil
+	case MarkECDF:
+		return ECDF(d.Source, opts...), nil
+	case MarkQQ:
+		return QQ(d.Source, opts...), nil
+	case MarkTrend:
+		return Trend(d.Source, opts...), nil
+	case MarkErrorBar:
+		return ErrorBar(d.Source, opts...), nil
+	case MarkTreemap:
+		return Treemap(d.Source, opts...), nil
+	case MarkIcicle:
+		return Icicle(d.Source, opts...), nil
+	case MarkSankey:
+		return Sankey(d.Source, opts...), nil
+	case MarkArc:
+		return Arc(d.Source, opts...), nil
+	}
+	return nil, fmt.Errorf("%w: %q", ErrUnknownMark, d.Mark)
+}
+
+// options turns a Desc back into the option list that would have produced it.
+//
+// Every option is applied rather than only the ones that differ from a
+// default: an option set to its default value is the default value, and
+// filtering would only be a second place for the defaults to be written down.
+func (d Desc) options() []Option {
+	opts := []Option{
+		OnMissing(d.Missing),
+		Size(d.Size),
+		Width(d.Width),
+		Tension(d.Tension),
+		BarWidth(d.BarWidth),
+		Baseline(d.Baseline),
+		Padding(d.Padding),
+		Thickness(d.Thickness),
+		Opacity(d.Opacity),
+		Steps(d.Steps),
+		Whisker(d.Whisker),
+		Outliers(d.Outliers),
+		Caps(d.Caps),
+		Decimate(d.Decimate),
+		Budget(d.Budget),
+		DensityCells(d.CellSize),
+		FontSize(d.FontSize),
+		Rotate(d.Rotation),
+		Extend(d.Extend),
+		Order(d.Order),
+		Closed(d.Closed),
+		onSecondary(d.OnY2, d.OnX2),
+		Bins(d.Bins),
+		BinRange(d.BinLo, d.BinHi),
+		Bandwidth(d.Bandwidth),
+		Span(d.Span),
+		Smooth(d.Smooth),
+		Overlap(d.Overlap),
+		Elide(d.Elide),
+		AvoidOverlap(d.AvoidOverlap),
+	}
+	if d.StackSet {
+		opts = append(opts, Stack(d.Stack))
+	}
+	if d.Dodge {
+		opts = append(opts, Dodge(d.DodgePad))
+	}
+	if d.X != "" {
+		opts = append(opts, X(d.X))
+	}
+	if d.Y != "" {
+		opts = append(opts, Y(d.Y))
+	}
+	if d.X2 != "" {
+		opts = append(opts, X2(d.X2))
+	}
+	if d.Y2 != "" {
+		opts = append(opts, Y2(d.Y2))
+	}
+	if d.Group != "" {
+		opts = append(opts, GroupBy(d.Group))
+	}
+	if d.Key != "" {
+		opts = append(opts, KeyBy(d.Key))
+	}
+	if d.From != "" {
+		opts = append(opts, From(d.From))
+	}
+	if d.To != "" {
+		opts = append(opts, To(d.To))
+	}
+	if d.ID != "" {
+		opts = append(opts, ID(d.ID))
+	}
+	if d.ParentCol != "" {
+		opts = append(opts, Parent(d.ParentCol))
+	}
+	if d.ValueCol != "" {
+		opts = append(opts, Value(d.ValueCol))
+	}
+	if d.WidthCol != "" {
+		opts = append(opts, WidthBy(d.WidthCol))
+	}
+	if d.Explode != 0 {
+		opts = append(opts, Explode(d.Explode))
+	}
+	if d.ExplodeCol != "" {
+		opts = append(opts, ExplodeBy(d.ExplodeCol))
+	}
+	if d.Label != "" {
+		opts = append(opts, Label(d.Label))
+	}
+	if d.TextCol != "" {
+		opts = append(opts, TextBy(d.TextCol))
+	}
+	if d.MidCol != "" {
+		opts = append(opts, Mid(d.MidCol))
+	}
+	if d.ErrorCol != "" {
+		opts = append(opts, ErrorBy(d.ErrorCol))
+	}
+	if d.ErrorXCol != "" {
+		opts = append(opts, ErrorXBy(d.ErrorXCol))
+	}
+	if d.Color != nil {
+		opts = append(opts, Color(*d.Color))
+	}
+	if d.Fill != nil {
+		opts = append(opts, Fill(*d.Fill))
+	}
+	if d.DashSet {
+		opts = append(opts, Dash(d.Dash...))
+	}
+	if d.MarkerSet {
+		opts = append(opts, Shape(d.Marker))
+	}
+	if d.AlignSet {
+		opts = append(opts, Align(d.HAlign, d.VAlign))
+	}
+	if d.ColorCol != "" && d.ColorScale != nil {
+		opts = append(opts, ColorBy(d.ColorCol, d.ColorScale))
+	}
+	if d.SizeCol != "" && d.SizeScale != nil {
+		opts = append(opts, SizeBy(d.SizeCol, d.SizeScale))
+	}
+	for _, k := range sortedKeys(d.Extra) {
+		opts = append(opts, Extra(k, d.Extra[k]))
+	}
+	return opts
+}
+
+// describe fills in everything a Desc takes from the shared option set. Each
+// layer adds its mark, its source and — for an annotation — its values.
+//
+// The stack is the mark's own default rather than the option's zero value,
+// which is why this takes the default: [Bar] and [Area] stack a grouped layer
+// that was told nothing, and a description that reported NoStack for one would
+// read back as a chart that draws its series on top of each other.
+func (c config) describe(mark Mark) Desc {
+	return c.describeStacking(mark, NoStack)
+}
+
+func (c config) describeStacking(mark Mark, def Stacking) Desc {
+	return Desc{
+		Mark:       mark,
+		X:          c.xcol,
+		Y:          c.ycol,
+		X2:         c.x2col,
+		Y2:         c.y2col,
+		ColorCol:   c.colorCol,
+		ColorScale: c.colorScale,
+		SizeCol:    c.sizeCol,
+		SizeScale:  c.sizeScale,
+		Bins:       c.bins,
+		BinLo:      c.binLo,
+		BinHi:      c.binHi,
+		Bandwidth:  c.bandwidth,
+		Span:       c.span,
+		Smooth:     c.smooth,
+		Overlap:    c.overlap,
+		Group:      c.groupCol,
+		Key:        c.keyCol,
+		Stack:      c.stackFor(def),
+		StackSet:   c.stackSet,
+		Dodge:      c.dodge,
+		DodgePad:   c.dodgePad,
+		Order:      c.order,
+		WidthCol:   c.widthCol,
+		From:       c.fromCol,
+		To:         c.toCol,
+		ID:         c.idCol,
+		ParentCol:  c.parentCol,
+		ValueCol:   c.valCol,
+		Padding:    c.padding,
+		Thickness:  c.thickness,
+		Explode:    c.explode,
+		ExplodeCol: c.explodeCol,
+		Label:      c.label,
+		TextCol:    c.textCol,
+		Elide:      c.elide,
+		Color:      c.color,
+		Fill:       c.fill,
+		Width:      c.width,
+		Dash:       c.dash,
+		DashSet:    c.dashSet,
+		Tension:    c.tension,
+		Missing:    c.missing,
+		Marker:     c.marker,
+		MarkerSet:  c.markerSet,
+		Closed:     c.closed,
+		OnY2:       c.onY2,
+		OnX2:       c.onX2,
+		Size:       c.size,
+		BarWidth:   c.barWidth,
+		Baseline:   c.baseline,
+		Opacity:    c.opacity,
+		Steps:      c.steps,
+		Whisker:    c.whisker,
+		Outliers:   c.outliers,
+		MidCol:     c.midCol,
+		ErrorCol:   c.errCol,
+		ErrorXCol:  c.errXCol,
+		Caps:       c.caps,
+		Decimate:   c.decimate,
+		Budget:     c.budget,
+		CellSize:   c.cellSize,
+		FontSize:   c.fontSize,
+		HAlign:     c.halign,
+		VAlign:     c.valign,
+		AlignSet:   c.alignSet,
+		Rotation:   c.rotation,
+		Extend:     c.extend,
+		Extra:      c.extra,
+
+		AvoidOverlap: c.avoidLabels,
+	}
+}
+
+func (g *lineGeom) Describe() Desc {
+	d := g.cfg.describe(MarkLine)
+	d.Source = g.src
+	return d
+}
+
+func (g *scatterGeom) Describe() Desc {
+	d := g.cfg.describe(MarkScatter)
+	d.Source = g.src
+	return d
+}
+
+func (g *barGeom) Describe() Desc {
+	d := g.cfg.describeStacking(MarkBar, StackZero)
+	d.Source = g.src
+	return d
+}
+
+func (g *areaGeom) Describe() Desc {
+	d := g.cfg.describeStacking(MarkArea, StackZero)
+	d.Source = g.src
+	return d
+}
+
+func (g *stepGeom) Describe() Desc {
+	d := g.cfg.describe(MarkStep)
+	d.Source = g.src
+	return d
+}
+
+func (g *boxGeom) Describe() Desc {
+	d := g.cfg.describe(MarkBoxplot)
+	d.Source = g.src
+	return d
+}
+
+func (g *ruleGeom) Describe() Desc {
+	if g.vertical {
+		d := g.cfg.describe(MarkVLine)
+		d.Datum.X0 = g.at
+		return d
+	}
+	d := g.cfg.describe(MarkHLine)
+	d.Datum.Y0 = g.at
+	return d
+}
+
+func (g *bandGeom) Describe() Desc {
+	if g.vertical {
+		d := g.cfg.describe(MarkVBand)
+		d.Datum.X0, d.Datum.X1 = g.lo, g.hi
+		return d
+	}
+	d := g.cfg.describe(MarkHBand)
+	d.Datum.Y0, d.Datum.Y1 = g.lo, g.hi
+	return d
+}
+
+func (g *segmentGeom) Describe() Desc {
+	d := g.cfg.describe(MarkSegment)
+	d.Datum = Datum{X0: g.x0, Y0: g.y0, X1: g.x1, Y1: g.y1}
+	return d
+}
+
+func (g *regionGeom) Describe() Desc {
+	d := g.cfg.describe(MarkRegion)
+	d.Datum = Datum{X0: g.x0, Y0: g.y0, X1: g.x1, Y1: g.y1}
+	return d
+}
+
+func (g *noteGeom) Describe() Desc {
+	d := g.cfg.describe(MarkNote)
+	d.Datum = Datum{X0: g.x, Y0: g.y}
+	d.Text = g.text
+	return d
+}
+
+var (
+	_ Describer = (*lineGeom)(nil)
+	_ Describer = (*scatterGeom)(nil)
+	_ Describer = (*barGeom)(nil)
+	_ Describer = (*areaGeom)(nil)
+	_ Describer = (*stepGeom)(nil)
+	_ Describer = (*boxGeom)(nil)
+	_ Describer = (*ruleGeom)(nil)
+	_ Describer = (*bandGeom)(nil)
+	_ Describer = (*segmentGeom)(nil)
+	_ Describer = (*regionGeom)(nil)
+	_ Describer = (*noteGeom)(nil)
+)
+
+// onSecondary is [OnY2] and [OnX2] as plain setters, so that [FromDesc]'s
+// option list can carry the flags either way round. The exported options only
+// ever turn them on, because a layer that says nothing is on the primary axes
+// and an option spelling "not secondary" would read as though there were a
+// third state.
+func onSecondary(y2, x2 bool) Option {
+	return func(c *config) { c.onY2, c.onX2 = y2, x2 }
+}
+
+// OnSecondaryY and OnSecondaryX report whether a layer draws against the
+// chart's secondary vertical or horizontal axis.
+//
+// They are asked through [Describer] rather than through a method on [Geom],
+// because Geom is implemented outside this package and never gains one — and
+// because the binding is already part of what a layer says about itself, so
+// the answer and the document agree by construction. A layer that cannot
+// describe itself reads the primary axes, which is what every layer written
+// before there were two of them means.
+func OnSecondaryY(g Geom) bool {
+	d, ok := Describe(g)
+	return ok && d.OnY2
+}
+
+// OnSecondaryX is [OnSecondaryY] for the horizontal axis.
+func OnSecondaryX(g Geom) bool {
+	d, ok := Describe(g)
+	return ok && d.OnX2
+}

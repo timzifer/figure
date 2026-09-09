@@ -1,0 +1,450 @@
+package layout
+
+import (
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/theme"
+)
+
+// Grid is a set of Cartesian panels laid out together with their axes aligned.
+//
+// Alignment is the whole point and it is what makes this a constraint problem
+// rather than a loop. Every panel in a column gets the same horizontal extent
+// and every panel in a row the same vertical one, so a value at the same
+// position means the same thing wherever the reader's eye lands. That is not
+// achievable panel by panel: the width of the widest Y tick label in a column
+// decides where every panel in that column starts, and the panels' common size
+// then falls out of what is left.
+type Grid struct {
+	// Canvas is the full drawing surface.
+	Canvas ir.Rect
+	// Theme supplies sizes, paddings and fonts.
+	Theme theme.Theme
+
+	// Title is the chart title above the whole grid, or "" for none.
+	Title string
+	// XTitle and YTitle label the shared axes, once for the grid.
+	XTitle, YTitle string
+	// Y2Title labels the secondary vertical axis, down the grid's right-hand
+	// side, and X2Title the secondary horizontal one, along its top. Both are
+	// "" for a grid with one axis in that direction, which is what leaves the
+	// arithmetic below exactly what it was.
+	Y2Title string
+	X2Title string
+
+	// Rows and Cols are the shape of the grid.
+	Rows, Cols int
+
+	// Panels are the panels, in any order. A cell with no panel is a hole.
+	Panels []Panel
+
+	// ColWidths fixes the width of a column in device units, or leaves it to
+	// the solver when the entry is zero or absent. It is RowHeights turned a
+	// quarter turn: what a left or right track — a band beside the panel, on
+	// the panel's own Y — is made of.
+	ColWidths []float32
+
+	// RowHeights fixes the height of a row in device units, or leaves it to
+	// the solver when the entry is zero or absent. It is what a track — a band
+	// at a panel's edge, on the panel's own X — is made of: a row whose height
+	// is given rather than derived.
+	//
+	// The flexible rows share what the fixed ones leave, equally, so the
+	// panels that are panels stay the same size as each other. This is the
+	// narrow widening of ADR 0010 its own "revisit if" clause asks for, not a
+	// general size-per-panel solver: a row is fixed or it is not, and nothing
+	// here can make two flexible rows differ.
+	RowHeights []float32
+
+	// Guides are the keys beside the grid as a whole, in stacking order.
+	Guides []Guide
+}
+
+// Panel is one Cartesian area within a grid.
+type Panel struct {
+	// Row and Col place the panel.
+	Row, Col int
+
+	// Strip is the label written in a band above the panel, or "" for none.
+	// It is what a facet is named by.
+	Strip string
+	// RightStrip is a label written in a band down the panel's right side,
+	// reading top to bottom. A two-way facet names its rows this way.
+	RightStrip string
+
+	// XLabels and YLabels are the tick labels this panel writes. A panel that
+	// shares an axis with the panel beside it leaves them empty and takes the
+	// space anyway, so that the panels stay the same size.
+	XLabels, YLabels []string
+
+	// Y2Labels are the tick labels of the panel's secondary vertical axis,
+	// written down its right-hand side, and X2Labels those of its secondary
+	// horizontal one, written along its top. Each sizes a gutter of its own —
+	// per column and per row, exactly as YLabels and XLabels do on the other
+	// two sides. A panel with none takes none, so a grid without a second
+	// axis is laid out as it always was.
+	Y2Labels []string
+	X2Labels []string
+}
+
+// GridResult is where everything goes, in device space.
+type GridResult struct {
+	// Areas are the panel rectangles, parallel to Grid.Panels.
+	Areas []ir.Rect
+	// Strips are the label bands above each panel, parallel to Grid.Panels
+	// and empty for a panel with no strip.
+	Strips []ir.Rect
+	// RightStrips are the label bands beside each panel, parallel to
+	// Grid.Panels and empty for a panel with none.
+	RightStrips []ir.Rect
+
+	// Region is the rectangle the panels and their gutters occupy together.
+	// The chart title is centred on it and the guides sit beside it.
+	Region ir.Rect
+
+	// Title, XTitle and YTitle are the baseline anchors for the grid's own
+	// titles, zero when there is none. YTitle is drawn rotated a quarter turn
+	// anticlockwise.
+	Title, XTitle, YTitle ir.Point
+	// Y2Title is the anchor for the secondary vertical axis's title, down the
+	// right of the grid. It is drawn rotated a quarter turn *clockwise*, so
+	// that it reads from the outside of the chart the way the left one does.
+	Y2Title ir.Point
+	// X2Title is the anchor for the secondary horizontal axis's title, along
+	// the top of the grid. It is drawn upright, as the bottom one is.
+	X2Title ir.Point
+
+	// Guides are the guide boxes, one per entry in Grid.Guides and in the same
+	// order, as in [Result].
+	Guides []ir.Rect
+
+	// TickLabelPad is copied from the theme so the renderer does not re-derive
+	// it.
+	TickLabelPad float32
+}
+
+// Panels lays out a grid.
+//
+// The order of decisions matters and is the reason this is not four
+// independent calculations: the guides' height depends on how tall the panel
+// region is, the panel region's width depends on how wide the guides are, and
+// both depend on the tick labels — which are known before any of it, because
+// a scale can name its ticks from its domain alone.
+func Panels(g Grid, m Measurer) GridResult {
+	th := g.Theme
+	var r GridResult
+	r.TickLabelPad = th.TickLabelPad
+	if g.Rows <= 0 || g.Cols <= 0 {
+		return r
+	}
+	r.Areas = make([]ir.Rect, len(g.Panels))
+	r.Strips = make([]ir.Rect, len(g.Panels))
+	r.RightStrips = make([]ir.Rect, len(g.Panels))
+
+	tickFont := th.Font(th.TickSize)
+	labelFont := th.Font(th.LabelSize)
+	titleFont := th.Font(th.TitleSize)
+	stripFont := th.Font(th.StripSize)
+
+	area := g.Canvas.Inset(th.Margin, th.Margin, th.Margin, th.Margin)
+
+	// The grid's own furniture: a title above, axis titles outside the panels.
+	var titleH float32
+	if g.Title != "" {
+		titleH = m.Measure(ir.TextRun{Text: g.Title, Font: titleFont}).Height() + th.AxisTitlePad
+	}
+	var bottomTitleH, leftTitleH, rightTitleH float32
+	if g.XTitle != "" {
+		bottomTitleH = m.Measure(ir.TextRun{Text: g.XTitle, Font: labelFont}).Height() + th.AxisTitlePad
+	}
+	if g.YTitle != "" {
+		leftTitleH = m.Measure(ir.TextRun{Text: g.YTitle, Font: labelFont}).Height() + th.AxisTitlePad
+	}
+	if g.Y2Title != "" {
+		rightTitleH = m.Measure(ir.TextRun{Text: g.Y2Title, Font: labelFont}).Height() + th.AxisTitlePad
+	}
+	var topTitleH float32
+	if g.X2Title != "" {
+		topTitleH = m.Measure(ir.TextRun{Text: g.X2Title, Font: labelFont}).Height() + th.AxisTitlePad
+	}
+
+	// Per-column left gutters and per-row bottom gutters. A gutter is shared
+	// by everything in its column or row, which is what keeps the axes lined
+	// up when the panels have scales of their own.
+	colGutter := make([]float32, g.Cols)
+	rowGutter := make([]float32, g.Rows)
+	stripH := make([]float32, g.Rows)
+	rightStripW := make([]float32, g.Cols)
+	// The right gutter is the left one turned about, and the top gutter is the
+	// bottom one: a second axis writes its labels outside the panel's far
+	// edge, and they need the same room. A column or row whose panels have no
+	// second axis gets none, which is why a grid without one is laid out
+	// exactly as it was.
+	rightGutter := make([]float32, g.Cols)
+	topGutter := make([]float32, g.Rows)
+
+	bandH := m.Measure(ir.TextRun{Text: "Hg", Font: stripFont}).Height() + 2*th.StripPad
+	for _, p := range g.Panels {
+		if !inGrid(g, p) {
+			continue
+		}
+		if w := maxAdvance(m, p.YLabels, tickFont); w > 0 {
+			colGutter[p.Col] = maxOf(colGutter[p.Col], th.TickLength+th.TickLabelPad+w)
+		}
+		if w := maxAdvance(m, p.Y2Labels, tickFont); w > 0 {
+			rightGutter[p.Col] = maxOf(rightGutter[p.Col], th.TickLength+th.TickLabelPad+w)
+		}
+		if h := maxHeight(m, p.XLabels, tickFont); h > 0 {
+			rowGutter[p.Row] = maxOf(rowGutter[p.Row], th.TickLength+th.TickLabelPad+h)
+		}
+		if h := maxHeight(m, p.X2Labels, tickFont); h > 0 {
+			topGutter[p.Row] = maxOf(topGutter[p.Row], th.TickLength+th.TickLabelPad+h)
+		}
+		if p.Strip != "" {
+			stripH[p.Row] = bandH
+		}
+		if p.RightStrip != "" {
+			rightStripW[p.Col] = bandH
+		}
+	}
+
+	// The panel region's height is known before its width, because nothing on
+	// the right can change it. That is what lets the guides — whose length is
+	// a fraction of it — be measured before the width is decided.
+	regionTop := area.Min.Y + titleH + topTitleH
+	regionBottom := area.Max.Y - bottomTitleH
+	usableH := regionBottom - regionTop
+	availH := usableH - sum(rowGutter) - sum(topGutter) - sum(stripH) - float32(g.Rows-1)*th.PanelGap
+	rowH, panelsH := extents(g.RowHeights, g.Rows, availH)
+
+	// The guides are as long as the panels together are tall, which is the
+	// fixed rows plus the flexible ones — not the region, which includes the
+	// gutters between them.
+	guides := measureGuides(th, g.Guides, m, panelsH)
+
+	var guideW float32
+	for _, gd := range guides {
+		guideW = maxOf(guideW, gd.w)
+	}
+	right := float32(0)
+	if guideW > 0 {
+		right = guideW + th.LegendPad
+	} else if last := lastXLabel(g); last != "" {
+		// Without a guide the rightmost tick label, which is centred on the
+		// axis end, would otherwise run off the canvas. A second axis already
+		// reserves a gutter wider than half a label, so this only matters
+		// where there is none.
+		if sum(rightGutter) == 0 {
+			right += m.Measure(ir.TextRun{Text: last, Font: tickFont}).Advance / 2
+		}
+	}
+
+	regionLeft := area.Min.X + leftTitleH
+	regionRight := area.Max.X - right
+	usableW := regionRight - regionLeft
+	// The secondary axis's title sits between its labels and whatever is
+	// outside them, which is the mirror of the left: a title belongs beside
+	// the numbers it names rather than past a legend that has nothing to do
+	// with it.
+	availW := usableW - sum(colGutter) - sum(rightGutter) - rightTitleH -
+		sum(rightStripW) - float32(g.Cols-1)*th.PanelGap
+	colW, _ := extents(g.ColWidths, g.Cols, availW)
+
+	r.Region = ir.Rect{
+		Min: ir.Point{X: regionLeft, Y: regionTop},
+		Max: ir.Point{X: regionRight, Y: regionBottom},
+	}
+
+	// Column x origins and row y origins, accumulated across the gutters.
+	colX := make([]float32, g.Cols)
+	x := regionLeft
+	for c := range g.Cols {
+		if c > 0 {
+			x += th.PanelGap
+		}
+		x += colGutter[c]
+		colX[c] = x
+		// The second axis's labels sit against the panel and the strip goes
+		// outside them, which is the order a reader expects: the axis belongs
+		// to the panel and the strip names the panel.
+		x += colW[c] + rightGutter[c] + rightStripW[c]
+	}
+	rowY := make([]float32, g.Rows)
+	y := regionTop
+	for row := range g.Rows {
+		if row > 0 {
+			y += th.PanelGap
+		}
+		// Outward from the panel: its second axis's labels, then the strip
+		// naming it. Same order as the right-hand side, and the same reason —
+		// the axis belongs to the panel and the strip names the panel.
+		y += stripH[row] + topGutter[row]
+		rowY[row] = y
+		y += rowH[row] + rowGutter[row]
+	}
+
+	for i, p := range g.Panels {
+		if !inGrid(g, p) {
+			continue
+		}
+		box := ir.Rect{
+			Min: ir.Point{X: colX[p.Col], Y: rowY[p.Row]},
+			Max: ir.Point{X: colX[p.Col] + colW[p.Col], Y: rowY[p.Row] + rowH[p.Row]},
+		}
+		r.Areas[i] = box
+		if p.Strip != "" {
+			r.Strips[i] = ir.Rect{
+				Min: ir.Point{X: box.Min.X, Y: box.Min.Y - topGutter[p.Row] - stripH[p.Row]},
+				Max: ir.Point{X: box.Max.X, Y: box.Min.Y - topGutter[p.Row]},
+			}
+		}
+		if p.RightStrip != "" {
+			r.RightStrips[i] = ir.Rect{
+				Min: ir.Point{X: box.Max.X + rightGutter[p.Col], Y: box.Min.Y},
+				Max: ir.Point{X: box.Max.X + rightGutter[p.Col] + rightStripW[p.Col], Y: box.Max.Y},
+			}
+		}
+	}
+
+	// The panels' own extent, which the titles centre on. It is not the region
+	// — the region includes the gutters, and a title centred on those sits off
+	// to one side of the thing it names.
+	span := ir.Rect{
+		Min: ir.Point{X: colX[0], Y: rowY[0]},
+		Max: ir.Point{X: colX[g.Cols-1] + colW[g.Cols-1], Y: rowY[g.Rows-1] + rowH[g.Rows-1]},
+	}
+	if g.Title != "" {
+		mm := m.Measure(ir.TextRun{Text: g.Title, Font: titleFont})
+		r.Title = ir.Point{X: (span.Min.X + span.Max.X) / 2, Y: area.Min.Y + mm.Ascent}
+	}
+	if g.XTitle != "" {
+		mm := m.Measure(ir.TextRun{Text: g.XTitle, Font: labelFont})
+		r.XTitle = ir.Point{X: (span.Min.X + span.Max.X) / 2, Y: area.Max.Y - mm.Descent}
+	}
+	if g.YTitle != "" {
+		mm := m.Measure(ir.TextRun{Text: g.YTitle, Font: labelFont})
+		r.YTitle = ir.Point{X: area.Min.X + mm.Ascent, Y: (span.Min.Y + span.Max.Y) / 2}
+	}
+	if g.X2Title != "" {
+		mm := m.Measure(ir.TextRun{Text: g.X2Title, Font: labelFont})
+		r.X2Title = ir.Point{X: (span.Min.X + span.Max.X) / 2, Y: area.Min.Y + titleH + mm.Ascent}
+	}
+	if g.Y2Title != "" {
+		mm := m.Measure(ir.TextRun{Text: g.Y2Title, Font: labelFont})
+		r.Y2Title = ir.Point{
+			X: outerRight(g, span, rightGutter, rightStripW) + th.AxisTitlePad + mm.Ascent,
+			Y: (span.Min.Y + span.Max.Y) / 2,
+		}
+	}
+
+	// The guides sit outside everything the last column owns, which now
+	// includes its second axis's labels. Anchoring them on the panel edge
+	// would put a legend on top of those — the guide column was measured
+	// against a width that already reserved the gutter, so the anchor has to
+	// move with it.
+	guideSpan := span
+	guideSpan.Max.X = outerRight(g, span, rightGutter, rightStripW) + rightTitleH
+	r.Guides = placeGuides(guides, guideSpan, th)
+	return r
+}
+
+// outerRight is the right-hand edge of everything the last column owns: the
+// panel, its second axis's labels, and its strip.
+//
+// The guides and the secondary axis's title are both placed against it rather
+// than against the panel edge, because the width they were measured with
+// already reserved those — anchoring on the panel would put a legend on top of
+// the axis labels.
+func outerRight(g Grid, span ir.Rect, rightGutter, rightStripW []float32) float32 {
+	return span.Max.X + givenExtent(rightGutter, g.Cols-1) + givenExtent(rightStripW, g.Cols-1)
+}
+
+func inGrid(g Grid, p Panel) bool {
+	return p.Row >= 0 && p.Row < g.Rows && p.Col >= 0 && p.Col < g.Cols
+}
+
+// lastXLabel returns the last tick label written by any panel in the bottom
+// row, which is the one that can overhang the canvas.
+func lastXLabel(g Grid) string {
+	var out string
+	for _, p := range g.Panels {
+		if p.Row != g.Rows-1 || len(p.XLabels) == 0 {
+			continue
+		}
+		out = p.XLabels[len(p.XLabels)-1]
+	}
+	return out
+}
+
+func sum(vs []float32) float32 {
+	var t float32
+	for _, v := range vs {
+		t += v
+	}
+	return t
+}
+
+// extents resolves the size of each track along one axis of the grid, and
+// reports how much of it the panels occupy together — which is what the guide
+// column is measured against.
+//
+// A track named in given is that size; every other one takes an equal share of
+// what is left. It is one function rather than two because a fixed row and a
+// fixed column are the same arithmetic turned a quarter turn, and two copies
+// of the care below would be two places to get it wrong.
+//
+// That care: the arithmetic is deliberately written so that a grid fixing
+// nothing computes exactly what it computed before any of this existed. The
+// share is a single division of the same quantity, and the total is a single
+// multiplication rather than a sum — because a float32 sum of n equal terms is
+// not always their product, and every golden file in the repository would move
+// by an ulp if it were. The structural comparison the goldens use tolerates
+// exactly that much, so nothing would fail; the figures would simply drift.
+func extents(given []float32, n int, avail float32) (sizes []float32, panels float32) {
+	sizes = make([]float32, n)
+
+	var fixed float32
+	flex := 0
+	for i := range sizes {
+		if e := givenExtent(given, i); e > 0 {
+			sizes[i] = e
+			fixed += e
+		} else {
+			flex++
+		}
+	}
+
+	// A canvas too small for its fixed tracks would produce inverted
+	// rectangles and geometry that maps to nonsense. Give the flexible ones
+	// nothing and shrink the fixed ones in proportion, so the result is
+	// degenerate but still well ordered.
+	if fixed > avail {
+		scale := float32(0)
+		if avail > 0 {
+			scale = avail / fixed
+		}
+		for i := range sizes {
+			sizes[i] *= scale
+		}
+		return sizes, maxOf(avail, 0)
+	}
+
+	if flex == 0 {
+		return sizes, fixed
+	}
+	share := maxOf((avail-fixed)/float32(flex), 0)
+	for i := range sizes {
+		if givenExtent(given, i) <= 0 {
+			sizes[i] = share
+		}
+	}
+	return sizes, share*float32(flex) + fixed
+}
+
+// givenExtent is the size the caller fixed for one row or column, or zero when
+// it is the solver's to decide.
+func givenExtent(given []float32, i int) float32 {
+	if i < 0 || i >= len(given) {
+		return 0
+	}
+	return maxOf(given[i], 0)
+}

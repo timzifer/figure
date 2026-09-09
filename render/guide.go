@@ -1,0 +1,510 @@
+package render
+
+import (
+	"fmt"
+
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/internal/layout"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/theme"
+)
+
+// The guide column: a legend, the colourbars, the size keys. One list, one
+// stacking rule, one drawing switch.
+//
+// It used to be two of everything — a []string of legend labels beside a
+// []Colorbar, measured by two loops and placed into two fields. A third kind
+// would have made that three of everything, so v0.9 generalised it once instead
+// of extending it twice: [layout.Guide] carries what layout needs of any kind,
+// and [guide] carries what render needs to draw one.
+
+// guide is one entry of the chart's guide column.
+//
+// The three kinds are a union rather than three types because they are one
+// ordered list: what decides where a guide goes is its position in the column,
+// not what it shows.
+type guide struct {
+	kind layout.GuideKind
+
+	// entries is a legend's rows, and layers is the layer each row came from —
+	// parallel to entries, so that a click on a row knows what it toggles. A
+	// layer that contributes several rows appears several times, and a row
+	// nothing can be attributed to carries -1.
+	entries []geom.LegendEntry
+	layers  []int
+	// color is a colourbar's guide, and size a size key's.
+	color geom.ColorGuide
+	size  geom.SizeGuide
+	// samples are a size key's rows: the value each sample stands for and the
+	// diameter it is drawn at.
+	samples []sizeSample
+}
+
+// sizeSample is one row of a size key: the value it stands for, how that value
+// is spelled, and the diameter it is drawn at.
+//
+// The value is kept beside the label because a pointer asking what a row means
+// wants the number rather than its spelling — a filter written against "1.2k"
+// is a filter against a string.
+type sizeSample struct {
+	label string
+	value float64
+	size  float32
+}
+
+// chartGuides collects the whole guide column, in stacking order: the legend
+// first, then the colourbars, then the size keys.
+//
+// The order is the one a reader scans in — what the series are, then what the
+// colours mean, then what the sizes mean — and it is fixed here so that a chart
+// with all three is laid out the same way every time.
+func chartGuides(c Chart, panels []Panel, th theme.Theme, area ir.Rect) []guide {
+	var out []guide
+	if es, from := legendEntries(c, panels, area); len(es) > 0 {
+		out = append(out, guide{kind: layout.GuideLegend, entries: es, layers: from})
+	}
+	for _, cg := range colorGuides(layersOf(panels)) {
+		out = append(out, guide{kind: layout.GuideColorbar, color: cg})
+	}
+	for _, sg := range sizeGuides(layersOf(panels), th) {
+		out = append(out, guide{
+			kind:    layout.GuideSize,
+			size:    sg,
+			samples: sizeSamples(sg, th),
+		})
+	}
+	return out
+}
+
+// layersOf flattens every panel's layers. Faceted panels share their scales, so
+// the merge inside each collector reduces them to the one guide that describes
+// all of them.
+func layersOf(panels []Panel) []geom.Geom {
+	var all []geom.Geom
+	for _, p := range panels {
+		all = append(all, p.Layers...)
+	}
+	return all
+}
+
+// colorGuides collects the continuous colour guides the layers contribute,
+// merging the ones that would be drawn identically.
+//
+// Merging matters more than it sounds: two layers sharing one colour scale is
+// the normal way to draw points and their trend, and two identical colourbars
+// would take a column of the chart to say one thing twice.
+func colorGuides(layers []geom.Geom) []geom.ColorGuide {
+	var out []geom.ColorGuide
+	seen := map[string]bool{}
+	for _, l := range layers {
+		g, ok := l.(geom.Guided)
+		if !ok {
+			continue
+		}
+		cg, ok := g.ColorGuide()
+		if !ok || cg.Scale == nil {
+			continue
+		}
+		k := cg.Key()
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, cg)
+	}
+	return out
+}
+
+// sizeGuides collects the size keys the layers contribute, merging duplicates
+// the way colorGuides does.
+//
+// It also does the one thing that has to happen before anything is measured:
+// it gives each size scale the diameters the theme asks for. A geom cannot do
+// that in Build — panels are built on separate goroutines and a scale shared by
+// two of them would be written from both — and it has no theme in Train. So the
+// range is set here, once per scale, on the serial path, before the sizes are
+// read for the key or for the marks.
+func sizeGuides(layers []geom.Geom, th theme.Theme) []geom.SizeGuide {
+	var out []geom.SizeGuide
+	seen := map[string]bool{}
+	for i, l := range layers {
+		g, ok := l.(geom.Sized)
+		if !ok {
+			continue
+		}
+		sg, ok := g.SizeGuide()
+		if !ok || sg.Scale == nil {
+			continue
+		}
+		sg.Scale.SetRange(0, th.BubbleSize)
+		if sg.Color.A == 0 {
+			// The layer takes its colour from the palette, and which entry that
+			// is depends on where it sits in the chart — which the layer cannot
+			// know when it is asked.
+			sg.Color = paletteAt(th, i)
+		}
+		k := sg.Key()
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, sg)
+	}
+	return out
+}
+
+func paletteAt(th theme.Theme, i int) ir.Color {
+	pal := th.Palette
+	if len(pal) == 0 {
+		pal = theme.Light.Palette
+	}
+	return pal.At(i)
+}
+
+// sizeSamples picks the values a size key shows.
+//
+// They come from a linear scale's own tick generation, for the reason a
+// colourbar's do: a key labelled 3.7, 7.4 and 11.1 is a key nobody can
+// interpolate between, and round numbers at readable intervals is exactly what
+// [scale.Scale.Ticks] already decides. The anchor itself is left out — a mark of
+// no size is not a sample — and the largest is always kept, because it is what
+// sets the reader's sense of the scale.
+func sizeSamples(g geom.SizeGuide, th theme.Theme) []sizeSample {
+	lo, hi := g.Scale.Domain()
+	s := scale.Linear()
+	s.Train(lo, hi)
+	s.SetRange(0, 1)
+
+	want := th.SizeKeyCount
+	if want <= 0 {
+		want = 3
+	}
+
+	var out []sizeSample
+	for _, t := range s.Ticks(want) {
+		if t.Minor || t.Label == "" || t.Value <= lo || t.Value > hi {
+			continue
+		}
+		out = append(out, sizeSample{label: t.Label, value: t.Value, size: g.Scale.Size(t.Value)})
+	}
+	if len(out) == 0 {
+		// A domain no round number falls inside still has an extreme, and the
+		// extreme is the sample that matters.
+		return []sizeSample{{label: fmt.Sprintf("%g", hi), value: hi, size: g.Scale.Size(hi)}}
+	}
+	// Thin from the small end, keeping the largest: the big samples are the
+	// ones a reader measures against.
+	for len(out) > want {
+		out = out[1:]
+	}
+	return out
+}
+
+// layoutGuides is what the solver needs of each guide: its title and the text
+// it writes, plus a size key's mark diameters.
+func layoutGuides(gs []guide, th theme.Theme) []layout.Guide {
+	if len(gs) == 0 {
+		return nil
+	}
+	out := make([]layout.Guide, 0, len(gs))
+	for _, g := range gs {
+		switch g.kind {
+		case layout.GuideColorbar:
+			out = append(out, layout.Guide{
+				Kind:   layout.GuideColorbar,
+				Title:  g.color.Label,
+				Labels: labelsOf(colorbarTicks(g.color.Scale, th.ColorbarTickCount)),
+			})
+		case layout.GuideSize:
+			lg := layout.Guide{Kind: layout.GuideSize, Title: g.size.Label}
+			for _, s := range g.samples {
+				lg.Labels = append(lg.Labels, s.label)
+				lg.Sizes = append(lg.Sizes, s.size)
+			}
+			out = append(out, lg)
+		default:
+			lg := layout.Guide{Kind: layout.GuideLegend}
+			for _, e := range g.entries {
+				lg.Labels = append(lg.Labels, e.Label)
+			}
+			out = append(out, lg)
+		}
+	}
+	return out
+}
+
+// drawGuide paints one guide into the box the solver reserved for it.
+func drawGuide(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer, hidden []bool) {
+	if box.Empty() {
+		return
+	}
+	switch g.kind {
+	case layout.GuideColorbar:
+		drawColorbar(b, box, th, g.color, obs)
+	case layout.GuideSize:
+		drawSizeKey(b, box, th, g, obs)
+	default:
+		drawLegend(b, box, th, g, obs, hidden)
+	}
+}
+
+// colorbarScale returns a positional scale over a colour scale's domain.
+//
+// A colourbar is an axis: it needs round numbers at readable intervals, which
+// is exactly what a scale's tick generation already decides. Which scale that
+// is comes from the colour scale itself, because a ramp that runs
+// logarithmically wants decades and a linear one wants round numbers — see
+// [scale.ColorAxisOf]. Nicing is deliberately off — the bar shows the domain
+// the data actually covers, and rounding it outwards would paint colours no
+// mark has.
+//
+// The scale chooses which values to label. Where they *sit* on the bar is
+// [colorbarPos]'s answer, not this one: an axis and a ramp can disagree about
+// the mapping — a diverging ramp centred off zero does — and the ramp is the
+// thing the reader is looking at.
+func colorbarScale(cs scale.ColorScale) scale.Scale { return scale.ColorAxisOf(cs) }
+
+// colorbarPos is where a value sits on the bar, in device space.
+//
+// The bar runs bottom to top, so position 0 on the ramp is bar.Max.Y.
+func colorbarPos(cs scale.ColorScale, bar ir.Rect, v float64) float32 {
+	t := scale.ColorPositionOf(cs, v)
+	return bar.Max.Y - float32(t)*(bar.Max.Y-bar.Min.Y)
+}
+
+// colorbarStops is how finely a ramp is sampled into gradient stops.
+//
+// A backend interpolates between stops in its own colour space, which is not
+// the linear light [palette.Ramp] blends in, so the stops have to be close
+// enough that the difference is below a rounding error. Thirty-two across a
+// bar of a couple of hundred pixels puts one every few pixels, which is well
+// past that.
+const colorbarStops = 32
+
+// drawColorbar draws one continuous colour guide into box.
+//
+// The bar runs bottom to top, low value at the bottom, because that is the
+// direction the Y axis beside it runs and a reader should not have to change
+// convention halfway across a chart.
+func drawColorbar(b ir.Backend, box ir.Rect, th theme.Theme, g geom.ColorGuide, obs Observer) {
+	tickFont := th.Font(th.TickSize)
+
+	top := guideTitle(b, box, th, g.Label)
+
+	bar := ir.Rect{
+		Min: ir.Point{X: box.Min.X, Y: top},
+		Max: ir.Point{X: box.Min.X + th.ColorbarThickness, Y: box.Max.Y},
+	}
+	if bar.Empty() {
+		return
+	}
+
+	bars, _ := obs.(ColorbarEntry)
+	if c, classed := scale.Classed(g.Scale); classed {
+		drawClassedBar(b, bar, c, bars)
+	} else {
+		drawGradientBar(b, bar, g.Scale)
+		// One call for the whole bar: every point of a continuous ramp means
+		// something different, so there is nothing discrete to enumerate and
+		// the value is read back by inverting the ramp at the point asked
+		// about.
+		if bars != nil {
+			lo, hi := g.Scale.Domain()
+			bars.ColorbarEntry(g.Scale, -1, lo, hi, bar)
+		}
+	}
+
+	var p ir.Path
+	p.Rect(bar)
+	if th.ColorbarBorder.A != 0 {
+		b.StrokePath(&p, ir.Stroke{Color: th.ColorbarBorder, Width: th.AxisWidth})
+	}
+
+	// Ticks. A value sits on the bar where the ramp puts it, which for a
+	// compressed ramp is not where a linear reading of the domain would.
+	axis := ir.Stroke{Color: th.ColorbarBorder, Width: th.AxisWidth, Cap: ir.CapButt}
+	for _, t := range colorbarTicks(g.Scale, th.ColorbarTickCount) {
+		pos := colorbarPos(g.Scale, bar, t.Value)
+		if !inRange(pos, bar.Min.Y, bar.Max.Y) {
+			continue
+		}
+		if axis.Visible() {
+			b.Polyline([]ir.Point{
+				{X: bar.Max.X, Y: pos},
+				{X: bar.Max.X + th.TickLength, Y: pos},
+			}, axis)
+		}
+		b.Text(ir.TextRun{
+			Text:  t.Label,
+			Font:  tickFont,
+			At:    ir.Point{X: bar.Max.X + th.TickLength + th.TickLabelPad, Y: pos},
+			V:     ir.AlignMiddle,
+			Color: th.TickColor,
+		})
+	}
+}
+
+// colorbarTicks returns the values a colourbar is labelled at.
+//
+// A classed scale is labelled at its class boundaries and nowhere else: the
+// boundaries are what the bar says, and a round number between two of them
+// would invite a reader to interpolate across a step that has no inside. A
+// continuous one is labelled the way its axis labels itself, which under a
+// log ramp is the decades.
+func colorbarTicks(cs scale.ColorScale, want int) []scale.Tick {
+	axis := colorbarScale(cs)
+	axis.SetRange(0, 1)
+	if c, ok := scale.Classed(cs); ok {
+		breaks := c.Breaks()
+		out := make([]scale.Tick, 0, len(breaks))
+		for _, v := range breaks {
+			out = append(out, scale.Tick{Value: v, Label: scale.LabelOf(axis, v)})
+		}
+		return out
+	}
+	ticks := axis.Ticks(want)
+	out := make([]scale.Tick, 0, len(ticks))
+	for _, t := range ticks {
+		if !t.Minor && t.Label != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// drawClassedBar paints a classed scale's bar: one solid band per class,
+// as tall on the bar as the class is wide in the data.
+//
+// Bands of equal height would be easier to label and would put the boundaries
+// somewhere they are not. For a quantile scale that is the whole point of the
+// bar — classes of very different widths are what equally many observations in
+// each looks like — and a legend that hid it would be hiding the distribution
+// the scale was chosen to show.
+func drawClassedBar(b ir.Backend, bar ir.Rect, c scale.ClassedColorScale, bars ColorbarEntry) {
+	lo, hi := c.Domain()
+	edges := append(append(make([]float64, 0, c.Classes()+1), lo), c.Breaks()...)
+	edges = append(edges, hi)
+	var p ir.Path
+	for i := 0; i+1 < len(edges); i++ {
+		band := ir.Rect{
+			Min: ir.Point{X: bar.Min.X, Y: colorbarPos(c, bar, edges[i+1])},
+			Max: ir.Point{X: bar.Max.X, Y: colorbarPos(c, bar, edges[i])},
+		}
+		if band.Empty() {
+			continue
+		}
+		p.Reset()
+		p.Rect(band)
+		b.FillPath(&p, ir.Solid(c.Color(edges[i]+(edges[i+1]-edges[i])/2)), ir.NonZero)
+		// One call per band. A band is a discrete thing a reader can mean —
+		// the rows between these two numbers — which a point on a continuous
+		// ramp is not.
+		if bars != nil {
+			bars.ColorbarEntry(c, i, edges[i], edges[i+1], band)
+		}
+	}
+}
+
+// drawGradientBar paints a continuous scale's bar as one gradient.
+func drawGradientBar(b ir.Backend, bar ir.Rect, cs scale.ColorScale) {
+	stops := make([]ir.GradientStop, 0, colorbarStops+1)
+	for i := 0; i <= colorbarStops; i++ {
+		t := float64(i) / colorbarStops
+		stops = append(stops, ir.GradientStop{
+			// Offset zero is the gradient's start, which is the bottom of the
+			// bar, which is the low end of the domain.
+			//
+			// The value is read back from the offset rather than interpolated
+			// across the domain, so the stops are evenly spaced along the
+			// *bar*. Under a compressed ramp those are not the same thing:
+			// sampling five decades linearly puts thirty of the thirty-two
+			// stops in the top decade and smears the rest into one band.
+			Offset: float32(t),
+			Color:  cs.Color(scale.ColorValueOf(cs, t)),
+		})
+	}
+	var p ir.Path
+	p.Rect(bar)
+	b.FillPath(&p, ir.Fill{
+		Start: ir.Point{X: bar.Min.X, Y: bar.Max.Y},
+		End:   ir.Point{X: bar.Min.X, Y: bar.Min.Y},
+		Stops: stops,
+	}, ir.NonZero)
+}
+
+// drawSizeKey draws the ladder of sample marks a size channel is read off.
+//
+// The samples are drawn as the marks are — a filled circle with an outline, in
+// the layer's own colour — because a key whose swatch is not the mark is a key
+// that has to be translated before it can be used. They stack smallest first,
+// which is the direction the colourbar beside them runs in.
+func drawSizeKey(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer) {
+	if len(g.samples) == 0 {
+		return
+	}
+	labelFont := th.Font(th.LabelSize)
+	top := guideTitle(b, box, th, g.size.Label)
+
+	var widest float32
+	for _, s := range g.samples {
+		widest = max(widest, s.size)
+	}
+	textH := b.Measure(ir.TextRun{Text: "Hg", Font: labelFont}).Height()
+
+	fill := ir.Fade(g.size.Color, sizeKeyFillOpacity)
+	stroke := ir.Stroke{Color: g.size.Color, Width: 1}
+
+	rows, _ := obs.(SizeKeyEntry)
+
+	x := box.Min.X + th.LegendPadding
+	y := top + th.LegendPadding
+	for _, s := range g.samples {
+		h := max(s.size, textH)
+		cy := y + h/2
+		// The row's own rectangle, spanning the key so that the gap between a
+		// sample and its label is part of the same target — the same rule a
+		// legend row follows.
+		if rows != nil {
+			rows.SizeKeyEntry(s.value, s.label, ir.R(box.Min.X, y, box.Max.X, y+h))
+		}
+		if s.size > 0 {
+			var p ir.Path
+			p.Circle(ir.Point{X: x + widest/2, Y: cy}, s.size/2)
+			if fill.A != 0 {
+				b.FillPath(&p, ir.Solid(fill), ir.NonZero)
+			}
+			b.StrokePath(&p, stroke)
+		}
+		b.Text(ir.TextRun{
+			Text:  s.label,
+			Font:  labelFont,
+			At:    ir.Point{X: x + widest + th.LegendGap, Y: cy},
+			V:     ir.AlignMiddle,
+			Color: th.LegendColor,
+		})
+		y += h + th.LegendGap
+	}
+}
+
+// sizeKeyFillOpacity matches what a bubble is drawn with, so the key reads as
+// the same mark rather than as a darker relative of it.
+const sizeKeyFillOpacity = 0.55
+
+// guideTitle writes a guide's title at the top of its box and returns the Y the
+// guide's body starts at. A guide with no title starts at the top of its box.
+func guideTitle(b ir.Backend, box ir.Rect, th theme.Theme, title string) float32 {
+	if title == "" {
+		return box.Min.Y
+	}
+	labelFont := th.Font(th.LabelSize)
+	mm := b.Measure(ir.TextRun{Text: title, Font: labelFont})
+	b.Text(ir.TextRun{
+		Text:  title,
+		Font:  labelFont,
+		At:    ir.Point{X: box.Min.X, Y: box.Min.Y},
+		V:     ir.AlignTop,
+		Color: th.LabelColor,
+	})
+	return box.Min.Y + mm.Height() + th.TickLabelPad
+}

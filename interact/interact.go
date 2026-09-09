@@ -1,0 +1,954 @@
+// Package interact turns a rendered chart into something a pointer can ask
+// questions of.
+//
+// It has two halves. [Index] is the spatial index: it watches a render, notes
+// where every data mark landed and which layer of which panel drew it, and
+// answers "what is under this point". [Event] and its kinds are the vocabulary
+// pointer input is reported in; the root package's Live wires the two together
+// — turning a browser's pointer, wheel and drag into hits, zooms and pans —
+// and redraws.
+//
+// # Why it watches rather than asks
+//
+// A geom emits primitives and forgets them. Asking a layer afterwards where
+// its rows ended up would mean every geom carrying a second, parallel
+// implementation of its own projection — and the two would disagree, on some
+// axis type, eventually. So the index takes the marks the render actually
+// emitted, which is the definition of what the reader can see, and turns a
+// device position back into data through the same scales that put it there.
+//
+// # What it costs
+//
+// Only a watched render pays: [Index.Watch] copies the points a layer draws,
+// which is memory proportional to the marks on screen. That is the reduced
+// count rather than the row count — a line over a million rows draws a couple
+// of thousand marks after decimation — but it is not nothing, which is why an
+// unwatched render still allocates nothing that grows with its data.
+package interact
+
+import (
+	"image"
+	"math"
+
+	"github.com/timzifer/figure/coord"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/scale"
+)
+
+// Kind is what sort of mark a hit landed on.
+type Kind uint8
+
+// The mark kinds. They differ in how a hit is decided: a vertex is hit by
+// being near it, an area by being inside it.
+const (
+	// Vertex is a point a layer drew: a line's sample, a scatter's marker.
+	Vertex Kind = iota
+	// Area is a filled shape: a bar, a band, a boxplot's box.
+	Area
+	// Label is text a layer drew.
+	Label
+	// LegendRow is a row of the legend: furniture a reader can act on rather than
+	// data. A hit on one says which series a swatch stands for, not what is
+	// under the pointer — see [Hit.Layer] and [Hit.Series].
+	//
+	// It is spelled apart from [Label], which is text a *layer* drew and is a
+	// mark like any other.
+	LegendRow
+	// Colorbar is a colourbar, or one band of a classed one. A hit on it says
+	// which value the ramp reaches there — see [Hit.Value] — and, for a band,
+	// which class and over what interval.
+	Colorbar
+	// SizeKey is a row of a size key. A hit on it says which value the sample
+	// stands for.
+	SizeKey
+)
+
+// Guides reports whether a kind is furniture a reader can act on rather than
+// something a layer drew. It is what a handler branches on before reading the
+// fields only a guide fills in.
+func (k Kind) Guides() bool {
+	switch k {
+	case LegendRow, Colorbar, SizeKey:
+		return true
+	}
+	return false
+}
+
+// String names the kind, for tests and error messages.
+func (k Kind) String() string {
+	switch k {
+	case Vertex:
+		return "vertex"
+	case Area:
+		return "area"
+	case Label:
+		return "label"
+	case LegendRow:
+		return "legend"
+	case Colorbar:
+		return "colorbar"
+	case SizeKey:
+		return "size key"
+	}
+	return "unknown"
+}
+
+// Hit is what the pointer found.
+type Hit struct {
+	// Panel is which panel the mark is in, and Layer which layer of it.
+	Panel, Layer int
+	// Series is the layer's legend label, empty for a layer that has none.
+	Series string
+	// Kind is what sort of mark this is.
+	Kind Kind
+	// At is the mark's position in device space.
+	At ir.Point
+	// X and Y are the data values at At, read back through the panel's
+	// scales. On a categorical axis the value is the category index — pass it
+	// to [scale.Categorical.Labels] to name it.
+	X, Y float64
+	// Distance is how far At is from the point that was asked about, in
+	// device units. It is zero for a point inside an area.
+	Distance float32
+
+	// Hidden reports whether the series this hit's layer is currently turned
+	// off, and is only meaningful when Kind is [LegendRow]. It is what lets a
+	// handler say "show" or "hide" rather than having to ask the chart.
+	Hidden bool
+
+	// Value is the quantity a guide hit stands for: the value a colourbar's
+	// ramp reaches under the pointer, or the value a size key's sample is
+	// drawn for. It is meaningless for every other kind, which report their
+	// position through X and Y instead.
+	//
+	// A colourbar reads its value through the *ramp* rather than through the
+	// axis beside it. The two disagree wherever the ramp is compressed — a log
+	// ramp, a diverging one centred off zero — and the ramp is the thing the
+	// reader is pointing at.
+	Value float64
+
+	// Area is the rectangle of the guide that was hit — a legend row, a
+	// colourbar band, a whole continuous bar, a size key row. It is the empty
+	// rectangle for a hit on a mark, which has no target to speak of.
+	//
+	// It is what a caller anchors to: a tooltip beside a legend row, or the
+	// band a drag along a colourbar is painted in.
+	Area ir.Rect
+
+	// Class is which band of a classed colourbar was hit, or -1 for a hit on a
+	// continuous ramp and for every kind that is not a colourbar.
+	//
+	// Lo and Hi are that band's interval. They are what a filter is written
+	// against: a reader clicking the third band of a quantile scale means the
+	// rows between those two numbers, not the single value under their finger.
+	Class  int
+	Lo, Hi float64
+
+	// Row is the source row behind the mark, or -1 when it is not known.
+	//
+	// It is -1 unless row tracking was on for the render — see
+	// [Index.TrackRows] — and it stays -1 for a mark that no row is behind: a
+	// boxplot's box aggregates many rows, a density raster is not a mark, an
+	// interpolated point across a gap was never measured, and a third-party
+	// geom that does not report its rows has none to report.
+	Row int
+}
+
+// Panel is one panel of a watched render: where it is and what places values
+// in it.
+type Panel struct {
+	// Area is the panel's plot rectangle in device space.
+	Area ir.Rect
+	// X and Y are the panel's scales, ranged to Area.
+	X, Y scale.Scale
+	// Y2 and X2 are the panel's secondary vertical and horizontal axes, when a
+	// layer in it was drawn against one, and nil otherwise.
+	//
+	// They are discovered from the layers rather than announced with the
+	// panel: [render.Observer.Panel] carries the two scales a panel has always
+	// had and never gains more, so a second axis arrives through
+	// [Index.LayerAxes] with the layer that reads it. A caller steering the
+	// chart needs them — a zoom that moved one axis and left the other in the
+	// same direction would slide the two series apart.
+	Y2 scale.Scale
+	X2 scale.Scale
+	// Coord is the coordinate system the panel was drawn in, framed to Area.
+	// It is what turns a device position back into the pair the scales speak
+	// in — without it a pointer over a pie slice would be inverted as though
+	// the wedge were a rectangle, and would report a value nothing was drawn
+	// at. It is [coord.Cartesian] for a chart that named no coord.
+	Coord coord.Coord
+}
+
+// Coords is the panel's coordinate system, or [coord.Cartesian] for a panel
+// recorded before there was one to record.
+//
+// It is what a caller steering the chart needs as well as what a tooltip does:
+// a wheel or a drag is a device position, and turning that into a change of
+// domain means going back through the coord before the scales see it.
+func (p *Panel) Coords() coord.Coord {
+	if p.Coord == nil {
+		return coord.Cartesian()
+	}
+	return p.Coord
+}
+
+// Index is a spatial index over one render.
+//
+// It implements the render package's Observer, and [Index.Watch] wraps the
+// backend a chart is drawn into. Neither changes what is drawn.
+//
+// An Index is not safe for concurrent use; nor is it safe to query while the
+// render that fills it is still running.
+type Index struct {
+	panels []Panel
+	marks  []mark
+	pts    []ir.Point
+
+	track bool
+	rows  []rowMark
+
+	panel int
+	layer int
+	label string
+	open  bool
+	// layerX and layerY are the scales the layer currently being drawn reads,
+	// set by [Index.LayerAxes] and nil where the renderer did not say — which
+	// is every renderer that has one axis per direction to say anything about.
+	layerX, layerY scale.Scale
+}
+
+// rowMark is where one source row landed.
+//
+// It is kept apart from the drawn marks on purpose: what a layer draws and
+// what a row is are different points — a smoothed line is a curve through its
+// rows, a staircase draws two points per row, a bar is four corners around
+// one. See [geom.Rows].
+type rowMark struct {
+	panel, layer int
+	at           ir.Point
+	row          int
+}
+
+type mark struct {
+	panel, layer int
+	kind         Kind
+	label        string
+	lo, hi       int // into pts
+	bounds       ir.Rect
+	// hidden is whether the series a LegendRow mark stands for is currently
+	// turned off. It is meaningless on any other kind.
+	hidden bool
+
+	// cs is the colour scale a Colorbar mark reads its value through, and
+	// class, bandLo and bandHi describe the band when it is one. class is -1
+	// for a continuous ramp. They are named apart from lo and hi above, which
+	// are indices into pts and mean something else entirely.
+	cs             scale.ColorScale
+	class          int
+	bandLo, bandHi float64
+	// value is what a SizeKey mark's sample stands for.
+	value float64
+
+	// x and y are the scales this mark was drawn against, when they are not
+	// the panel's own — a layer bound to a secondary axis reads a different
+	// one, and inverting its marks through the panel's own would report a
+	// value from the wrong axis. Each is nil for a mark on the primary axis
+	// in that direction, which is every mark on a chart with one.
+	x, y scale.Scale
+}
+
+// New returns an empty index.
+func New() *Index { return &Index{panel: -1, layer: -1} }
+
+// Reset empties the index, keeping its memory for the next render.
+func (ix *Index) Reset() {
+	ix.panels = ix.panels[:0]
+	ix.marks = ix.marks[:0]
+	ix.pts = ix.pts[:0]
+	ix.rows = ix.rows[:0]
+	ix.panel, ix.layer, ix.label, ix.open = -1, -1, "", false
+	ix.layerX, ix.layerY = nil, nil
+}
+
+// TrackRows turns row identity on or off and returns ix, so the call can be
+// chained onto [New].
+//
+// It is off by default because it is not free: every layer that can report its
+// rows does the bookkeeping, and the index keeps a position and a row number
+// per mark on top of the marks it already keeps. Turn it on when a hit has to
+// name a row rather than describe a point — highlighting the matching row of a
+// table beside the chart is the case it exists for.
+//
+// It takes effect on the next render, and only if the caller also hands the
+// index to the renderer as its row sink; [github.com/timzifer/figure.Live]
+// does that.
+func (ix *Index) TrackRows(on bool) *Index { ix.track = on; return ix }
+
+// TrackingRows reports whether row identity is on.
+func (ix *Index) TrackingRows() bool { return ix.track }
+
+// Marks implements the geom package's Rows: it is how a layer reports where
+// each of its source rows landed.
+//
+// The slices are lent for the call — they come from the geom's pooled
+// scratch — so the positions are copied out.
+func (ix *Index) Marks(at []ir.Point, rows []int) {
+	if !ix.track || !ix.open || len(at) != len(rows) {
+		return
+	}
+	for i, p := range at {
+		if rows[i] < 0 {
+			continue
+		}
+		ix.rows = append(ix.rows, rowMark{
+			panel: ix.panel, layer: ix.layer, at: p, row: rows[i],
+		})
+	}
+}
+
+// RowCount reports how many marks carry a source row.
+func (ix *Index) RowCount() int { return len(ix.rows) }
+
+// Panel implements the render package's Observer.
+func (ix *Index) Panel(i int, area ir.Rect, x, y scale.Scale, cd coord.Coord) {
+	for len(ix.panels) <= i {
+		ix.panels = append(ix.panels, Panel{})
+	}
+	ix.panels[i] = Panel{Area: area, X: x, Y: y, Coord: cd}
+	ix.panel, ix.layer, ix.label, ix.open = i, -1, "", false
+	ix.layerX, ix.layerY = nil, nil
+}
+
+// Layer implements the render package's Observer.
+func (ix *Index) Layer(i int, label string) {
+	ix.layer, ix.label, ix.open = i, label, true
+}
+
+// EndData implements the render package's optional EndData: it closes the layer
+// that was open, so that the guides drawn after the data — and the chart's
+// overlay after them — are not indexed as marks of whichever layer happened to
+// be drawn last.
+//
+// Without it the last Layer call stays the most recent thing this was told, and
+// a legend swatch is indexed as a shape belonging to that layer. That was
+// invisible for as long as the only way in was
+// [github.com/timzifer/figure.Live.Move], which does not hit-test a point
+// outside every panel — but [Index.At] is reachable on its own, and an overlay
+// draws *inside* a panel, where it would be hit.
+func (ix *Index) EndData() { ix.open = false }
+
+// LegendEntry implements the render package's optional LegendEntry: it records
+// where a row of the legend was drawn, so that a pointer over it can be told
+// which series it stands for.
+//
+// The row is indexed as a mark of kind [Guide] in panel -1, because a legend
+// belongs to the chart rather than to a panel and inverting its position
+// through a panel's scales would report a value from a place no value was
+// drawn. [Hit.X] and [Hit.Y] are therefore zero on a guide hit; [Hit.Layer]
+// and [Hit.Series] are what it is for.
+func (ix *Index) LegendEntry(layer int, label string, area ir.Rect, hidden bool) {
+	ix.addGuide(mark{
+		kind: LegendRow, layer: layer, label: label, hidden: hidden, class: -1,
+	}, area)
+}
+
+// ColorbarEntry implements the render package's optional ColorbarEntry: it
+// records a colourbar, or one band of a classed one.
+//
+// The colour scale is kept rather than the mapping, because where a value sits
+// on a bar is the *ramp's* answer and not the axis's — the two disagree
+// wherever the ramp is compressed. A hit inverts through it at the moment it is
+// asked, which is the same thing a hit in a panel does through the panel's
+// scales.
+func (ix *Index) ColorbarEntry(cs scale.ColorScale, class int, lo, hi float64, area ir.Rect) {
+	m := mark{
+		kind: Colorbar, layer: -1, cs: cs,
+		class: class, bandLo: lo, bandHi: hi,
+	}
+	if class >= 0 {
+		// A band is one colour standing for one interval, so there is no
+		// gradient inside it to read a position off. The value it reports is
+		// the middle of what it covers — a representative rather than a
+		// measurement — and Lo and Hi are the truth a filter is written
+		// against. Reading a position within the band would invent precision
+		// the scale threw away on purpose.
+		m.value = lo + (hi-lo)/2
+		m.cs = nil
+	}
+	ix.addGuide(m, area)
+}
+
+// SizeKeyEntry implements the render package's optional SizeKeyEntry: it
+// records one row of a size key and the value its sample stands for.
+func (ix *Index) SizeKeyEntry(value float64, label string, area ir.Rect) {
+	ix.addGuide(mark{
+		kind: SizeKey, layer: -1, label: label, value: value, class: -1,
+	}, area)
+}
+
+// addGuide records one piece of actionable furniture.
+//
+// It goes in at panel -1 with its rectangle as its two points: a guide belongs
+// to the chart rather than to a panel, and inverting its position through a
+// panel's scales would report a value from a place no value was drawn.
+func (ix *Index) addGuide(m mark, area ir.Rect) {
+	m.panel = -1
+	m.lo = len(ix.pts)
+	ix.pts = append(ix.pts, area.Min, area.Max)
+	m.hi = len(ix.pts)
+	m.bounds = area
+	ix.marks = append(ix.marks, m)
+}
+
+// LayerAxes implements the render package's LayerAxes: it records which scales
+// the layer about to be drawn reads.
+//
+// A chart with a secondary axis draws some of its layers against a scale that
+// is not the panel's, and a hit has to be read back through the scale the mark
+// was placed by. They are remembered per layer rather than per panel because
+// that is where the binding is: the axes share a panel.
+//
+// A layer drawn against a scale that is not the panel's own is also what tells
+// the panel it *has* a second axis in that direction. There is nowhere else to
+// learn it from: the observer's Panel call carries the two scales a panel has
+// always had and never gains more.
+func (ix *Index) LayerAxes(x, y scale.Scale) {
+	ix.layerX, ix.layerY = x, y
+	p := ix.panelOf(ix.panel)
+	if p == nil {
+		return
+	}
+	if y != nil && y != p.Y && p.Y2 == nil {
+		p.Y2 = y
+	}
+	if x != nil && x != p.X && p.X2 == nil {
+		p.X2 = x
+	}
+}
+
+// Panels reports the panels of the last watched render, in chart order.
+func (ix *Index) Panels() []Panel { return ix.panels }
+
+// PanelAt reports which panel contains a device point.
+func (ix *Index) PanelAt(pt ir.Point) (int, bool) {
+	for i, p := range ix.panels {
+		if p.Area.Contains(pt) {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// MarkCount reports how many marks were indexed. It is what a test asserts on
+// and what a caller watching memory looks at.
+func (ix *Index) MarkCount() int { return len(ix.marks) }
+
+// DefaultTolerance is how near a pointer has to be to a mark to hit it, in
+// device units.
+//
+// Twelve pixels is about a fingertip and about the radius within which a
+// reader believes they are pointing at a thing. A smaller number makes a thin
+// line unhittable; a much larger one makes two adjacent series
+// indistinguishable.
+const DefaultTolerance = 12
+
+// At reports the mark nearest a device point, within tol device units. A tol
+// of zero uses [DefaultTolerance].
+//
+// Marks are ranked by how specific they are and then by distance: a point the
+// pointer is near beats a shape it is merely inside, and a shape beats a
+// label. Pointing at a scatter marker that happens to sit inside a bar and
+// under an annotation reports the marker, because the marker is the row the
+// reader is asking about. Within one rank, later marks win ties — a later mark
+// was drawn on top and is the one that can be seen.
+//
+// The search is linear in the marks on screen. That is the right shape here: a
+// decimated chart draws thousands of marks, not millions, and a tree that has
+// to be rebuilt every frame costs more to maintain than the scan costs to run.
+func (ix *Index) At(pt ir.Point, tol float32) (Hit, bool) {
+	if tol <= 0 {
+		tol = DefaultTolerance
+	}
+	best := Hit{Distance: float32(math.Inf(1)), Row: -1, Class: -1}
+	var bestMark mark
+	bestRank := len(ranked)
+	var bestBounds ir.Rect
+	var bestX, bestY scale.Scale
+	found := false
+	for _, m := range ix.marks {
+		if !within(m.bounds, pt, tol) {
+			continue
+		}
+		at, d, ok := m.nearest(ix.pts, pt, tol)
+		if !ok {
+			continue
+		}
+		r := rank(m.kind)
+		if r > bestRank || (r == bestRank && d > best.Distance) {
+			continue
+		}
+		bestRank = r
+		bestBounds = m.bounds
+		best, found = Hit{
+			Panel: m.panel, Layer: m.layer, Series: m.label,
+			Kind: m.kind, At: at, Distance: d, Row: -1,
+			Hidden: m.hidden, Class: m.class,
+			Lo: m.bandLo, Hi: m.bandHi, Value: m.value,
+		}, true
+		if m.kind.Guides() {
+			best.Area = m.bounds
+		}
+		bestMark = m
+		bestX, bestY = m.x, m.y
+	}
+	if !found {
+		return Hit{}, false
+	}
+	// A continuous colourbar reads its value off the ramp rather than off the
+	// axis beside it: the two disagree wherever the ramp is compressed, and
+	// the ramp is what the reader is pointing at. The bar runs bottom to top,
+	// so the top of the rectangle is position 1.
+	//
+	// A classed band carries its value already and has no cs, because a band
+	// has no gradient to read.
+	if best.Kind == Colorbar && bestMark.cs != nil {
+		bounds := bestMark.bounds
+		if h := bounds.Max.Y - bounds.Min.Y; h > 0 {
+			t := float64((bounds.Max.Y - pt.Y) / h)
+			best.Value = scale.ColorValueOf(bestMark.cs, clamp01(t))
+		}
+	}
+	if p := ix.panelOf(best.Panel); !best.Kind.Guides() && p != nil && p.X != nil && p.Y != nil {
+		// Two inversions, not one. The coord undoes the transform that placed
+		// the mark and hands back the pair the scales mapped into; the scales
+		// then say what those numbers were. Reading the device position
+		// straight through the scales would be right only where the coord is
+		// the identity, and would name a pixel rather than a value anywhere
+		// else.
+		mx, my := p.Coords().Invert(best.At)
+		// The mark's own scales where it had them, which is what makes a hit
+		// on a layer bound to a secondary axis report that axis's value rather
+		// than the primary one's reading of the same pixel.
+		x, y := p.X, p.Y
+		if bestX != nil {
+			x = bestX
+		}
+		if bestY != nil {
+			y = bestY
+		}
+		best.X, best.Y = x.Invert(mx), y.Invert(my)
+	}
+	best.Row = ix.rowAt(best, pt, bestBounds)
+	return best, true
+}
+
+// RowRef is one source row of one layer of one panel, and where it landed.
+//
+// It is what the reverse of a hit test reports. [Hit] answers "what is under
+// this point"; a RowRef answers "where did this row go", which is the question
+// a second chart asks when the first one says which row the pointer is on.
+type RowRef struct {
+	// Panel is which panel the row was drawn in, and Layer which layer of it.
+	Panel, Layer int
+	// Series is the layer's legend label, empty for a layer that has none.
+	Series string
+	// Row is the source row, in the table that was handed in.
+	Row int
+	// At is where the row landed, in device space.
+	At ir.Point
+}
+
+// Locate reports where a source row of a layer landed in the render just
+// watched.
+//
+// It is the inverse of [Index.At], and it is the far end of the wire between
+// two charts: the first says which row the pointer is on, the second says
+// where that row is on screen — which is what a caller drawing a highlight
+// ring, a crosshair or a leader line needs, without rebuilding anything.
+//
+// ok is false when row tracking was off for the render (see
+// [Index.TrackRows]), when the layer reported no row for this one, or when the
+// row is not on screen — a decimated line draws the rows that survived, and a
+// row that was reduced away is not somewhere the reader can be pointed at.
+//
+// A row reported at more than one position — which no built-in mark does, but
+// nothing forbids — reports the last, matching [Index.At]'s rule that a later
+// mark was drawn on top.
+func (ix *Index) Locate(panel, layer, row int) (ir.Point, bool) {
+	var at ir.Point
+	found := false
+	for _, r := range ix.rows {
+		if r.panel == panel && r.layer == layer && r.row == row {
+			at, found = r.at, true
+		}
+	}
+	return at, found
+}
+
+// RowsOf appends every row one layer reported to dst and returns it.
+//
+// The order is the order the layer reported them in, which is the order it
+// drew them. dst is the caller's, so a caller asking every frame keeps one
+// slice and allocates nothing — pass dst[:0] to reuse it.
+func (ix *Index) RowsOf(panel, layer int, dst []RowRef) []RowRef {
+	for _, r := range ix.rows {
+		if r.panel != panel || r.layer != layer {
+			continue
+		}
+		dst = append(dst, ix.refOf(r))
+	}
+	return dst
+}
+
+// RowsIn appends every row that landed inside r to dst and returns it, in
+// paint order.
+//
+// It is what a brush reads: the rectangle a reader dragged, and the rows under
+// it. The test is against the position the *row* was reported at rather than
+// the ink of the mark drawn through it, which is what makes a half-covered bar
+// a matter of where its value is rather than of where its corner is — and is
+// the same position [Index.Locate] hands back and [Hit.Row] resolves through.
+//
+// dst is the caller's; pass dst[:0] to reuse it.
+func (ix *Index) RowsIn(r ir.Rect, dst []RowRef) []RowRef {
+	for _, m := range ix.rows {
+		if r.Contains(m.at) {
+			dst = append(dst, ix.refOf(m))
+		}
+	}
+	return dst
+}
+
+// refOf names a row mark, recovering the layer's label from the marks that
+// layer drew. A rowMark does not carry it: rows and marks are separate lists
+// on purpose, and the label belongs to the layer rather than to either.
+func (ix *Index) refOf(r rowMark) RowRef {
+	ref := RowRef{Panel: r.panel, Layer: r.layer, Row: r.row, At: r.at}
+	for _, m := range ix.marks {
+		if m.panel == r.panel && m.layer == r.layer {
+			ref.Series = m.label
+			break
+		}
+	}
+	return ref
+}
+
+// rawRowAt finds the source row behind a hit: the nearest position its own
+// layer reported to at, within tol and — where within is given — within that
+// box as well.
+//
+// The search is confined to the hit's layer, so two series crossing cannot take
+// each other's rows.
+func (ix *Index) rawRowAt(panel, layer int, at ir.Point, tol float32, within *ir.Rect) int {
+	best, bestD := -1, tol*tol
+	for _, r := range ix.rows {
+		if r.panel != panel || r.layer != layer {
+			continue
+		}
+		if within != nil && !within.Contains(r.at) {
+			continue
+		}
+		dx, dy := r.at.X-at.X, r.at.Y-at.Y
+		if d := dx*dx + dy*dy; d <= bestD {
+			best, bestD = r.row, d
+		}
+	}
+	return best
+}
+
+// rowAt resolves the row behind a hit, given where the pointer actually was.
+//
+// A vertex is measured from the mark: the position a row was reported at and
+// the position it was drawn at are the same point for every geom that draws
+// one mark per row, and the tolerance the hit already passed is the right
+// bound.
+//
+// An area is measured from the pointer, among the positions that lie inside
+// the shape it landed on. That is not a refinement, it is what makes the
+// answer right: an area is hit by containment, so the pointer is *in* the
+// shape while the position the hit reports is a corner of it — and a corner of
+// a tall bar is nearer to the neighbouring bar's row than to its own. Bounding
+// the search by the shape is what excludes that neighbour, and a pie is where
+// the difference is unmissable: every slice's row sits the same distance from
+// the middle, which is the corner every wedge shares.
+func (ix *Index) rowAt(h Hit, pt ir.Point, bounds ir.Rect) int {
+	if !ix.track || len(ix.rows) == 0 {
+		return -1
+	}
+	if h.Kind == Vertex {
+		return ix.rawRowAt(h.Panel, h.Layer, h.At, DefaultTolerance, nil)
+	}
+	return ix.rawRowAt(h.Panel, h.Layer, pt, float32(math.Inf(1)), &bounds)
+}
+
+// ranked orders the kinds from most specific to least. A vertex is a row; an
+// area is a shape a row produced; a label is writing about one.
+var ranked = [...]Kind{Vertex, Area, Label, LegendRow, Colorbar, SizeKey}
+
+func rank(k Kind) int {
+	for i, r := range ranked {
+		if r == k {
+			return i
+		}
+	}
+	return len(ranked)
+}
+
+func (ix *Index) panelOf(i int) *Panel {
+	if i < 0 || i >= len(ix.panels) {
+		return nil
+	}
+	return &ix.panels[i]
+}
+
+// nearest returns the mark's closest point to pt and how far away it is.
+//
+// A vertex mark is hit by proximity to one of its points. An area is hit by
+// containment — a bar is its interior, not its corners — and reports the
+// nearest corner as the position, because a corner of a bar is where its value
+// is and the middle of one is nowhere in particular.
+func (m mark) nearest(pts []ir.Point, pt ir.Point, tol float32) (ir.Point, float32, bool) {
+	switch m.kind {
+	case LegendRow, Colorbar, SizeKey:
+		// A guide is its rectangle and nothing subtler: it is a target rather
+		// than a shape, so being in the box is the whole test. The position
+		// reported is the middle of the row, which is where a caller putting
+		// something beside it would want to anchor.
+		if !m.bounds.Contains(pt) {
+			return ir.Point{}, 0, false
+		}
+		mid := ir.Point{
+			X: (m.bounds.Min.X + m.bounds.Max.X) / 2,
+			Y: (m.bounds.Min.Y + m.bounds.Max.Y) / 2,
+		}
+		return mid, 0, true
+	case Area, Label:
+		if !m.bounds.Contains(pt) || !inside(pts[m.lo:m.hi], pt) {
+			return ir.Point{}, 0, false
+		}
+		at, _ := closest(pts[m.lo:m.hi], pt)
+		return at, 0, true
+	}
+	at, d := closest(pts[m.lo:m.hi], pt)
+	if d > tol {
+		return ir.Point{}, 0, false
+	}
+	return at, d, true
+}
+
+// inside reports whether pt lies within the outline the subpath's points
+// describe, by casting a ray and counting crossings.
+//
+// The bounding box is the cheap first question and this is the second, and
+// until v0.8 there was no second: every filled mark figure drew was a
+// rectangle, so its box *was* its shape. A pie's slices are wedges whose boxes
+// overlap almost completely — the box of a slice at one o'clock contains the
+// middle of the chart and half of every other slice — so a hit decided on the
+// box alone would name whichever wedge happened to be indexed last.
+//
+// A mark of fewer than three points has no outline to be inside of: an image
+// and a text run are each recorded as two opposite corners, and for those the
+// box is the shape and the answer is yes.
+//
+// The outline tested is the one the drawing call carried, so a curve is tested
+// as its control polygon rather than as the curve. That is the convex hull of
+// the curve, so a shape can be hit a little way outside its ink at a bulge —
+// which is the same slack [Index.At] already allows a vertex, and the opposite
+// error from missing a slice the pointer is plainly inside.
+func inside(pts []ir.Point, pt ir.Point) bool {
+	if len(pts) < 3 {
+		return true
+	}
+	in := false
+	j := len(pts) - 1
+	for i, p := range pts {
+		q := pts[j]
+		if (p.Y > pt.Y) != (q.Y > pt.Y) {
+			if pt.X < (q.X-p.X)*(pt.Y-p.Y)/(q.Y-p.Y)+p.X {
+				in = !in
+			}
+		}
+		j = i
+	}
+	return in
+}
+
+func closest(pts []ir.Point, pt ir.Point) (ir.Point, float32) {
+	best, bestD := ir.Point{}, float32(math.Inf(1))
+	for _, p := range pts {
+		dx, dy := p.X-pt.X, p.Y-pt.Y
+		if d := dx*dx + dy*dy; d < bestD {
+			best, bestD = p, d
+		}
+	}
+	return best, float32(math.Sqrt(float64(bestD)))
+}
+
+func within(r ir.Rect, pt ir.Point, tol float32) bool {
+	return pt.X >= r.Min.X-tol && pt.X <= r.Max.X+tol &&
+		pt.Y >= r.Min.Y-tol && pt.Y <= r.Max.Y+tol
+}
+
+// Watch returns a Backend that draws into b and indexes what it draws.
+//
+// Only marks emitted inside a layer are indexed: the grid, the axes, the
+// titles and the guides are furniture, and a pointer landing on a grid line
+// has not landed on anything a reader would ask about.
+func (ix *Index) Watch(b ir.Backend) ir.Backend { return &probe{ix: ix, b: b, at: ir.Identity} }
+
+// probe is the Backend wrapper. Every method forwards first and indexes
+// second, so that a chart drawn through a probe is the chart drawn without
+// one — byte for byte, which is what makes one set of golden files cover both.
+type probe struct {
+	ix    *Index
+	b     ir.Backend
+	at    ir.Affine
+	stack []ir.Affine
+	sub   []ir.Point // one subpath, reused
+}
+
+// add records one mark, in device space.
+//
+// The points a drawing call carries are in whatever space the enclosing Push
+// established, and a hit test is asked about the pointer — which is in the
+// backend's. Layers are drawn under an identity transform today, so this is
+// bookkeeping that costs nothing and stops being right the day a coordinate
+// system pushes a transform of its own.
+func (p *probe) add(kind Kind, pts []ir.Point, pad float32) {
+	ix := p.ix
+	if !ix.open || len(pts) == 0 {
+		return
+	}
+	lo := len(ix.pts)
+	if p.at.IsIdentity() {
+		ix.pts = append(ix.pts, pts...)
+	} else {
+		for _, q := range pts {
+			ix.pts = append(ix.pts, p.at.Apply(q))
+		}
+	}
+	ix.marks = append(ix.marks, mark{
+		panel: ix.panel, layer: ix.layer, kind: kind, label: ix.label,
+		lo: lo, hi: len(ix.pts), bounds: bounds(ix.pts[lo:], pad),
+		x: ix.layerX, y: ix.layerY,
+	})
+}
+
+func (p *probe) Polyline(pts []ir.Point, style ir.Stroke) {
+	p.b.Polyline(pts, style)
+	p.add(Vertex, pts, style.Width/2)
+}
+
+func (p *probe) StrokePath(path *ir.Path, style ir.Stroke) {
+	p.b.StrokePath(path, style)
+	p.addSubpaths(Vertex, path, style.Width/2)
+}
+
+func (p *probe) FillPath(path *ir.Path, fill ir.Fill, rule ir.FillRule) {
+	p.b.FillPath(path, fill, rule)
+	p.addSubpaths(Area, path, 0)
+}
+
+// addSubpaths indexes one mark per subpath rather than one per call.
+//
+// A layer draws all its bars in a single path — one call per colour is what
+// [geom] batches to — so a mark per call would mean the whole row of bars was
+// one shape: pointing at the fourth bar would report whichever corner of
+// whichever bar happened to be nearest. A subpath is one bar, one box, one
+// closed shape, which is what the reader is pointing at.
+func (p *probe) addSubpaths(kind Kind, path *ir.Path, pad float32) {
+	if path == nil || path.Empty() || !p.ix.open {
+		return
+	}
+	p.sub = p.sub[:0]
+	path.Walk(func(op ir.PathOp, pts []ir.Point) {
+		if op == ir.OpMoveTo && len(p.sub) > 0 {
+			p.add(kind, p.sub, pad)
+			p.sub = p.sub[:0]
+		}
+		p.sub = append(p.sub, pts...)
+	})
+	p.add(kind, p.sub, pad)
+}
+
+func (p *probe) Text(run ir.TextRun) {
+	p.b.Text(run)
+	if !p.ix.open {
+		return
+	}
+	m := p.b.Measure(run)
+	w, h := m.Advance, m.Height()
+	p.add(Label, []ir.Point{
+		{X: run.At.X, Y: run.At.Y - h},
+		{X: run.At.X + w, Y: run.At.Y},
+	}, 0)
+}
+
+func (p *probe) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) {
+	p.b.Markers(shape, at, style)
+	p.add(Vertex, at, style.Size/2)
+}
+
+func (p *probe) Image(img image.Image, dst ir.Rect) {
+	p.b.Image(img, dst)
+	p.add(Area, []ir.Point{dst.Min, dst.Max}, 0)
+}
+
+func (p *probe) Push(clip *ir.Path, xform ir.Affine) {
+	p.b.Push(clip, xform)
+	p.stack = append(p.stack, p.at)
+	p.at = p.at.Mul(xform)
+}
+
+func (p *probe) Pop() {
+	p.b.Pop()
+	if n := len(p.stack); n > 0 {
+		p.at, p.stack = p.stack[n-1], p.stack[:n-1]
+	}
+}
+func (p *probe) Measure(run ir.TextRun) ir.TextMetrics {
+	return p.b.Measure(run)
+}
+func (p *probe) Flush() error { return p.b.Flush() }
+
+// Describe forwards a description to the watched backend, when that backend
+// can carry one.
+//
+// A wrapper hides the optional interfaces of what it wraps, and a probe is a
+// wrapper: without this, watching a render would quietly cost the chart its
+// accessible name, and only for the interactive charts — which are the ones
+// that need it most. Nothing is indexed here; words are not marks.
+func (p *probe) Describe(d ir.Description) {
+	if s, ok := p.b.(ir.Semantics); ok {
+		s.Describe(d)
+	}
+}
+
+func bounds(pts []ir.Point, pad float32) ir.Rect {
+	out := ir.Rect{Min: pts[0], Max: pts[0]}
+	for _, q := range pts[1:] {
+		out.Min.X = min(out.Min.X, q.X)
+		out.Min.Y = min(out.Min.Y, q.Y)
+		out.Max.X = max(out.Max.X, q.X)
+		out.Max.Y = max(out.Max.Y, q.Y)
+	}
+	return out.Inset(-pad, -pad, -pad, -pad)
+}
+
+var (
+	_ ir.Backend   = (*probe)(nil)
+	_ ir.Semantics = (*probe)(nil)
+)
+
+// clamp01 confines a ramp position to the bar, so that a pointer on the border
+// reads the end of the ramp rather than past it.
+func clamp01(t float64) float64 {
+	switch {
+	case t < 0:
+		return 0
+	case t > 1:
+		return 1
+	}
+	return t
+}

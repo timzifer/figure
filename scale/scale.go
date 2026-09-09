@@ -1,0 +1,214 @@
+// Package scale maps data values onto visual positions and generates the ticks
+// that label them.
+//
+// A Scale owns two things: the domain→range mapping, and the choice of tick
+// positions and labels for that domain. Keeping both in one place is what lets
+// a time axis label itself in calendar units while a linear axis labels itself
+// with round numbers, without either the geom or the layout knowing which is
+// which.
+//
+// # How the options are named
+//
+// Each constructor has its own option type — [LinearOption], [LogOption],
+// [SymLogOption], [TimeOption], [OrdinalOption], [SizeOption], [ColorOption] —
+// because the choices differ: a log axis has a base and a linear one does not.
+// The bare names belong to the default scale: [Domain], [Nice], [Zero] and
+// [Format] configure [Linear], which is what a plot has when nobody chose, and
+// every other family carries its constructor's name as a prefix — [LogDomain],
+// [SymLogNice], [SizeRange], [ColorReverse] — with [Time]'s [In] and [Origin]
+// the exceptions that read as English. A name that does not compile against
+// the scale it was meant for is the intended failure: the option types are
+// what keep [Nice] from being silently accepted and ignored by a log axis.
+package scale
+
+import "math"
+
+// Tick is one labelled position on an axis.
+type Tick struct {
+	// Value is the tick's position in data space.
+	Value float64
+	// Pos is the tick's position in device space, already mapped.
+	Pos float32
+	// Label is the formatted text for the tick. An empty label means a tick
+	// mark and grid line are drawn but nothing is written.
+	Label string
+	// Minor marks a tick that subdivides the axis without a label.
+	Minor bool
+}
+
+// Scale maps data values onto a device-space range.
+//
+// A scale is trained on data, given a device range, and then queried. The
+// order matters: Map and Ticks are only meaningful once both the domain and
+// the range are set.
+//
+// # Stability
+//
+// Scale is implemented outside this module, so it never gains a method. What a
+// scale can additionally do is an optional interface beside it — [Definite],
+// [Categorical], [Band], [Temporal], [Zoomer], [Snapshotter], [Cloner] are the
+// seven that exist — and a caller asks with a type assertion and falls back
+// when the answer is no. A scale this package does not define is written down
+// and read back through [Describer] and [Register].
+type Scale interface {
+	// Train extends the scale's data domain to include vs. Values that are
+	// NaN or infinite are ignored. Calling Train repeatedly accumulates.
+	Train(vs ...float64)
+
+	// SetRange sets the device-space output interval. lo may be greater than
+	// hi, which is how a Y axis is flipped so that larger values are higher on
+	// screen.
+	SetRange(lo, hi float32)
+
+	// Domain reports the current data domain, after any nicing.
+	Domain() (min, max float64)
+
+	// Map converts a data value to a device position. Values outside the
+	// domain map outside the range; clipping is the caller's business.
+	Map(v float64) float32
+
+	// Invert converts a device position back to a data value. It is the
+	// inverse of Map over the whole real line, not just the range.
+	Invert(pos float32) float64
+
+	// Ticks returns tick positions and labels, aiming for about want ticks.
+	// The result is ordered ascending by Value.
+	Ticks(want int) []Tick
+}
+
+// Definite is implemented by scales whose domain excludes some finite values.
+// A log scale cannot place zero or a negative number anywhere on an axis, and
+// [Scale.Map] returns NaN for one.
+//
+// Geoms consult it so that such a value is treated as missing — subject to the
+// layer's own missing-data policy — rather than being handed to a backend as a
+// NaN coordinate. A scale that does not implement Definite accepts every finite
+// value.
+type Definite interface {
+	// Defined reports whether v has a position on this scale.
+	Defined(v float64) bool
+}
+
+// Categorical is implemented by scales that position named categories rather
+// than numbers, so that a geom can map a string column onto an axis.
+//
+// The numeric domain of such a scale is the category index: Encode turns a
+// label into the index that [Scale.Map] positions, which is what lets one
+// Scale interface serve both continuous and categorical axes.
+type Categorical interface {
+	// Encode returns the domain value for a category label, registering the
+	// label if the scale has not seen it before.
+	Encode(label string) float64
+
+	// Labels returns the categories in axis order.
+	Labels() []string
+}
+
+// Band is implemented by scales that give each category a slot of finite
+// width, which is what a bar or a boxplot needs in order to size itself.
+//
+// A geom that finds a Band on its axis takes the width from the scale instead
+// of guessing one from the spacing of the data.
+type Band interface {
+	// Bandwidth returns the width of one slot in device units, after padding.
+	Bandwidth() float32
+}
+
+// domainRange is the state every scale in this package shares.
+type domainRange struct {
+	dmin, dmax float64
+	trained    bool
+	rlo, rhi   float32
+	rset       bool
+}
+
+func (d *domainRange) Train(vs ...float64) {
+	for _, v := range vs {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			continue
+		}
+		if !d.trained {
+			d.dmin, d.dmax, d.trained = v, v, true
+			continue
+		}
+		d.dmin = math.Min(d.dmin, v)
+		d.dmax = math.Max(d.dmax, v)
+	}
+}
+
+func (d *domainRange) SetRange(lo, hi float32) { d.rlo, d.rhi, d.rset = lo, hi, true }
+
+// span returns the domain, substituting a usable interval when the scale was
+// never trained or saw constant data. Every scale needs this: an axis over one
+// repeated value must still render.
+func (d *domainRange) span() (float64, float64) {
+	if !d.trained {
+		return 0, 1
+	}
+	if d.dmin == d.dmax {
+		pad := math.Abs(d.dmin) * 0.05
+		if pad == 0 {
+			pad = 0.5
+		}
+		return d.dmin - pad, d.dmax + pad
+	}
+	return d.dmin, d.dmax
+}
+
+// place puts a normalised position t in [0, 1] onto the device range.
+//
+// The multiplication is rounded to float32 before the addition, which is what
+// stops Go contracting the pair into a fused multiply-add. That contraction is
+// permitted — the spec allows it "possibly across statements" — and arm64 takes
+// it where amd64 does not, so the same chart came out with coordinates one
+// float32 unit in the last place apart on the two: 20 on an x86 runner,
+// 19.999998 on an Apple Silicon one.
+//
+// A last bit is invisible in a chart, and the golden comparisons tolerate it.
+// It is not invisible to a *decision*. [stat.LTTB] picks the row forming the
+// largest triangle, and two candidates whose areas are a hair apart swap
+// places, moving a whole vertex — which is how this surfaced: a documentation
+// figure that differed between architectures by one chosen sample rather than
+// by one bit. One explicit rounding here is what makes a chart the same chart
+// on every machine.
+func place(rlo, rhi float32, t float64) float32 {
+	return rlo + float32(float32(t)*(rhi-rlo))
+}
+
+func (d *domainRange) rangeOf() (float32, float32) {
+	if !d.rset {
+		return 0, 1
+	}
+	return d.rlo, d.rhi
+}
+
+// Labeller is implemented by a scale that can write any value the way it
+// writes its tick labels. It is an optional interface, for the reason
+// [Zoomer] is: [Scale] is implemented outside this package and never gains a
+// method.
+//
+// It exists because a tick label is not the only place a chart writes a
+// number. A tooltip, a data table beside the plot and an accessible
+// description all write the same values, and a chart whose axis says
+// "1.234,5 €" while its tooltip says "1234.5" is a chart that has been
+// localised in one place.
+type Labeller interface {
+	// LabelOf writes v the way this scale would label a tick at v: its
+	// format, its locale, and the precision its current tick sequence uses.
+	LabelOf(v float64) string
+}
+
+// LabelOf writes v the way s labels its ticks, falling back to the label of a
+// tick at exactly v for a scale that is not a [Labeller], and to the empty
+// string when there is none.
+func LabelOf(s Scale, v float64) string {
+	if l, ok := s.(Labeller); ok {
+		return l.LabelOf(v)
+	}
+	for _, t := range s.Ticks(defaultTickCount) {
+		if t.Value == v {
+			return t.Label
+		}
+	}
+	return ""
+}

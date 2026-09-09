@@ -1,0 +1,201 @@
+# allocgate.awk — the benchmark gate.
+#
+# Pipe `go test -bench` output through it. It enforces the one property the
+# allocation pass promises: what a frame costs in allocations does not grow
+# with the data it draws, so a chart redrawn every frame over a live series is
+# affordable.
+#
+# Times are deliberately not checked. A shared CI runner has nothing reliable
+# to say about them, and a gate that flakes is a gate people learn to ignore.
+# Allocation counts are deterministic, which is why they are what is pinned —
+# and they are deterministic because the benchmarks behind them pin their
+# measurement to one processor. See onOnePGate in alloc_test.go: without it a
+# goroutine that migrates between processors leaves its pooled scratch in the
+# old one's private slot, and the frame that refills it is charged sixty
+# allocations nobody wrote. That was this file's flake, and it is why three
+# comparisons below used to be budgets.
+#
+# Usage:
+#   go test -run='^$' -bench=. -benchtime=10x ./... | awk -f .github/scripts/allocgate.awk
+
+$NF == "allocs/op" {
+	name = $1
+	sub(/-[0-9]+$/, "", name) # strip the GOMAXPROCS suffix
+	allocs[name] = $(NF - 1) + 0
+	seen[name] = 1
+}
+
+# require reports whether a benchmark ran at all. A gate that silently passes
+# because its subject was renamed is worse than no gate.
+function require(name) {
+	if (name in seen) {
+		return 1
+	}
+	printf "  %-28s did not run\n", name
+	bad = 1
+	return 0
+}
+
+# flat asserts that b costs no more than a, give or take a pool miss.
+function flat(a, b, slack,   x, y) {
+	if (!require(a) || !require(b)) {
+		return
+	}
+	x = allocs[a]
+	y = allocs[b]
+	printf "  %-28s %6d allocs/op\n", a, x
+	if (y > x + slack) {
+		printf "  %-28s %6d allocs/op   FAIL: %d more than %s — something allocates per row\n", b, y, y - x, a
+		bad = 1
+		return
+	}
+	printf "  %-28s %6d allocs/op   ok, flat against %s\n", b, y, a
+}
+
+# atMost asserts an absolute ceiling.
+function atMost(name, budget,   v) {
+	if (!require(name)) {
+		return
+	}
+	v = allocs[name]
+	if (v > budget) {
+		printf "  %-28s %6d allocs/op   FAIL: budget is %d\n", name, v, budget
+		bad = 1
+		return
+	}
+	printf "  %-28s %6d allocs/op   ok, budget %d\n", name, v, budget
+}
+
+END {
+	print "The allocation gate:"
+
+	# A thousand rows and a million, drawn into a backend that does nothing, so
+	# what is measured is figure's own work rather than an emitter's.
+	flat("BenchmarkFrame1k", "BenchmarkFrame1M", 8)
+	atMost("BenchmarkFrame1M", 128)
+
+	# The Append forms of the decimation family exist to be allocation-free.
+	# Zero is not an aspiration here, it is the reason they have that shape.
+	atMost("BenchmarkLTTB", 0)
+	atMost("BenchmarkMinMax", 0)
+
+	# Groups and the position adjustments, added in v0.7. A grouped layer
+	# indexes its rows and derives its stack on every Train, out of buffers it
+	# keeps between frames — so a long table costs what a short one costs. See
+	# docs/adr/0019-position-adjustments.md.
+	#
+	# This pair was a budget until the benchmarks were pinned to one processor,
+	# because the large side came out at 91, 98 or 106 for the same code. It
+	# comes out at exactly the small side's count now, so it is compared like
+	# every other pair — a hundred times the rows for no allocations at all is
+	# the claim, and the claim is worth stating exactly. The ceiling stays
+	# beside it: it is what catches a frame that grows tenfold without growing
+	# per row.
+	flat("BenchmarkStacked1k", "BenchmarkStacked100k", 8)
+	atMost("BenchmarkStacked100k", 128)
+
+	# The polar path, added in v0.8. A coord sits between every mapped pair and
+	# the device point it becomes, and a polar one does not decimate — so this
+	# draws every row through coord.Coord.Points. The batch form is why that is
+	# flat; a per-row interface call is the shape that would break it, and it
+	# has broken exactly this way once before. See docs/adr/0018.
+	flat("BenchmarkPolar1k", "BenchmarkPolar100k", 8)
+
+	# The v0.8 sugar: a donut whose slices name their own radii and are broken
+	# out of the ring per row. The displacement is collected per mark and
+	# carried through the colour and group batching, all of it out of the
+	# scratch pool.
+	#
+	# The slack is wider than the others by four, and the four are tick labels:
+	# a ring of a hundred thousand slices has a longer angular domain than a
+	# ring of a thousand, so its axis has more ticks and each label is a string.
+	# That is a cost per *tick*, which is what an axis is allowed to cost.
+	flat("BenchmarkBrokenRing1k", "BenchmarkBrokenRing100k", 12)
+
+	# The size channel, added in v0.9. A sized layer collects a diameter per
+	# mark, orders the marks largest first and emits them as subpaths of one
+	# path per colour. The ordering is a sort — the only one on the drawing
+	# path — and it runs in place over the scratch's own index list, so a sort
+	# that allocated its own permutation would show up here and nowhere else.
+	#
+	# The slack is wider than the others because this frame is large enough to
+	# provoke a pool miss. A hundred thousand bubbles is a path of 1.3 million
+	# points — about 15 MB — so a collection runs between frames and sync.Pool
+	# is emptied by one; the frame that finds an empty pool refills the
+	# scratch's buffers, which is a handful of allocations that has nothing to
+	# do with the rows. The steady-state gap is four, which
+	# TestASizedLayerDoesNotAllocatePerPoint pins at a slack of eight; twelve
+	# here leaves room for the miss and still fails a per-row allocation, which
+	# at a hundred times the rows would be thousands rather than nine.
+	flat("BenchmarkBubbles1k", "BenchmarkBubbles100k", 12)
+
+	# The text mark, added after v0.9. A label is measured against its box on
+	# every frame and one that does not fit is cut, which builds a string — so
+	# this is the one path where a per-row allocation could hide behind work
+	# that has to happen anyway. The cut is remembered per row, which is what
+	# makes it flat; a cache that stopped hitting would show up here as ten
+	# thousand allocations rather than as anything visibly wrong on screen.
+	flat("BenchmarkLabelled1k", "BenchmarkLabelled10k", 8)
+
+	# The relational layouts, added in bucket E. Both build a structure sized by
+	# the data on every Train: a node per distinct name, a depth and a total per
+	# node, a layer assignment and a relaxation for the sankey, a squarify per
+	# sibling group for the treemap. None of it may be allocated per frame — the
+	# layer keeps those buffers, and the interning map is cleared rather than
+	# replaced so that its buckets survive too.
+	#
+	# What would break it is the thing that is easy to write: a map made per
+	# Train, or a slice of totals returned rather than appended into. Either
+	# shows up here as a hundred thousand allocations and nowhere else, because
+	# neither is visible in the picture.
+	flat("BenchmarkSankey1k", "BenchmarkSankey100k", 8)
+	flat("BenchmarkTreemap1k", "BenchmarkTreemap100k", 8)
+
+	# Row identity, added after v0.5. Tracking which source row is behind each
+	# mark is opt-in, and what it is opt-in *for* is memory per mark — not
+	# per-frame allocations. If that stops being true it is a buffer that
+	# escaped the pool, which is the same bug the gate above exists for.
+	flat("BenchmarkWatchedFrame", "BenchmarkWatchedFrameRows", 2)
+
+	# Row identity across frames, added after v1.6. A hover resolves the key of
+	# the row it landed on, and the whole reason that goes through data.Label
+	# rather than data.Labels is this line: Labels spells the column, which over
+	# a hundred thousand rows is a hundred thousand strings to name one of them.
+	# A pointer asks on every move, so the cost has to be a constant.
+	#
+	# Zero rather than a budget, because a string key is the value the table
+	# already holds and copying it would be the mistake. A numeric key formats
+	# one small string and would read as 1 here — which is why the benchmark
+	# keys on a string column: it pins the path that must not copy.
+	atMost("BenchmarkHover", 0)
+	flat("BenchmarkHover", "BenchmarkHoverKeyed", 0)
+
+	# Transitions, added after v1.6. A frame of an animation is a blend written
+	# into columns that already exist, over a chart that is not resolved again
+	# between frames — so it costs a frame and nothing per row.
+	#
+	# The two ways to break it are both easy to write and both invisible in the
+	# picture: a Tween that rebuilt its columns in At rather than rewriting
+	# them, and a driver that called Rebuild between frames instead of letting
+	# the layer read a Source whose contents changed. Either shows up here as a
+	# hundred thousand allocations and as an animation that is merely slow.
+	flat("BenchmarkTransitionFrame1k", "BenchmarkTransitionFrame100k", 8)
+	atMost("BenchmarkTransitionFrame100k", 128)
+
+	# The streaming path, added in v0.5. A live chart appends a row and freezes
+	# a view once per frame, for as long as the process runs; either of those
+	# allocating is a leak with a plot attached. Both measure the steady state,
+	# where the window is full and the snapshot buffers are already sized.
+	atMost("BenchmarkStreamAppend", 0)
+	atMost("BenchmarkStreamSnapshot", 0)
+
+	if (bad) {
+		print ""
+		print "allocgate: failed. Find the culprit with"
+		print "  go test -run=XXX -bench=Frame -memprofile=mem.out ."
+		print "  go tool pprof -sample_index=alloc_objects -top mem.out"
+		exit 1
+	}
+	print ""
+	print "allocgate: a frame costs the same over a million rows as over a thousand"
+}

@@ -1,0 +1,53 @@
+# 0001 — The gg backend is a nested module in this repository
+
+**Status:** Accepted · **Date:** 2026-09-04 · **Closes:** CONCEPT.md §17.5
+
+## Context
+
+The headline promise is that `import "github.com/timzifer/figure"` pulls in
+nothing but the standard library. That is what makes the lean case — a server
+emitting SVG — cost nothing, and it is what keeps a young, fast-moving
+dependency out of the graph of anyone who does not want it.
+
+`CONCEPT.md` §16 sketched the raster/GPU backend as a separate module called
+`figure-gg`, which reads as a second repository. That would work, but it means
+the backend and its golden images cannot be committed anywhere until that
+repository exists, and it splits one milestone across two release flows.
+
+## Decision
+
+Two modules, one repository:
+
+- `github.com/timzifer/figure` — the core. `go.mod` has no `require` block.
+- `github.com/timzifer/figure/backend/gg` — the gg adapter, with its own
+  `go.mod` requiring `github.com/gogpu/gg` at an exact version.
+
+A nested module is excluded from its parent's module graph, so the core's
+dependency graph is unaffected by anything the backend needs. A `go.work` at the
+repository root builds both together during development, and is committed for
+that reason.
+
+Releases are tagged separately: `v0.2.0` for the core, `backend/gg/v0.2.0` for
+the backend. The backend's tag comes second, on a commit that already requires
+the core tag it was validated against.
+
+## Consequences
+
+- The stdlib-only promise is mechanically enforceable rather than aspirational.
+  CI asserts it: `go list -deps ./...` on the core must not name a single
+  non-stdlib package.
+- `backend/gg/go.mod` requires the core at a published tag and carries no
+  `replace` directive. It did until `v0.1.0` existed, because `go.work` does
+  not exempt a required version from module-graph loading, so the backend
+  otherwise tried to fetch a tag that was not there. **Bumping that require
+  line to the new core tag is a step in every release**, and it needs the core
+  tag published first — which is why it lands after the core tag rather than
+  with it.
+- The import path is `.../backend/gg`, not `figure-gg`. `CONCEPT.md` §13 and
+  §16 have been updated to match.
+
+## Revisit if
+
+The backend grows a release cadence genuinely independent of the core — for
+instance if it starts tracking gg's own weekly releases — at which point a
+separate repository stops being overhead and starts being useful.

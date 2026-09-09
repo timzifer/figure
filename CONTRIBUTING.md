@@ -1,0 +1,522 @@
+# Contributing
+
+## Layout
+
+This is a five-module repository:
+
+| Path | Module | Depends on |
+|---|---|---|
+| `.` | `github.com/timzifer/figure` | **nothing** — the standard library only |
+| `backend/gg` | `github.com/timzifer/figure/backend/gg` | `gogpu/gg`, `x/image` |
+| `backend/gg/gpu` | `github.com/timzifer/figure/backend/gg/gpu` | `gogpu/gg/gpu` → `wgpu`, `naga`, `goffi` |
+| `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu`, and the two above |
+| `arrow/v18` | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — its major version is the adapter's ([ADR 0030](docs/adr/0030-arrow-major-version.md)) |
+
+Three backends are in the core module — `backend/svg`, `backend/pdf` and
+`backend/canvas` — so SVG, PDF and a browser canvas cost no dependency at all
+([ADR 0009](docs/adr/0009-pdf-backend.md),
+[ADR 0017](docs/adr/0017-browser-backend.md)). `backend/canvas` reaches a 2D
+context through `syscall/js`, which is the standard library; every file in it
+is behind `//go:build js && wasm`, and `doc.go` is what keeps
+`go build ./...` on a server from failing on a package with no buildable
+files.
+
+The split is not cosmetic. A nested module is excluded from its parent's module
+graph, which is what lets `import "github.com/timzifer/figure"` pull in zero
+dependencies while the raster backend links GoGPU and the adapter links Arrow.
+CI enforces it — see [ADR 0001](docs/adr/0001-module-layout.md) and
+[ADR 0013](docs/adr/0013-arrow-adapter.md).
+
+`backend/gg/gpu` is the same mechanism one level down: it is nested *inside*
+`backend/gg` precisely so that the raster backend's own graph stays gg,
+`x/image` and the core, while importing the tier is the whole opt-in
+([ADR 0022](docs/adr/0022-gpu-tier.md)). `backend/window` is where a window
+layer is allowed to be linked, and it holds two packages on purpose: `window`
+draws and `window/show` steers, because a backend must not import the model
+([ADR 0021](docs/adr/0021-native-window.md)).
+
+`go.work` at the repository root is **committed**, so the five modules build
+together with no setup. If your tooling ignores it,
+`go work init . ./arrow/v18 ./backend/gg ./backend/gg/gpu ./backend/window`
+reproduces it.
+
+> Each nested module requires the core at a published tag, not through a
+> `replace` directive. The workspace still overrides that for local
+> development, so a change to the core is picked up immediately — but the
+> module as published always resolves to a real release. That require is a
+> floor, not a pin: it moves only when the nested module needs a core API the
+> version it names does not have, and the release check is what says so.
+
+## Everyday commands
+
+```sh
+# build and test everything
+go build ./... && go test ./...
+(cd backend/gg && go test ./...)
+(cd backend/gg/gpu && go test ./...)
+(cd backend/window && go test ./...)
+(cd arrow/v18 && go test ./...)
+
+# the checks CI runs
+gofmt -l .                                   # must print nothing
+for m in . backend/gg backend/gg/gpu backend/window arrow/v18; do (cd "$m" && go vet ./...); done
+CGO_ENABLED=0 go build ./...
+
+# a chart in a window, by hand — the one thing CI cannot check, because a
+# runner has no display
+(cd backend/window && go run ./cmd/demo)
+
+# the benchmarks, and the gate on what they measure
+go test -run='^$' -bench=. -benchtime=10x ./... | awk -f .github/scripts/allocgate.awk
+
+# the core must stay dependency-free
+go list -deps ./... | grep -v '^github.com/timzifer/figure' | grep '\.'
+# must print nothing
+
+# cross-compilation, which is half the point of being cgo-free
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./...
+CGO_ENABLED=0 GOOS=js    GOARCH=wasm  go build ./...
+# ...for every module except the GPU tier under js/wasm: gg/gpu reaches wgpu's
+# native core, which has no browser target. The browser draws on canvas 2D.
+
+# the browser backend, run rather than merely compiled: node is the JS side and
+# the tests supply a recording 2D context
+PATH="$PATH:$(go env GOROOT)/lib/wasm" GOOS=js GOARCH=wasm go test ./backend/canvas/...
+```
+
+> The wasm test runner passes the environment into the sandbox and refuses a
+> very large one — if it reports "total length of command line and environment
+> variables exceeds limit", run it under `env -i` with just `PATH`, `HOME`,
+> `GOOS` and `GOARCH` set.
+
+## Golden files
+
+Two sets, both compared with a tolerance narrow enough that only a real change
+to a chart trips them.
+
+**Golden SVG** (`testdata/golden/`) pins what the core renders:
+
+```sh
+go test . -update
+```
+
+**Golden PNG** (`backend/gg/testdata/golden/`) pins what the raster backend
+renders:
+
+```sh
+cd backend/gg && go test . -update
+```
+
+Regenerate deliberately, and **read the diff before committing it**. A golden
+file that changes without an intended reason is the test doing its job.
+
+### Why the comparison has a tolerance
+
+Neither set is compared byte for byte, and cannot be. Go may contract `a*b + c`
+into a fused multiply-add, and arm64 does while amd64 does not — so the same
+chart prints a coordinate one float32 unit in the last place apart on an Apple
+Silicon Mac and on an x86 runner. That is enough to change a rounded third
+decimal and fail a byte comparison on output that is visually identical.
+
+So SVG is compared with `internal/svgdiff`: everything that is not a number must
+match exactly — element and attribute order, ids, colours, path verbs, text —
+and coordinates may differ by a hundredth of a pixel. PNG is compared with a
+small per-channel tolerance. Both are orders of magnitude below anything visible
+and orders of magnitude above the noise they exist to absorb.
+
+A figure that embeds a raster — a density chart is an `<image>` whose href is a
+base64 PNG — has that payload compared as an image rather than as the deflate
+stream it is written as. Deflate output belongs to the standard library, and two
+Go releases produce two streams for identical pixels; pinning it would be a
+golden test of `compress/flate`. The vector half, including where the raster is
+drawn and how large it is, is still compared exactly. See
+`backend/gg/cmd/gallery/embedded.go`.
+
+Do not widen either tolerance to make a failure go away. Narrowing one is an
+improvement; widening one hides the thing the test is for.
+
+The same reasoning applies inside tests: device coordinates are float32 and
+arm64 contracts `a*b + c` into an FMA where amd64 does not, so comparing them
+with `==` fails on one architecture and passes on the other. `geom`'s annotation
+tests use `sameRect`/`samePoint` at `svgdiff.DefaultTolerance` instead.
+
+## Documentation figures
+
+Every chart in the README and the docs is generated, never hand-made:
+
+```sh
+go run ./backend/gg/cmd/gallery            # regenerate docs/images/
+go run ./backend/gg/cmd/gallery -check     # verify they match the code
+```
+
+The `-check` form also runs as an ordinary test
+(`go test ./backend/gg/cmd/gallery`) and in CI, so a stale figure fails the
+build. When it does, run the generator and commit the result. On `main`, CI
+regenerates and commits them for you.
+
+## Adding things
+
+**A geom** goes in `geom/`, implements `geom.Geom`, and emits IR — it must never
+reference a backend. Reuse the shared `geom.Option` set rather than inventing
+per-geom options; an option a geom has no use for is accepted and ignored.
+
+**A geom outside this module** does the same with three calls
+([ADR 0029](docs/adr/0029-extension-model.md)): its constructor keeps
+`geom.Configure(opts...)` as its configuration and reads `X`, `Color`, `Label`
+from it; a knob of its own is `geom.Extra("stem", 3)` and comes back from
+`Desc.Extra`; and `geom.Register(mark, build)` is what lets a JSON document
+name it. Return the `Desc` from `Describe` with `Mark` and `Source` filled in,
+and the round trip through `spec` is the same one every built-in mark gets. A
+scale or a coord registers with `scale.Register`, `scale.RegisterColor` and
+`coord.Register`.
+
+**A scale** goes in `scale/`, implements `scale.Scale`, and owns both its
+mapping and its tick generation. That pairing is why a time axis can label
+itself in calendar units without anything above it knowing. If it cannot place
+every finite value, implement `scale.Definite` too — that is what keeps a NaN
+coordinate out of a backend. If it positions categories in slots, implement
+`scale.Categorical` and `scale.Band`; see
+[ADR 0008](docs/adr/0008-categorical-axes.md).
+
+**A coordinate system** goes in `coord/` and implements `coord.Coord`. It maps a
+pair of scaled positions into device space and reports the geometry of the
+furniture that belongs to it — it does not draw: `render` is still the only
+package that knows drawing order, so a coord hands back paths and label anchors
+and `render` strokes them. `Cartesian` is the identity and the default, so a geom
+that goes through the stage draws exactly what it drew before, and the golden
+files are what proves it. Give every per-point method a batch form and use it on
+the hot path; a per-row interface call is how `scale.Scale.Train` once allocated a
+million times.
+
+Two shapes in that interface are the way they are for reasons worth knowing
+before changing them. `Frame` **returns** the coord positioned in a panel rather
+than moving the receiver into it, because panels are built on separate
+goroutines and a coord that remembered which panel it was in would be a data
+race. And `Furniture` **fills** a struct the caller owns rather than returning
+one, because a panel's furniture is a few dozen small slices and a chart redrawn
+every frame would otherwise allocate all of them every frame; `render` keeps one
+in a pool, exactly as it does a `geom.scratch`. See
+[ADR 0018](docs/adr/0018-coordinate-systems.md), whose amendments record both.
+
+**A backend** implements `ir.Backend` and `ir.Target`. Whatever a drawing call
+hands it — a point slice, a path, an image — is lent for that call only: figure
+draws from pooled buffers, so a backend that keeps one will render the next
+frame's data. Copy what you need to keep; `ir.Recorder` is the worked example.
+If it needs a dependency the core must not have, it belongs in its own nested
+module. Keep its contact
+with that dependency as small as you can, and say what you touched — see
+[ADR 0006](docs/adr/0006-gg-coupling-surface.md). Marker outlines come from
+`internal/markers` so that a diamond is the same diamond everywhere; the gg
+backend is a separate module and cannot import it, so it carries a copy and
+says so.
+
+It should also answer the optional interfaces it can. One drawing into a surface
+rather than a document implements `ir.Partial`, so that a live chart repaints
+only what changed, and `ir.Resizer`, so that a surface which can change size says
+so. One whose output can carry words — a document, an element with attributes —
+implements `ir.Semantics`, which is how a chart's name and description reach it.
+A backend that writes a document implements neither of the first two, and a
+raster does not implement the third: a PNG has nowhere to put words.
+
+**A wrapper around a backend** — a recorder, a probe, a typesetting shim — has
+to forward those interfaces deliberately: a wrapper hides what it does not
+declare, and the failure is silent. `ir.Recorder` and `interact`'s probe both
+carry `Describe` for exactly this reason, and `render.Draw` keeps the unwrapped
+backend to ask it the one question that is about the backend rather than about
+the drawing.
+
+**A reduction** goes in `stat/`, takes plain slices and returns row numbers —
+never a `Source`, never IR. It is generic over `float32` and `float64` so that a
+geom can run it on projected device coordinates, which is where the reduction
+belongs ([ADR 0011](docs/adr/0011-decimation.md)). Give it an `Append` form as
+well: the plain one is what reads well in documentation, the `Append` one is
+what a chart redrawn every frame calls.
+
+Wiring one into a geom means adding a case to `geom.config.reduction`, not a new
+option namespace — `geom.Decimate` and `geom.Budget` are shared like every other
+option. Reduce in `Build`, never in `Train`.
+
+**A layout** — a treemap's packing, a flow's node placement, a chord's arcs —
+goes in `stat/` too, and sees numbers and never a name: node ids are `[]int`,
+because interning a string is where the order of everything downstream is
+decided and that order has to come from the caller's table rather than from a
+map. A layout with working state the size of the data is a struct with a
+`Reset`, the way `stat.Hex` and `stat.Sankey` are, so a chart redrawn every
+frame reuses it. Any relaxation runs a fixed number of sweeps rather than to
+convergence — see [ADR 0039](docs/adr/0039-relational-layouts.md).
+
+**A distribution stat** — a binner, a density, a fit — goes in `stat/` under the
+same rules and runs on the *other* side of that line: in `Train`, in data space,
+with the scales trained on its output. Its answer is what the axis has to
+describe — a histogram's counts are nowhere in the table — so computing it at
+draw time would leave the mark drawing outside an axis trained on something else
+([ADR 0028](docs/adr/0028-distribution-stats.md)). The exception is a stat whose
+answer is a length on screen: a hexagonal lattice and a beeswarm's offsets are
+both measured in device units, and both belong in `Build` for the reason
+decimation does.
+
+Take ordered input rather than sorting: sorting means either mutating the
+caller's column or allocating a copy of it per frame, and the geom already keeps
+a buffer. Keep that buffer on the layer, not in the frame's pool — `Train` runs
+outside a `Build`, where there is no scratch to take.
+
+**An option** on a geom goes in the shared `geom.Option` set, and then in three
+more places or the JSON spec silently drops it: a field on `geom.Desc`, a line
+in `config.describe`, and a case in `spec.writeMarkProps` for the marks that
+use it. `geom`'s `TestDescribeAndRebuildAgree` and `spec`'s round-trip test are
+what catch forgetting.
+
+**A guide** — a third kind beside the legend and the colourbar — is a
+`layout.GuideKind` constant, a measuring function in `layout`, and a drawing
+function in `render`. It is not a field on `layout.Grid`: the guide column is
+one list with one stacking rule, generalised once in v0.9 rather than extended
+twice ([ADR 0027](docs/adr/0027-size-channel-and-the-guide-column.md)). The
+layer contributes it through an optional interface — `geom.Guided`,
+`geom.Sized` — never through a method on `Geom`.
+
+**A scale option** is the same shape: a field on `scale.Desc`, a line in that
+scale's `Describe`, and a case in `scale.FromDesc`. If the option changes the
+domain rather than the framing, it probably also belongs in `SetDomain`'s
+notion of a pin — see `scale.Zoomer`.
+
+**A theme** is `theme.Tokens` plus `theme.Build`, not fifty literal fields.
+Register it by name if it should be reachable from a config file. Reach for
+`Theme.With` before copying the struct.
+
+**An annotation** goes in `geom/annotate.go`, takes values rather than a
+`data.Source`, and must *not* implement `geom.Faceter` — a layer with no rows is
+furniture and belongs on every panel of a facet.
+
+Anything that changes the IR or the `Backend` interface needs an ADR. So does
+anything that answers one of the open questions in
+[CONCEPT.md §17](CONCEPT.md#17-open-decisions).
+
+## Tests
+
+Model-layer code is tested against `internal/irtest.Recorder`, an `ir.Backend`
+that records calls. Assert on the primitives that were emitted, not on scraped
+SVG or on pixels — a geom test that parses XML is testing the wrong layer.
+
+Write the test that would have caught the bug.
+`TestLinearFractionalStepKeepsItsDecimal` in `scale/` exists because a step of
+2.5 once rounded its labels to whole numbers, producing an evenly spaced axis
+that read 0, 2, 5, 8, 10.
+
+### Benchmarks and the allocation gate
+
+There is one claim in this repository that is a number rather than a picture:
+what a frame costs in allocations does not grow with the data it draws. It is
+checked twice, because the two ways of measuring it catch different mistakes.
+
+**As a test.** `TestARenderDoesNotAllocatePerPoint` renders the same chart over
+a thousand rows and over a million and fails if the second allocates more than
+a handful of times more than the first. Its siblings cover a faceted chart, a
+layer coloured from a column, and an absolute per-frame budget. They are built
+out under `-race`, which allocates on figure's behalf — the race job and the
+ordinary test job are separate, so the gate still runs on every commit.
+
+**As a benchmark.** `.github/scripts/allocgate.awk` reads `go test -bench`
+output and enforces the same property from the numbers a benchmark actually
+reports, plus `BenchmarkLTTB` and `BenchmarkMinMax` being allocation-free —
+which is the whole reason `stat`'s `Append` forms have that shape:
+
+```sh
+go test -run='^$' -bench=. -benchtime=10x ./... | awk -f .github/scripts/allocgate.awk
+```
+
+That is exactly what the `Benchmarks and the allocation gate` CI job runs, over
+the modules that have benchmarks. It gates allocation counts and never times: a shared runner
+has nothing reliable to say about times, and a gate that flakes is a gate people
+learn to ignore.
+
+**The gated benchmarks measure on one processor**, and that is what makes their
+counts reproducible rather than merely typical. `sync.Pool` keeps a private slot
+per P; a frame takes milliseconds, the scheduler preempts every ten of them, and
+a goroutine that resumes on another P leaves its pooled scratch behind in a slot
+nothing can steal from — so one iteration in a few dozen refills every buffer it
+needs and is charged sixty allocations nobody wrote. `onOnePGate` in
+`alloc_test.go` pins the measurement; `testing.AllocsPerRun` already did the
+same for the test half, which is why the tests were steady while the benchmarks
+were not. Add it to any benchmark whose count the gate reads.
+
+When either fails, find the culprit rather than raising the bar:
+
+```sh
+go test -run=XXX -bench=Frame -memprofile=mem.out .
+go tool pprof -sample_index=alloc_objects -top mem.out
+```
+
+The usual causes are a new buffer that should have come from `geom.scratch`, a
+buffer sized by the data being rebuilt in `Train` — which runs on every frame,
+so a column copied there is a copy per frame — and a variadic interface method
+being called once per row.
+
+A new benchmark goes wherever the thing it measures lives, and needs no
+registration — the CI job runs `-bench=.` across every package, which also means
+a benchmark that stops compiling fails the build rather than quietly rotting.
+It does need a paragraph in [docs/benchmarks.md](docs/benchmarks.md), which
+is the suite's catalogue: what the benchmark measures, and whether the gate
+reads it. The results table there is written by
+`.github/scripts/benchtable.awk` from the same output the gate reads, and the
+CI job writes the same table into its summary and attaches the raw output:
+
+```sh
+go test -run='^$' -bench=. -benchmem ./... | awk -f .github/scripts/benchtable.awk
+```
+
+## Landing a change
+
+`main` is protected by a repository ruleset, so nothing lands on it directly:
+every change goes through a pull request, and the merge button unlocks when the
+lint, test, race, wasm, figure and CodeQL checks are green. Force-pushing main
+and deleting it are refused outright.
+
+Two CI jobs are the exception, because they commit *to* main: `coverage` writes
+`docs/coverage.json` for the README badge, and `figures` re-renders
+`docs/images/` when a chart changes. A workflow token cannot be granted a
+ruleset bypass on a user-owned repository, so those two jobs check out over SSH
+with a write deploy key — the `CI_PUSH_KEY` secret — and the ruleset names that
+deploy key as its bypass actor. If the badge or the figures ever stop updating
+on main, that key is the first thing to look at: rotate it by generating a new
+ed25519 pair, replacing the deploy key and the secret, and pointing the
+ruleset's bypass at the new key's id.
+
+## Releasing
+
+One command releases all five modules. From the repository root:
+
+```sh
+go run ./internal/cmd/release -core vX.Y.Z -summary "what the release is called"
+```
+
+That reports the tags it would write, runs each module's release check, and
+stops. Re-run it with `-push` to write the tags on `HEAD` and push them.
+
+```
+Would tag HEAD:
+  v0.8.0                 v0.8.0 — the first release under this name
+  backend/gg/v0.8.0      backend/gg v0.8.0 — the raster path at core v0.8.0
+  arrow/v18.0.4          arrow/v18.0.4 — the adapter at core v0.8.0
+  backend/gg/gpu/v0.3.0  backend/gg/gpu v0.3.0 — the tier at core v0.8.0
+  backend/window/v0.8.0  backend/window v0.8.0 — the native path at core v0.8.0
+```
+
+The versions are derived. `backend/gg` and `backend/window` share the core's —
+they are the supported raster and native paths, and their own APIs are small.
+The GPU tier and the Arrow adapter carry majors of their own, so they move a
+patch above their latest tag; `-gpu` and `-arrow` say otherwise when a release
+changes their API. `-skip` leaves a module unreleased. Tag prefixes are the
+module's directory without any major-version suffix, which is why the adapter
+tags as `arrow/` rather than `arrow/v18/`
+([ADR 0030](docs/adr/0030-arrow-major-version.md)).
+
+Order does not matter: all five tags go on one commit, because no `require`
+line names a tag that does not exist yet.
+
+The command refuses to release a tag that already exists, a working tree with
+uncommitted changes in it, or a `HEAD` that is not on its upstream branch —
+pushing a tag does not push the commit under it, so a tag on a local-only
+commit publishes a version the proxy cannot fetch, and then caches the failure.
+It never edits a manifest; see below for when one has to move.
+
+Then the docs: the README's status line and `CONCEPT.md` §14 name the
+milestone, and the results table in `docs/benchmarks.md` is regenerated when a
+release changes what a benchmark measures.
+
+### The release check
+
+The check the release command runs is also a command of its own, for a
+candidate branch or a single module:
+
+```sh
+go run ./internal/cmd/releasecheck -module all
+go run ./internal/cmd/releasecheck -module arrow/v18
+```
+
+It builds, tests and vets each module with `GOWORK=off`, `CGO_ENABLED=0`,
+`-mod=readonly` and `GOPRIVATE=github.com/timzifer/figure`, and refuses
+`replace` directives.
+
+Green means each nested module builds, tests and vets against **exactly the
+core it names in its `require` line**, with the workspace out of the way. A
+green workspace test is not evidence of that, because `go.work` overrides the
+`require` lines locally. That isolated build is the whole contract a release
+has to keep, so a green check is the licence to tag — the `require` lines do
+not have to name the version being tagged.
+
+The **Release dependencies** workflow can run the same check manually on a
+candidate branch; tag pushes also check the module that tag releases. That
+post-tag check is a backstop, not a substitute for the pre-tag command.
+
+### When a require line does have to move
+
+A nested module's `require` on the core is a floor, not a pin — minimal version
+selection raises it for anyone who imports both — so it only moves when the
+module needs a core API the required core does not have. The Arrow adapter's
+did between v1.2.0 and v1.5.0. `releasecheck` is what says so: that module's
+build or test fails, with the workspace off, against the core it names.
+
+Do not silence that with a workspace, a local replacement or a tag that does
+not exist. Publish the prerequisite first, then bump:
+
+1. **What can go out.** Release everything that is green, leaving the failing
+   module behind — `-skip` takes module directories:
+
+   ```sh
+   go run ./internal/cmd/release -core vX.Y.Z -summary "..." -skip arrow/v18 -push
+   ```
+
+   `go.mod` at the root has no `require` block, so nothing precedes the core.
+2. **The require lines.** Bump `github.com/timzifer/figure` in the failing
+   module's `go.mod` — and, in `backend/gg/gpu` and `backend/window`,
+   `github.com/timzifer/figure/backend/gg` if that is what is short — then
+   `go mod tidy` and commit. `go.work` overrides these during development, so
+   the change is invisible locally; it is what a downstream `go get` resolves.
+
+   `go mod tidy` resolves for real, so run it with
+   `GOPRIVATE=github.com/timzifer/figure` in the environment: that keeps
+   `proxy.golang.org` out of the path for this repository's own tags. The
+   proxy caches a negative lookup for a few minutes, so a tag pushed moments
+   ago is otherwise a `404` that no retry clears. Fetching straight from git
+   sees the tag immediately. `releasecheck` sets this itself.
+
+   `backend/gg/gpu` and `backend/window` require `backend/gg` as well, so if
+   that tag is also being bumped it has to be pushed before they can be tidied.
+3. **The module on its own.** With the bump committed and pushed, release just
+   it — skip the rest, and name its version if a patch above its latest tag is
+   not what it should get:
+
+   ```sh
+   go run ./internal/cmd/release -core vX.Y.Z -arrow v18.N.M \
+       -skip .,backend/gg,backend/window,backend/gg/gpu -push
+   ```
+
+   `-core` is still the core's version here: it is what the tag message says
+   the module was tested against.
+
+The order exists to prevent one failure: publishing a nested module that
+resolves to a core it was never tested against. The check is what proves it
+was.
+
+
+## Style
+
+Standard Go, `gofmt`-clean, doc comments on exported identifiers. Comments
+should say *why*, not restate the code; the codebase's existing comments are the
+guide. British or American spelling — just be consistent within a file.
+
+## Parser fuzzing
+
+Normal tests execute the seed corpora. For mutation testing, run:
+
+```sh
+go test ./internal/sfnt -run='^$' -fuzz='^FuzzFont$' -fuzztime=30s -parallel=2
+go test ./spec -run='^$' -fuzz='^FuzzSpec$' -fuzztime=30s -parallel=2
+```
+
+The Parser fuzzing workflow runs both on pull requests and main and attaches
+failure corpora. Keep minimized failing inputs as regression seeds. Font
+fuzzing follows accepted fonts through glyph lookup and deterministic
+subsetting, checking that advances survive. Spec fuzzing checks decoding and
+re-encoding; it does not render arbitrary requested image sizes. Input limits
+bound test resources, not the public parsers' accepted input sizes.
