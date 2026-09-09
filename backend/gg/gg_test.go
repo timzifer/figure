@@ -214,7 +214,7 @@ func TestBadFontIsReportedNotIgnored(t *testing.T) {
 
 func TestZeroSizeIsRejected(t *testing.T) {
 	target := ggbackend.PNG(filepath.Join(t.TempDir(), "x.png"))
-	if _, err := target.Open(0, 100, 1); err == nil {
+	if _, err := target.Open(ir.Surface{WidthPx: 0, HeightPx: 100, DPR: 1}); err == nil {
 		t.Fatal("a zero-width surface must be rejected")
 	}
 }

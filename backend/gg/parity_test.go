@@ -52,13 +52,13 @@ func measurers(t *testing.T) (svgB, ggB ir.Backend) {
 
 	var buf bytes.Buffer
 	st := svg.Writer(&buf, svg.WithFont(goregular.TTF))
-	svgB, err := st.Open(600, 400, 1)
+	svgB, err := st.Open(ir.Surface{WidthPx: 600, HeightPx: 400, DPR: 1})
 	if err != nil {
 		t.Fatalf("opening the SVG backend: %v", err)
 	}
 
 	gt := ggbackend.Writer(&bytes.Buffer{}, ggbackend.FormatPNG)
-	ggB, err = gt.Open(600, 400, 1)
+	ggB, err = gt.Open(ir.Surface{WidthPx: 600, HeightPx: 400, DPR: 1})
 	if err != nil {
 		t.Fatalf("opening the gg backend: %v", err)
 	}

@@ -121,7 +121,7 @@ func TestTheGenerationTracksThePixels(t *testing.T) {
 // antialiased chart over itself darkens every edge in it.
 func TestAPartialRepaintDoesNotDrawTwiceOverTheSamePixels(t *testing.T) {
 	s := ggbackend.NewSurface()
-	b, err := s.Open(120, 90, 1)
+	b, err := s.Open(ir.Surface{WidthPx: 120, HeightPx: 90, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestASurfaceFollowsTheDevicePixelRatio(t *testing.T) {
 // from the SVG beside it in the documentation.
 func TestTheRasterBackendSetsItalic(t *testing.T) {
 	s := ggbackend.NewSurface()
-	b, err := s.Open(120, 90, 1)
+	b, err := s.Open(ir.Surface{WidthPx: 120, HeightPx: 90, DPR: 1})
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

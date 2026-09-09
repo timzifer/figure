@@ -14,12 +14,3 @@ use (
 	./backend/gg/gpu
 	./backend/window
 )
-
-// The nested modules require github.com/timzifer/figure v0.8.0, which does not
-// exist until this repository's first tags are pushed. Until then the module
-// graph cannot be resolved from the requirements alone, so the workspace names
-// the two in-repo modules explicitly. Remove both lines once v0.8.0 and
-// backend/gg/v0.8.0 are tagged.
-replace github.com/timzifer/figure v0.8.0 => ./
-
-replace github.com/timzifer/figure/backend/gg v0.8.0 => ./backend/gg
