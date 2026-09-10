@@ -162,9 +162,20 @@ type PanelInfo struct {
 	// Area is the rectangle the panel occupies in device space.
 	Area ir.Rect
 	// X and Y are the panel's scales, ranged for it.
+	//
+	// Both are nil for a panel that has no screen axes to invert through: a
+	// projected scene is announced by [github.com/timzifer/figure/three] with
+	// a Z and neither of these, because a device point in a turned cube does
+	// not resolve to a pair of values and saying it did would be worse than
+	// saying nothing. A reader of this struct checks before inverting, as
+	// interact.Index does.
 	X, Y scale.Scale
+	// Z is the panel's depth scale, and is nil for the two-dimensional panels
+	// this package draws. ADR 0056 is the record.
+	Z scale.Scale
 	// Coord turns a pair of mapped positions into a point in the panel, and
-	// inverts one back into a pair.
+	// inverts one back into a pair. It is nil for a panel whose positions
+	// were projected rather than mapped.
 	Coord coord.Coord
 }
 

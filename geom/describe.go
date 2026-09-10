@@ -96,8 +96,12 @@ type Desc struct {
 	// X, Y, X2 and Y2 name the columns mapped to the axes. ColorCol and
 	// ColorScale are [ColorBy]'s two halves.
 	X, Y, X2, Y2 string
-	ColorCol     string
-	ColorScale   scale.ColorScale
+	// Z names the column mapped to the depth axis. It is empty for every mark
+	// this package defines — see [Z] — and carries the third channel of a
+	// layer in [github.com/timzifer/figure/three].
+	Z          string
+	ColorCol   string
+	ColorScale scale.ColorScale
 
 	// Group names the series column, and Stack, Dodge, DodgePad, Order and
 	// WidthCol are the position adjustment defined over it.
@@ -394,6 +398,9 @@ func (d Desc) options() []Option {
 	if d.Y != "" {
 		opts = append(opts, Y(d.Y))
 	}
+	if d.Z != "" {
+		opts = append(opts, Z(d.Z))
+	}
 	if d.X2 != "" {
 		opts = append(opts, X2(d.X2))
 	}
@@ -488,6 +495,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Mark:       mark,
 		X:          c.xcol,
 		Y:          c.ycol,
+		Z:          c.zcol,
 		X2:         c.x2col,
 		Y2:         c.y2col,
 		ColorCol:   c.colorCol,

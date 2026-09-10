@@ -121,6 +121,16 @@ type Training struct {
 	// X and Y are the scales for the horizontal and vertical channels. Both
 	// are non-nil.
 	X, Y scale.Scale
+
+	// Z is the depth scale, and it is the field this struct was widened for.
+	//
+	// It is nil for every chart [github.com/timzifer/figure/render] draws,
+	// because a panel has two dimensions; it is non-nil for the layers of a
+	// [github.com/timzifer/figure/three.Scene]. A geom that never heard of a
+	// third dimension reads X and Y and is right to — and a layer that needs
+	// one is a three.Layer rather than a Geom, which is what keeps the two
+	// from being confusable. ADR 0056 is the record.
+	Z scale.Scale
 }
 
 // Geom is a layer of marks.
@@ -157,6 +167,7 @@ type Option func(*config)
 
 type config struct {
 	xcol, ycol string
+	zcol       string
 	x2col      string
 	y2col      string
 	label      string
@@ -239,6 +250,17 @@ func X(col string) Option { return func(c *config) { c.xcol = col } }
 
 // Y selects the column mapped to the vertical axis.
 func Y(col string) Option { return func(c *config) { c.ycol = col } }
+
+// Z selects the column mapped to the depth axis.
+//
+// Nothing in this package reads it: a flat chart has no depth, and a geom
+// accepts and ignores an option it has no use for. It lives here rather than
+// in a second option set of its own because the options are one namespace —
+// a parallel set would mean two spellings of [X], [Color] and [GroupBy] — and
+// because a depth column is a channel of the data rather than a knob of the
+// renderer. The layers that read it are in
+// [github.com/timzifer/figure/three]. ADR 0056 is the record.
+func Z(col string) Option { return func(c *config) { c.zcol = col } }
 
 // Color sets the mark colour, overriding the palette.
 func Color(col ir.Color) Option { return func(c *config) { c.color = &col } }

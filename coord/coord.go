@@ -45,6 +45,16 @@ type Framing struct {
 	// coord positioned in the rectangle without ranging anything: a frame
 	// built by code that never heard of coordinate systems does that.
 	X, Y scale.Scale
+	// Z is the depth scale, and it is nil for every coord this package
+	// defines.
+	//
+	// It is here because the seam is the one ADR 0056 widened for a third
+	// dimension and this is the field that widening was for. Nothing reads it
+	// yet: [github.com/timzifer/figure/three] projects above this stage and
+	// uses no coord at all, so the coordinate system that will read it is the
+	// spherical one — and when it arrives it finds a field rather than a
+	// release.
+	Z scale.Scale
 }
 
 // Coord turns a pair of mapped positions into a device point, and reports the
