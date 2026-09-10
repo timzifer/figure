@@ -12,12 +12,13 @@
 **A grammar-driven plotting library for Go: one model, many backends, runs
 everywhere — built on the GoGPU stack.**
 
-> **Status: `v0.x`.** The model is settled and the API is not frozen. Three
-> seams that take positional scale arguments are being reshaped so that a chart
-> can gain a dimension additively
+> **Status: `v0.x`.** The model is settled and the API is not frozen. The three
+> seams that took positional scale arguments have been reshaped so that a chart
+> can gain a dimension additively, and the dimension has arrived: `figure/three`
+> draws a chart whose x, y and z are all data
 > ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
 > [ADR 0060](docs/adr/0060-parameter-structs-at-every-seam.md)); `v1.0.0`
-> returns when they are done.
+> returns when the surface settles.
 
 The name is the thesis: a figure is a chart that has been finished and placed,
 and what makes it one is the model behind it rather than the file it was saved
@@ -144,6 +145,12 @@ picture cannot drift away from the code that produced it.
   sankeys, arcs, error bars, intervals, text, annotations.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is
   a sunburst), and Smith.
+- **Three dimensions** — `figure/three` draws a chart whose x, y and z are all
+  data: a surface over a grid, a trajectory through a volume, a field of bars
+  over two categoricals. It projects above the IR, so every backend draws one;
+  the camera is a value the caller holds, so the host owns the drag; and a
+  scene can be looked at from several cameras at once, which is what a static
+  export and a printed page need.
 - **Colour and size** — qualitative palettes, sequential and diverging ramps,
   classed ramps, a size channel, and the legend, colourbar or size key that
   follows from which of them a layer was handed.

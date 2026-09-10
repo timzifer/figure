@@ -65,12 +65,13 @@ depends on.
 | [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Proposed | — |
 | [0054](0054-statistical-instruments.md) | A domain reduction belongs in `stat` when its output is the chart | Proposed | — |
 | [0055](0055-depth-without-a-third-axis.md) | A mark gains volume before a chart gains a dimension | Planned | — |
-| [0056](0056-three-dimensional-charts.md) | A third axis widens the seams that count scales, and the IR stays two-dimensional | Planned | — |
-| [0057](0057-orbiting-a-chart.md) | The camera is a value, and turning it is the host's loop | Planned | — |
+| [0056](0056-three-dimensional-charts.md) | A third axis widens the seams that count scales, and the IR stays two-dimensional | Accepted, amended | — |
+| [0057](0057-orbiting-a-chart.md) | The camera is a value, and turning it is the host's loop | Accepted, amended | — |
 | [0058](0058-what-3d-is-for.md) | What the third dimension is for, and where it stops paying | Planned | — |
 | [0059](0059-renaming-and-restarting-the-version.md) | The library is renamed, and the version restarts rather than doubling | Accepted | — |
 | [0060](0060-parameter-structs-at-every-seam.md) | Every seam an outsider implements takes a struct, and the count of optional interfaces stops growing | Accepted | — |
 | [0061](0061-columns-are-one-value.md) | A column is one value that grows, and identity is its spelling | Accepted | — |
+| [0062](0062-a-scene-and-its-views.md) | A scene is the data, a camera is a way of looking at it, and one figure may hold several | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -103,8 +104,17 @@ any of them, and each is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built
-rather than argued about first. Nothing in them is implemented yet, and each is written so that it can be argued
-with before any of it is. They exist because 3D had been deferred as one
+rather than argued about first, and two of them now have been. **0056 and 0057
+are Accepted**: `figure/three` draws a surface, a trajectory and a field of
+bars, and turns them at a camera the host holds. Each carries an amendment
+saying where the implementation sharpened the record — 0056 on what its single
+depth order actually is, 0057 on the three things it left open — because a
+record that no longer matches the code is worse than no record. **0055 and 0058
+are still Planned**: the oblique coord is unbuilt, and 0058 is a catalogue
+rather than a mechanism, so it becomes Accepted when the last form in it does.
+0058's order of work is annotated with what landed.
+
+They exist because 3D had been deferred as one
 indivisible thing — `CONCEPT.md` §5 and §14 and
 [the v1 audit](../v1-api-audit.md) each defer it in a single line, none of them
 saying what "it" is — and that deferral stayed cheap only for as long as nobody
@@ -118,3 +128,13 @@ gives a reader that the flat chart of the same data does not — the only
 ranking under which a 3D bar chart loses to a heatmap and a Smith sphere loses
 to nothing. Implementation is a separate step; a Planned record becomes
 Accepted when the code that proves it lands.
+
+**0062 is the record 3D turned out to need and none of the four contained.**
+0057 made the camera a value so that the host could own the drag; the
+consequence nobody had written down is that a value can exist more than once,
+so one scene can be looked at from several cameras at once — which is what a
+static export, a printed page and an engineering drawing's plan-and-elevations
+all need, none of which can be turned. It is a record of its own rather than a
+paragraph in 0057 because [ADR 0059](0059-renaming-and-restarting-the-version.md)
+asks for one: a change that is not on 0056's list needs a record here before it
+needs code.

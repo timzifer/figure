@@ -200,6 +200,53 @@ place.
 A runnable version of the sweep above, a two-element matching network and the
 admittance chart is in [`examples/smith`](../examples/smith).
 
+## A surface is a third scale, projected
+
+The chart every other chart in this document is flat about: **x, y and z are
+all data**, and what the third dimension carries is the shape of a response
+*between* its samples. A heatmap of the same grid gives every value exactly and
+says nothing about which way the ground falls between two of them — so
+`examples/surface` draws both from one table, because the catalogue is not
+neutral about which to choose and neither should an example be.
+
+```go
+sc := three.NewScene(
+	three.XTitle("bias (V)"), three.YTitle("drive (dBm)"), three.ZTitle("gain (dB)"),
+).
+	Z(scale.Linear(scale.Nice())).
+	Add(three.Surface(src, geom.X("bias"), geom.Y("drive"), geom.Z("gain")))
+
+three.New(three.Size(660, 520), three.Title("Small-signal gain")).
+	Scene(sc).
+	Render(figure.SVG("response.svg"))
+```
+
+Three things in that are worth saying out loud.
+
+**The channels are `geom`'s.** `geom.X`, `geom.Y`, `geom.Z`, `geom.ColorBy`,
+`geom.GroupBy`, `geom.Fill` mean here what they mean everywhere, because the
+options are one namespace and a second one would be a second spelling of six
+things that already have one. `geom.Z` is accepted and ignored by every flat
+mark, exactly as any option a geom has no use for is.
+
+**The scene holds no camera.** That is what lets four cameras be pointed at one
+of these, which is the plan-and-elevations an engineering drawing has had since
+before there were computers — and the scales behind it are trained once
+however many angles are drawn from them. `examples/views` is the figure.
+
+**Nothing about the drawing order is in the chart.** A surface over a regular
+grid is ordered by where each of its cells stands on the floor, which under an
+orthographic camera is exact: a quad of a height field is occluded by its
+neighbours in the lattice and never by how tall it is. That is why the
+painter's algorithm is right here rather than merely usual, and why the picture
+needs no depth buffer — which matters, because SVG and PDF have no pixels to
+put one in.
+
+The cascade is the same machinery with `geom.GroupBy` over a sweep column:
+thirty traces offset along the second floor axis, which is the display a
+spectrum analyser has had since the seventies. It is a recipe rather than a
+mark, and `examples/cascade` is all of it.
+
 ## An edge table is a chart too
 
 The last family of charts figure could not draw read neither a pair of axes nor

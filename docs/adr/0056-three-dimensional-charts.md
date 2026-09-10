@@ -1,7 +1,46 @@
 # 0056 — A third axis widens the seams that count scales, and the IR stays two-dimensional
 
-**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** the three seams are widened; 3D itself is not started
+**Status:** Accepted · **Date:** 2026-09-08 · **Implementation:** `figure/three`, with the surface, the trajectory and 3D bars
 
+> **Amended 2026-09-10 — the seam gains its Z, and the order is one sort.**
+> `figure/three` exists, and two passages below describe the *decision*
+> accurately and the *implementation* loosely enough to mislead. Both are
+> corrected in place rather than left to be discovered.
+>
+> **`geom.Training` gained the `Z` this record is about**, and it is the only
+> one of the three seams anything reads: a three-dimensional layer is a
+> `three.Layer` rather than a `geom.Geom`, and it trains through the same
+> struct. `render.PanelInfo` gained one so that a view can announce its depth
+> axis to a hit index, and `coord.Framing` gained one that nothing reads yet —
+> `three` projects above the coordinate stage — so that the spherical coord of
+> [ADR 0058](0058-what-3d-is-for.md) finds a field rather than a release.
+>
+> **"No sorting, no comparisons" describes the decision, and the
+> implementation keeps the decision while spending the comparisons.** There is
+> one painter with one order: every layer emits its primitives into a
+> collector, each with a depth key the layer chose, and the collector is
+> ordered once — `slices.SortFunc` over a pooled key slice, ties broken by
+> emission index, which is (layer, row) and is total. A surface's key is the
+> depth of its cell **on the floor** rather than of the quad's own centroid,
+> which is what makes the order exact: a quad of a height field is occluded by
+> its neighbours in the lattice and never by how tall it is, and under an
+> orthographic camera that order is provably right rather than merely usual.
+> That the key ignores a quad's height is a reading of the data, not an
+> approximation of a depth buffer — and it is a second thing the refusal of
+> perspective buys. The traversal this record describes is still there and
+> still allocates nothing; what it now does is hand the sort a sequence it can
+> confirm without a swap. What the record refuses is a *second* order beside
+> the first, and that refusal stands: a fast path skipping the sort for a scene
+> with one self-ordered layer would be two orders through the painter.
+>
+> **A quad is filled, and outlined only when the chart asks.** The sentence
+> below pairing "a single filled subpath" with "a stroked outline" cannot have
+> both halves: a hit index ranks a stroked vertex above the area it outlines,
+> so an always-outlined mesh reports a corner on every hover over a surface.
+> `three` uses `geom.Rect`'s rule — an outline appears when the caller names
+> both a fill and a colour — and the half that is kept is the one that matters,
+> which is that a quad is one mark.
+>
 > **Amended 2026-09-09.** This record was written while the library was
 > `github.com/timzifer/refract` at `v1.7.0`, so it priced its break as a
 > `v2.0.0` and an import path with a `/v2` suffix. The library has since been
@@ -53,9 +92,9 @@ beside it without touching it — and shows the cost: another optional
 interface, another branch in the draw path, another thing an index has to
 implement to be correct.
 
-**Nothing orders it, and this one is not a signature.** `drawPanel` walks
+**Nothing orders it, and this one is not a signature.** `drawLayers` walks
 `p.Layers` and each layer's `Build` streams straight into the backend
-([render/render.go:1060](../../render/render.go)), so **a layer is a paint
+([render/render.go](../../render/render.go)), so **a layer is a paint
 unit**. A projected scene has no paint unit smaller than the panel: a point of
 a scatter can be in front of one part of a surface and behind another, so
 correct occlusion is a single depth order over the primitives of *every* layer

@@ -1,6 +1,43 @@
 # 0057 — The camera is a value, and turning it is the host's loop
 
-**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** not started
+**Status:** Accepted · **Date:** 2026-09-08 · **Implementation:** `three.Camera` and `three.Live`
+
+> **Amended 2026-09-10 — three things this record left open, decided in the
+> code.**
+>
+> **There is no `Distance`, because an orthographic camera has none.** The
+> record names "orbit, dolly and reset" as the three verbs a chart needs, and
+> it is right; but under an orthographic projection the eye's distance from the
+> scene changes nothing at all — not weakly, exactly nothing. So what a reader
+> means by dollying here is a scale factor: the option is `three.Zoom` and the
+> verb is `three.Dolly`, which multiplies it. Shipping a `Distance` that did
+> nothing would be worse than not shipping one.
+>
+> **`Orbit`'s two floats are radians.** The record does not say, and the answer
+> follows from its own rule: how many radians a pixel of drag is worth is a
+> statement about how an interaction *feels*, and this record puts feel on the
+> host's side of the line along with inertia, momentum and springs. The doc
+> comment carries the one-line conversion so that nobody has to invent it.
+>
+> **"Damages the panel outright while a drag is in flight" is expressed as a
+> fact rather than as a flag.** A drag is something only the host can see, and
+> a flag for it is state the library cannot verify, is wrong for a
+> programmatic eased orbit that no pointer is involved in, and leaves a host
+> that forgets to clear it paying for a full repaint forever with nothing
+> failing. So `three.Live` uses the rule `figure.Live` already has for
+> `Resize`: **a frame whose camera moved is not comparable with the last one.**
+> It then damages the *views that moved* rather than the whole surface, which
+> is more than this record asks for and is what a figure of four views wants —
+> three of them genuinely did not change.
+>
+> **A camera being a value is what makes several of them possible, and the
+> package takes that.** The record describes one scene and one camera
+> throughout, and nothing in it is contradicted by a figure that holds
+> several: because a camera is not state of the scene, a `three.Scene` is the
+> data and a `three.View` is one camera on it, several views share one scene,
+> and the scales behind it are trained once however many angles are drawn from
+> them. That arrangement is argued in [ADR 0062](0062-a-scene-and-its-views.md)
+> rather than here.
 
 ## Context
 

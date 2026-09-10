@@ -28,7 +28,9 @@ positioning rests on — see [ADR 0001](docs/adr/0001-module-layout.md).
 data, stat                                    →  rows in, rows out
 geom, scale, coord, facet, layout, render     →  produce IR
                                                  (layout is internal/layout:
-                                                 render is its one caller)
+                                                 render and three call it)
+three                                         →  produces IR, beside render
+                                                 rather than through it
 ir                                            →  the interface
 interact                                      →  reads IR back
 spec, a11y                                    →  write the model down
@@ -44,7 +46,12 @@ backend/gg, backend/window
 - A backend must not import `geom`, `scale`, `theme` or `render`. That is why
   `Live.Bind` — which turns a wheel event into a zoom — is in the root package
   under a js build tag and not in `backend/canvas`: wiring input is not drawing.
-- `render` is the only package that knows the drawing order of a chart. A coord
+- `render` is the only package that knows the drawing order of a *flat* chart,
+  and `figure/three` is the only one that knows the drawing order of a
+  projected scene. They are two orders because a layer is a paint unit in one
+  and is not in the other; they are not two paths through one thing, and
+  neither calls the other. See
+  [ADR 0056](docs/adr/0056-three-dimensional-charts.md). Within `render`: a coord
   reports where a grid line, an axis line and a tick label go; `render` strokes
   them, in the order it always did. A coord that drew its own rings would be a
   second drawing order — see [ADR 0018](docs/adr/0018-coordinate-systems.md).
@@ -311,6 +318,68 @@ caller can attribute the calls that follow; two panels drawing at once have no
 order to be told in. Do not "optimise" this by giving each panel its own
 observer — the index would then depend on scheduling, and so would every
 tooltip.
+
+**`figure/three` paints in its own order, and `render` did not gain a second
+one.** A `three.Layer` is deliberately not a `geom.Geom`: a geom's `Build`
+streams ink, which makes a layer a paint unit, and a projected scene has no
+paint unit smaller than the view. So a layer emits primitives into a `Sink` and
+one painter projects, orders and draws all of them at once. If a change here
+starts wanting `render` to record layers and merge the recordings, that is the
+thing [ADR 0010](docs/adr/0010-panel-layout.md) exists to prevent and
+[ADR 0056](docs/adr/0056-three-dimensional-charts.md) refuses again.
+
+**A height field is ordered by where its cells stand on the floor, not by the
+quads' own middles.** `three.DepthGround` is what makes the painter's algorithm
+*exact* there rather than merely usual: a quad of a surface is occluded by its
+neighbours in the lattice and never by how tall it is. Reordering by centroid
+depth "because that is what a painter's algorithm does" compiles, draws
+something plausible, and is wrong exactly where the surface is steep — which is
+where a reader is looking. Same for a bar and the cell it stands on.
+
+**The depth key is computed in float64 and stored as float32, on purpose.** The
+narrowing turns a near-tie into an exact tie, and an exact tie is broken by
+emission index, which is the same on every architecture. A float64 key would
+let two primitives a ulp apart order one way on arm64 and the other on amd64 —
+and `internal/svgdiff` tolerates exactly that much coordinate difference, so
+the reorder would *not* be caught. It is `scale.place`'s and `stat.LTTB`'s
+lesson in a third place.
+
+**Faces batch by run, never by colour.** `geom.groupByColor` merges every mark
+of one colour into one call because order within a flat layer does not matter.
+In a scene the order *is* the thing being computed, so only primitives already
+adjacent in it may be merged into one `FillPath`. Batching by colour there
+would draw a correct-looking picture with the wrong things in front.
+
+**A surface fills and outlines only when asked.** `interact` ranks a stroked
+vertex above the area it outlines, so a mesh that always drew its own outline
+would report a corner on every hover. It is `geom.Rect`'s rule and it is
+load-bearing rather than cosmetic.
+
+**`three` announces its panels with nil X and Y.** A projected scene has no
+screen axes to invert a device position through, and `interact.Index.At`
+already checks before it inverts — so a hit reports `Kind`, `Layer`, `Series`
+and `Row`, and leaves `Hit.X` and `Hit.Y` at zero. Filling them in with the
+scene's scales would name a value nothing was drawn at.
+
+**The cube is fitted to its own circumscribed sphere, not to its projected
+box.** The sphere's radius is a constant of the scene and the box's is not, so
+the scene keeps its size while it turns. Fitting the box is the tighter fit and
+makes the picture breathe under the reader's hand, and an instrument whose
+scale moves while it is being read is not one. `three.Dolly` is how the reader
+reclaims the room this costs.
+
+**A `three.Live` keeps its own scratch; a one-shot render borrows from the
+pool.** A scene large enough to be worth turning is megabytes of vertex arena,
+so drawing one allocates enough between frames to run a collection — and
+`sync.Pool` is emptied by one. A chart redrawn on every pointer move would find
+an empty pool and rebuild its arenas every frame. `BenchmarkOrbit32` and
+`BenchmarkOrbit96` are what catch it going back.
+
+**A scene's scales are trained once per frame however many views look at it.**
+`scale.Scale.Train` accumulates, so training per view gives every layer as many
+times its weight as there are cameras — and the symptom is a domain that
+changes when an author adds a picture, which looks entirely reasonable and is
+wrong. There is a test that counts the calls.
 
 **Hit-testing indexes one mark per subpath, not one per call.** A layer draws
 all its bars in a single path, because `geom.groupByColor` batches by colour. A

@@ -84,6 +84,32 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   constant-resistance circles from X, constant-reactance arcs from Y — so
   `render` was not touched for it
   ([ADR 0033](adr/0033-smith-charts.md)).
+- **Three dimensions** — `figure/three` is the chart whose x, y and z are all
+  data. A `three.Surface` over a regular grid gives the shape of a response
+  between its samples, which is exactly what a heatmap of the same grid hides;
+  `three.Line3` is a trajectory that crosses itself in every flat projection
+  and not in the data, and a family of them under `geom.GroupBy` is the
+  spectrum-analyser cascade; `three.Bar3` is a field of bars over two
+  categoricals, and its doc comment says to read the heatmap first, because
+  that is usually the right answer. The projection happens **above** the IR —
+  there is no `ir.Point3`, no depth on a drawing call and no `Backend3` — so
+  every backend draws a surface: SVG, PDF, canvas, raster, the native window,
+  the GPU tier ([ADR 0056](adr/0056-three-dimensional-charts.md)). Hidden
+  surfaces are ordered rather than buffered, because SVG and PDF have no
+  pixels: one depth order over the primitives of every layer at once, with a
+  height field ordered by where its cells stand on the floor, which under an
+  orthographic camera is exact rather than approximate.
+- **A camera, and several of them** — `three.Camera` is an immutable value and
+  `three.Orbit`, `three.Dolly` and `three.Slerp` are pure functions over it, so
+  the host owns the drag: `three` installs no handler, opens no window and runs
+  no loop ([ADR 0057](adr/0057-orbiting-a-chart.md)). Because a camera is a
+  value rather than state of the scene, one figure can hold several: a
+  `three.Scene` is the data, a `three.View` is one camera on it, and four views
+  of one surface are the plan and elevations an engineering drawing has always
+  had — trained once, drawn four times
+  ([ADR 0062](adr/0062-a-scene-and-its-views.md)). A projected scene has no
+  screen axes, so a hit reports which mark and which row and leaves the pair of
+  values to the row.
 - **Size** — `geom.SizeBy` reads a column through `scale.Size`: the bubble
   chart. The mapping is by **area**, not radius, so doubling a value multiplies
   the diameter by √2 and two bubbles compare the way a reader already reads
@@ -171,7 +197,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
 Deliberately **not** here: geographic projections, node-link and Venn diagrams,
-contour plots, 3D, and any engine that links two charts together — a link is a
+contour plots, and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and

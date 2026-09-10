@@ -865,6 +865,114 @@ clickable**: it is drawn per panel
 rather than once per chart, so a hit would have to carry which panel and which
 axis, which is a third vocabulary. ✔
 
+### Three dimensions: a third scale, projected — **shipped**
+
+3D had been deferred as one indivisible thing for the library's whole life —
+`CONCEPT.md` §5 and §14 and the v1 audit each defer it in a single line, none
+of them saying what "it" is — and that deferral stayed cheap only for as long
+as nobody priced the parts. Split into four records
+([ADR 0055](adr/0055-depth-without-a-third-axis.md) to
+[ADR 0058](adr/0058-what-3d-is-for.md)) the parts turned out to have different
+costs, different blast radii and different answers. This is the second and the
+third of them, built together because the second is worth little without the
+third.
+
+**`figure/three` is a package of the core and not a second path through
+`render`.** The reason is one sentence: `drawLayers` walks a panel's layers and
+each layer's `Build` streams straight into the backend, so **a layer is a paint
+unit** — and a projected scene has no paint unit smaller than the view, because
+a point can be in front of one part of a surface and behind another. Producing
+one order over every layer's primitives inside `render` would need either a
+depth on every drawing call, which is the identity channel
+[ADR 0007](adr/0007-per-mark-colour.md) exists to keep out of the IR, or two
+drawing orders, which [ADR 0010](adr/0010-panel-layout.md) exists to prevent.
+So a `three.Layer` emits geometry rather than ink, and one painter projects,
+orders and draws all of it.
+
+That is also a guard rather than only a consequence. A geom handed a depth
+would ignore it and draw a flat line inside a projected box — correct by its
+own lights, wrong by the chart's, and silent either way. Here it cannot happen:
+`geom.Line` is not a `three.Layer` and does not compile into a scene. The
+channels are still `geom`'s options, read back through `geom.Configure` the way
+a mark defined outside `geom` reads them, so the option set stays one namespace
+and the extension model gets exercised by the library itself.
+
+**The IR gained nothing**, and that is the invariant the record actually
+defends. No `ir.Point3`, no depth on a drawing call, no `Backend3`: the package
+owns its own `Vec3`, its own matrix and its own camera, projects above the
+seam, and calls `FillPath`, `Polyline` and `Text` with the plain
+two-dimensional coordinates those have taken since v0.1. So every backend drew
+a surface on the day the package compiled — SVG, PDF, canvas, raster, the
+native window, the GPU tier — and a third-party backend written against v0.1
+draws one without its author ever having heard of one. There is a test that
+walks a whole scene's calls and fails on anything that is not one of the calls
+the IR has always had.
+
+**Hidden surfaces are ordered, not buffered**, because a z-buffer needs pixels
+and SVG and PDF have none. That makes the scope: a painter's algorithm is exact
+only over a set that can be totally ordered, so the package draws the shapes
+whose order is decidable and declines the ones that are not. What makes it
+exact rather than merely usual is the depth key. A quad of a height field is
+occluded by its neighbours in the lattice and never by how tall it is, and a
+bar is occluded by the cell in front of it and never by its own height — so
+those layers order by where they stand on the *floor*, which under an
+orthographic camera is provably the right order. That is a reading of the data
+rather than an approximation of a depth buffer, and it is a second thing the
+refusal of perspective buys.
+
+There is exactly one sort, over one pooled key slice, ties broken by emission
+index — which is lexicographically (layer, row), so it is total and free and
+independent of scheduling ([ADR 0012](adr/0012-parallel-panels.md)'s rule). No
+hysteresis: two marks whose depths differ by a millionth swap legitimately as
+the camera turns, and a picture that depended on which frames preceded it could
+not be golden-tested.
+
+**The camera is a value the caller holds.** `three.Orbit`, `three.Dolly` and
+`three.Slerp` are pure functions from one camera to another — same inputs, same
+camera, testable without a surface — and the package installs no handler, opens
+no window and runs no loop. How many radians a pixel of drag is worth is a
+statement about how an interaction *feels*, which belongs to whoever owns the
+input layer, along with inertia, momentum and springs. Under a turn the damage
+diff is skipped, because every drawing call in the moved view differs and
+walking two whole recordings to arrive at an answer known before it started is
+work nobody asked for; at rest the diff runs and earns its keep exactly as it
+does in a flat chart.
+
+**And because a camera is a value, there can be more than one.** That is the
+consequence none of the four records contained and
+[ADR 0062](adr/0062-a-scene-and-its-views.md) is: a `three.Scene` is the data,
+a `three.View` is one camera on it, and four views of one surface are the plan
+and elevations an engineering drawing has always had. The scales are trained
+**once** however many angles are drawn from them — a scale accumulates, so
+training per view would move the domain by however many pictures the author
+asked for, which is a bug in the axis rather than in the picture and there is a
+test that counts the calls. It matters more than it looks: a static export
+cannot be turned, a printed page cannot be turned, and a reader comparing a
+designed part with a measured one wants both from the *same* angle.
+
+The forms are [ADR 0058](adr/0058-what-3d-is-for.md)'s rank one, less the
+scatter: `three.Surface` over a regular grid, `three.Line3` through a volume,
+and — out of rank two, because it costs four lines over the same machinery —
+`three.Bar3`, whose doc comment says to read the heatmap first because that is
+usually the right answer. The cascade, which is the form that decides whether
+the machinery pays for itself, needed no code at all: it is thirty
+`three.Line3` traces and one `geom.GroupBy`, and `examples/cascade` is all of
+it.
+
+Not in this milestone. **No perspective** — under one the same value is taller
+at the front of the scene than at the back, and a chart is a measuring
+instrument first. **No lighting model** beyond one directional shade per face.
+**No arbitrary meshes**, no volume rendering, no 3D pie. **No legend and no
+colourbar** in a projected scene, and none is missing: every channel of all
+three forms is an axis with ticks, and `render`'s guide column is unexported
+because that record says `render` gains nothing here. A form that genuinely
+needs one is what would move the guide column into a shared place, and that is
+its own decision rather than a side effect. **A hit reports its mark and its
+row and not a pair of values**, because a turned cube has no screen axes to
+invert a device position through — figure says exactly which datum it is and
+the program says what that datum contains, which is
+[ADR 0045](adr/0045-linked-views.md)'s bargain one dimension up. ✔
+
 ---
 
 **[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Chart forms](charts.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Chart-type catalogue](chart-types.md) · [Benchmarks](benchmarks.md)
