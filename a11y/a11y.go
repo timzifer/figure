@@ -46,6 +46,22 @@ type Chart struct {
 	X, Y           scale.Scale
 	Layers         []geom.Geom
 
+	// Z and ZTitle are the depth axis of a three-dimensional chart, and are
+	// nil and "" for a flat one. A reader who cannot see the picture needs to
+	// be told there are three axes rather than two, and needs the third one's
+	// range most of all — it is the one the flat chart of the same table does
+	// not have.
+	Z      scale.Scale
+	ZTitle string
+
+	// Descs are the layers of a chart whose layers are not geom.Geoms, as
+	// [github.com/timzifer/figure/three]'s are not: a projected layer emits
+	// geometry rather than ink and so cannot implement Geom. It is read when
+	// Layers is empty, and it is the same description Layers is reduced to
+	// before anything is said about it — so a scene is described in the same
+	// voice as a flat chart rather than in a second one.
+	Descs []geom.Desc
+
 	// Y2, X2 and their titles are the chart's secondary axes, when it has
 	// them. A reader who cannot see the picture needs to be told there are
 	// two: a description that named one axis for a chart with two would say
@@ -79,16 +95,20 @@ type Series struct {
 	// Label names the layer, and Mark is what it draws.
 	Label string
 	Mark  geom.Mark
-	// X and Y name the columns, and Rows is how many there are.
+	// X and Y name the columns, and Rows is how many there are. Z names the
+	// depth column of a three-dimensional layer and is empty for a flat one.
 	X, Y string
+	Z    string
 	Rows int
-	// XRange and YRange are the extremes of the plotted columns. Ok is false
-	// for a layer with no numbers in it — an annotation, or a column of
-	// nothing but missing values.
+	// XRange and YRange are the extremes of the plotted columns, and ZRange
+	// the depth column's. Ok is false for a layer with no numbers in it — an
+	// annotation, or a column of nothing but missing values.
 	XRange, YRange Range
+	ZRange         Range
 	// Time reports whether the corresponding axis is temporal, which decides
 	// whether a bound reads as a number or as an instant.
 	XTime, YTime bool
+	ZTime        bool
 	// SecondaryY and SecondaryX report a layer read against the chart's second
 	// vertical or horizontal axis, so that a reading of it names the right
 	// one.
@@ -116,6 +136,11 @@ func Describe(c Chart) Summary {
 	for i, g := range c.Layers {
 		s.Series = append(s.Series, describeLayer(i, g, c))
 	}
+	if len(c.Layers) == 0 {
+		for i, d := range c.Descs {
+			s.Series = append(s.Series, describeDesc(i, d, c, false, false))
+		}
+	}
 	if s.Title == "" {
 		s.Title = generatedTitle(s.Series)
 	}
@@ -128,7 +153,19 @@ func describeLayer(i int, g geom.Geom, c Chart) Series {
 	if !ok {
 		return Series{Label: fmt.Sprintf("layer %d", i+1)}
 	}
-	out := Series{Label: d.Label, Mark: d.Mark, X: d.X, Y: d.Y}
+	// The layer's own vertical axis, which is not always the chart's first:
+	// whether a bound reads as a number or as an instant is a fact about the
+	// scale the layer was drawn against.
+	return describeDesc(i, d, c,
+		c.Y2 != nil && geom.OnSecondaryY(g),
+		c.X2 != nil && geom.OnSecondaryX(g))
+}
+
+// describeDesc is the half of describing a layer that reads only its
+// description, so that a chart whose layers are not geoms is described by the
+// same sentences as one whose layers are.
+func describeDesc(i int, d geom.Desc, c Chart, secY, secX bool) Series {
+	out := Series{Label: d.Label, Mark: d.Mark, X: d.X, Y: d.Y, Z: d.Z}
 	if out.Label == "" {
 		out.Label = d.Y
 	}
@@ -141,11 +178,7 @@ func describeLayer(i int, g geom.Geom, c Chart) Series {
 	if out.Label == "" {
 		out.Label = string(d.Mark)
 	}
-	// The layer's own vertical axis, which is not always the chart's first:
-	// whether a bound reads as a number or as an instant is a fact about the
-	// scale the layer was drawn against.
-	out.SecondaryY = c.Y2 != nil && geom.OnSecondaryY(g)
-	out.SecondaryX = c.X2 != nil && geom.OnSecondaryX(g)
+	out.SecondaryY, out.SecondaryX = secY, secX
 	x, y := c.X, c.Y
 	if out.SecondaryY {
 		y = c.Y2
@@ -153,7 +186,7 @@ func describeLayer(i int, g geom.Geom, c Chart) Series {
 	if out.SecondaryX {
 		x = c.X2
 	}
-	out.XTime, out.YTime = isTime(x), isTime(y)
+	out.XTime, out.YTime, out.ZTime = isTime(x), isTime(y), isTime(c.Z)
 	if d.Source == nil {
 		// An annotation carries values rather than columns, and its extent is
 		// the values it was given.
@@ -165,6 +198,7 @@ func describeLayer(i int, g geom.Geom, c Chart) Series {
 	out.Rows = d.Source.Len()
 	out.XRange = columnRange(d.Source, d.X)
 	out.YRange = columnRange(d.Source, d.Y)
+	out.ZRange = columnRange(d.Source, d.Z)
 	// A mark bounded on both axes reaches as far as its second column does, on
 	// whichever axis carries it: a gantt bar ends at its end date, and a
 	// description that stopped at the start dates would misreport the extent.
@@ -272,9 +306,17 @@ func detail(c Chart, series []Series) string {
 	}
 
 	fmt.Fprintf(&b, "%s with %s.", plural(len(series), "layer", "layers"), listMarks(series))
-	if c.XTitle != "" || c.YTitle != "" || c.Y2Title != "" || c.X2Title != "" {
+	if c.XTitle != "" || c.YTitle != "" || c.Y2Title != "" || c.X2Title != "" || c.ZTitle != "" {
 		b.WriteString(" Axes: ")
 		b.WriteString(axisPhrase(c.XTitle, c.YTitle))
+		if c.ZTitle != "" {
+			// A projected chart says so in words, because "vertically" means
+			// something different once there are three axes and a reader who
+			// was told two would be reading the wrong chart.
+			b.WriteString(", and ")
+			b.WriteString(c.ZTitle)
+			b.WriteString(" in depth")
+		}
 		if c.Y2Title != "" {
 			b.WriteString(", and ")
 			b.WriteString(c.Y2Title)
@@ -313,6 +355,10 @@ func sentence(s Series) string {
 	if s.YRange.Ok {
 		fmt.Fprintf(&b, ", %s from %s to %s", nameOr(s.Y, "y"),
 			format(s.YRange.Min, s.YTime), format(s.YRange.Max, s.YTime))
+	}
+	if s.ZRange.Ok {
+		fmt.Fprintf(&b, ", %s from %s to %s", nameOr(s.Z, "z"),
+			format(s.ZRange.Min, s.ZTime), format(s.ZRange.Max, s.ZTime))
 	}
 	b.WriteString(".")
 	return b.String()

@@ -69,10 +69,8 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 
 	// 3. Say what the chart is, before any ink. A wrapper hides the optional
 	//    interfaces of what it wraps, so this asks the backend it was handed.
-	if p.descSet {
-		if s, ok := b.(ir.Semantics); ok {
-			s.Describe(p.desc)
-		}
+	if s, ok := b.(ir.Semantics); ok {
+		s.Describe(p.Description())
 	}
 
 	// 4. Background and title.
