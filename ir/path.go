@@ -183,3 +183,34 @@ func (p *Path) Walk(fn func(op PathOp, pts []Point)) {
 		i += n
 	}
 }
+
+// AsRect returns the rectangle p draws, and whether it draws exactly one.
+//
+// It is the inverse of [Path.Rect], and it exists for clipping. A clip is
+// almost always a rectangle — a panel, a facet cell, one view of a scene —
+// but it reaches a backend as a path, and a backend that cannot tell the two
+// apart rasterises a coverage mask and then consults it on every drawing call
+// inside the clip. That costs a figure its drawing calls times its area
+// instead of its drawing calls, which is invisible at a hundred calls and
+// ruinous at a thousand. Recognising the shape here rather than in each
+// backend keeps one definition of what "this path is a rectangle" means.
+//
+// A single closed subpath of four corners qualifies when every edge, the
+// closing one included, runs along one axis; both windings and any starting
+// corner are accepted. A path that encloses no area still qualifies — it
+// draws nothing either way — so callers that care must check [Rect.Empty].
+func (p *Path) AsRect() (Rect, bool) {
+	if len(p.Ops) != 5 || len(p.Pts) != 4 {
+		return Rect{}, false
+	}
+	if p.Ops[0] != OpMoveTo || p.Ops[1] != OpLineTo || p.Ops[2] != OpLineTo ||
+		p.Ops[3] != OpLineTo || p.Ops[4] != OpClose {
+		return Rect{}, false
+	}
+	for i, a := range p.Pts {
+		if b := p.Pts[(i+1)%4]; a.X != b.X && a.Y != b.Y {
+			return Rect{}, false
+		}
+	}
+	return p.Bounds(), true
+}

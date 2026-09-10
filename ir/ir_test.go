@@ -109,3 +109,43 @@ func TestVisibility(t *testing.T) {
 		t.Error("a gradient whose every stop is transparent is not visible")
 	}
 }
+
+// AsRect is what lets a backend tell a panel clip from a shape, so it has to
+// say yes to the one and no to everything that merely looks like it.
+func TestPathAsRectRecognisesARectangleAndNothingElse(t *testing.T) {
+	var want = ir.R(3, 5, 11, 17)
+
+	var p ir.Path
+	p.Rect(want)
+	if got, ok := p.AsRect(); !ok || got != want {
+		t.Errorf("the path Rect built reports (%v, %v), want (%v, true)", got, ok, want)
+	}
+
+	// The same four corners the other way round, and starting elsewhere.
+	var wound ir.Path
+	wound.MoveTo(11, 17).LineTo(11, 5).LineTo(3, 5).LineTo(3, 17).Close()
+	if got, ok := wound.AsRect(); !ok || got != want {
+		t.Errorf("the reverse winding reports (%v, %v), want (%v, true)", got, ok, want)
+	}
+
+	// A parallelogram has the same bounding box and is not a rectangle. This
+	// is the case a bounds check would wave through.
+	var skew ir.Path
+	skew.MoveTo(3, 5).LineTo(11, 5).LineTo(9, 17).LineTo(1, 17).Close()
+	if got, ok := skew.AsRect(); ok {
+		t.Errorf("a parallelogram reported the rectangle %v", got)
+	}
+
+	for name, p := range map[string]*ir.Path{
+		"empty":      new(ir.Path),
+		"unclosed":   new(ir.Path).MoveTo(3, 5).LineTo(11, 5).LineTo(11, 17).LineTo(3, 17),
+		"a triangle": new(ir.Path).MoveTo(0, 0).LineTo(1, 0).LineTo(0, 1).Close(),
+		"two subpaths": new(ir.Path).MoveTo(0, 0).LineTo(1, 0).LineTo(1, 1).Close().
+			MoveTo(2, 2).LineTo(3, 2).LineTo(3, 3).Close(),
+		"a circle": new(ir.Path).Circle(ir.Point{X: 1, Y: 1}, 1),
+	} {
+		if got, ok := p.AsRect(); ok {
+			t.Errorf("%s reported the rectangle %v", name, got)
+		}
+	}
+}

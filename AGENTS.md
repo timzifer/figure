@@ -419,17 +419,27 @@ times its weight as there are cameras — and the symptom is a domain that
 changes when an author adds a picture, which looks entirely reasonable and is
 wrong. There is a test that counts the calls.
 
-**A shaded surface is one drawing call per quad, and that is a cost model
-rather than a bug.** The IR carries no per-mark colour
+**A rectangular clip must reach a raster backend as a rectangle.** gg
+rasterises a path clip into a coverage mask and then consults that mask on
+every drawing call inside the clip, so a figure costs its drawing calls times
+its area; a rectangle it can express as a scissor and the per-pixel cost goes
+away. Every clip this library pushes is a rectangle — a panel, a facet cell,
+one view of a scene — so `backend/gg` recognises one with
+[`ir.Path.AsRect`](ir/path.go) before falling back to the mask. The shape of
+this bug is worth remembering: it is invisible at a hundred drawing calls and
+it turned the gallery's ten-minute test budget into a failure at three
+thousand, and the stack it fails in belongs to the rasteriser, not to the code
+that caused it.
+
+**A shaded surface is one drawing call per quad, and a trajectory one per
+segment.** The IR carries no per-mark colour
 ([ADR 0007](docs/adr/0007-per-mark-colour.md)), so faces that differ in shade
-cannot be merged — and a raster backend applies the panel's clip on every call,
-so a figure costs its calls times its area. That is fine for a chart and it is
-a trap for a *documentation figure*, which `backend/gg/cmd/gallery`'s tests
-render about five times over in each of two formats: two figures with a fine
-grid and a hundred traces once turned that package's ten-minute budget into a
-failure under the race detector. `TestNoFigureIsDrawnWithTooManyCalls` is the
-wall, and it counts calls rather than seconds because a timing assertion on a
-shared runner is a gate people learn to ignore.
+cannot be merged, and a path with one depth would sort as one thing. That is a
+cost model rather than a bug, but it is still a count, and
+`backend/gg/cmd/gallery`'s tests render every figure about five times over in
+each of two formats. `TestNoFigureIsDrawnWithTooManyCalls` is the wall, and it
+counts calls rather than seconds because a timing assertion on a shared runner
+is a gate people learn to ignore.
 
 **An axis title is placed past its own tick labels, and both the room and the
 placement come from `furnitureReach`.** They were computed separately once: the

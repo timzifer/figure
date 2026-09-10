@@ -158,24 +158,29 @@ func (c *counter) Measure(run ir.TextRun) ir.TextMetrics {
 	return ir.TextMetrics{Advance: float32(len(run.Text)) * float32(run.Font.Size) * 0.5}
 }
 
-// A documentation figure is drawn with a few hundred calls, not a few
-// thousand, and that is a budget rather than an observation.
+// A documentation figure is drawn with a few thousand calls at most, and that
+// is a budget rather than an observation.
 //
-// The arithmetic is easy to lose sight of and it cost a red CI run once. A
-// raster backend applies the panel's clip on every drawing call, so a figure
-// costs its calls times its area; a shaded surface makes one call per quad,
-// because the IR carries no per-mark colour ([ADR 0007]); a multi-view figure
-// makes them once per camera; and these tests render every figure about five
-// times in each of two formats. Two figures with a fine grid and a hundred
-// traces turned this package's ten-minute budget into a coin flip under the
-// race detector.
+// The arithmetic is easy to lose sight of and it cost two red CI runs. A
+// shaded surface makes one drawing call per quad, because the IR carries no
+// per-mark colour ([ADR 0007]); a trajectory makes one per segment, so that
+// its pieces can be depth-ordered against everything else; a multi-view
+// figure makes them once per camera; and these tests render every figure
+// about five times in each of two formats. What turned that into ten minutes
+// under the race detector was a raster backend rasterising the panel's clip
+// into a mask and then consulting it on every call — a figure cost its calls
+// times its area. That is fixed where it belonged, in the backend
+// ([ir.Path.AsRect]), so a call is a call again.
 //
-// The budget is generous — a flat chart uses tens — and it is a wall rather
-// than a target. If a new figure needs more than this, it wants a coarser
-// grid or fewer traces, because a picture in the documentation is read at
-// four hundred pixels wide.
+// The budget stays, because the fix removed a multiplier and not the
+// underlying count, and because nothing else here notices a figure that
+// quietly starts drawing a hundred thousand marks. It is a wall rather than a
+// target: a flat chart uses tens, the two projected ones use most of it, and
+// a new figure that wants more than this wants a coarser grid or fewer
+// traces, because a picture in the documentation is read at four hundred
+// pixels wide.
 func TestNoFigureIsDrawnWithTooManyCalls(t *testing.T) {
-	const budget = 900
+	const budget = 4000
 	for _, f := range figures() {
 		c := &countingTarget{}
 		if err := f.chart().Render(c); err != nil {
@@ -183,8 +188,7 @@ func TestNoFigureIsDrawnWithTooManyCalls(t *testing.T) {
 		}
 		if c.calls > budget {
 			t.Errorf("%s is drawn with %d calls, and the budget is %d: "+
-				"the gallery renders every figure about ten times over, and a raster "+
-				"backend pays for the clip on each call", f.name, c.calls, budget)
+				"the gallery renders every figure about ten times over", f.name, c.calls, budget)
 		}
 	}
 }

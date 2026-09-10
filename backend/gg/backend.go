@@ -255,10 +255,22 @@ func (b *backend) Push(clip *ir.Path, xform ir.Affine) {
 	if !xform.IsIdentity() {
 		b.ctx.Transform(matrixOf(xform))
 	}
-	if clip != nil && !clip.Empty() {
-		b.buildPath(clip)
-		b.ctx.Clip()
+	if clip == nil || clip.Empty() {
+		return
 	}
+	// A rectangular clip restricts the output bounds and costs nothing per
+	// pixel. A path clip is rasterised into a coverage mask, and every
+	// drawing call inside it then pays for that mask over its own area — so
+	// a figure costs its drawing calls times its area rather than its
+	// drawing calls. Panels, facet cells and the views of a scene are all
+	// rectangles, and a projected scene is the first thing here that makes
+	// enough calls for the difference to be measured in minutes.
+	if r, ok := clip.AsRect(); ok {
+		b.ctx.ClipRect(float64(r.Min.X), float64(r.Min.Y), float64(r.Dx()), float64(r.Dy()))
+		return
+	}
+	b.buildPath(clip)
+	b.ctx.Clip()
 }
 
 func (b *backend) Pop() {

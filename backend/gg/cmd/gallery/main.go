@@ -1344,19 +1344,15 @@ func requestFlow() figure.Source {
 // profiles. See docs/adr/0062-a-scene-and-its-views.md.
 func surfaceFigure() plate {
 	return plate{
-		name: "surface", width: 840, high: 320, theme: theme.Light,
+		name: "surface", width: 900, high: 340, theme: theme.Light,
 		title: "A response surface, from three angles",
 		scene: func(f plate) chart {
-			// The grid is a call count, not a taste. A shaded surface reaches
-			// a backend as one drawing call per quad — the IR carries no
-			// per-mark colour, deliberately ([ADR 0007]) — and a raster
-			// backend pays for the panel's clip on every one of them, so the
-			// cost of a figure is its quads times its area. This one is drawn
-			// three times over for three cameras, and the gallery's tests
-			// render every figure about five times in each of two formats.
-			// See the budget in gallery_test.go, which is what keeps that
-			// arithmetic from being rediscovered in CI.
-			const n = 16
+			// The grid is fine enough to read as a surface rather than as a
+			// mosaic, which is also what keeps it inside the depth order's
+			// promise: a quad's depth range is what has to stay narrow. It is
+			// still a drawing call per quad, three times over for three
+			// cameras — see the budget in gallery_test.go.
+			const n = 26
 			xs := make([]float64, 0, n*n)
 			ys := make([]float64, 0, n*n)
 			zs := make([]float64, 0, n*n)
@@ -1398,16 +1394,15 @@ func surfaceFigure() plate {
 // dimensions.
 func cascadeFigure() plate {
 	return plate{
-		name: "cascade", width: 640, high: 440, theme: theme.Dark,
-		title: "A drifting carrier, sixteen sweeps",
+		name: "cascade", width: 760, high: 520, theme: theme.Dark,
+		title: "A drifting carrier, thirty sweeps",
 		scene: func(f plate) chart {
-			// One primitive per segment, so this is traces × bins drawing
-			// calls — see the note on the surface above. Sixteen sweeps still
-			// show the carrier drifting and the harmonic growing behind it,
-			// which is the whole reading.
+			// A trajectory emits one primitive per segment, so this is
+			// traces × bins drawing calls — the most of any figure here, and
+			// what the budget in gallery_test.go is sized against.
 			const (
-				traces = 16
-				bins   = 41
+				traces = 30
+				bins   = 101
 			)
 			var freq, sweep, power []float64
 			var trace []string
