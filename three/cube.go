@@ -229,76 +229,64 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 		// looked at end-on put their first labels in the same place, and a
 		// per-axis pass would keep both.
 		//
-		// Before any of that: an axis that projects shorter than one of its
-		// own labels shows none at all. The greedy pass alone would keep
-		// exactly one, and one number on an axis with no length is worse than
-		// no number — it names a position the reader cannot tell from any
-		// other position on that axis, which is a claim about the data that
-		// the picture does not support. The axis line, its tick marks and its
-		// title still say what it is and where it points.
-		if !c.axisHasRoom(b, tickFont, a, from, to) {
+		// And an axis labels itself only if at least two of its labels come
+		// through. One number is not a scale: it names a position the reader
+		// cannot tell from any other position on that axis, which is a claim
+		// the picture does not support — and unlike a pile of overlapping
+		// numbers, nothing about it looks wrong. So the pass runs twice, once
+		// to count and once to draw, and an axis that keeps fewer than two
+		// gives its boxes back for the next axis to use. Its line, its tick
+		// marks and its title still say what it is and where it points.
+		mark := len(*boxes)
+		if c.placeLabels(b, tickFont, a, e, boxes, false) < 2 {
+			*boxes = (*boxes)[:mark]
 			continue
 		}
-		for _, t := range c.ticks[a] {
-			if t.Label == "" {
-				continue
-			}
-			anchor := c.proj.point(e.at(clamp01(t.Pos)))
-			out := c.outward(anchor)
-			gap := c.th.TickLength + c.th.TickLabelPad
-			h, v := alignFor(out)
-			// The label is upright at a projected anchor and is never
-			// sheared: ir.TextRun carries one rotation about its anchor and no
-			// shear, deliberately, and a sheared tick label is harder to read
-			// than an upright one anyway.
-			run := ir.TextRun{
-				Text:  t.Label,
-				Font:  tickFont,
-				At:    ir.Point{X: anchor.X + out.X*gap, Y: anchor.Y + out.Y*gap},
-				H:     h,
-				V:     v,
-				Color: c.th.TickColor,
-			}
-			box := labelBox(run, b.Measure(run), c.th.TickLabelPad)
-			if overlapsAny(box, *boxes) {
-				continue
-			}
-			b.Text(run)
-			*boxes = append(*boxes, box)
-		}
-
+		*boxes = (*boxes)[:mark]
+		c.placeLabels(b, tickFont, a, e, boxes, true)
 	}
 }
 
-// axisHasRoom reports whether an axis is long enough on screen for one of its
-// own labels to mean something.
+// placeLabels runs the greedy pass over one axis's tick labels, claiming a box
+// for each one it keeps, and draws them when draw is set. It reports how many
+// it kept.
 //
-// The room a label needs is measured along the axis rather than in general:
-// a horizontal axis is crowded by the width of its numbers and a vertical one
-// by their height, and a projected axis is somewhere between the two. Both
-// quantities are measured rather than chosen, so there is no threshold here to
-// tune.
-func (c cube) axisHasRoom(m ir.Backend, font ir.FontRef, a int, from, to ir.Point) bool {
-	dx, dy := to.X-from.X, to.Y-from.Y
-	length := float32(math.Hypot(float64(dx), float64(dy)))
-	if length == 0 {
-		return false
-	}
-	ux, uy := abs32(dx)/length, abs32(dy)/length
-
-	need := float32(0)
+// It is deterministic given the boxes already claimed, which is what lets the
+// caller run it twice: once to learn whether the axis has a scale to show, and
+// again to put it on the page.
+func (c cube) placeLabels(b ir.Backend, font ir.FontRef, a int, e edge, boxes *[]ir.Rect, draw bool) int {
+	kept := 0
 	for _, t := range c.ticks[a] {
 		if t.Label == "" {
 			continue
 		}
-		box := m.Measure(ir.TextRun{Text: t.Label, Font: font})
-		// The label's own extent projected onto the axis's direction: how much
-		// of the axis one of these takes up.
-		if w := box.Advance*ux + (box.Ascent+box.Descent)*uy; w > need {
-			need = w
+		anchor := c.proj.point(e.at(clamp01(t.Pos)))
+		out := c.outward(anchor)
+		gap := c.th.TickLength + c.th.TickLabelPad
+		h, v := alignFor(out)
+		// The label is upright at a projected anchor and is never sheared:
+		// ir.TextRun carries one rotation about its anchor and no shear,
+		// deliberately, and a sheared tick label is harder to read than an
+		// upright one anyway.
+		run := ir.TextRun{
+			Text:  t.Label,
+			Font:  font,
+			At:    ir.Point{X: anchor.X + out.X*gap, Y: anchor.Y + out.Y*gap},
+			H:     h,
+			V:     v,
+			Color: c.th.TickColor,
 		}
+		box := labelBox(run, b.Measure(run), c.th.TickLabelPad)
+		if overlapsAny(box, *boxes) {
+			continue
+		}
+		if draw {
+			b.Text(run)
+		}
+		*boxes = append(*boxes, box)
+		kept++
 	}
-	return length >= need
+	return kept
 }
 
 // titles writes the three axis titles and records where they landed.

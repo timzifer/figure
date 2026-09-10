@@ -2,6 +2,7 @@ package three
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/timzifer/figure/internal/irtest"
@@ -316,34 +317,39 @@ func TestACollapsedAxisShowsNoTickLabelsAtAll(t *testing.T) {
 	}
 }
 
-// The rule is measured rather than chosen: it compares the axis's projected
-// length against the room one of its own labels takes along it, so a long axis
-// keeps its labels and a short one does not, with nothing to tune in between.
-func TestAnAxisKeepsItsLabelsWhileItHasRoomForOne(t *testing.T) {
-	sc := unitScales()
-	font := theme.Light.Font(theme.Light.TickSize)
-	rec := irtest.New()
+// The rule is measured rather than chosen — it asks how many of an axis's own
+// labels survive beside each other, with nothing to tune — so it has to be
+// monotone in the angle: an axis that has lost its numbers because it is too
+// foreshortened does not get them back by being foreshortened further.
+func TestAnAxisDoesNotRegainItsLabelsAsItShrinks(t *testing.T) {
+	// Only the depth axis carries ticks, so nothing else competes for room
+	// and the sweep measures one thing.
+	z := scale.Linear(scale.Domain(0, 10))
+	z.SetRange(0, 1)
+	ticks := ticksOf(theme.Light, [3]scale.Scale{nil, nil, z})
 
-	var lastLabelled float64
-	var firstBare float64
+	bare := false
 	for el := 0.0; el < math.Pi/2; el += 0.02 {
 		cam := LookAt(Azimuth(-0.6), Elevation(el))
-		pr := project(cam, ir.R(0, 0, 300, 300))
-		c := newCube(theme.Light, pr, cam, ticksOf(theme.Light, sc), [3]string{})
-		e := c.edgeOf(axisZ)
-		from, to := pr.point(e.at(0)), pr.point(e.at(1))
-		if c.axisHasRoom(rec, font, axisZ, from, to) {
-			lastLabelled = el
-		} else if firstBare == 0 {
-			firstBare = el
+		c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, ticks, [3]string{})
+
+		rec := irtest.New()
+		var path ir.Path
+		var boxes []ir.Rect
+		c.draw(rec, &path, &boxes)
+
+		n := len(rec.Filter("Text"))
+		if n == 1 {
+			t.Fatalf("at elevation %.2f the depth axis shows one number and no scale", el)
+		}
+		if n == 0 {
+			bare = true
+		} else if bare {
+			t.Fatalf("the depth axis regained its labels at elevation %.2f after losing them", el)
 		}
 	}
-	if firstBare == 0 {
+	if !bare {
 		t.Fatal("the depth axis never ran out of room, even looking straight down")
-	}
-	if lastLabelled >= firstBare {
-		t.Errorf("the axis regained its labels after losing them at %v: the rule is not monotone in the angle",
-			firstBare)
 	}
 }
 
@@ -382,6 +388,53 @@ func TestAnAxisTitleClearsItsOwnTickLabels(t *testing.T) {
 		if labels < 8 {
 			t.Errorf("camera %+v: only %d tick labels survived three titled axes; "+
 				"a title is standing in its own labels' way", cam, labels)
+		}
+	}
+}
+
+// A projected axis shows a scale or nothing, and never exactly one number.
+//
+// This is the failure the length rule exists to stop, and it is the quiet
+// kind. A pile of overlapping numbers on an axis pointing at the reader looks
+// wrong at a glance; a single surviving number looks like a label and reads
+// like one, while naming a place the reader cannot tell from any other place
+// on that axis. It survived the first version of the rule, which asked
+// whether one label fitted and then let the collision pass keep one.
+func TestAnAxisNeverShowsExactlyOneTickLabel(t *testing.T) {
+	// Three disjoint domains, so the text of a label says which axis drew it.
+	var sc [3]scale.Scale
+	for a := range sc {
+		s := scale.Linear(scale.Domain(float64(1000*a), float64(1000*a+9)))
+		s.SetRange(0, 1)
+		sc[a] = s
+	}
+	ticks := ticksOf(theme.Light, sc)
+
+	for _, el := range []float64{0, 0.2, 0.6, 1.0, 1.3, 1.5, 1.56} {
+		for _, az := range []float64{0, 0.4, 0.8, 1.2, -0.6, math.Pi / 4, math.Pi / 2} {
+			cam := LookAt(Azimuth(az), Elevation(el))
+			c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam,
+				ticks, [3]string{})
+
+			rec := irtest.New()
+			var path ir.Path
+			var boxes []ir.Rect
+			c.draw(rec, &path, &boxes)
+
+			var drawn [3]int
+			for _, call := range rec.Filter("Text") {
+				v, err := strconv.ParseFloat(call.Text.Text, 64)
+				if err != nil {
+					t.Fatalf("a tick label that is not a number: %q", call.Text.Text)
+				}
+				drawn[int(v)/1000]++
+			}
+			for a, n := range drawn {
+				if n == 1 {
+					t.Fatalf("at azimuth %.2f elevation %.2f axis %d shows one number and no scale",
+						az, el, a)
+				}
+			}
 		}
 	}
 }
