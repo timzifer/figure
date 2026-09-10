@@ -167,7 +167,13 @@ func describeLayer(i int, g geom.Geom, c Chart) Series {
 func describeDesc(i int, d geom.Desc, c Chart, secY, secX bool) Series {
 	out := Series{Label: d.Label, Mark: d.Mark, X: d.X, Y: d.Y, Z: d.Z}
 	if out.Label == "" {
+		// A layer is named after what it measures. In two dimensions that is
+		// the vertical column; in three it is the depth one, because there
+		// both floor axes are places rather than quantities.
 		out.Label = d.Y
+		if d.Z != "" {
+			out.Label = d.Z
+		}
 	}
 	if out.Label == "" {
 		// A layer that reads an edge table has no Y column to be named after,
@@ -308,14 +314,15 @@ func detail(c Chart, series []Series) string {
 	fmt.Fprintf(&b, "%s with %s.", plural(len(series), "layer", "layers"), listMarks(series))
 	if c.XTitle != "" || c.YTitle != "" || c.Y2Title != "" || c.X2Title != "" || c.ZTitle != "" {
 		b.WriteString(" Axes: ")
-		b.WriteString(axisPhrase(c.XTitle, c.YTitle))
-		if c.ZTitle != "" {
-			// A projected chart says so in words, because "vertically" means
-			// something different once there are three axes and a reader who
-			// was told two would be reading the wrong chart.
-			b.WriteString(", and ")
-			b.WriteString(c.ZTitle)
-			b.WriteString(" in depth")
+		// A projected chart names its axes differently, because "vertically"
+		// means something else once there are three of them: in a scene the
+		// two floor axes are places and the third is the quantity. A reader
+		// told "y vertically" about a surface would be reading the wrong
+		// chart.
+		if c.Z != nil || c.ZTitle != "" {
+			b.WriteString(scenePhrase(c.XTitle, c.YTitle, c.ZTitle))
+		} else {
+			b.WriteString(axisPhrase(c.XTitle, c.YTitle))
 		}
 		if c.Y2Title != "" {
 			b.WriteString(", and ")
@@ -369,6 +376,24 @@ func nameOr(name, fallback string) string {
 		return fallback
 	}
 	return name
+}
+
+// scenePhrase names the three axes of a projected chart in the terms a reader
+// can act on: two directions across the floor and one going up.
+func scenePhrase(x, y, z string) string {
+	parts := make([]string, 0, 3)
+	for _, p := range [3][2]string{{x, "across the floor"}, {y, "into the floor"}, {z, "upward"}} {
+		if p[0] != "" {
+			parts = append(parts, p[0]+" "+p[1])
+		}
+	}
+	switch len(parts) {
+	case 0:
+		return "none named"
+	case 1:
+		return parts[0]
+	}
+	return strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1]
 }
 
 func axisPhrase(x, y string) string {

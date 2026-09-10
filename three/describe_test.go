@@ -43,7 +43,7 @@ func TestTheDescriptionNamesTheDepthAxis(t *testing.T) {
 		Add(Surface(ridge(4, 4), geom.X("x"), geom.Y("y"), geom.Z("z"), geom.Label("ripple")))
 
 	got := New(Size(300, 300)).Scene(sc).Describe().Detail
-	for _, want := range []string{"amplitude in depth", "ripple", "z from"} {
+	for _, want := range []string{"amplitude upward", "ripple", "z from"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the description is missing %q:\n%s", want, got)
 		}
