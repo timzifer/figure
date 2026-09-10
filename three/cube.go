@@ -37,8 +37,8 @@ type cube struct {
 	mid ir.Point
 }
 
-func newCube(th theme.Theme, pr projector, cam Camera, sc [3]scale.Scale, titles [3]string) cube {
-	c := cube{th: th, proj: pr, fwd: cam.Forward(), title: titles, mid: pr.point(centre)}
+func newCube(th theme.Theme, pr projector, cam Camera, ticks [3][]scale.Tick, titles [3]string) cube {
+	c := cube{th: th, proj: pr, fwd: cam.Forward(), ticks: ticks, title: titles, mid: pr.point(centre)}
 	for a := range c.far {
 		// The far side of an axis is the one the view direction points
 		// toward: moving along it increases depth. With the camera above the
@@ -49,18 +49,30 @@ func newCube(th theme.Theme, pr projector, cam Camera, sc [3]scale.Scale, titles
 			c.far[a] = 1
 		}
 	}
-	// The two floor axes take the horizontal hint and the depth axis the
-	// vertical one, because that is what each of them is: z is the up axis of
-	// the scene and asks for the density a vertical axis asks for. No theme
-	// field is added for a third count, because there is no third kind of
-	// axis here.
+	return c
+}
+
+// ticksOf asks the three scales for their ticks, once per scene per frame.
+//
+// Once, rather than once per view and again for the measurement, because a
+// tick is a string and a chart redrawn on every pointer move should not build
+// the same three sets of them five times. It also makes the labels that are
+// measured exactly the labels that are drawn, which is the kind of agreement
+// that is easy to lose and hard to notice losing.
+//
+// The two floor axes take the horizontal hint and the depth axis the vertical
+// one, because that is what each of them is: z is the up axis of the scene and
+// asks for the density a vertical axis asks for. No theme field is added for a
+// third count, because there is no third kind of axis here.
+func ticksOf(th theme.Theme, sc [3]scale.Scale) [3][]scale.Tick {
 	want := [3]int{th.TickCountHintX, th.TickCountHintX, th.TickCountHintY}
+	var out [3][]scale.Tick
 	for a, s := range sc {
 		if s != nil {
-			c.ticks[a] = s.Ticks(scale.TickRequest{Want: want[a]})
+			out[a] = s.Ticks(scale.TickRequest{Want: want[a]})
 		}
 	}
-	return c
+	return out
 }
 
 // at reads one component of a vector by axis index.

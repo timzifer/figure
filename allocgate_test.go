@@ -7,6 +7,7 @@ import (
 
 	"github.com/timzifer/figure"
 	"github.com/timzifer/figure/internal/irtest"
+	"github.com/timzifer/figure/three"
 )
 
 // The allocation gate.
@@ -208,5 +209,90 @@ func TestARelationalRenderDoesNotAllocatePerPoint(t *testing.T) {
 					"something on the layout path is allocating per row", large, small)
 			}
 		})
+	}
+}
+
+// allocsPerFrame's counterpart for a projected scene.
+//
+// The same discipline and for the same reason: a chart the reader is dragging
+// redraws on every pointer move, so what a frame costs must not grow with the
+// data it draws. ADR 0057 committed figure/three to this before any of it was
+// written — pooled points, one sort over a pooled key slice, and a traversal
+// that allocates nothing — and this is what holds it to it.
+func allocsPerScene(t *testing.T, p *three.Plot) float64 {
+	t.Helper()
+	target := irtest.NullTarget()
+	if err := p.Render(target); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	return testing.AllocsPerRun(20, func() {
+		if err := p.Render(target); err != nil {
+			t.Fatalf("Render: %v", err)
+		}
+	})
+}
+
+// A surface is not decimated — a reduction defined over pixel columns measures
+// nothing in a projected scene, where one column of screen mixes values from
+// everywhere along the view direction — so every quad of the grid is projected
+// and ordered on every frame. Sixteen times the quads must cost the same
+// handful of allocations.
+func TestASurfaceDoesNotAllocatePerQuad(t *testing.T) {
+	small := allocsPerScene(t, ripple(32))
+	large := allocsPerScene(t, ripple(128))
+
+	const slack = 8
+	if large > small+slack {
+		t.Errorf("a 128x128 surface allocates %.0f times per frame against %.0f for 32x32: "+
+			"something in the projection or the ordering is allocating per quad", large, small)
+	}
+}
+
+// A trajectory emits one primitive per segment, which is what lets it
+// interleave with a surface — and a hundred times the segments must still cost
+// a constant.
+func TestATrajectoryDoesNotAllocatePerSegment(t *testing.T) {
+	small := allocsPerScene(t, spiral(1_000))
+	large := allocsPerScene(t, spiral(100_000))
+
+	const slack = 8
+	if large > small+slack {
+		t.Errorf("100k segments allocate %.0f times per frame against %.0f for 1k: "+
+			"the trajectory is allocating per segment", large, small)
+	}
+}
+
+// Turning a scene is the case the whole discipline exists for: a camera is two
+// floats and a frame is the same frame from another angle, so an orbit that
+// allocated per frame would be a leak with a chart attached.
+func TestAnOrbitDoesNotAllocatePerQuad(t *testing.T) {
+	turn := func(n int) float64 {
+		live, err := ripple(n).Live(irtest.NullTarget())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer live.Close()
+		// Two frames first: the arenas behind a recording are empty on the
+		// first by definition, and a gate on the first frame would be a gate
+		// on start-up.
+		for i := 0; i < 2; i++ {
+			live.Camera(three.Orbit(live.CameraValue(), 0.01, 0))
+			if err := live.Draw(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return testing.AllocsPerRun(20, func() {
+			live.Camera(three.Orbit(live.CameraValue(), 0.01, 0))
+			if err := live.Draw(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	small, large := turn(32), turn(96)
+
+	const slack = 8
+	if large > small+slack {
+		t.Errorf("orbiting a 96x96 surface allocates %.0f times per frame against %.0f for 32x32: "+
+			"a turn is allocating per quad", large, small)
 	}
 }

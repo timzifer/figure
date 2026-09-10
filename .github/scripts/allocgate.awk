@@ -182,6 +182,24 @@ END {
 	flat("BenchmarkTransitionFrame1k", "BenchmarkTransitionFrame100k", 8)
 	atMost("BenchmarkTransitionFrame100k", 128)
 
+	# The projected scene, added with figure/three. A frame projects into
+	# pooled points, orders one pooled key slice with slices.SortFunc and walks
+	# a lattice whose traversal is an iteration order rather than a sort — the
+	# three things ADR 0057 pre-committed the module to, and the three that
+	# would each show up here as sixty thousand allocations and nowhere else in
+	# the picture. Decimation is off in a projected scene, so this really does
+	# draw every quad of the grid on every frame.
+	flat("BenchmarkSurface64", "BenchmarkSurface256", 8)
+	flat("BenchmarkTrajectory1k", "BenchmarkTrajectory100k", 8)
+
+	# Turning it. A camera is two floats and a frame is the same frame from
+	# another angle, so an orbit that allocated per frame would be a leak with
+	# a chart attached. The pair is nine times the quads for the same count:
+	# a Live keeps its own scratch rather than borrowing from the pool, because
+	# a scene large enough to be worth turning allocates enough between frames
+	# to run a collection, and sync.Pool is emptied by one.
+	flat("BenchmarkOrbit32", "BenchmarkOrbit96", 8)
+
 	# The streaming path, added in v0.5. A live chart appends a row and freezes
 	# a view once per frame, for as long as the process runs; either of those
 	# allocating is a leak with a plot attached. Both measure the steady state,

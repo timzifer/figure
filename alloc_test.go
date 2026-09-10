@@ -15,6 +15,7 @@ import (
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/theme"
+	"github.com/timzifer/figure/three"
 )
 
 // signal is a plot of one line over n rows, ready to render repeatedly.
@@ -464,3 +465,122 @@ func benchmarkLabelled(b *testing.B, rows int) {
 
 func BenchmarkLabelled1k(b *testing.B)  { benchmarkLabelled(b, 1_000) }
 func BenchmarkLabelled10k(b *testing.B) { benchmarkLabelled(b, 10_000) }
+
+// --- the projected scene -------------------------------------------------
+
+// benchmarkSurface prices a frame of the chart the third dimension exists for.
+//
+// A surface is not decimated — a reduction defined over pixel columns measures
+// nothing in a projected scene — so this draws every quad of the grid, every
+// frame, and is the honest measure of what turning one costs.
+func benchmarkSurface(b *testing.B, n int) {
+	onOnePGate(b)
+	p := ripple(n)
+	target := irtest.NullTarget()
+	if err := p.Render(target); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := p.Render(target); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSurface64(b *testing.B)  { benchmarkSurface(b, 64) }
+func BenchmarkSurface256(b *testing.B) { benchmarkSurface(b, 256) }
+
+// benchmarkTrajectory prices a path through the box, one primitive per
+// segment.
+func benchmarkTrajectory(b *testing.B, rows int) {
+	onOnePGate(b)
+	p := spiral(rows)
+	target := irtest.NullTarget()
+	if err := p.Render(target); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := p.Render(target); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkTrajectory1k(b *testing.B)   { benchmarkTrajectory(b, 1_000) }
+func BenchmarkTrajectory100k(b *testing.B) { benchmarkTrajectory(b, 100_000) }
+
+// BenchmarkOrbit is a frame of the interaction ADR 0057 is about: the same
+// scene from a camera that moved, over and over, which is what a reader
+// dragging across a chart produces.
+//
+// A camera is two floats and a frame is the same frame from another angle, so
+// an orbit that allocated per frame would be a leak with a chart attached.
+func benchmarkOrbit(b *testing.B, n int) {
+	onOnePGate(b)
+	// Into a backend that keeps nothing: irtest.Recorder copies every path it
+	// is replayed, which is a cost of watching rather than of drawing, and a
+	// gate that measured it would be a gate on the test harness.
+	live, err := ripple(n).Live(irtest.NullTarget())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer live.Close()
+	if err := live.Draw(); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		live.Camera(three.Orbit(live.CameraValue(), 0.01, 0))
+		if err := live.Draw(); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkOrbit32(b *testing.B) { benchmarkOrbit(b, 32) }
+func BenchmarkOrbit96(b *testing.B) { benchmarkOrbit(b, 96) }
+
+// ripple is an n by n surface: the shape a heatmap of the same grid reports
+// without saying which way the ground falls.
+func ripple(n int) *three.Plot {
+	xs := make([]float64, 0, n*n)
+	ys := make([]float64, 0, n*n)
+	zs := make([]float64, 0, n*n)
+	for j := range n {
+		for i := range n {
+			x := -3 + 6*float64(i)/float64(n-1)
+			y := -3 + 6*float64(j)/float64(n-1)
+			r := math.Hypot(x, y)
+			xs = append(xs, x)
+			ys = append(ys, y)
+			zs = append(zs, math.Exp(-r*r/4)*math.Cos(2*r))
+		}
+	}
+	src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("z", zs)
+	sc := three.NewScene(three.XTitle("x"), three.YTitle("y"), three.ZTitle("z")).
+		Z(scale.Linear(scale.Nice())).
+		Add(three.Surface(src, geom.X("x"), geom.Y("y"), geom.Z("z")))
+	return three.New(three.Size(800, 600)).Scene(sc)
+}
+
+// spiral is a trajectory of the given length through the box.
+func spiral(rows int) *three.Plot {
+	xs := make([]float64, rows)
+	ys := make([]float64, rows)
+	zs := make([]float64, rows)
+	for i := range xs {
+		t := float64(i) / float64(rows-1) * 40 * math.Pi
+		xs[i] = math.Cos(t)
+		ys[i] = math.Sin(t)
+		zs[i] = t
+	}
+	src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("t", zs)
+	sc := three.NewScene().Z(scale.Linear(scale.Nice())).
+		Add(three.Line3(src, geom.X("x"), geom.Y("y"), geom.Z("t")))
+	return three.New(three.Size(800, 600)).Scene(sc)
+}

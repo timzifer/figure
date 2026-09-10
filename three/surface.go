@@ -45,9 +45,17 @@ type surface struct {
 	base
 
 	// The resolved grid, rebuilt on every Train into buffers the layer keeps.
+	//
+	// Keeping them rather than allocating them is the whole of this layer's
+	// share of the allocation gate: Train runs on every frame, so a map or a
+	// slice made here would be a cost per row of a chart redrawn per pointer
+	// move. The maps are cleared rather than replaced so that their buckets
+	// survive too.
 	xs, ys []float64
 	z      []float64 // len(xs)*len(ys), row-major in y
 	row    []int32   // the source row behind each cell
+	xi, yi map[float64]int
+	seen   map[float64]struct{}
 	ok     bool
 
 	ramp scale.ColorScale
@@ -93,7 +101,8 @@ func (g *surface) resolve(t geom.Training) error {
 	}
 	g.ramp = g.cfg.ColorScale
 
-	g.xs, g.ys = distinct(xs), distinct(ys)
+	g.xs = g.distinctInto(g.xs[:0], xs)
+	g.ys = g.distinctInto(g.ys[:0], ys)
 	nx, ny := len(g.xs), len(g.ys)
 	if nx < 2 || ny < 2 {
 		return fmt.Errorf("figure/three: a surface needs at least two distinct values on each floor axis, got %d and %d",
@@ -110,7 +119,8 @@ func (g *surface) resolve(t geom.Training) error {
 	for i := range g.row {
 		g.row[i] = -1
 	}
-	xi, yi := index(g.xs), index(g.ys)
+	g.xi, g.yi = indexInto(g.xi, g.xs), indexInto(g.yi, g.ys)
+	xi, yi := g.xi, g.yi
 	for r := range zs {
 		i, okX := xi[xs[r]]
 		j, okY := yi[ys[r]]
@@ -221,24 +231,32 @@ func stepFrom(k, n int, f float32) int {
 	return k
 }
 
-// distinct returns the sorted distinct values of a column, which is one axis
-// of the lattice.
-func distinct(vs []float64) []float64 {
-	seen := make(map[float64]struct{}, len(vs))
-	out := make([]float64, 0, len(vs))
+// distinctInto appends the sorted distinct values of a column to dst, which is
+// one axis of the lattice. It borrows the layer's own seen-map so that a frame
+// costs nothing per row.
+func (g *surface) distinctInto(dst, vs []float64) []float64 {
+	if g.seen == nil {
+		g.seen = make(map[float64]struct{}, len(vs))
+	}
+	clear(g.seen)
 	for _, v := range vs {
-		if _, ok := seen[v]; ok {
+		if _, ok := g.seen[v]; ok {
 			continue
 		}
-		seen[v] = struct{}{}
-		out = append(out, v)
+		g.seen[v] = struct{}{}
+		dst = append(dst, v)
 	}
-	sort.Float64s(out)
-	return out
+	sort.Float64s(dst)
+	return dst
 }
 
-func index(vs []float64) map[float64]int {
-	m := make(map[float64]int, len(vs))
+// indexInto fills m with the position of each value, clearing rather than
+// replacing it so that its buckets survive between frames.
+func indexInto(m map[float64]int, vs []float64) map[float64]int {
+	if m == nil {
+		m = make(map[float64]int, len(vs))
+	}
+	clear(m)
 	for i, v := range vs {
 		m[v] = i
 	}

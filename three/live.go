@@ -69,6 +69,7 @@ func (p *Plot) Live(t ir.Target) (*Live, error) {
 	lp.views = append([]View(nil), p.viewList()...)
 	idx := interact.New()
 	lp.obs = idx
+	lp.sink = new(Sink)
 
 	l := &Live{
 		p: &lp, t: t, b: b,

@@ -26,7 +26,7 @@ func unitScales() [3]scale.Scale {
 func TestTheCubeShowsTheThreeFacesFacingAway(t *testing.T) {
 	for _, cam := range octants() {
 		pr := project(cam, ir.R(0, 0, 200, 200))
-		c := newCube(theme.Light, pr, cam, unitScales(), [3]string{})
+		c := newCube(theme.Light, pr, cam, ticksOf(theme.Light, unitScales()), [3]string{})
 
 		for a := 0; a < 3; a++ {
 			near := c.faceDepth(a, 1-c.far[a])
@@ -50,12 +50,12 @@ func (c cube) faceDepth(a int, side float32) float64 {
 // falling out of the arithmetic rather than being asserted. Below it, the
 // arithmetic correctly draws a ceiling instead.
 func TestTheFloorIsDrawnFromAboveAndTheCeilingFromBelow(t *testing.T) {
-	above := newCube(theme.Light, project(Home(), ir.R(0, 0, 100, 100)), Home(), unitScales(), [3]string{})
+	above := newCube(theme.Light, project(Home(), ir.R(0, 0, 100, 100)), Home(), ticksOf(theme.Light, unitScales()), [3]string{})
 	if above.far[axisZ] != 0 {
 		t.Errorf("looking down at the scene drew the face at z=%v, want the floor at 0", above.far[axisZ])
 	}
 	low := LookAt(Azimuth(-0.6), Elevation(-0.35))
-	below := newCube(theme.Light, project(low, ir.R(0, 0, 100, 100)), low, unitScales(), [3]string{})
+	below := newCube(theme.Light, project(low, ir.R(0, 0, 100, 100)), low, ticksOf(theme.Light, unitScales()), [3]string{})
 	if below.far[axisZ] != 1 {
 		t.Errorf("looking up at the scene drew the face at z=%v, want the ceiling at 1", below.far[axisZ])
 	}
@@ -67,7 +67,7 @@ func TestTheFloorIsDrawnFromAboveAndTheCeilingFromBelow(t *testing.T) {
 // limitation to work around.
 func TestTickLabelsAreUpright(t *testing.T) {
 	cam := LookAt(Azimuth(-1.1), Elevation(0.5))
-	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, unitScales(),
+	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, ticksOf(theme.Light, unitScales()),
 		[3]string{"x", "y", "z"})
 
 	rec := irtest.New()
@@ -95,7 +95,7 @@ func TestTickLabelsAreUpright(t *testing.T) {
 // reads upside down, whichever way the scene has been turned.
 func TestAnAxisTitleFollowsItsAxisAndNeverReadsUpsideDown(t *testing.T) {
 	for _, cam := range octants() {
-		c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, unitScales(),
+		c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, ticksOf(theme.Light, unitScales()),
 			[3]string{"across", "into", "up"})
 		rec := irtest.New()
 		var path ir.Path
@@ -127,7 +127,7 @@ func TestPinnedTicksReachTheDepthAxis(t *testing.T) {
 	sc[axisZ] = z
 
 	cam := Home()
-	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, sc, [3]string{})
+	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, ticksOf(theme.Light, sc), [3]string{})
 	rec := irtest.New()
 	var path ir.Path
 	c.draw(rec, &path)
@@ -149,7 +149,7 @@ func TestPinnedTicksReachTheDepthAxis(t *testing.T) {
 func TestLabelsSitOutsideTheProjectedBox(t *testing.T) {
 	for _, cam := range octants() {
 		pr := project(cam, ir.R(0, 0, 300, 300))
-		c := newCube(theme.Light, pr, cam, unitScales(), [3]string{})
+		c := newCube(theme.Light, pr, cam, ticksOf(theme.Light, unitScales()), [3]string{})
 		box := cubeBounds(pr)
 
 		rec := irtest.New()

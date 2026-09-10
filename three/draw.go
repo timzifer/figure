@@ -26,6 +26,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 	//    at from, and a scale accumulates, so training per view would give a
 	//    layer as many times its weight as there are cameras.
 	trained := map[*Scene][3]scale.Scale{}
+	ticks := map[*Scene][3][]scale.Tick{}
 	order := make([]*Scene, 0, 1)
 	for _, v := range views {
 		sc := v.sceneOr(p.scene)
@@ -40,6 +41,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 			return nil, err
 		}
 		trained[sc] = scales
+		ticks[sc] = ticksOf(th, scales)
 		order = append(order, sc)
 	}
 
@@ -89,10 +91,20 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 	// 5. The room a cube's own labels need, measured once for the whole
 	//    figure and given to every cell — so two views of one scene get
 	//    identically sized cubes, which is what makes them comparable.
-	inset := p.labelRoom(b, th, order, trained)
+	inset := p.labelRoom(b, th, order, ticks)
 
-	sink := acquire()
-	defer release(sink)
+	// A one-shot render borrows its scratch from the pool; a Live keeps its
+	// own. The difference is worth the field: a scene of a hundred thousand
+	// quads is megabytes of vertex arena, so drawing one allocates enough
+	// between frames to run a collection — and sync.Pool is emptied by one, so
+	// a chart redrawn on every pointer move would find an empty pool and
+	// rebuild its arenas every frame. A Live redraws by definition and holds
+	// what it redraws with.
+	sink := p.sink
+	if sink == nil {
+		sink = acquire()
+		defer release(sink)
+	}
 	var path ir.Path
 
 	for i, v := range views {
@@ -114,7 +126,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		clip.Rect(area)
 		b.Push(&clip, ir.Identity)
 
-		newCube(th, pr, v.Camera, scales, titles).draw(b, &path)
+		newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path)
 
 		if p.obs != nil {
 			// X and Y are nil deliberately. A projected scene has no screen
@@ -156,14 +168,13 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 // It is one number for the whole figure rather than one per view, so that
 // every cube is drawn at the same scale. Two views of one scene that were
 // sized differently would be two charts that look comparable and are not.
-func (p *Plot) labelRoom(m layout.Measurer, th theme.Theme, order []*Scene, trained map[*Scene][3]scale.Scale) float32 {
+func (p *Plot) labelRoom(m layout.Measurer, th theme.Theme, order []*Scene, ticks map[*Scene][3][]scale.Tick) float32 {
 	font := th.Font(th.TickSize)
 	widest := float32(0)
 	titled := false
-	want := [3]int{th.TickCountHintX, th.TickCountHintX, th.TickCountHintY}
 	for _, sc := range order {
-		for a, s := range trained[sc] {
-			for _, t := range s.Ticks(scale.TickRequest{Want: want[a]}) {
+		for _, axis := range ticks[sc] {
+			for _, t := range axis {
 				if t.Label == "" {
 					continue
 				}
