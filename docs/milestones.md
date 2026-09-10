@@ -913,32 +913,51 @@ and SVG and PDF have none. That makes the scope: a painter's algorithm is exact
 only over a set that can be totally ordered, so the package draws the shapes
 whose order is decidable and declines the ones that are not.
 
-What makes it exact rather than merely usual is the depth key, and getting that
-key right took two goes. It is the same formula for every primitive of every
-layer — **one order means one formula**, and the first draft let each layer
-choose between two, which are two numbers on two scales, so merging a surface
-with a path was arithmetic rather than geometry. What the sort compares is a
-pair. The primary is *footprint* depth, the centroid's depth with its height
-set to zero: monotone along every view ray exactly as true depth is, and a far
-better sample, because a quad of a surface has a footprint one cell wide
-however steep it is and the side of a bar has one of no width at all however
-tall it is. For a single-valued height field that makes the order provably
-right, which is a reading of the data rather than an approximation of a depth
-buffer, and a second thing the refusal of perspective buys. The secondary is
-true depth, and it is what makes the key work for a *scene* rather than for one
-layer: two surfaces over one grid stand on the same footprints and tie, and a
-camera looking straight down collapses every footprint at once. Last is the
-emission index, which is lexicographically (layer, row), so it is total and
-free and independent of scheduling
-([ADR 0012](adr/0012-parallel-panels.md)'s rule).
+The depth key took three goes to get right, and the two wrong ones are worth
+recording because both looked better than the answer.
+
+It is **one formula for every primitive of every layer**, which is the part
+that was wrong first: a surface keyed its quads one way and a path keyed its
+segments another, and two measures of depth are two numbers on two scales — so
+merging them is arithmetic rather than geometry, and one layer sorts wholly
+before the other however the geometry runs.
+
+The second attempt made that one formula the depth of the centroid *dropped to
+the floor*, on the argument that it varies less over a steep primitive and that
+it is monotone along every view ray. Both halves of that are true and the
+conclusion does not follow, which is the sentence worth keeping: **monotone
+along a ray says nothing about two centroids, which lie on two different
+rays.** Two sheets at different heights whose footprints overlap without
+coinciding come out backwards under it — a review found the case and it is now
+a test, with its numbers and its shared pixel in it.
+
+So the key is the depth of the primitive's own centroid, ties to the emission
+index, which is lexicographically (layer, row) and so is total, free and
+independent of scheduling ([ADR 0012](adr/0012-parallel-panels.md)'s rule).
+
+And the scope the record states loosely is stated exactly, because it is
+smaller than "correct" and pretending otherwise is how the next version of this
+mistake gets made. **Two primitives are ordered correctly whenever their depth
+ranges are disjoint — when a plane across the view direction separates them.**
+Where the ranges interleave, no per-primitive number decides between them, and
+this package does not cut them apart to find out: cutting is a BSP tree, which
+is a renderer. What keeps real charts inside the promise is that the shapes
+emitted here are already small — one quad per cell, one face per bar side, one
+primitive per path segment — so a depth range is a cell wide rather than a
+scene wide. The case that leaves it is several layers over a grid coarse enough
+that one cell spans more depth than the layers are apart, and the answers to
+that are a finer grid or a view each.
 
 No hysteresis: two marks whose depths differ by a millionth swap legitimately
 as the camera turns, and a picture that depended on which frames preceded it
-could not be golden-tested. And the tests cast rays rather than restating the
-rule: a test whose expected answer recomputes the ordering proves only that the
-sort sorts, so the occlusion check intersects the view ray through each sample
-point with the plane of every primitive covering it and insists the nearest is
-painted last.
+could not be golden-tested.
+
+The tests cast rays rather than restating the rule, which is the other thing
+that review changed. A test whose expected answer recomputes the ordering
+proves only that the sort sorts; the occlusion check intersects the view ray
+through each sample point with the plane of every primitive covering it and
+insists the nearest is painted last. Every one of the four fails on the key it
+replaced, which is what a test is for.
 
 Adjacent faces of one style are merged into one drawing call, and only where
 that is provably the same picture — an opaque, unoutlined run. Two faces next
