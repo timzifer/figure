@@ -72,7 +72,8 @@ func TestTickLabelsAreUpright(t *testing.T) {
 
 	rec := irtest.New()
 	var path ir.Path
-	c.draw(rec, &path)
+	var boxes []ir.Rect
+	c.draw(rec, &path, &boxes)
 
 	titles := map[string]bool{"x": true, "y": true, "z": true}
 	upright := 0
@@ -99,7 +100,8 @@ func TestAnAxisTitleFollowsItsAxisAndNeverReadsUpsideDown(t *testing.T) {
 			[3]string{"across", "into", "up"})
 		rec := irtest.New()
 		var path ir.Path
-		c.draw(rec, &path)
+		var boxes []ir.Rect
+		c.draw(rec, &path, &boxes)
 
 		found := 0
 		for _, call := range rec.Filter("Text") {
@@ -130,7 +132,8 @@ func TestPinnedTicksReachTheDepthAxis(t *testing.T) {
 	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam, ticksOf(theme.Light, sc), [3]string{})
 	rec := irtest.New()
 	var path ir.Path
-	c.draw(rec, &path)
+	var boxes []ir.Rect
+	c.draw(rec, &path, &boxes)
 
 	want := map[string]bool{"0": false, "37": false, "100": false}
 	for _, call := range rec.Filter("Text") {
@@ -154,7 +157,8 @@ func TestLabelsSitOutsideTheProjectedBox(t *testing.T) {
 
 		rec := irtest.New()
 		var path ir.Path
-		c.draw(rec, &path)
+		var boxes []ir.Rect
+		c.draw(rec, &path, &boxes)
 		for _, call := range rec.Filter("Text") {
 			at := call.Text.At
 			// "Outside" means outside the box's own middle half: a label may
@@ -202,4 +206,85 @@ func max32(a, b float32) float32 {
 		return a
 	}
 	return b
+}
+
+// An axis seen nearly end-on projects its whole length into a few pixels, and
+// without a collision pass every one of its ticks lands in the same place: a
+// pile of numbers rather than an axis. The pass has to span all three axes,
+// because they meet at the corners of the box — two of them looked at end-on
+// put their first labels in exactly the same spot.
+func TestNoTwoTickLabelsOverlap(t *testing.T) {
+	sc := unitScales()
+	// A camera looking almost straight down, which is the case that collapses
+	// the depth axis, and one looking along a floor axis, which collapses that
+	// one. Both are angles a reader reaches by dragging.
+	for _, cam := range []Camera{
+		LookAt(Azimuth(-0.6), Elevation(1.45)),
+		LookAt(Azimuth(0), Elevation(0.02)),
+		LookAt(Azimuth(-math.Pi/2), Elevation(0.02)),
+		Home(),
+	} {
+		c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam,
+			ticksOf(theme.Light, sc), [3]string{"x", "y", "z"})
+		rec := irtest.New()
+		var path ir.Path
+		var boxes []ir.Rect
+		c.draw(rec, &path, &boxes)
+
+		titles := map[string]bool{"x": true, "y": true, "z": true}
+		var drawn []ir.Rect
+		for _, call := range rec.Filter("Text") {
+			if titles[call.Text.Text] {
+				continue
+			}
+			box := labelBox(call.Text, rec.Measure(call.Text), 0)
+			for _, k := range drawn {
+				if box.Min.X < k.Max.X && k.Min.X < box.Max.X &&
+					box.Min.Y < k.Max.Y && k.Min.Y < box.Max.Y {
+					t.Errorf("camera %+v: the label %q at %v overlaps one already drawn at %v",
+						cam, call.Text.Text, box, k)
+				}
+			}
+			drawn = append(drawn, box)
+		}
+		if len(drawn) == 0 {
+			t.Errorf("camera %+v: every tick label was dropped", cam)
+		}
+	}
+}
+
+// A tick mark is a position and a label is a claim about how much room there
+// is, so dropping a label never drops its mark: an axis collapsed to a few
+// pixels still shows where its ticks are.
+func TestDroppingALabelKeepsItsTickMark(t *testing.T) {
+	sc := unitScales()
+	cam := LookAt(Azimuth(0), Elevation(0.02))
+	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam,
+		ticksOf(theme.Light, sc), [3]string{})
+	rec := irtest.New()
+	var path ir.Path
+	var boxes []ir.Rect
+	c.draw(rec, &path, &boxes)
+
+	// Every axis strokes one path holding its line and every one of its tick
+	// marks, whatever happened to the labels.
+	if got := rec.Count("StrokePath"); got < 3 {
+		t.Errorf("got %d stroked paths, want at least one axis each", got)
+	}
+	labels := 0
+	for range rec.Filter("Text") {
+		labels++
+	}
+	total := 0
+	for _, axis := range c.ticks {
+		for _, tk := range axis {
+			if tk.Label != "" {
+				total++
+			}
+		}
+	}
+	if labels >= total {
+		t.Errorf("%d of %d labels were drawn at an angle that collapses an axis; "+
+			"the collision pass did nothing", labels, total)
+	}
 }

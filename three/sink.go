@@ -103,6 +103,9 @@ type Sink struct {
 	line  []ir.Point
 	rowAt []ir.Point
 	rowNo []int
+	// boxes is the cube's label-collision scratch, kept here so that it is
+	// pooled with everything else rather than made per view per frame.
+	boxes []ir.Rect
 
 	// The state a layer sets and this package resets between layers.
 	layer int32
@@ -205,5 +208,6 @@ func (s *Sink) reset() {
 	s.line = s.line[:0]
 	s.rowAt = s.rowAt[:0]
 	s.rowNo = s.rowNo[:0]
+	s.boxes = s.boxes[:0]
 	s.layer, s.rule, s.row, s.fwd = 0, DepthCentroid, -1, Vec3{}
 }

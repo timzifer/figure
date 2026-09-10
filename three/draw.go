@@ -106,6 +106,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		defer release(sink)
 	}
 	var path ir.Path
+	boxes := sink.boxes[:0]
 
 	for i, v := range views {
 		area := lay.Areas[i]
@@ -126,7 +127,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		clip.Rect(area)
 		b.Push(&clip, ir.Identity)
 
-		newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path)
+		newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path, &boxes)
 
 		if p.obs != nil {
 			// X and Y are nil deliberately. A projected scene has no screen
@@ -155,6 +156,8 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 
 		b.Pop()
 	}
+
+	sink.boxes = boxes
 
 	if p.obs != nil {
 		p.obs.End()

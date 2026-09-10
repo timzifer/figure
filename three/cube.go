@@ -103,10 +103,14 @@ func (v Vec3) with(a int, f float32) Vec3 {
 func corner(x, y, z float32) Vec3 { return Vec3{x, y, z} }
 
 // draw paints the walls, the grid, the ticks and the titles, in that order.
-func (c cube) draw(b ir.Backend, path *ir.Path) {
+//
+// boxes is the caller's scratch for the label collision pass, kept out here so
+// that a figure redrawn on every pointer move does not allocate one per view
+// per frame.
+func (c cube) draw(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 	c.walls(b, path)
 	c.grid(b, path)
-	c.axes(b, path)
+	c.axes(b, path, boxes)
 }
 
 // walls fills the three faces pointing away from the camera and outlines them.
@@ -174,9 +178,10 @@ func (c cube) grid(b ir.Backend, path *ir.Path) {
 
 // axes strokes each axis's outer edge, its tick marks, its labels and its
 // title.
-func (c cube) axes(b ir.Backend, path *ir.Path) {
+func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 	tickFont := c.th.Font(c.th.TickSize)
 	titleFont := c.th.Font(c.th.LabelSize)
+	*boxes = (*boxes)[:0]
 	for a := 0; a < 3; a++ {
 		if len(c.ticks[a]) == 0 {
 			continue
@@ -201,6 +206,20 @@ func (c cube) axes(b ir.Backend, path *ir.Path) {
 			b.StrokePath(path, ir.Stroke{Color: c.th.AxisColor, Width: pickWidth(c.th.AxisWidth)})
 		}
 
+		// An axis seen nearly end-on projects its whole length into a few
+		// pixels, and every one of its ticks lands in the same place: a pile
+		// of numbers rather than an axis. In a flat chart only the horizontal
+		// axis has that problem and render.selectXLabels solves it there; in a
+		// projected scene any of the three can be the one pointing at the
+		// reader, so the labels are placed greedily — one is kept when its box
+		// clears every box already kept, and dropped otherwise. The tick mark
+		// stays either way, because a mark is a position and a label is a
+		// claim about how much room there is.
+		//
+		// The pass spans all three axes rather than running once per axis,
+		// because the three meet at the corners of the box: two of them
+		// looked at end-on put their first labels in the same place, and a
+		// per-axis pass would keep both.
 		for _, t := range c.ticks[a] {
 			if t.Label == "" {
 				continue
@@ -213,14 +232,20 @@ func (c cube) axes(b ir.Backend, path *ir.Path) {
 			// sheared: ir.TextRun carries one rotation about its anchor and no
 			// shear, deliberately, and a sheared tick label is harder to read
 			// than an upright one anyway.
-			b.Text(ir.TextRun{
+			run := ir.TextRun{
 				Text:  t.Label,
 				Font:  tickFont,
 				At:    ir.Point{X: anchor.X + out.X*gap, Y: anchor.Y + out.Y*gap},
 				H:     h,
 				V:     v,
 				Color: c.th.TickColor,
-			})
+			}
+			box := labelBox(run, b.Measure(run), c.th.TickLabelPad)
+			if overlapsAny(box, *boxes) {
+				continue
+			}
+			b.Text(run)
+			*boxes = append(*boxes, box)
 		}
 
 		if c.title[a] == "" {
@@ -309,6 +334,41 @@ func alignFor(out ir.Point) (ir.HAlign, ir.VAlign) {
 		return ir.AlignCenter, ir.AlignTop
 	}
 	return ir.AlignCenter, ir.AlignBottom
+}
+
+// labelBox is where a tick label's ink lands, padded by the gap two of them
+// have to keep from each other. It is internal/layout's labelBounds without
+// the rotation, because a tick label here is never rotated.
+func labelBox(run ir.TextRun, m ir.TextMetrics, pad float32) ir.Rect {
+	x, y := float32(0), float32(0)
+	switch run.H {
+	case ir.AlignCenter:
+		x = -m.Advance / 2
+	case ir.AlignEnd:
+		x = -m.Advance
+	}
+	switch run.V {
+	case ir.AlignTop:
+		y = m.Ascent
+	case ir.AlignMiddle:
+		y = (m.Ascent - m.Descent) / 2
+	case ir.AlignBottom:
+		y = -m.Descent
+	}
+	return ir.Rect{
+		Min: ir.Point{X: run.At.X + x - pad, Y: run.At.Y + y - m.Ascent - pad},
+		Max: ir.Point{X: run.At.X + x + m.Advance + pad, Y: run.At.Y + y + m.Descent + pad},
+	}
+}
+
+func overlapsAny(box ir.Rect, kept []ir.Rect) bool {
+	for _, k := range kept {
+		if box.Min.X < k.Max.X && k.Min.X < box.Max.X &&
+			box.Min.Y < k.Max.Y && k.Min.Y < box.Max.Y {
+			return true
+		}
+	}
+	return false
 }
 
 // uprightAngle is the screen angle of a direction, folded into the half turn

@@ -21,7 +21,6 @@
 <text x="253.382" y="384.977" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">3</text>
 <text x="181.695" y="375.349" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(26.621 181.695 375.349)">x</text>
 <path fill="none" d="M255.012,376.126 L413.233,339.009 M255.012,376.126 L254.107,381.044 M281.382,369.94 L281.435,374.94 M307.752,363.754 L308.85,368.632 M334.122,357.568 L336.219,362.107 M360.492,351.382 L363.428,355.429 M386.862,345.195 L390.432,348.696 M413.233,339.009 L417.251,341.984" stroke="#333333"/>
-<text x="253.382" y="384.977" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">-3</text>
 <text x="281.478" y="378.939" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">-2</text>
 <text x="309.728" y="372.534" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">-1</text>
 <text x="337.896" y="365.738" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">0</text>
@@ -30,7 +29,6 @@
 <text x="420.467" y="344.364" font-family="sans-serif" font-size="11" dominant-baseline="central" fill="#555555">3</text>
 <text x="347.793" y="387.163" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(-13.202 347.793 387.163)">y</text>
 <path fill="none" d="M146.767,321.873 L146.767,141.791 M146.767,321.873 L142.502,324.481 M146.767,276.852 L141.945,278.172 M146.767,231.832 L141.778,231.511 M146.767,186.811 L142.129,184.945 M146.767,141.791 L142.748,138.816" stroke="#333333"/>
-<text x="139.089" y="326.568" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">-2</text>
 <text x="138.086" y="279.227" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">-1</text>
 <text x="137.786" y="231.254" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">0</text>
 <text x="138.418" y="183.453" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">1</text>
