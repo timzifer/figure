@@ -234,14 +234,21 @@ of these, which is the plan-and-elevations an engineering drawing has had since
 before there were computers — and the scales behind it are trained once
 however many angles are drawn from them. `examples/views` is the figure.
 
-**Nothing about the drawing order is in the chart.** A surface over a regular
-grid is ordered by where each of its cells stands on the floor, which under an
-orthographic camera is exact: a quad of a height field is occluded by its
-neighbours in the lattice and never by how tall it is. Where two things stand
-on the *same* footprint — two surfaces over one grid, say — true depth decides
-between them. That is why the painter's algorithm is right here rather than
-merely usual, and why the picture needs no depth buffer, which matters because
-SVG and PDF have no pixels to put one in.
+**Nothing about the drawing order is in the chart.** Every primitive of every
+layer is ordered by the depth of its own middle, and painted back to front —
+so the picture needs no depth buffer, which matters because SVG and PDF have
+no pixels to put one in.
+
+What that costs is worth knowing, because it is a property of the chart rather
+than of the code. Two shapes are ordered correctly when a plane across the
+view direction separates them; where their depth ranges interleave, no single
+number per shape can decide between them, and figure does not cut them apart
+to find out. In practice the shapes are small — one quad per cell of a surface,
+one segment of a path — so the ranges are a cell wide and the question rarely
+arises. Where it does is a scene of **several layers over a coarse grid**: if
+one cell spans more depth than the layers are apart, the wrong sheet can come
+forward at some angles. A finer grid fixes it, and so does giving each layer
+its own view, which is what several cameras on one scene are for.
 
 The cascade is the same machinery with `geom.GroupBy` over a sweep column:
 thirty traces offset along the second floor axis, which is the display a

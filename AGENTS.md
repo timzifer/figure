@@ -328,17 +328,32 @@ starts wanting `render` to record layers and merge the recordings, that is the
 thing [ADR 0010](docs/adr/0010-panel-layout.md) exists to prevent and
 [ADR 0056](docs/adr/0056-three-dimensional-charts.md) refuses again.
 
-**The depth key is one formula for every primitive of every layer, and it is a
-pair.** The primary is *footprint* depth — the centroid's depth with its height
-set to zero — because that is the better sample: a quad of a surface has a
-footprint one cell wide however steep it is, and the side of a bar has a
-footprint of no width at all however tall it is. It is a legitimate key rather
-than a trick, because footprint depth is monotone along every view ray exactly
-as true depth is. The secondary is true depth, and dropping it is the bug that
-took a review to find: two surfaces over one grid stand on the same footprints
-and tie, and a camera looking straight down collapses every footprint at once —
-so without it the lower sheet paints over the higher one. Last is the emission
-index.
+**The depth key is the centroid's depth along the view direction, one formula
+for every primitive of every layer, ties to the emission index.** Two things
+that look like improvements are not, and both were tried:
+
+*Letting a layer pick its own measure* is two numbers on two scales — they
+differ by the height times the view direction's z — so one layer sorts wholly
+before the other however the geometry runs.
+
+*Keying on the centroid dropped to the floor* is the subtler one, because its
+argument is half true: that key does vary less over a steep primitive, and it
+is monotone along every view ray. It still does not follow, and this is the
+sentence to remember — **monotone along a ray says nothing about two
+centroids, which lie on two different rays.** Two sheets at different heights
+whose footprints overlap without coinciding come out backwards.
+`TestASheetIsNotPaintedOverTheOneInFrontOfIt` is that case with the numbers in
+it; run it before believing any replacement key.
+
+**What the key promises is smaller than "correct", and the difference is the
+part to know.** Two primitives are ordered correctly when their depth *ranges*
+are disjoint. Where the ranges interleave, no per-primitive number decides
+between them and this package does not split them apart — splitting is a BSP
+tree, which is a renderer. Real charts stay inside the promise because the
+shapes emitted here are already small: one quad per cell, one face per bar
+side, one primitive per path segment. The case that leaves it is several layers
+stacked over a grid coarse enough that one cell spans more depth than the
+layers are apart.
 
 **Letting a layer pick its own depth measure is the same bug one level up.**
 Two layers keyed by two different formulas are two numbers on two scales, and

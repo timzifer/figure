@@ -71,11 +71,57 @@ func TestNothingIsPaintedOverSomethingNearer(t *testing.T) {
 	}
 }
 
+// The case that took a review to find, with its numbers in it.
+//
+// Two sheets whose footprints overlap without coinciding, at two heights, seen
+// from a quarter turn up. The point (0.9, 0.5, 0.7) on the upper sheet and the
+// point (0.5, 0.5, 0.3) on the lower one project to the same pixel, and the
+// upper one is nearer — so the upper sheet has to be painted last.
+//
+// A key that drops the height gets this backwards. It puts the upper sheet's
+// centroid at 0.354 and the lower one's at 0.212, so the lower is painted
+// last and covers the sheet in front of it. The argument that key rested on —
+// that depth with the height dropped is monotone along every view ray — is
+// true and does not reach: two centroids lie on two different rays, and the
+// step from one to the other was never made. This test is the step not
+// existing.
+func TestASheetIsNotPaintedOverTheOneInFrontOfIt(t *testing.T) {
+	cam := LookAt(Azimuth(0), Elevation(math.Pi/4))
+	area := ir.R(0, 0, 200, 200)
+	pr := project(cam, area)
+
+	s := acquire()
+	defer release(s)
+	s.openLayer(0, cam.Forward())
+	s.Face([]Vec3{{0, 0, 0.7}, {1, 0, 0.7}, {1, 1, 0.7}, {0, 1, 0.7}},
+		Style{Fill: ir.Color{R: 1, A: 255}})
+	s.openLayer(1, cam.Forward())
+	s.Face([]Vec3{{0.4, 0, 0.3}, {1, 0, 0.3}, {1, 1, 0.3}, {0.4, 1, 0.3}},
+		Style{Fill: ir.Color{R: 2, A: 255}})
+
+	rec := irtest.New()
+	s.paint(rec, pr, nil, 0, nil, nil)
+
+	// The two points really are one pixel, which is what makes this a
+	// question about occlusion rather than about arithmetic.
+	upper, lower := Vec3{0.9, 0.5, 0.7}, Vec3{0.5, 0.5, 0.3}
+	if a, b := pr.point(upper), pr.point(lower); a != b {
+		t.Fatalf("the two points project to %v and %v; the example needs them on one pixel", a, b)
+	}
+	if pr.depth(upper) >= pr.depth(lower) {
+		t.Fatalf("the upper point is at depth %v and the lower at %v; the upper one is meant to be nearer",
+			pr.depth(upper), pr.depth(lower))
+	}
+
+	if last := s.prims[s.order[len(s.order)-1].idx].layer; last != 0 {
+		t.Errorf("the lower sheet is painted last and covers the one in front of it")
+	}
+	checkOcclusion(t, s, pr, area, cam)
+}
+
 // Two surfaces over one grid at two heights is an ordinary chart — a designed
-// part and a measured one on the same axes — and it is the case a key that
-// drops the height cannot order at all: both layers stand on the same
-// footprints, so every pair of quads ties, and without a second key the
-// emission order decides which is on top.
+// part and a measured one on the same axes — and it is the same question with
+// the footprints exactly on top of one another rather than merely overlapping.
 //
 // The lower surface is emitted last here, so an order that fell back on
 // emission would draw it over the higher one and the test would catch it.
@@ -138,12 +184,16 @@ func TestASurfaceAndAPathAreOrderedAgainstEachOther(t *testing.T) {
 		rec := irtest.New()
 		s.paint(rec, pr, nil, 0, nil, nil)
 
-		// The two layers have to interleave. If their keys were two different
-		// measures of depth — one dropping the height and one not — the two
-		// numbers would be on different scales, and one layer would sort
-		// wholly before the other however the geometry ran. That is the bug
-		// this guards, and it is invisible in any picture with one layer in
-		// it.
+		// The reading the picture has to give: where the path runs under the
+		// sheet it is hidden by it, and where it runs over it, it is drawn on
+		// top. That is checked point by point against the geometry rather than
+		// against the order.
+		checkLineOcclusion(t, s, pr, cam)
+
+		// And the weaker structural fact that goes with it. If the two layers
+		// were keyed by two different measures of depth, the two numbers would
+		// be on different scales and one layer would sort wholly before the
+		// other however the geometry ran — so they have to interleave.
 		first := map[int32]int{}
 		last := map[int32]int{}
 		for i, k := range s.order {
@@ -211,6 +261,57 @@ func checkOcclusion(t *testing.T, s *Sink, pr projector, area ir.Rect, cam Camer
 							"the one at %.4f, so the farther one covers it",
 							cam, pt, hits[i].t, hits[j].t)
 					}
+				}
+			}
+		}
+	}
+}
+
+// checkLineOcclusion is [checkOcclusion] for the primitives that have no area.
+//
+// A polyline covers a curve of the screen rather than a region, so it is
+// sampled along its own length: at each sample the point's depth is exact —
+// no plane to intersect, the point is on the segment — and every face covering
+// that pixel is compared against it.
+func checkLineOcclusion(t *testing.T, s *Sink, pr projector, cam Camera) {
+	t.Helper()
+
+	place := make(map[int32]int, len(s.order))
+	for i, k := range s.order {
+		place[k.idx] = i
+	}
+
+	for i := range s.prims {
+		line := &s.prims[i]
+		if line.kind != kindLine {
+			continue
+		}
+		a, b := s.verts[line.lo], s.verts[line.lo+1]
+		for step := 0; step <= 8; step++ {
+			u := float32(step) / 8
+			at := a.Add(b.Sub(a).Mul(u))
+			pt := pr.point(at)
+			d := pr.depth(at)
+
+			for j := range s.prims {
+				face := &s.prims[j]
+				if face.kind != kindFace {
+					continue
+				}
+				if !polygonContains(s.pts[face.lo:face.hi], pt) {
+					continue
+				}
+				fd, ok := rayDepth(pr, s.verts[face.lo:face.hi], pt)
+				if !ok {
+					continue
+				}
+				switch {
+				case d < fd-1e-6 && place[int32(i)] < place[int32(j)]:
+					t.Fatalf("camera %+v: at %v the path is in front at %.4f and the sheet behind at %.4f, "+
+						"and the sheet is painted over it", cam, pt, d, fd)
+				case fd < d-1e-6 && place[int32(j)] < place[int32(i)]:
+					t.Fatalf("camera %+v: at %v the sheet is in front at %.4f and the path behind at %.4f, "+
+						"and the path is drawn over it", cam, pt, fd, d)
 				}
 			}
 		}
@@ -406,3 +507,129 @@ func TestAMergedRunIsStillOneMarkPerFace(t *testing.T) {
 		t.Errorf("the merged call has %d subpaths, want one per quad (%d)", subpaths, n*n)
 	}
 }
+
+// A sweep over many arrangements of the case the review found, because one
+// worked example proves one example.
+//
+// Two lattices at two heights with offset footprints, from forty cameras: the
+// "designed part and measured part on one pair of axes" chart, arranged every
+// way the generator can think of. This is the shape the package actually
+// emits — a surface reaches the painter as one small quad per cell, never as
+// one big sheet — and small quads are what keep a centroid a usable sample of
+// a primitive's depth. See [Sink.depthOf] for where that stops being true.
+//
+// The numbers come from a fixed generator rather than math/rand, so a failure
+// is the same failure on every machine and every run.
+func TestStackedLatticesAreOrderedCorrectlyAcrossManyArrangements(t *testing.T) {
+	rng := newLCG(0x5eed)
+	area := ir.R(0, 0, 160, 160)
+
+	for round := 0; round < 40; round++ {
+		cam := LookAt(
+			Azimuth(rng.between(-math.Pi, math.Pi)),
+			Elevation(rng.between(-1.5, 1.5)),
+		)
+		pr := project(cam, area)
+
+		s := acquire()
+		for k, z := range [2]float32{0.25, 0.75} {
+			ox := float32(rng.between(0, 0.2))
+			oy := float32(rng.between(0, 0.2))
+			s.openLayer(k, cam.Forward())
+			sheet(s, 8, ox, oy, z, ir.Color{R: uint8(k * 90), A: 255})
+		}
+		rec := irtest.New()
+		s.paint(rec, pr, nil, 0, nil, nil)
+		checkOcclusion(t, s, pr, area, cam)
+		release(s)
+	}
+}
+
+// sheet emits one flat lattice of n by n cells, offset on the floor and at a
+// fixed height.
+func sheet(s *Sink, n int, ox, oy, z float32, fill ir.Color) {
+	const span = 0.8
+	for j := 0; j < n; j++ {
+		for i := 0; i < n; i++ {
+			x0 := ox + span*float32(i)/float32(n)
+			x1 := ox + span*float32(i+1)/float32(n)
+			y0 := oy + span*float32(j)/float32(n)
+			y1 := oy + span*float32(j+1)/float32(n)
+			s.Face([]Vec3{{x0, y0, z}, {x1, y0, z}, {x1, y1, z}, {x0, y1, z}},
+				Style{Fill: fill})
+		}
+	}
+}
+
+// The condition under which a centroid is enough, stated as a test rather than
+// only as a doc comment: two primitives whose depth *ranges* do not overlap
+// are always ordered correctly, whatever their shape or size.
+//
+// It is what [Sink.depthOf] promises and the whole of what it promises. The
+// sweep above is the same claim for the shapes the package emits; this one is
+// the claim itself.
+func TestPrimitivesSeparatedInDepthAreAlwaysOrderedCorrectly(t *testing.T) {
+	rng := newLCG(0xc0ffee)
+	area := ir.R(0, 0, 160, 160)
+
+	for round := 0; round < 200; round++ {
+		cam := LookAt(Azimuth(rng.between(-math.Pi, math.Pi)), Elevation(rng.between(-1.5, 1.5)))
+		pr := project(cam, area)
+
+		s := acquire()
+		s.openLayer(0, cam.Forward())
+		a := randomQuad(rng)
+		b := randomQuad(rng)
+		s.Face(a[:], Style{Fill: ir.Color{R: 10, A: 255}})
+		s.Face(b[:], Style{Fill: ir.Color{R: 20, A: 255}})
+
+		// Only the arrangements the promise covers: the two depth ranges have
+		// to be disjoint, which is what "the pieces can be totally ordered"
+		// means for two primitives that each span a range.
+		aLo, aHi := depthRange(pr, a[:])
+		bLo, bHi := depthRange(pr, b[:])
+		if aHi >= bLo && bHi >= aLo {
+			release(s)
+			continue
+		}
+		rec := irtest.New()
+		s.paint(rec, pr, nil, 0, nil, nil)
+		checkOcclusion(t, s, pr, area, cam)
+		release(s)
+	}
+}
+
+func randomQuad(rng *lcg) [4]Vec3 {
+	x := float32(rng.between(0.05, 0.6))
+	y := float32(rng.between(0.05, 0.6))
+	z := float32(rng.between(0.05, 0.95))
+	w := float32(rng.between(0.05, 0.35))
+	h := float32(rng.between(0.05, 0.35))
+	tilt := float32(rng.between(-0.2, 0.2))
+	return [4]Vec3{
+		{x, y, z}, {x + w, y, z + tilt}, {x + w, y + h, z + tilt}, {x, y + h, z},
+	}
+}
+
+func depthRange(pr projector, vs []Vec3) (lo, hi float64) {
+	lo, hi = math.Inf(1), math.Inf(-1)
+	for _, v := range vs {
+		d := pr.depth(v)
+		lo, hi = math.Min(lo, d), math.Max(hi, d)
+	}
+	return lo, hi
+}
+
+// lcg is a linear congruential generator: the numerical recipe, chosen because
+// it is four lines and produces the same sequence everywhere. A test whose
+// inputs differ between runs is a test that fails on somebody else's Tuesday.
+type lcg struct{ state uint64 }
+
+func newLCG(seed uint64) *lcg { return &lcg{state: seed} }
+
+func (g *lcg) next() float64 {
+	g.state = g.state*6364136223846793005 + 1442695040888963407
+	return float64(g.state>>11) / float64(uint64(1)<<53)
+}
+
+func (g *lcg) between(lo, hi float64) float64 { return lo + g.next()*(hi-lo) }

@@ -118,8 +118,8 @@ func TestABarIsOrderedByItsCellAndNotItsHeight(t *testing.T) {
 	}
 	// Whichever cell is farther along the view direction is emitted first, and
 	// its own height changes nothing about that.
-	first, second := s.prims[0].key, s.prims[3].key
+	first, second := s.prims[0].depth, s.prims[3].depth
 	if first <= second {
-		t.Errorf("the first bar's key is %v and the second's %v: the far cell must come first", first, second)
+		t.Errorf("the first bar is at depth %v and the second at %v: the far cell must come first", first, second)
 	}
 }

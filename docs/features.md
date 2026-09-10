@@ -97,9 +97,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the GPU tier ([ADR 0056](adr/0056-three-dimensional-charts.md)). Hidden
   surfaces are ordered rather than buffered, because SVG and PDF have no
   pixels: one depth order over the primitives of every layer at once, keyed by
-  where each primitive stands on the floor — which under an orthographic camera
-  is exact for a height field rather than approximate — and tie-broken by true
-  depth, so that two surfaces over one grid still know which is on top.
+  the depth of each primitive's own middle. Two shapes come out right whenever
+  a plane across the view direction separates them, which the small shapes this
+  draws — a quad per cell, a segment per step — almost always allows; where two
+  depth ranges genuinely interleave nothing is cut apart to resolve them,
+  because that is a BSP tree and a BSP tree is a renderer.
 - **A camera, and several of them** — `three.Camera` is an immutable value and
   `three.Orbit`, `three.Dolly` and `three.Slerp` are pure functions over it, so
   the host owns the drag: `three` installs no handler, opens no window and runs

@@ -21,38 +21,51 @@
 > collector and the collector is ordered once — `slices.SortFunc` over a pooled
 > key slice.
 >
-> **One order means one formula.** The key is the same measure for every
-> primitive of every layer, and the first draft got that wrong: it let each
-> layer choose between a floor-projected key and a centroid one, which are two
-> numbers on two scales, so merging a surface with a path was arithmetic rather
-> than geometry. What the sort compares is a pair:
+> **One order means one formula, and the formula is the depth of the
+> primitive's centroid.** The first draft got this wrong twice, and both
+> mistakes are worth recording because both are easy to make again.
 >
-> - **Footprint depth**, the depth of the centroid with its height set to
->   zero. Under an orthographic camera this is monotone along every view ray
->   exactly as true depth is — two points on one ray at distances t₁ and t₂
->   have footprint depths differing by (t₂−t₁)(fwd.x² + fwd.y²), which is never
->   negative — so it is a valid ordering key, and it is the *better sample*: a
->   quad of a surface has a footprint one cell wide however steep it is, and
->   the side of a bar has a footprint of no width at all however tall it is.
->   For a single-valued height field that makes the order exact, which is a
->   reading of the data rather than an approximation of a depth buffer, and a
->   second thing the refusal of perspective buys.
-> - **True depth**, breaking the tie. Footprint depth is degenerate where true
->   depth is not: two surfaces over one grid — a designed part and a measured
->   one, an ordinary chart — stand on the same footprints, and a camera looking
->   straight down collapses every footprint at once. Without the second key
->   those cases fall through to emission order and the lower sheet paints over
->   the higher one.
+> It first let *each layer* choose its own measure — a floor-projected key for
+> a surface and a centroid one for a path. Those are two numbers on two scales,
+> differing by the height times the view direction's z, so merging a surface
+> with a path was arithmetic rather than geometry: one layer sorts wholly
+> before the other however the geometry runs.
 >
-> Between them the pair is well behaved at both extremes: with the camera level
-> the two are the same number, and with it overhead the first carries nothing
-> and the second carries everything. Last is the emission index, which is
-> (layer, row) and is total.
+> It then made the floor-projected key primary for everything, on the argument
+> that it varies less over a steep primitive and that it is monotone along
+> every view ray. Both halves of that are true and **the conclusion does not
+> follow**: monotone along *a* ray says nothing about two centroids, which lie
+> on two different rays. Two sheets at different heights whose footprints
+> overlap without coinciding come out backwards — a quarter turn up, a sheet at
+> z = 0.7 over the whole floor and one at z = 0.3 over part of it, and the two
+> points that share a pixel are ordered the wrong way round.
+>
+> So the key is the centroid's depth along the view direction, and nothing
+> else. Ties go to the emission index, which is (layer, row) and is total.
+>
+> **And the scope this record states loosely has to be stated exactly.** "A
+> painter's algorithm is exact only when the pieces can be totally ordered" is
+> right, and once both pieces are extended rather than points it means one
+> thing:
+>
+> > Two primitives are ordered correctly whenever their depth *ranges* are
+> > disjoint — when a plane across the view direction separates them. Where the
+> > ranges interleave, no per-primitive number can decide between them.
+>
+> That is the promise, it is smaller than "correct", and it is what keeps this
+> record's refusal of splitting honest — a BSP tree is what resolves the rest,
+> and a BSP tree is a renderer. What keeps real charts inside it is that the
+> shapes emitted here are already small: a surface reaches the painter as one
+> quad per cell, a field of bars as one face per side, a path as one primitive
+> per segment. The case that leaves it is several layers stacked over a grid
+> coarse enough that one cell spans more depth than the layers are apart, and
+> the answer to that is a finer grid or a view each — which is what several
+> cameras on one scene are for.
 >
 > The traversal this record describes is still there and still allocates
-> nothing; what it now does is hand the sort a sequence it can confirm without
-> a swap. What the record refuses is a *second* order beside the first, and
-> that refusal stands: a fast path skipping the sort for a scene with one
+> nothing; what it does is hand the sort a sequence that is already nearly in
+> order. What the record refuses is a *second* order beside the first, and that
+> refusal stands: a fast path skipping the sort for a scene with one
 > self-ordered layer would be two orders through the painter.
 >
 > **Merging adjacent faces into one drawing call is only allowed where it is

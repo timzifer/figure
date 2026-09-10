@@ -17,7 +17,6 @@ import (
 // same reason: that one takes a closure and a reflect-based swapper and
 // allocates on every call. ADR 0057 decided both.
 type primKey struct {
-	key   float32
 	depth float32
 	idx   int32
 }
@@ -31,11 +30,11 @@ type primKey struct {
 // depth are two numbers that cannot be compared, and merging them would be
 // arithmetic rather than geometry.
 //
-// The primary key is footprint depth and the secondary is true depth, for the
-// reasons [Sink.depthOf] sets out: the first is the better sample and the
-// second is the one that is never degenerate.
+// The key is the depth of the primitive's centroid along the view direction,
+// and nothing else — see [Sink.depthOf] for what that is a sample of and where
+// sampling it is enough.
 //
-// Last is the emission index, which is total and free: layers emit one after
+// Ties break by emission index, which is total and free: layers emit one after
 // another, so the index is lexicographically (layer, the layer's own order),
 // which is ADR 0012's rule without needing a second field. Nothing here
 // depends on scheduling, and there is no hysteresis: two marks whose depths
@@ -43,9 +42,6 @@ type primKey struct {
 // what turning past each other looks like. A picture that depended on which
 // frames preceded it could not be golden-tested.
 func byDepth(a, b primKey) int {
-	if c := cmp.Compare(b.key, a.key); c != 0 {
-		return c
-	}
 	if c := cmp.Compare(b.depth, a.depth); c != 0 {
 		return c
 	}
@@ -70,7 +66,7 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 	s.order = grow(s.order, len(s.prims))[:0]
 	for i := range s.prims {
 		p := &s.prims[i]
-		s.order = append(s.order, primKey{key: p.key, depth: p.depth, idx: int32(i)})
+		s.order = append(s.order, primKey{depth: p.depth, idx: int32(i)})
 	}
 	slices.SortFunc(s.order, byDepth)
 

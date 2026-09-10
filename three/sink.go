@@ -35,17 +35,16 @@ type prim struct {
 	kind   primKind
 	lo, hi int32
 	style  Style
-	// key and depth are how far the primitive is from the camera, and there
-	// are two of them because one is a better sample and the other is never
-	// degenerate. See [Sink.depthOf] for the whole argument; both are computed in
-	// float64 and kept in float32 deliberately, because the narrowing turns a
-	// near-tie into an exact tie and an exact tie is broken by emission order,
-	// which is the same on every architecture. A float64 key would let two
-	// primitives a ulp apart order one way on arm64 and the other on amd64,
-	// and the golden files tolerate exactly that much coordinate difference —
-	// so the reorder would not be caught. AGENTS.md records the same bug in
-	// its other two places.
-	key   float32
+	// depth is how far the primitive's centroid is from the camera along the
+	// view direction. See [Sink.depthOf].
+	//
+	// It is computed in float64 and kept in float32 deliberately: the
+	// narrowing turns a near-tie into an exact tie, and an exact tie is broken
+	// by emission order, which is the same on every architecture. A float64
+	// key would let two primitives a ulp apart order one way on arm64 and the
+	// other on amd64, and the golden files tolerate exactly that much
+	// coordinate difference — so the reorder would not be caught. AGENTS.md
+	// records the same bug in its other two places.
 	depth float32
 	row   int32
 	layer int32
@@ -139,57 +138,61 @@ func (s *Sink) append(kind primKind, vs []Vec3, st Style, text int32) {
 	lo := int32(len(s.verts))
 	s.verts = append(s.verts, vs...)
 	hi := int32(len(s.verts))
-	key, depth := s.depthOf(lo, hi)
 	s.prims = append(s.prims, prim{
 		kind: kind, lo: lo, hi: hi, style: st,
-		key: key, depth: depth, row: s.row, layer: s.layer, text: text,
+		depth: s.depthOf(lo, hi), row: s.row, layer: s.layer, text: text,
 	})
 }
 
-// depthOf is how far a primitive is from the camera, twice.
+// depthOf is how far a primitive's centroid is from the camera, along the view
+// direction. Larger is farther.
 //
-// # Why the first one drops the height
+// It is one number and the same number for every primitive of every layer,
+// which is what makes a scene of several layers orderable at all: two layers
+// keyed by two different measures of depth are two numbers on two scales, and
+// merging them is arithmetic rather than geometry.
 //
-// Under an orthographic camera, depth along the view direction increases with
-// distance by definition. Take two points on one view ray, at distances t1 and
-// t2 > t1. Their *footprint* depths — the depth of the same points with z set
-// to zero — differ by (t2-t1)(fwd.X² + fwd.Y²), which is never negative. So
-// footprint depth is monotone along every view ray exactly as true depth is,
-// and either is a valid ordering key.
+// # What a centroid is enough for, exactly
 //
-// The difference is how well a *centroid* samples it. True depth varies over a
-// primitive by its whole extent, including its height; footprint depth varies
-// only by its extent on the floor. For the shapes this package draws that is a
-// large gap: a quad of a surface has a footprint one cell wide however steep it
-// is, and the side of a bar has a footprint of no width at all however tall it
-// is. Sampling the smaller variation at the centroid is the smaller error —
-// and for a single-valued height field it makes the order exact, because the
-// cells' footprints are disjoint and the ray argument above then orders every
-// hit correctly.
+// A centroid is a *sample*, and a primitive covers a range of depths rather
+// than one. So the promise is precise and it is smaller than "correct":
 //
-// # Why the second one is kept
+//	Two primitives are ordered correctly whenever their depth ranges are
+//	disjoint — when a plane across the view direction separates them.
 //
-// Footprint depth is degenerate where true depth is not. Two primitives
-// standing on the same footprint at different heights — two surfaces over one
-// grid, which is an ordinary chart — have the same footprint depth and
-// different true depths, and the higher one is nearer. A camera looking
-// straight down collapses every footprint depth at once. So true depth breaks
-// the tie, and between them the pair is well behaved at both extremes: with the
-// camera level the two are the same number, and with it overhead the first
-// carries nothing and the second carries everything.
+// That is what ADR 0056's "exact only when the pieces can be totally ordered"
+// means once both pieces are extended rather than points, and it is what
+// [TestPrimitivesSeparatedInDepthAreAlwaysOrderedCorrectly] pins. Where two
+// primitives' depth ranges *interleave*, no per-primitive number can decide
+// between them, and this package does not split them apart to find out:
+// splitting is a BSP tree, which is a renderer, and ADR 0056 refuses one.
 //
-// It costs one multiply-add per primitive and it is the difference between a
-// scene of one layer and a scene of several.
-func (s *Sink) depthOf(lo, hi int32) (key, depth float32) {
+// What keeps real charts inside the promise is that the shapes emitted here
+// are already small. A surface reaches the painter as one quad per cell, a
+// field of bars as one face per side, a path as one primitive per segment —
+// so a primitive's depth range is a cell wide rather than a scene wide. The
+// case to know about is the one that leaves it: **several layers stacked over
+// a grid coarse enough that one cell spans more depth than the layers are
+// apart**. Draw that with a finer grid, or give each layer its own [View],
+// which is what several cameras on one scene are for.
+//
+// # What this is not
+//
+// An earlier version keyed on the centroid dropped to the floor, on the
+// argument that it varies less over a steep primitive and is monotone along
+// every view ray. Both halves are true and the conclusion does not follow:
+// monotone along *a* ray says nothing about two centroids, which lie on two
+// different rays. Two sheets at different heights whose footprints overlap
+// without coinciding come out backwards — see
+// [TestASheetIsNotPaintedOverTheOneInFrontOfIt], which is that case with the
+// numbers in it.
+func (s *Sink) depthOf(lo, hi int32) float32 {
 	var c Vec3
 	for _, v := range s.verts[lo:hi] {
 		c = c.Add(v)
 	}
 	c = c.Mul(1 / float32(hi-lo))
-	d := c.Sub(centre)
-	foot := d
-	foot.Z = -centre.Z
-	return float32(foot.Dot(s.fwd)), float32(d.Dot(s.fwd))
+	return float32(c.Sub(centre).Dot(s.fwd))
 }
 
 // openLayer starts a layer's emission: the state a layer may set is reset, so
