@@ -102,14 +102,25 @@ func concurrent(c Chart, panels []Panel) bool {
 		return false
 	}
 	for _, p := range panels {
-		if !snapshotable(p.X) || !snapshotable(p.Y) {
+		// Every scale a panel ranges has to be checked, not just the pair on
+		// the primary axes: [Panel.setRange] frames the secondary scales too,
+		// and framing is a write. A chart whose Y2 cannot snapshot itself is
+		// exactly as unsafe to build in parallel as one whose Y cannot, and
+		// the answer for both is the serial path.
+		if !snapshotable(p.X) || !snapshotable(p.Y) || !snapshotable(p.X2) || !snapshotable(p.Y2) {
 			return false
 		}
 	}
 	return true
 }
 
+// snapshotable reports whether a scale can be handed to a goroutine of its
+// own. A nil scale is an axis the panel does not have, so there is nothing to
+// share and nothing to rule out.
 func snapshotable(s scale.Scale) bool {
+	if s == nil {
+		return true
+	}
 	_, ok := s.(scale.Snapshotter)
 	return ok
 }

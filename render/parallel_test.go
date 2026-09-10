@@ -241,3 +241,103 @@ func labelledGrid(n int) render.Chart {
 	}
 	return c
 }
+
+// unsnapshottableScale is a scale from outside this module: it maps and ticks
+// like any other, but it cannot hand back an independent copy of itself, so
+// [scale.Snapshotter] does not apply to it. Embedding the interface rather
+// than the concrete scale is what keeps Snapshot from being promoted — the
+// static type has no such method, whatever the value behind it can do.
+//
+// The extra fields are what a race is visible in: SetRange writes them without
+// synchronisation, exactly as a real third-party scale would write its own.
+type unsnapshottableScale struct {
+	scale.Scale
+	lo, hi float32
+}
+
+func (s *unsnapshottableScale) SetRange(lo, hi float32) {
+	s.lo, s.hi = lo, hi
+	s.Scale.SetRange(lo, hi)
+}
+
+// A secondary axis is ranged by every panel that draws, the same as a primary
+// one, so a chart whose Y2 cannot snapshot itself is exactly as unsafe to
+// build in parallel as one whose Y cannot. Sharing one such scale across
+// panels used to leave the parallel path enabled, and every panel then wrote
+// its device range at once.
+//
+// Run with -race, this is the failing case; without it, the placement check
+// below is what catches the shared range.
+func TestASharedSecondaryScaleThatCannotSnapshotIsDrawnSerially(t *testing.T) {
+	for _, axis := range []string{"y2", "x2"} {
+		t.Run(axis, func(t *testing.T) {
+			par := secondaryGrid(4, axis)
+			ser := secondaryGrid(4, axis)
+			ser.Serial = true
+
+			a, b := irtest.New(), irtest.New()
+			if err := render.Draw(a, par); err != nil {
+				t.Fatalf("parallel Draw: %v", err)
+			}
+			if err := render.Draw(b, ser); err != nil {
+				t.Fatalf("serial Draw: %v", err)
+			}
+			got, want := a.Trace(), b.Trace()
+			if len(got) != len(want) {
+				t.Fatalf("parallel made %d calls, serial %d", len(got), len(want))
+			}
+			for i := range want {
+				if got[i] != want[i] {
+					t.Fatalf("call %d differs — the panels shared the secondary scale's range:\n parallel: %s\n   serial: %s", i, head(got[i]), head(want[i]))
+				}
+			}
+		})
+	}
+}
+
+// secondaryGrid is a column of panels — a column, so that no two panels have
+// the same vertical extent and a range written by one is wrong for the next —
+// sharing one primary pair and one secondary scale that cannot be snapshotted.
+func secondaryGrid(n int, axis string) render.Chart {
+	x, y := scale.Linear(scale.Nice()), scale.Linear(scale.Nice())
+	sec := &unsnapshottableScale{Scale: scale.Linear(scale.Nice())}
+	c := render.Chart{Width: 600, Height: 900, DPR: 1, Theme: theme.Light, Rows: n, Cols: 1}
+	for i := range n {
+		xs := make([]float64, 200)
+		ys := make([]float64, 200)
+		zs := make([]float64, 200)
+		for j := range xs {
+			xs[j] = float64(j)
+			ys[j] = math.Sin(float64(j)/20 + float64(i))
+			zs[j] = float64(j) * float64(i+1)
+		}
+		src := data.Float64Columns(map[string][]float64{"x": xs, "y": ys, "z": zs})
+		p := render.Panel{
+			Row: i, Col: 0, X: x, Y: y,
+			Layers: []geom.Geom{
+				geom.Line(src, geom.X("x"), geom.Y("y")),
+			},
+			ShowX: true, ShowY: true, ShowY2: true, ShowX2: true,
+		}
+		switch axis {
+		case "y2":
+			p.Y2 = sec
+			p.Layers = append(p.Layers, geom.Line(src, geom.X("x"), geom.Y("z"), geom.OnY2()))
+		case "x2":
+			p.X2 = sec
+			p.Layers = append(p.Layers, geom.Line(src, geom.X("z"), geom.Y("y"), geom.OnX2()))
+		}
+		c.Panels = append(c.Panels, p)
+	}
+	return c
+}
+
+// head trims a recorded call down to the part a reader needs. A polyline of a
+// few hundred points says everything it has to say in its first few.
+func head(s string) string {
+	const n = 160
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
