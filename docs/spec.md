@@ -45,6 +45,21 @@ is a test per mark and per scale that renders both and compares the primitives
 (shown with the objects folded up; the real output puts every field on its own
 line)
 
+## What the dialect does not carry
+
+**A projected scene does not round-trip.** `figure/three` holds a scene and the
+cameras on it rather than layers and a coord, and the dialect is Vega-Lite
+shaped: a Vega-Lite chart has an `x`, a `y` and a coordinate system, and a
+camera, a depth encoding and a list of views have no reading in that
+vocabulary. `$schema` names the dialect and moves only with the module's major
+version ([ADR 0056](adr/0056-three-dimensional-charts.md)), so carrying one
+would mean inventing a dialect rather than extending this one — a decision of
+its own, with a caller behind it.
+
+What did land is `geom.Z`, the depth channel, beside `geom.X` and `geom.Y`. It
+costs the document nothing: no flat mark reads it, and writing a line's depth
+column into a document would read as though it meant something.
+
 ## Plotting Arrow data
 
 ```go
