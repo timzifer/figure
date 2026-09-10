@@ -998,6 +998,27 @@ the machinery pays for itself, needed no code at all: it is thirty
 `three.Line3` traces and one `geom.GroupBy`, and `examples/cascade` is all of
 it.
 
+**The furniture is drawn by `three` itself and it says less rather than more.**
+The three walls facing away from the camera carry the grid; the ticks come out
+of the same `Scale.Ticks` every flat axis uses; the labels stay upright at
+projected anchors because a sheared label is harder to read than an upright
+one and `ir.TextRun` has no shear anyway. The rule worth knowing is what
+happens when an axis points at the reader and projects to a few pixels: it
+labels itself only if **at least two** of its numbers survive the collision
+pass, and otherwise shows none. One number there looks like a label and reads
+like one while naming a position the reader cannot tell from any other on that
+axis, and unlike a pile of overlapping numbers nothing about it looks wrong.
+
+**A projected scene also found a cost model in the raster backend.** A shaded
+surface reaches a backend as one drawing call per quad, because the IR carries
+no per-mark colour; gg was rasterising the panel's clip into a coverage mask
+and consulting it on every one of those calls, so a figure cost its calls
+times its area. Every clip this library pushes is a rectangle, so
+[`ir.Path.AsRect`](../ir/path.go) names that shape once and `backend/gg` hands
+it to a scissor instead. The gallery renders five times faster than it did,
+every chart included; nothing about it is specific to three dimensions except
+that nothing before made enough drawing calls to notice.
+
 Not in this milestone. **No perspective** — under one the same value is taller
 at the front of the scene than at the back, and a chart is a measuring
 instrument first. **No lighting model** beyond one directional shade per face.

@@ -441,6 +441,17 @@ each of two formats. `TestNoFigureIsDrawnWithTooManyCalls` is the wall, and it
 counts calls rather than seconds because a timing assertion on a shared runner
 is a gate people learn to ignore.
 
+**A projected axis labels itself only if at least two of its labels survive.**
+Turn a scene until an axis points at the reader and it projects to a few
+pixels: every value on it lands in the same place. A pile of overlapping
+numbers there looks wrong at a glance and a reader discounts it; the single
+number a greedy collision pass leaves behind looks like a label and reads like
+one, while naming a position that cannot be told from any other on that axis.
+So `three`'s label pass runs twice, once to count and once to draw, and an
+axis that keeps fewer than two gives its boxes back to the next axis. Its
+line, its tick marks and its title stay: a mark is a position, a number is a
+claim about how much room there is.
+
 **An axis title is placed past its own tick labels, and both the room and the
 placement come from `furnitureReach`.** They were computed separately once: the
 title was put a guessed distance out, its box overlapped the labels', it won
