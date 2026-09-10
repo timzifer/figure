@@ -38,7 +38,11 @@ func Bar3(src data.Source, opts ...geom.Option) Layer {
 type bar3 struct {
 	base
 	xs, ys, zs []float64
-	ok         bool
+	// idx is the traversal order, kept between frames rather than made per
+	// emission: Emit runs once per view of every frame, and a slice made
+	// there is a cost per row of a chart nobody is holding still.
+	idx []int
+	ok  bool
 }
 
 func (g *bar3) Train(t geom.Training) error {
@@ -100,10 +104,11 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 		if track {
 			s.Row(i)
 		}
-		for _, face := range visibleFaces(f.Forward, x0, y0, x1, y1, lo, hi) {
+		faces, normals := visibleFaces(f.Forward, x0, y0, x1, y1, lo, hi)
+		for k, face := range faces {
 			c := face
 			s.Face(c[:], Style{
-				Fill:   shade(f.Theme, base, faceNormal(c[0], c[1], c[2])),
+				Fill:   shade(f.Theme, base, normals[k]),
 				Stroke: stroke,
 				Width:  width,
 			})
@@ -113,27 +118,39 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 }
 
 // visibleFaces returns the top of a box and the two sides that face the
-// camera. The other three are behind them by construction and drawing them
-// would be ink nobody sees.
-func visibleFaces(fwd Vec3, x0, y0, x1, y1, lo, hi float32) [3][4]Vec3 {
+// camera, with the outward normal of each. The other three faces are behind
+// them by construction and drawing them would be ink nobody sees.
+//
+// The normals are returned rather than derived from the corners, because which
+// side of the box is visible depends on the camera and the winding therefore
+// would too: a face taken in one fixed order is wound outward from one side of
+// the box and inward from the other, and shading it by that normal would flip
+// its colour as the reader turned past an axis. Naming the normal is one line
+// and the class of bug it removes is invisible until someone drags the scene.
+func visibleFaces(fwd Vec3, x0, y0, x1, y1, lo, hi float32) ([3][4]Vec3, [3]Vec3) {
 	var out [3][4]Vec3
+	var normals [3]Vec3
+
 	out[0] = [4]Vec3{{x0, y0, hi}, {x1, y0, hi}, {x1, y1, hi}, {x0, y1, hi}}
+	normals[0] = Vec3{0, 0, 1}
 
 	// The visible face along an axis is the one on the near side: the camera
-	// looks along fwd, so a face at the low end is visible when fwd points
-	// toward the high one.
-	xs := x1
+	// looks along fwd, so the face at the low end is the visible one when fwd
+	// points toward the high one.
+	xs, nx := x1, float32(1)
 	if fwd.X > 0 {
-		xs = x0
+		xs, nx = x0, -1
 	}
 	out[1] = [4]Vec3{{xs, y0, lo}, {xs, y1, lo}, {xs, y1, hi}, {xs, y0, hi}}
+	normals[1] = Vec3{nx, 0, 0}
 
-	ys := y1
+	ys, ny := y1, float32(1)
 	if fwd.Y > 0 {
-		ys = y0
+		ys, ny = y0, -1
 	}
 	out[2] = [4]Vec3{{x0, ys, lo}, {x1, ys, lo}, {x1, ys, hi}, {x0, ys, hi}}
-	return out
+	normals[2] = Vec3{0, ny, 0}
+	return out, normals
 }
 
 // halfSlot is half a bar's footprint along one axis: the scale's own band
@@ -153,7 +170,8 @@ func (g *bar3) halfSlot(s scale.Scale) float32 {
 // order they will sort into anyway. Doing it here costs one comparison and
 // leaves the sort with a sequence it can confirm without a swap.
 func (g *bar3) order(f Frame) []int {
-	idx := make([]int, len(g.xs))
+	idx := grow(g.idx, len(g.xs))
+	g.idx = idx
 	for i := range idx {
 		idx[i] = i
 	}
