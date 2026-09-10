@@ -166,7 +166,7 @@ func (p *Plot) Render(t ir.Target) (err error) {
 			err = cerr
 		}
 	}()
-	if err = p.draw(b); err != nil {
+	if _, err = p.draw(b); err != nil {
 		return err
 	}
 	return b.Flush()

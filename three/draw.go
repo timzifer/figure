@@ -16,7 +16,7 @@ import (
 // The steps are: train the scenes, lay the views out, say what the chart is,
 // paint the background and the title, then for each view its cube and its
 // data.
-func (p *Plot) draw(b ir.Backend) error {
+func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 	th := p.theme()
 	views := p.viewList()
 	canvas := ir.R(0, 0, float32(p.width), float32(p.height))
@@ -30,14 +30,14 @@ func (p *Plot) draw(b ir.Backend) error {
 	for _, v := range views {
 		sc := v.sceneOr(p.scene)
 		if sc == nil {
-			return ErrNoScene
+			return nil, ErrNoScene
 		}
 		if _, done := trained[sc]; done {
 			continue
 		}
 		scales := sc.scales()
 		if err := sc.train(scales); err != nil {
-			return err
+			return nil, err
 		}
 		trained[sc] = scales
 		order = append(order, sc)
@@ -138,7 +138,7 @@ func (p *Plot) draw(b ir.Backend) error {
 			g.Index = k
 			if err := l.Emit(sink, g); err != nil {
 				b.Pop()
-				return err
+				return nil, err
 			}
 		}
 		sink.paint(b, pr, p.obs, i, sc.layerLabels(f), p.rows)
@@ -149,7 +149,7 @@ func (p *Plot) draw(b ir.Backend) error {
 	if p.obs != nil {
 		p.obs.End()
 	}
-	return nil
+	return lay.Areas, nil
 }
 
 // labelRoom is how far a cube has to sit inside its cell so that its tick
