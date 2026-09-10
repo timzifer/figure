@@ -11,21 +11,19 @@
 <path d="M165.411,310.472 L301.491,278.549 L301.491,123.667 L165.411,155.589 Z M301.491,278.549 L394.589,325.211 L394.589,170.328 L301.491,123.667 Z M165.411,310.472 L258.509,357.133 L394.589,325.211 L301.491,278.549 Z" fill="#fbfbfb"/>
 <path fill="none" d="M165.411,310.472 L301.491,278.549 L301.491,123.667 L165.411,155.589 Z M301.491,278.549 L394.589,325.211 L394.589,170.328 L301.491,123.667 Z M165.411,310.472 L258.509,357.133 L394.589,325.211 L301.491,278.549 Z" stroke="#333333"/>
 <path fill="none" d="M313.129,284.382 L313.129,129.499 M177.048,316.305 L313.129,284.382 M336.403,296.047 L336.403,141.165 M200.323,327.97 L336.403,296.047 M359.677,307.712 L359.677,152.83 M223.597,339.635 L359.677,307.712 M382.952,319.378 L382.952,164.495 M246.871,351.301 L382.952,319.378 M188.091,305.151 L188.091,150.269 M188.091,305.151 L281.189,351.813 M233.451,294.51 L233.451,139.628 M233.451,294.51 L326.549,341.172 M278.811,283.869 L278.811,128.987 M278.811,283.869 L371.909,330.531 M165.411,310.472 L301.491,278.549 M301.491,278.549 L394.589,325.211 M165.411,271.751 L301.491,239.828 M301.491,239.828 L394.589,286.49 M165.411,233.031 L301.491,201.108 M301.491,201.108 L394.589,247.769 M165.411,194.31 L301.491,162.387 M301.491,162.387 L394.589,209.049 M165.411,155.589 L301.491,123.667 M301.491,123.667 L394.589,170.328" stroke="#dddddd"/>
+<text x="192.765" y="360.153" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(26.621 192.765 360.153)">service</text>
+<text x="340.219" y="370.767" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(-13.202 340.219 370.767)">region</text>
+<text x="132.878" y="230.938" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(90 132.878 230.938)">p99 (ms)</text>
 <path fill="none" d="M165.411,310.472 L258.509,357.133 M177.048,316.305 L173.024,319.272 M200.323,327.97 L196.958,331.668 M223.597,339.635 L221.126,343.982 M246.871,351.301 L245.44,356.092" stroke="#333333"/>
 <text x="169.804" y="321.645" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">auth</text>
-<text x="219.15" y="347.46" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">cart</text>
-<text x="192.765" y="360.153" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(26.621 192.765 360.153)">service</text>
+<text x="244.295" y="359.924" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">pay</text>
 <path fill="none" d="M258.509,357.133 L394.589,325.211 M281.189,351.813 L281.242,356.813 M326.549,341.172 L328.645,345.711 M371.909,330.531 L375.479,334.032" stroke="#333333"/>
 <text x="281.285" y="360.812" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">eu</text>
-<text x="330.323" y="349.342" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">us</text>
 <text x="378.335" y="336.833" font-family="sans-serif" font-size="11" dominant-baseline="central" fill="#555555">ap</text>
-<text x="340.219" y="370.767" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(-13.202 340.219 370.767)">region</text>
 <path fill="none" d="M165.411,310.472 L165.411,155.589 M165.411,310.472 L161.146,313.08 M165.411,271.751 L160.588,273.071 M165.411,233.031 L160.422,232.71 M165.411,194.31 L160.772,192.444 M165.411,155.589 L161.392,152.615" stroke="#333333"/>
 <text x="156.73" y="274.126" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">25</text>
-<text x="156.43" y="232.453" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">50</text>
 <text x="157.061" y="190.952" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">75</text>
 <text x="158.177" y="150.235" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">100</text>
-<text x="132.878" y="230.938" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#333333" transform="rotate(90 132.878 230.938)">p99 (ms)</text>
 <path d="M269.858,199.563 L283.823,206.562 L311.039,200.178 L297.074,193.178 Z" fill="#4781b8"/>
 <path d="M269.858,289.395 L283.823,296.394 L283.823,206.562 L269.858,199.563 Z" fill="#0171b1"/>
 <path d="M283.823,296.394 L311.039,290.009 L311.039,200.178 L283.823,206.562 Z" fill="#11527f"/>

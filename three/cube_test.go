@@ -194,20 +194,6 @@ func cubeBounds(pr projector) ir.Rect {
 	return r
 }
 
-func min32(a, b float32) float32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max32(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // An axis seen nearly end-on projects its whole length into a few pixels, and
 // without a collision pass every one of its ticks lands in the same place: a
 // pile of numbers rather than an axis. The pass has to span all three axes,

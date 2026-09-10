@@ -181,7 +181,15 @@ func (c cube) grid(b ir.Backend, path *ir.Path) {
 func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 	tickFont := c.th.Font(c.th.TickSize)
 	titleFont := c.th.Font(c.th.LabelSize)
+
+	// The titles go first, and they claim their boxes before any tick label
+	// does. An axis title names the axis and a tick label is one reading off
+	// it, so where the two cannot both fit — which is exactly where an axis is
+	// seen end-on and its whole length is a few pixels — the title is the one
+	// that survives.
 	*boxes = (*boxes)[:0]
+	c.titles(b, titleFont, boxes)
+
 	for a := 0; a < 3; a++ {
 		if len(c.ticks[a]) == 0 {
 			continue
@@ -248,9 +256,17 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 			*boxes = append(*boxes, box)
 		}
 
-		if c.title[a] == "" {
+	}
+}
+
+// titles writes the three axis titles and records where they landed.
+func (c cube) titles(b ir.Backend, font ir.FontRef, boxes *[]ir.Rect) {
+	for a := 0; a < 3; a++ {
+		if c.title[a] == "" || len(c.ticks[a]) == 0 {
 			continue
 		}
+		e := c.edgeOf(a)
+		from, to := c.proj.point(e.at(0)), c.proj.point(e.at(1))
 		anchor := c.proj.point(e.at(0.5))
 		out := c.outward(anchor)
 		gap := c.th.TickLength + c.th.TickLabelPad + c.th.AxisTitlePad + float32(c.th.TickSize)*1.6
@@ -258,16 +274,53 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 		// a rotation about the anchor and therefore something ir.TextRun can
 		// express. Anything past a quarter turn is folded back so that the
 		// title never reads upside down.
-		b.Text(ir.TextRun{
+		run := ir.TextRun{
 			Text:     c.title[a],
-			Font:     titleFont,
+			Font:     font,
 			At:       ir.Point{X: anchor.X + out.X*gap, Y: anchor.Y + out.Y*gap},
 			H:        ir.AlignCenter,
 			V:        ir.AlignMiddle,
 			Rotation: uprightAngle(to.X-from.X, to.Y-from.Y),
 			Color:    c.th.LabelColor,
-		})
+		}
+		b.Text(run)
+		*boxes = append(*boxes, titleBox(run, b.Measure(run), c.th.TickLabelPad))
 	}
+}
+
+// titleBox is where a rotated title's ink lands: the four corners of its box,
+// turned about the anchor and bounded. A tick label yields to it.
+func titleBox(run ir.TextRun, m ir.TextMetrics, pad float32) ir.Rect {
+	w, h := m.Advance/2+pad, (m.Ascent+m.Descent)/2+pad
+	sin, cos := math.Sincos(run.Rotation)
+	var out ir.Rect
+	for i, p := range [4]ir.Point{{X: -w, Y: -h}, {X: w, Y: -h}, {X: w, Y: h}, {X: -w, Y: h}} {
+		q := ir.Point{
+			X: run.At.X + float32(float64(p.X)*cos-float64(p.Y)*sin),
+			Y: run.At.Y + float32(float64(p.X)*sin+float64(p.Y)*cos),
+		}
+		if i == 0 {
+			out = ir.Rect{Min: q, Max: q}
+			continue
+		}
+		out.Min.X, out.Min.Y = min32(out.Min.X, q.X), min32(out.Min.Y, q.Y)
+		out.Max.X, out.Max.Y = max32(out.Max.X, q.X), max32(out.Max.Y, q.Y)
+	}
+	return out
+}
+
+func min32(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max32(a, b float32) float32 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // edge is the segment of the cube an axis writes its ticks along.

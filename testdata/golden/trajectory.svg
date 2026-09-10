@@ -11,25 +11,22 @@
 <path d="M126.105,332.278 L285.112,294.977 L285.112,113.999 L126.105,151.3 Z M285.112,294.977 L393.895,349.5 L393.895,168.522 L285.112,113.999 Z M126.105,332.278 L234.888,386.801 L393.895,349.5 L285.112,294.977 Z" fill="#3a3b3d"/>
 <path fill="none" d="M126.105,332.278 L285.112,294.977 L285.112,113.999 L126.105,151.3 Z M285.112,294.977 L393.895,349.5 L393.895,168.522 L285.112,113.999 Z M126.105,332.278 L234.888,386.801 L393.895,349.5 L285.112,294.977 Z" stroke="#9a9ea6"/>
 <path fill="none" d="M285.112,294.977 L285.112,113.999 M126.105,332.278 L285.112,294.977 M312.308,308.607 L312.308,127.629 M153.3,345.909 L312.308,308.607 M339.504,322.238 L339.504,141.26 M180.496,359.54 L339.504,322.238 M366.7,335.869 L366.7,154.891 M207.692,373.171 L366.7,335.869 M393.895,349.5 L393.895,168.522 M234.888,386.801 L393.895,349.5 M126.105,332.278 L126.105,151.3 M126.105,332.278 L234.888,386.801 M165.857,322.953 L165.857,141.975 M165.857,322.953 L274.64,377.476 M205.608,313.627 L205.608,132.649 M205.608,313.627 L314.392,368.151 M245.36,304.302 L245.36,123.324 M245.36,304.302 L354.143,358.825 M285.112,294.977 L285.112,113.999 M285.112,294.977 L393.895,349.5 M126.105,332.278 L285.112,294.977 M285.112,294.977 L393.895,349.5 M126.105,287.034 L285.112,249.732 M285.112,249.732 L393.895,304.255 M126.105,241.789 L285.112,204.488 M285.112,204.488 L393.895,259.011 M126.105,196.545 L285.112,159.243 M285.112,159.243 L393.895,213.766 M126.105,151.3 L285.112,113.999 M285.112,113.999 L393.895,168.522" stroke="#2a2e35"/>
+<text x="161.301" y="385.89" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(26.621 161.301 385.89)">x</text>
+<text x="328.062" y="397.746" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(-13.202 328.062 397.746)">y</text>
+<text x="93.572" y="239.697" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(90 93.572 239.697)">t</text>
 <path fill="none" d="M126.105,332.278 L234.888,386.801 M126.105,332.278 L121.839,334.887 M153.3,345.909 L149.575,349.244 M180.496,359.54 L177.552,363.581 M207.692,373.171 L205.732,377.77 M234.888,386.801 L233.982,391.719" stroke="#9a9ea6"/>
 <text x="118.426" y="336.973" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">-1.0</text>
 <text x="146.594" y="351.911" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">-0.5</text>
-<text x="175.197" y="366.814" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">0.0</text>
 <text x="204.164" y="381.45" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">0.5</text>
 <text x="233.258" y="395.653" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">1.0</text>
-<text x="161.301" y="385.89" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(26.621 161.301 385.89)">x</text>
 <path fill="none" d="M234.888,386.801 L393.895,349.5 M234.888,386.801 L233.982,391.719 M274.64,377.476 L275.212,382.443 M314.392,368.151 L316.488,372.69 M354.143,358.825 L357.422,362.601 M393.895,349.5 L397.914,352.474" stroke="#9a9ea6"/>
 <text x="275.67" y="386.417" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">-0.5</text>
-<text x="318.166" y="376.321" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">0.0</text>
 <text x="360.044" y="365.621" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#a0a4ab">0.5</text>
 <text x="401.13" y="354.854" font-family="sans-serif" font-size="11" dominant-baseline="central" fill="#a0a4ab">1.0</text>
-<text x="328.062" y="397.746" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(-13.202 328.062 397.746)">y</text>
 <path fill="none" d="M126.105,332.278 L126.105,151.3 M126.105,332.278 L121.839,334.887 M126.105,287.034 L121.282,288.353 M126.105,241.789 L121.115,241.468 M126.105,196.545 L121.466,194.679 M126.105,151.3 L122.086,148.325" stroke="#9a9ea6"/>
 <text x="117.424" y="289.409" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">5</text>
-<text x="117.123" y="241.211" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">10</text>
 <text x="117.755" y="193.186" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">15</text>
 <text x="118.87" y="145.946" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#a0a4ab">20</text>
-<text x="93.572" y="239.697" font-family="sans-serif" font-size="12" text-anchor="middle" dominant-baseline="central" fill="#c8cbd0" transform="rotate(90 93.572 239.697)">t</text>
 <polyline fill="none" points="267.093,287.816 258.573,286.949" stroke="#d55e00" stroke-width="1.5"/>
 <polyline fill="none" points="275.595,288.959 267.093,287.816" stroke="#d55e00" stroke-width="1.5"/>
 <polyline fill="none" points="258.573,286.949 250.111,286.358" stroke="#d55e00" stroke-width="1.5"/>
