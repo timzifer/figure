@@ -346,3 +346,42 @@ func TestAnAxisKeepsItsLabelsWhileItHasRoomForOne(t *testing.T) {
 			firstBare)
 	}
 }
+
+// An axis title sits beyond its tick labels, not among them.
+//
+// It is placed first and wins collisions, which is right — a title names the
+// axis and a label is one reading off it — but only because it is out of their
+// way to begin with. Placing it a guessed distance out rather than past the
+// widest label is quiet and expensive: the boxes overlap, the title wins, and
+// the axis silently loses most of its numbers.
+func TestAnAxisTitleClearsItsOwnTickLabels(t *testing.T) {
+	sc := unitScales()
+	// A long title and wide labels, which is the arrangement that catches it.
+	z := scale.Linear(scale.Domain(-60, -20))
+	z.SetRange(0, 1)
+	sc[axisZ] = z
+
+	for _, cam := range octants() {
+		c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam,
+			ticksOf(theme.Light, sc), [3]string{"frequency (MHz)", "sweep", "power (dBm)"})
+		rec := irtest.New()
+		var path ir.Path
+		var boxes []ir.Rect
+		c.draw(rec, &path, &boxes)
+
+		labels := 0
+		for _, call := range rec.Filter("Text") {
+			switch call.Text.Text {
+			case "frequency (MHz)", "sweep", "power (dBm)":
+			default:
+				labels++
+			}
+		}
+		// Three axes with several ticks each: if a title were eating its
+		// axis's labels this would collapse toward one per axis.
+		if labels < 8 {
+			t.Errorf("camera %+v: only %d tick labels survived three titled axes; "+
+				"a title is standing in its own labels' way", cam, labels)
+		}
+	}
+}

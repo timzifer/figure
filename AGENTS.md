@@ -419,6 +419,25 @@ times its weight as there are cameras — and the symptom is a domain that
 changes when an author adds a picture, which looks entirely reasonable and is
 wrong. There is a test that counts the calls.
 
+**A shaded surface is one drawing call per quad, and that is a cost model
+rather than a bug.** The IR carries no per-mark colour
+([ADR 0007](docs/adr/0007-per-mark-colour.md)), so faces that differ in shade
+cannot be merged — and a raster backend applies the panel's clip on every call,
+so a figure costs its calls times its area. That is fine for a chart and it is
+a trap for a *documentation figure*, which `backend/gg/cmd/gallery`'s tests
+render about five times over in each of two formats: two figures with a fine
+grid and a hundred traces once turned that package's ten-minute budget into a
+failure under the race detector. `TestNoFigureIsDrawnWithTooManyCalls` is the
+wall, and it counts calls rather than seconds because a timing assertion on a
+shared runner is a gate people learn to ignore.
+
+**An axis title is placed past its own tick labels, and both the room and the
+placement come from `furnitureReach`.** They were computed separately once: the
+title was put a guessed distance out, its box overlapped the labels', it won
+the collision because a title is placed first, and the axis quietly lost most
+of its numbers. A guess and a measurement of the same distance are two numbers;
+that function exists so there is one.
+
 **Hit-testing indexes one mark per subpath, not one per call.** A layer draws
 all its bars in a single path, because `geom.groupByColor` batches by colour. A
 mark per call would make the row of bars one shape, so pointing at the fourth

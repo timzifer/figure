@@ -172,28 +172,33 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 // every cube is drawn at the same scale. Two views of one scene that were
 // sized differently would be two charts that look comparable and are not.
 func (p *Plot) labelRoom(m layout.Measurer, th theme.Theme, order []*Scene, ticks map[*Scene][3][]scale.Tick) float32 {
-	font := th.Font(th.TickSize)
-	widest := float32(0)
-	titled := false
+	tickFont, titleFont := th.Font(th.TickSize), th.Font(th.LabelSize)
+	widest, tallest := float32(0), float32(0)
 	for _, sc := range order {
 		for _, axis := range ticks[sc] {
 			for _, t := range axis {
 				if t.Label == "" {
 					continue
 				}
-				if w := m.Measure(ir.TextRun{Text: t.Label, Font: font}).Advance; w > widest {
+				if w := m.Measure(ir.TextRun{Text: t.Label, Font: tickFont}).Advance; w > widest {
 					widest = w
 				}
 			}
 		}
 		for _, t := range sc.titles() {
-			titled = titled || t != ""
+			if t == "" {
+				continue
+			}
+			h := m.Measure(ir.TextRun{Text: t, Font: titleFont})
+			if v := h.Ascent + h.Descent; v > tallest {
+				tallest = v
+			}
 		}
 	}
-	room := th.TickLength + th.TickLabelPad + widest
-	if titled {
-		room += th.AxisTitlePad + float32(th.LabelSize)*1.4
-	}
+	// The same arithmetic the drawing uses, from the same function, so that
+	// the room reserved here and the place the title is put there cannot
+	// disagree.
+	_, room := furnitureReach(th, widest, tallest)
 	return room
 }
 

@@ -188,7 +188,7 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 	// seen end-on and its whole length is a few pixels — the title is the one
 	// that survives.
 	*boxes = (*boxes)[:0]
-	c.titles(b, titleFont, boxes)
+	c.titles(b, tickFont, titleFont, boxes)
 
 	for a := 0; a < 3; a++ {
 		if len(c.ticks[a]) == 0 {
@@ -302,7 +302,7 @@ func (c cube) axisHasRoom(m ir.Backend, font ir.FontRef, a int, from, to ir.Poin
 }
 
 // titles writes the three axis titles and records where they landed.
-func (c cube) titles(b ir.Backend, font ir.FontRef, boxes *[]ir.Rect) {
+func (c cube) titles(b ir.Backend, tickFont, font ir.FontRef, boxes *[]ir.Rect) {
 	for a := 0; a < 3; a++ {
 		if c.title[a] == "" || len(c.ticks[a]) == 0 {
 			continue
@@ -311,7 +311,7 @@ func (c cube) titles(b ir.Backend, font ir.FontRef, boxes *[]ir.Rect) {
 		from, to := c.proj.point(e.at(0)), c.proj.point(e.at(1))
 		anchor := c.proj.point(e.at(0.5))
 		out := c.outward(anchor)
-		gap := c.th.TickLength + c.th.TickLabelPad + c.th.AxisTitlePad + float32(c.th.TickSize)*1.6
+		gap, _ := furnitureReach(c.th, c.widestLabel(b, tickFont, a), c.titleHeight(b, font, a))
 		// The title takes the screen angle of its own projected axis, which is
 		// a rotation about the anchor and therefore something ir.TextRun can
 		// express. Anything past a quarter turn is folded back so that the
@@ -328,6 +328,51 @@ func (c cube) titles(b ir.Backend, font ir.FontRef, boxes *[]ir.Rect) {
 		b.Text(run)
 		*boxes = append(*boxes, titleBox(run, b.Measure(run), c.th.TickLabelPad))
 	}
+}
+
+// widestLabel is how far an axis's tick labels reach out from it: the widest
+// of them measured along the direction they are placed in.
+func (c cube) widestLabel(m ir.Backend, font ir.FontRef, a int) float32 {
+	widest := float32(0)
+	for _, t := range c.ticks[a] {
+		if t.Label == "" {
+			continue
+		}
+		if w := m.Measure(ir.TextRun{Text: t.Label, Font: font}).Advance; w > widest {
+			widest = w
+		}
+	}
+	return widest
+}
+
+// furnitureReach is how far an axis's furniture reaches out of the cube: the
+// tick marks, the labels beyond them, and the title beyond those. It reports
+// where the title's anchor goes and how much room the whole lot needs.
+//
+// It is one function because two callers need the same answer — the layout
+// that reserves the room inside a cell, and the drawing that places the title
+// in it — and because they drifted apart once already. The title was placed a
+// guessed distance out, landed on its own labels, won the collision because a
+// title is placed first, and quietly took most of an axis's numbers with it.
+// A guess and a measurement of the same distance are two numbers; this is one.
+func furnitureReach(th theme.Theme, widestLabel, titleHeight float32) (title, total float32) {
+	labels := th.TickLength + th.TickLabelPad + widestLabel
+	if titleHeight <= 0 {
+		return 0, labels + th.TickLabelPad
+	}
+	// Past the labels, then the pad each of the two boxes keeps, then half the
+	// title's own height so that its box begins where theirs end.
+	title = labels + 2*th.TickLabelPad + th.AxisTitlePad + titleHeight/2
+	return title, title + titleHeight/2 + th.TickLabelPad
+}
+
+// titleHeight is how tall an axis's title is, or zero for an axis with none.
+func (c cube) titleHeight(m ir.Backend, font ir.FontRef, a int) float32 {
+	if c.title[a] == "" {
+		return 0
+	}
+	h := m.Measure(ir.TextRun{Text: c.title[a], Font: font})
+	return h.Ascent + h.Descent
 }
 
 // titleBox is where a rotated title's ink lands: the four corners of its box,
