@@ -228,6 +228,17 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 		// because the three meet at the corners of the box: two of them
 		// looked at end-on put their first labels in the same place, and a
 		// per-axis pass would keep both.
+		//
+		// Before any of that: an axis that projects shorter than one of its
+		// own labels shows none at all. The greedy pass alone would keep
+		// exactly one, and one number on an axis with no length is worse than
+		// no number — it names a position the reader cannot tell from any
+		// other position on that axis, which is a claim about the data that
+		// the picture does not support. The axis line, its tick marks and its
+		// title still say what it is and where it points.
+		if !c.axisHasRoom(b, tickFont, a, from, to) {
+			continue
+		}
 		for _, t := range c.ticks[a] {
 			if t.Label == "" {
 				continue
@@ -257,6 +268,37 @@ func (c cube) axes(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 		}
 
 	}
+}
+
+// axisHasRoom reports whether an axis is long enough on screen for one of its
+// own labels to mean something.
+//
+// The room a label needs is measured along the axis rather than in general:
+// a horizontal axis is crowded by the width of its numbers and a vertical one
+// by their height, and a projected axis is somewhere between the two. Both
+// quantities are measured rather than chosen, so there is no threshold here to
+// tune.
+func (c cube) axisHasRoom(m ir.Backend, font ir.FontRef, a int, from, to ir.Point) bool {
+	dx, dy := to.X-from.X, to.Y-from.Y
+	length := float32(math.Hypot(float64(dx), float64(dy)))
+	if length == 0 {
+		return false
+	}
+	ux, uy := abs32(dx)/length, abs32(dy)/length
+
+	need := float32(0)
+	for _, t := range c.ticks[a] {
+		if t.Label == "" {
+			continue
+		}
+		box := m.Measure(ir.TextRun{Text: t.Label, Font: font})
+		// The label's own extent projected onto the axis's direction: how much
+		// of the axis one of these takes up.
+		if w := box.Advance*ux + (box.Ascent+box.Descent)*uy; w > need {
+			need = w
+		}
+	}
+	return length >= need
 }
 
 // titles writes the three axis titles and records where they landed.

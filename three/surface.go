@@ -143,10 +143,6 @@ func (g *surface) Emit(s *Sink, f Frame) error {
 	}
 	nx, ny := len(g.xs), len(g.ys)
 
-	// A quad of a height field is occluded by its neighbours in the lattice
-	// and never by how tall it is, so ordering by where the cell stands on the
-	// floor is exact under an orthographic camera rather than approximate.
-	s.Depth(DepthGround)
 	track := rowsWanted(f)
 
 	// The traversal starts at the corner the view direction picks and works

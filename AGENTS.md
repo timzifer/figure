@@ -328,13 +328,30 @@ starts wanting `render` to record layers and merge the recordings, that is the
 thing [ADR 0010](docs/adr/0010-panel-layout.md) exists to prevent and
 [ADR 0056](docs/adr/0056-three-dimensional-charts.md) refuses again.
 
-**A height field is ordered by where its cells stand on the floor, not by the
-quads' own middles.** `three.DepthGround` is what makes the painter's algorithm
-*exact* there rather than merely usual: a quad of a surface is occluded by its
-neighbours in the lattice and never by how tall it is. Reordering by centroid
-depth "because that is what a painter's algorithm does" compiles, draws
-something plausible, and is wrong exactly where the surface is steep — which is
-where a reader is looking. Same for a bar and the cell it stands on.
+**The depth key is one formula for every primitive of every layer, and it is a
+pair.** The primary is *footprint* depth — the centroid's depth with its height
+set to zero — because that is the better sample: a quad of a surface has a
+footprint one cell wide however steep it is, and the side of a bar has a
+footprint of no width at all however tall it is. It is a legitimate key rather
+than a trick, because footprint depth is monotone along every view ray exactly
+as true depth is. The secondary is true depth, and dropping it is the bug that
+took a review to find: two surfaces over one grid stand on the same footprints
+and tie, and a camera looking straight down collapses every footprint at once —
+so without it the lower sheet paints over the higher one. Last is the emission
+index.
+
+**Letting a layer pick its own depth measure is the same bug one level up.**
+Two layers keyed by two different formulas are two numbers on two scales, and
+merging them is arithmetic rather than geometry: one layer sorts wholly before
+the other however the geometry runs. `TestASurfaceAndAPathAreOrderedAgainstEachOther`
+is what catches it, and it is invisible in any picture with one layer in it.
+
+**The occlusion tests cast rays; they do not restate the sort.** A test whose
+expected answer recomputes the ordering rule proves only that the sort sorts.
+`checkOcclusion` intersects the view ray through each sample point with the
+plane of every primitive covering it and insists the nearest is painted last —
+so it fails for any key that gets the visible picture wrong, including the one
+the implementation happens to use. Keep it that way when the key changes.
 
 **The depth key is computed in float64 and stored as float32, on purpose.** The
 narrowing turns a near-tie into an exact tie, and an exact tie is broken by
@@ -344,11 +361,17 @@ and `internal/svgdiff` tolerates exactly that much coordinate difference, so
 the reorder would *not* be caught. It is `scale.place`'s and `stat.LTTB`'s
 lesson in a third place.
 
-**Faces batch by run, never by colour.** `geom.groupByColor` merges every mark
-of one colour into one call because order within a flat layer does not matter.
-In a scene the order *is* the thing being computed, so only primitives already
-adjacent in it may be merged into one `FillPath`. Batching by colour there
-would draw a correct-looking picture with the wrong things in front.
+**Faces batch by run, never by colour — and only where the merge is provably
+invisible.** `geom.groupByColor` merges every mark of one colour into one call
+because order within a flat layer does not matter. In a scene the order *is*
+the thing being computed, so only primitives already adjacent in it are
+candidates at all. Adjacency is not sufficient either: two adjacent faces can
+still overlap on screen, and a run that draws all its fills and then all its
+outlines puts a farther face's outline over a nearer face's fill, while a union
+filled once is not what several translucent fills compose to. So `mergeable`
+takes the run only for an opaque, unoutlined style, where the colour is the
+same everywhere in the union either way. Widening that condition is how the
+painter's order gets undone by the optimisation meant to be invisible.
 
 **A surface fills and outlines only when asked.** `interact` ranks a stroked
 vertex above the area it outlines, so a mesh that always drew its own outline

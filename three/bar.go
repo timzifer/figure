@@ -76,10 +76,6 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 	if !g.ok {
 		return nil
 	}
-	// The cell a bar stands on is what it is occluded by, and its own height
-	// is not. That is a reading of the data rather than a rendering trick, and
-	// it is what makes a field of bars orderable at all.
-	s.Depth(DepthGround)
 	track := rowsWanted(f)
 
 	hx, hy := g.halfSlot(f.X), g.halfSlot(f.Y)

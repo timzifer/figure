@@ -18,20 +18,52 @@
 > **"No sorting, no comparisons" describes the decision, and the
 > implementation keeps the decision while spending the comparisons.** There is
 > one painter with one order: every layer emits its primitives into a
-> collector, each with a depth key the layer chose, and the collector is
-> ordered once — `slices.SortFunc` over a pooled key slice, ties broken by
-> emission index, which is (layer, row) and is total. A surface's key is the
-> depth of its cell **on the floor** rather than of the quad's own centroid,
-> which is what makes the order exact: a quad of a height field is occluded by
-> its neighbours in the lattice and never by how tall it is, and under an
-> orthographic camera that order is provably right rather than merely usual.
-> That the key ignores a quad's height is a reading of the data, not an
-> approximation of a depth buffer — and it is a second thing the refusal of
-> perspective buys. The traversal this record describes is still there and
-> still allocates nothing; what it now does is hand the sort a sequence it can
-> confirm without a swap. What the record refuses is a *second* order beside
-> the first, and that refusal stands: a fast path skipping the sort for a scene
-> with one self-ordered layer would be two orders through the painter.
+> collector and the collector is ordered once — `slices.SortFunc` over a pooled
+> key slice.
+>
+> **One order means one formula.** The key is the same measure for every
+> primitive of every layer, and the first draft got that wrong: it let each
+> layer choose between a floor-projected key and a centroid one, which are two
+> numbers on two scales, so merging a surface with a path was arithmetic rather
+> than geometry. What the sort compares is a pair:
+>
+> - **Footprint depth**, the depth of the centroid with its height set to
+>   zero. Under an orthographic camera this is monotone along every view ray
+>   exactly as true depth is — two points on one ray at distances t₁ and t₂
+>   have footprint depths differing by (t₂−t₁)(fwd.x² + fwd.y²), which is never
+>   negative — so it is a valid ordering key, and it is the *better sample*: a
+>   quad of a surface has a footprint one cell wide however steep it is, and
+>   the side of a bar has a footprint of no width at all however tall it is.
+>   For a single-valued height field that makes the order exact, which is a
+>   reading of the data rather than an approximation of a depth buffer, and a
+>   second thing the refusal of perspective buys.
+> - **True depth**, breaking the tie. Footprint depth is degenerate where true
+>   depth is not: two surfaces over one grid — a designed part and a measured
+>   one, an ordinary chart — stand on the same footprints, and a camera looking
+>   straight down collapses every footprint at once. Without the second key
+>   those cases fall through to emission order and the lower sheet paints over
+>   the higher one.
+>
+> Between them the pair is well behaved at both extremes: with the camera level
+> the two are the same number, and with it overhead the first carries nothing
+> and the second carries everything. Last is the emission index, which is
+> (layer, row) and is total.
+>
+> The traversal this record describes is still there and still allocates
+> nothing; what it now does is hand the sort a sequence it can confirm without
+> a swap. What the record refuses is a *second* order beside the first, and
+> that refusal stands: a fast path skipping the sort for a scene with one
+> self-ordered layer would be two orders through the painter.
+>
+> **Merging adjacent faces into one drawing call is only allowed where it is
+> provably the same picture.** Two faces next to each other in the order can
+> still overlap on screen, and then one call is not one order: a run that draws
+> all its fills and then all its outlines puts a farther face's outline over a
+> nearer face's fill, and a union filled once is not what several translucent
+> fills compose to. So the merge is taken only for an opaque, unoutlined run —
+> where the colour is the same everywhere in the union either way — and
+> anything else is drawn one face at a time, in its place. The optimisation may
+> not be visible; that is the whole of what makes it one.
 >
 > **A quad is filled, and outlined only when the chart asks.** The sentence
 > below pairing "a single filled subpath" with "a stroked outline" cannot have

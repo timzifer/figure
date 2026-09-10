@@ -274,3 +274,75 @@ func TestDroppingALabelKeepsItsTickMark(t *testing.T) {
 			"the collision pass did nothing", labels, total)
 	}
 }
+
+// An axis that projects shorter than one of its own labels shows none. The
+// collision pass alone would keep exactly one, and one number on an axis with
+// no length names a position the reader cannot tell from any other on it —
+// which is a claim the picture does not support. The line and the title stay,
+// because those say what the axis is rather than where a value sits on it.
+func TestACollapsedAxisShowsNoTickLabelsAtAll(t *testing.T) {
+	sc := unitScales()
+	// Straight down: the depth axis projects to a point.
+	cam := LookAt(Azimuth(-0.6), Elevation(math.Pi/2))
+	c := newCube(theme.Light, project(cam, ir.R(0, 0, 300, 300)), cam,
+		ticksOf(theme.Light, sc), [3]string{"x", "y", "up"})
+
+	rec := irtest.New()
+	var path ir.Path
+	var boxes []ir.Rect
+	c.draw(rec, &path, &boxes)
+
+	// The z ticks of unitScales run 0..10, and none of them may appear; the
+	// floor axes are unaffected and still label themselves.
+	texts := map[string]int{}
+	for _, call := range rec.Filter("Text") {
+		texts[call.Text.Text]++
+	}
+	if texts["up"] == 0 {
+		t.Error("the collapsed axis lost its title; the title is what still says which axis it is")
+	}
+	// Every tick label that survives belongs to a floor axis, and there are
+	// two of those, so no value appears more than twice.
+	for label, n := range texts {
+		if label == "x" || label == "y" || label == "up" {
+			continue
+		}
+		if n > 2 {
+			t.Errorf("the label %q appears %d times; the collapsed axis is labelling itself", label, n)
+		}
+	}
+	if texts["0"] == 0 {
+		t.Error("the floor axes lost their labels too; only the collapsed one should")
+	}
+}
+
+// The rule is measured rather than chosen: it compares the axis's projected
+// length against the room one of its own labels takes along it, so a long axis
+// keeps its labels and a short one does not, with nothing to tune in between.
+func TestAnAxisKeepsItsLabelsWhileItHasRoomForOne(t *testing.T) {
+	sc := unitScales()
+	font := theme.Light.Font(theme.Light.TickSize)
+	rec := irtest.New()
+
+	var lastLabelled float64
+	var firstBare float64
+	for el := 0.0; el < math.Pi/2; el += 0.02 {
+		cam := LookAt(Azimuth(-0.6), Elevation(el))
+		pr := project(cam, ir.R(0, 0, 300, 300))
+		c := newCube(theme.Light, pr, cam, ticksOf(theme.Light, sc), [3]string{})
+		e := c.edgeOf(axisZ)
+		from, to := pr.point(e.at(0)), pr.point(e.at(1))
+		if c.axisHasRoom(rec, font, axisZ, from, to) {
+			lastLabelled = el
+		} else if firstBare == 0 {
+			firstBare = el
+		}
+	}
+	if firstBare == 0 {
+		t.Fatal("the depth axis never ran out of room, even looking straight down")
+	}
+	if lastLabelled >= firstBare {
+		t.Errorf("the axis regained its labels after losing them at %v: the rule is not monotone in the angle",
+			firstBare)
+	}
+}

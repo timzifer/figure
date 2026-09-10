@@ -17,17 +17,25 @@ import (
 // same reason: that one takes a closure and a reflect-based swapper and
 // allocates on every call. ADR 0057 decided both.
 type primKey struct {
-	key float32
-	idx int32
+	key   float32
+	depth float32
+	idx   int32
 }
 
 // byDepth orders the primitives of a whole scene, farthest first.
 //
 // This is the single depth order ADR 0056 asks for, over the primitives of
 // every layer at once — because a point can be in front of one part of a
-// surface and behind another, so no per-layer ordering can be right.
+// surface and behind another, so no per-layer ordering can be right. **One
+// order means one formula**: two layers keyed by two different measures of
+// depth are two numbers that cannot be compared, and merging them would be
+// arithmetic rather than geometry.
 //
-// Ties break by emission index, which is total and free: layers emit one after
+// The primary key is footprint depth and the secondary is true depth, for the
+// reasons [Sink.depthOf] sets out: the first is the better sample and the
+// second is the one that is never degenerate.
+//
+// Last is the emission index, which is total and free: layers emit one after
 // another, so the index is lexicographically (layer, the layer's own order),
 // which is ADR 0012's rule without needing a second field. Nothing here
 // depends on scheduling, and there is no hysteresis: two marks whose depths
@@ -36,6 +44,9 @@ type primKey struct {
 // frames preceded it could not be golden-tested.
 func byDepth(a, b primKey) int {
 	if c := cmp.Compare(b.key, a.key); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(b.depth, a.depth); c != 0 {
 		return c
 	}
 	return cmp.Compare(a.idx, b.idx)
@@ -56,15 +67,16 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 		s.pts = append(s.pts, pr.point(v))
 	}
 
-	s.keys = grow(s.keys, len(s.prims))[:0]
+	s.order = grow(s.order, len(s.prims))[:0]
 	for i := range s.prims {
-		s.keys = append(s.keys, primKey{key: s.prims[i].key, idx: int32(i)})
+		p := &s.prims[i]
+		s.order = append(s.order, primKey{key: p.key, depth: p.depth, idx: int32(i)})
 	}
-	slices.SortFunc(s.keys, byDepth)
+	slices.SortFunc(s.order, byDepth)
 
 	open := -1
-	for i := 0; i < len(s.keys); {
-		p := &s.prims[s.keys[i].idx]
+	for i := 0; i < len(s.order); {
+		p := &s.prims[s.order[i].idx]
 		if int(p.layer) != open {
 			s.flushRows(rows)
 			open = int(p.layer)
@@ -91,29 +103,49 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 	s.flushRows(rows)
 }
 
-// faces draws the longest run of adjacent faces that share a layer and a
-// style, as one call, and returns where the run ended.
+// faces draws one face, or a run of adjacent faces that are provably the same
+// picture drawn together, and returns where it got to.
 //
-// Batching is by *run* rather than by colour, and the difference is the whole
-// point of this package. A flat chart batches every mark of one colour into
-// one call because order within a layer does not matter; here order is the
-// thing being computed, so only primitives already adjacent in it may be
-// merged. Each face stays its own subpath, so a hit index still sees one mark
-// per quad.
+// # When faces may be merged
+//
+// Batching is by *run* rather than by colour, and the difference is the point
+// of this package. A flat chart batches every mark of one colour into one call
+// because order within a layer does not matter; here order is the thing being
+// computed, so only primitives already adjacent in it could be merged at all.
+//
+// Adjacency is not enough by itself, though, because two adjacent faces in the
+// order can still overlap on screen — and then merging them is only the same
+// picture under two further conditions:
+//
+//   - **The fill is opaque.** One path filled once covers its union in one
+//     colour; several overlapping fills composite in the overlap. For an
+//     opaque colour those are the same picture and for a translucent one they
+//     are not.
+//   - **Nothing is stroked.** A run draws all its fills and then all its
+//     outlines, so a face early in the run — the farther one — would have its
+//     outline drawn over a face later in it. That is the painter's order
+//     undone by the optimisation meant to be invisible.
+//
+// So an outlined or translucent face is drawn on its own, in its place in the
+// order, and the merge is kept for the case it is free in. Either way each
+// face is its own subpath, so a hit index still sees one mark per quad.
 func (s *Sink) faces(b ir.Backend, i int) int {
-	first := &s.prims[s.keys[i].idx]
+	first := &s.prims[s.order[i].idx]
+
 	j := i + 1
-	for j < len(s.keys) {
-		p := &s.prims[s.keys[j].idx]
-		if p.kind != kindFace || p.layer != first.layer || p.style != first.style {
-			break
+	if mergeable(first.style) {
+		for j < len(s.order) {
+			p := &s.prims[s.order[j].idx]
+			if p.kind != kindFace || p.layer != first.layer || p.style != first.style {
+				break
+			}
+			j++
 		}
-		j++
 	}
 
 	s.path.Reset()
 	for k := i; k < j; k++ {
-		p := &s.prims[s.keys[k].idx]
+		p := &s.prims[s.order[k].idx]
 		pts := s.pts[p.lo:p.hi]
 		s.path.MoveTo(pts[0].X, pts[0].Y)
 		for _, q := range pts[1:] {
@@ -135,6 +167,12 @@ func (s *Sink) faces(b ir.Backend, i int) int {
 		b.StrokePath(&s.path, ir.Stroke{Color: first.style.Stroke, Width: first.style.Width})
 	}
 	return j
+}
+
+// mergeable reports whether faces in this style may be drawn together without
+// changing the picture. See [Sink.faces].
+func mergeable(st Style) bool {
+	return st.Fill.A == 255 && (st.Stroke.A == 0 || st.Width <= 0)
 }
 
 // noteRow records where a primitive that carries a source row landed, for the

@@ -78,9 +78,6 @@ func (g *line3) Emit(s *Sink, f Frame) error {
 	if !g.ok || len(g.xs) < 2 {
 		return nil
 	}
-	// A segment is ordered by its own middle, which is what a path wants: a
-	// segment is in front of another exactly when its middle is nearer.
-	s.Depth(DepthCentroid)
 	track := rowsWanted(f)
 
 	st := Style{Stroke: g.colorFor(f), Width: g.widthFor(f)}

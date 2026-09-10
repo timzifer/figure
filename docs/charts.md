@@ -237,10 +237,11 @@ however many angles are drawn from them. `examples/views` is the figure.
 **Nothing about the drawing order is in the chart.** A surface over a regular
 grid is ordered by where each of its cells stands on the floor, which under an
 orthographic camera is exact: a quad of a height field is occluded by its
-neighbours in the lattice and never by how tall it is. That is why the
-painter's algorithm is right here rather than merely usual, and why the picture
-needs no depth buffer — which matters, because SVG and PDF have no pixels to
-put one in.
+neighbours in the lattice and never by how tall it is. Where two things stand
+on the *same* footprint — two surfaces over one grid, say — true depth decides
+between them. That is why the painter's algorithm is right here rather than
+merely usual, and why the picture needs no depth buffer, which matters because
+SVG and PDF have no pixels to put one in.
 
 The cascade is the same machinery with `geom.GroupBy` over a sweep column:
 thirty traces offset along the second floor axis, which is the display a

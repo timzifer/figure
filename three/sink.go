@@ -2,35 +2,6 @@ package three
 
 import "github.com/timzifer/figure/ir"
 
-// DepthRule is how the primitives a layer emits are ordered against every
-// other primitive in the scene.
-//
-// It exists because "sort by the middle of the shape" is right for some
-// shapes and wrong for others, and which is which is a fact about the data
-// rather than a rendering trick. There are two rules and there is no third:
-// a scene with more than two orders in it is a scene whose picture depends on
-// which layer asked for what.
-type DepthRule uint8
-
-const (
-	// DepthCentroid orders a primitive by the depth of its own middle. It is
-	// the default, and it is what a trajectory wants: a segment of a path is
-	// in front of another segment exactly when its middle is nearer.
-	DepthCentroid DepthRule = iota
-
-	// DepthGround orders a primitive by where it stands on the floor,
-	// ignoring its height.
-	//
-	// It is what a height field and a field of bars want, and it is a reading
-	// rather than an approximation: a quad of a surface is occluded by its
-	// neighbours in the lattice and never by how tall it is, and a bar is
-	// occluded by the cell in front of it and never by its own height. Under
-	// an orthographic camera that order is exact, which is the second thing
-	// this package's refusal of perspective buys — and it is what makes the
-	// painter's algorithm correct here rather than merely usual.
-	DepthGround
-)
-
 // Style is the paint of one primitive.
 //
 // It carries no dash. A dash is a length on screen, and a projected run's
@@ -64,15 +35,18 @@ type prim struct {
 	kind   primKind
 	lo, hi int32
 	style  Style
-	// key is how far the primitive is from the camera. It is computed in
-	// float64 and kept in float32 deliberately: the narrowing turns a
-	// near-tie into an exact tie, and an exact tie is broken by emission
-	// order, which is the same on every architecture. A float64 key would let
-	// two primitives a ulp apart order one way on arm64 and the other on
-	// amd64, and the golden files tolerate exactly that much coordinate
-	// difference — so the reorder would not be caught. AGENTS.md records the
-	// same bug in its other two places.
+	// key and depth are how far the primitive is from the camera, and there
+	// are two of them because one is a better sample and the other is never
+	// degenerate. See [Sink.depthOf] for the whole argument; both are computed in
+	// float64 and kept in float32 deliberately, because the narrowing turns a
+	// near-tie into an exact tie and an exact tie is broken by emission order,
+	// which is the same on every architecture. A float64 key would let two
+	// primitives a ulp apart order one way on arm64 and the other on amd64,
+	// and the golden files tolerate exactly that much coordinate difference —
+	// so the reorder would not be caught. AGENTS.md records the same bug in
+	// its other two places.
 	key   float32
+	depth float32
 	row   int32
 	layer int32
 	// text indexes the sink's run list for a kindText primitive, and is -1
@@ -98,7 +72,7 @@ type Sink struct {
 	// the painter's own scratch, kept here so that it is pooled with
 	// everything else.
 	pts   []ir.Point
-	keys  []primKey
+	order []primKey
 	path  ir.Path
 	line  []ir.Point
 	rowAt []ir.Point
@@ -109,15 +83,9 @@ type Sink struct {
 
 	// The state a layer sets and this package resets between layers.
 	layer int32
-	rule  DepthRule
 	row   int32
 	fwd   Vec3
 }
-
-// Depth chooses how the primitives that follow are ordered against the rest of
-// the scene. It holds until it is changed and is reset to [DepthCentroid] for
-// each layer.
-func (s *Sink) Depth(r DepthRule) { s.rule = r }
 
 // Row attributes the primitives that follow to a source row, or to -1 for one
 // that no row is behind — an interpolated point, a wall, a summary. It holds
@@ -171,31 +139,64 @@ func (s *Sink) append(kind primKind, vs []Vec3, st Style, text int32) {
 	lo := int32(len(s.verts))
 	s.verts = append(s.verts, vs...)
 	hi := int32(len(s.verts))
+	key, depth := s.depthOf(lo, hi)
 	s.prims = append(s.prims, prim{
 		kind: kind, lo: lo, hi: hi, style: st,
-		key: s.key(lo, hi), row: s.row, layer: s.layer, text: text,
+		key: key, depth: depth, row: s.row, layer: s.layer, text: text,
 	})
 }
 
-// key is how far a primitive is from the camera: the depth of its centroid,
-// dropped to the floor when the layer asked for [DepthGround].
-func (s *Sink) key(lo, hi int32) float32 {
+// depthOf is how far a primitive is from the camera, twice.
+//
+// # Why the first one drops the height
+//
+// Under an orthographic camera, depth along the view direction increases with
+// distance by definition. Take two points on one view ray, at distances t1 and
+// t2 > t1. Their *footprint* depths — the depth of the same points with z set
+// to zero — differ by (t2-t1)(fwd.X² + fwd.Y²), which is never negative. So
+// footprint depth is monotone along every view ray exactly as true depth is,
+// and either is a valid ordering key.
+//
+// The difference is how well a *centroid* samples it. True depth varies over a
+// primitive by its whole extent, including its height; footprint depth varies
+// only by its extent on the floor. For the shapes this package draws that is a
+// large gap: a quad of a surface has a footprint one cell wide however steep it
+// is, and the side of a bar has a footprint of no width at all however tall it
+// is. Sampling the smaller variation at the centroid is the smaller error —
+// and for a single-valued height field it makes the order exact, because the
+// cells' footprints are disjoint and the ray argument above then orders every
+// hit correctly.
+//
+// # Why the second one is kept
+//
+// Footprint depth is degenerate where true depth is not. Two primitives
+// standing on the same footprint at different heights — two surfaces over one
+// grid, which is an ordinary chart — have the same footprint depth and
+// different true depths, and the higher one is nearer. A camera looking
+// straight down collapses every footprint depth at once. So true depth breaks
+// the tie, and between them the pair is well behaved at both extremes: with the
+// camera level the two are the same number, and with it overhead the first
+// carries nothing and the second carries everything.
+//
+// It costs one multiply-add per primitive and it is the difference between a
+// scene of one layer and a scene of several.
+func (s *Sink) depthOf(lo, hi int32) (key, depth float32) {
 	var c Vec3
 	for _, v := range s.verts[lo:hi] {
 		c = c.Add(v)
 	}
 	c = c.Mul(1 / float32(hi-lo))
-	if s.rule == DepthGround {
-		c.Z = 0
-	}
-	return float32(c.Sub(centre).Dot(s.fwd))
+	d := c.Sub(centre)
+	foot := d
+	foot.Z = -centre.Z
+	return float32(foot.Dot(s.fwd)), float32(d.Dot(s.fwd))
 }
 
 // openLayer starts a layer's emission: the state a layer may set is reset, so
-// that a layer that sets nothing gets the documented defaults rather than the
+// that a layer that sets nothing gets the documented default rather than the
 // previous layer's.
 func (s *Sink) openLayer(i int, fwd Vec3) {
-	s.layer, s.rule, s.row, s.fwd = int32(i), DepthCentroid, -1, fwd
+	s.layer, s.row, s.fwd = int32(i), -1, fwd
 }
 
 func (s *Sink) reset() {
@@ -203,11 +204,11 @@ func (s *Sink) reset() {
 	s.prims = s.prims[:0]
 	s.runs = s.runs[:0]
 	s.pts = s.pts[:0]
-	s.keys = s.keys[:0]
+	s.order = s.order[:0]
 	s.path.Reset()
 	s.line = s.line[:0]
 	s.rowAt = s.rowAt[:0]
 	s.rowNo = s.rowNo[:0]
 	s.boxes = s.boxes[:0]
-	s.layer, s.rule, s.row, s.fwd = 0, DepthCentroid, -1, Vec3{}
+	s.layer, s.row, s.fwd = 0, -1, Vec3{}
 }

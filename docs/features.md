@@ -96,9 +96,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   every backend draws a surface: SVG, PDF, canvas, raster, the native window,
   the GPU tier ([ADR 0056](adr/0056-three-dimensional-charts.md)). Hidden
   surfaces are ordered rather than buffered, because SVG and PDF have no
-  pixels: one depth order over the primitives of every layer at once, with a
-  height field ordered by where its cells stand on the floor, which under an
-  orthographic camera is exact rather than approximate.
+  pixels: one depth order over the primitives of every layer at once, keyed by
+  where each primitive stands on the floor — which under an orthographic camera
+  is exact for a height field rather than approximate — and tie-broken by true
+  depth, so that two surfaces over one grid still know which is on top.
 - **A camera, and several of them** — `three.Camera` is an immutable value and
   `three.Orbit`, `three.Dolly` and `three.Slerp` are pure functions over it, so
   the host owns the drag: `three` installs no handler, opens no window and runs

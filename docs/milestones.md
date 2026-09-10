@@ -911,21 +911,41 @@ the IR has always had.
 **Hidden surfaces are ordered, not buffered**, because a z-buffer needs pixels
 and SVG and PDF have none. That makes the scope: a painter's algorithm is exact
 only over a set that can be totally ordered, so the package draws the shapes
-whose order is decidable and declines the ones that are not. What makes it
-exact rather than merely usual is the depth key. A quad of a height field is
-occluded by its neighbours in the lattice and never by how tall it is, and a
-bar is occluded by the cell in front of it and never by its own height — so
-those layers order by where they stand on the *floor*, which under an
-orthographic camera is provably the right order. That is a reading of the data
-rather than an approximation of a depth buffer, and it is a second thing the
-refusal of perspective buys.
+whose order is decidable and declines the ones that are not.
 
-There is exactly one sort, over one pooled key slice, ties broken by emission
-index — which is lexicographically (layer, row), so it is total and free and
-independent of scheduling ([ADR 0012](adr/0012-parallel-panels.md)'s rule). No
-hysteresis: two marks whose depths differ by a millionth swap legitimately as
-the camera turns, and a picture that depended on which frames preceded it could
-not be golden-tested.
+What makes it exact rather than merely usual is the depth key, and getting that
+key right took two goes. It is the same formula for every primitive of every
+layer — **one order means one formula**, and the first draft let each layer
+choose between two, which are two numbers on two scales, so merging a surface
+with a path was arithmetic rather than geometry. What the sort compares is a
+pair. The primary is *footprint* depth, the centroid's depth with its height
+set to zero: monotone along every view ray exactly as true depth is, and a far
+better sample, because a quad of a surface has a footprint one cell wide
+however steep it is and the side of a bar has one of no width at all however
+tall it is. For a single-valued height field that makes the order provably
+right, which is a reading of the data rather than an approximation of a depth
+buffer, and a second thing the refusal of perspective buys. The secondary is
+true depth, and it is what makes the key work for a *scene* rather than for one
+layer: two surfaces over one grid stand on the same footprints and tie, and a
+camera looking straight down collapses every footprint at once. Last is the
+emission index, which is lexicographically (layer, row), so it is total and
+free and independent of scheduling
+([ADR 0012](adr/0012-parallel-panels.md)'s rule).
+
+No hysteresis: two marks whose depths differ by a millionth swap legitimately
+as the camera turns, and a picture that depended on which frames preceded it
+could not be golden-tested. And the tests cast rays rather than restating the
+rule: a test whose expected answer recomputes the ordering proves only that the
+sort sorts, so the occlusion check intersects the view ray through each sample
+point with the plane of every primitive covering it and insists the nearest is
+painted last.
+
+Adjacent faces of one style are merged into one drawing call, and only where
+that is provably the same picture — an opaque, unoutlined run. Two faces next
+to each other in the order can still overlap on screen, and then a run that
+draws all its fills and then all its outlines puts a farther outline over a
+nearer fill, while a union filled once is not what several translucent fills
+compose to. An optimisation that changes the picture is not one.
 
 **The camera is a value the caller holds.** `three.Orbit`, `three.Dolly` and
 `three.Slerp` are pure functions from one camera to another — same inputs, same
