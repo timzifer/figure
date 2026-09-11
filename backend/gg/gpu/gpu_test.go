@@ -22,9 +22,10 @@ import (
 // way — a chart renders, and it renders the same chart.
 //
 // Nothing here closes the tier until the test that has to: these run in one
-// process in the order they are written, the accelerator cannot be registered
-// again once given back, and every test before the close is one that wants the
-// tier as the import left it.
+// process in the order they are written, Close is final — the accelerator
+// cannot be registered again once given back that way — and every test before
+// the close is one that wants the tier as the import left it. Disable is not
+// final, and the test of it puts the tier back the way it found it.
 
 func TestAChartRendersWithTheTierEitherWay(t *testing.T) {
 	t.Logf("GPU tier enabled: %v", gpu.Enabled())
@@ -144,6 +145,43 @@ func wrongPixels(a, b image.Image) (bad, total int) {
 		}
 	}
 	return bad, total
+}
+
+// A program offering "GPU on/off" switches the tier off and on again in one
+// process, so the tier has to come back from Disable drawing — not registered
+// over a device that is gone, which would draw the text and none of the
+// geometry. The CPU render in between is the reference for how much ink there
+// should be, as in the test below.
+func TestDisableThenEnableBringsTheTierBack(t *testing.T) {
+	was := gpu.Enabled()
+	t.Logf("GPU tier enabled: %v", was)
+
+	gpu.Disable()
+	if gpu.Enabled() {
+		t.Fatal("the tier is still registered after Disable")
+	}
+	if gpu.Available() != was {
+		t.Errorf("Available = %v after Disable, want %v: a tier set aside can still be had", !was, was)
+	}
+	onCPU := ink(t, render(t))
+	if onCPU == 0 {
+		t.Fatal("the reference render is blank")
+	}
+	gpu.Disable() // a second Disable must not forget what the first set aside
+
+	if got := gpu.Enable(); got != was {
+		t.Fatalf("Enable = %v, but the tier was %v before Disable", got, was)
+	}
+	if gpu.Enabled() != was {
+		t.Fatalf("Enabled = %v after Enable, want %v", gpu.Enabled(), was)
+	}
+	if back := ink(t, render(t)); back*2 < onCPU {
+		t.Errorf("the tier drew %d ink pixels after coming back, against the CPU's %d: paths are being dropped",
+			back, onCPU)
+	}
+	if !gpu.Enable() && was {
+		t.Error("Enable with the tier already on reported false")
+	}
 }
 
 // A tier that registers but cannot draw is the failure this package guards
