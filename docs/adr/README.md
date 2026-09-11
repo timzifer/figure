@@ -59,7 +59,7 @@ depends on.
 | [0047](0047-clickable-legend.md) | A legend answers to a pointer; hiding is the chart's, toggling the caller's | Accepted | — |
 | [0048](0048-clickable-colourbar-and-size-key.md) | A colourbar and a size key report a quantity, because neither is a series | Accepted | — |
 | [0049](0049-paths-colour-in-classes.md) | A path colours in classes, and the scale decides where the colour changes | Accepted | — |
-| [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Proposed | — |
+| [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Accepted, amended | — |
 | [0051](0051-barycentric-coord.md) | A ternary chart is a barycentric coord, and its third grid family is not furniture | Proposed | — |
 | [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Proposed | — |
 | [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Proposed | — |
@@ -86,23 +86,35 @@ that opens after v1.0 gets a record here before it gets code.
 
 ## Records not yet implemented
 
-**0050 to 0054 are proposed, not accepted, and no code implements them.** They
+**0051 to 0054 are proposed, not accepted, and no code implements them.** They
 are written down because the alternative is worse: each one answers a question
 an earlier record left open — 0033's "Revisit if" for the first two, 0039's for
 the fourth, 0041's serialisation rule for the third — and a question answered in
 a conversation and not in the repository gets answered again, differently, later.
 
+**0050 is the one of the five that has been built**, and it is *Accepted,
+amended*: `geom.Locus` draws a family of curves given by a formula, `stat` names
+four of them, and a Nichols diagram and a Smith chart's VSWR circles and
+constant-Q arcs are the charts that came with it. Its amendment says where the
+implementation sharpened it — chiefly that `Family` is `stat`'s type that `geom`
+names, and that a Nichols curve is refined against the panel rather than walked
+uniformly round its circle, because the chart is the log-polar view of that
+circle and a uniform walk resolves the plunge to −∞ dB or the rest of the curve
+and never both.
+
 They are also deliberately written as a set, because four of the five lean on
-each other. 0050 introduces the mark 0051 keeps as its escape hatch for a
-ternary chart's third grid family and 0053 uses for a funnel plot's contours;
+each other. 0050 introduced the mark 0051 keeps as its escape hatch for a
+ternary chart's third grid family and 0053 uses for a funnel plot's contours,
+and it is now there to be leant on;
 0051 and 0053 both cite 0041's rule that a named member of a closed family
 serialises and an arbitrary Go function does not; 0053 narrows a category 0039
 refused rather than reopening it. Reading any one of them alone will make it
 look more expensive than it is.
 
 A proposed record becomes accepted when it is implemented, or is deleted with a
-sentence saying what it got wrong. Neither is urgent: nothing in v1.7 depends on
-any of them, and each is additive by construction.
+sentence saying what it got wrong — 0050 is the worked example of the first.
+Neither is urgent for the remaining four: nothing in v1.7 depends on any of
+them, and each is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built

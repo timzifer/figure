@@ -10,6 +10,7 @@ import (
 
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/stat"
 )
 
 // WriteTable writes the chart's data as an HTML table.
@@ -103,6 +104,10 @@ func (t *tableWriter) printf(format string, args ...any) {
 }
 
 func (t *tableWriter) annotation(d geom.Desc) {
+	if d.Mark == geom.MarkLocus {
+		t.locus(d)
+		return
+	}
 	// Which of the four values an annotation carries are meaningful depends on
 	// the mark and cannot be read off the values: zero is a perfectly good
 	// place to put a threshold, so an unused field looks exactly like a used
@@ -121,6 +126,30 @@ func (t *tableWriter) annotation(d geom.Desc) {
 		text = string(d.Mark)
 	}
 	t.printf("<p>%s</p>\n", esc(fmt.Sprintf("Annotation: %s at %s.", text, strings.Join(parts, ", "))))
+}
+
+// locus says which family of curves was drawn and at what levels.
+//
+// The curves themselves are not enumerated, and that is the reading rather than
+// a shortcut: a locus is furniture in intent — it says what the region of the
+// plane means rather than what is in it — and a table of the ten thousand
+// points it was sampled at answers a question nobody asked. What a reader needs
+// is what the printed chart's caption gives them: which family, and which
+// levels.
+func (t *tableWriter) locus(d geom.Desc) {
+	name, ok := stat.FamilyName(d.Family)
+	if !ok {
+		name = "a family of curves"
+	}
+	levels := make([]string, 0, len(d.Levels))
+	for _, v := range d.Levels {
+		levels = append(levels, data.FormatNumber(v))
+	}
+	text := fmt.Sprintf("Annotation: %s at %s.", name, strings.Join(levels, ", "))
+	if len(levels) == 0 {
+		text = fmt.Sprintf("Annotation: %s.", name)
+	}
+	t.printf("<p>%s</p>\n", esc(text))
 }
 
 // usesDatum reports which of an annotation's four values the mark actually

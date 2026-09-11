@@ -13,8 +13,8 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through H have shipped. I through M are planned and have records but
-no code** — [ADR 0050](adr/0050-locus-annotations.md) through
+**Buckets A through I have shipped. J through M are planned and have records but
+no code** — [ADR 0051](adr/0051-barycentric-coord.md) through
 [ADR 0054](adr/0054-statistical-instruments.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
@@ -36,7 +36,7 @@ on any of them.
 | A Smith coordinate system (`coord.Smith`) + pinned ticks (`scale.TickValues`) | **shipped** — [ADR 0033](adr/0033-smith-charts.md) | Smith chart, admittance (Y) chart, matching-network locus, impedance region |
 | Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
 | A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
-| A locus: a family of curves given by a formula (`geom.Locus`) | **planned** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
+| A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
@@ -320,7 +320,7 @@ something else.
 | A PDF in a script WinAnsi cannot hold | **shipped** — [ADR 0038](adr/0038-embedded-fonts.md) | `pdf.WithFont`. The PDF emitter named the base-14 Helvetica and encoded WinAnsi, so every rune outside Latin-1 became `?` — Greek, Cyrillic, Hebrew, Thai and every CJK script, in the format people send to customers. |
 | Absence in a text or temporal column | **shipped** — [ADR 0034](adr/0034-null-values.md) | `data.Column.Nulls`. A null read back as `""` was a band of its own on an ordinal axis and one read back as the zero time stretched a domain across two millennia. |
 
-## I — needs a locus — **planned**, [ADR 0050](adr/0050-locus-annotations.md)
+## I — needs a locus — **shipped**, [ADR 0050](adr/0050-locus-annotations.md)
 
 A **locus** is a family of curves given by a formula rather than by data: the
 set of points in the plane where some derived quantity is constant. `geom.HLine`
@@ -335,21 +335,35 @@ circle is not
 implemented as a circle, it is implemented as the set of impedances whose
 reflection has a given magnitude, and `coord.Smith` makes it a circle.
 
-| Chart | The family | Coord |
-|---|---|---|
-| **Nichols diagram** | closed-loop magnitude and phase, `stat.NicholsM` / `stat.NicholsN` | Cartesian — the response itself is `Line` and needs nothing |
-| VSWR circles | constant \|Γ\| | `coord.Smith` |
-| Constant-Q arcs | \|x\| = Q·r | `coord.Smith` |
-| ZY overlay | the impedance families read through y = 1/z | `coord.Smith` |
-| Hall chart | the same two circle families as Nichols, before the log-polar step | Cartesian or `coord.Polar` |
-| Funnel plot contours | pseudo-confidence limits in (effect, standard error) | Cartesian |
-| Psychrometric, Mollier | constant enthalpy, wet-bulb, relative humidity | Cartesian |
+`geom.Locus(family, levels)` takes the family positionally the way `HLine` takes
+its one literal, and `stat` names four of them. A family a caller writes in Go
+is a first-class one and draws; what it cannot do is be written down, which is
+[ADR 0041](adr/0041-qq-plots.md)'s rule for a quantile function applied to a
+curve. A locus is the one annotation that does **not** train the axes by
+default: it says what the region of the plane means, and the region is whatever
+the axes already show.
 
-**The Nichols diagram is the one to build it for.** MATLAB's Control System
+| Chart | The family | Coord | Status |
+|---|---|---|---|
+| **Nichols diagram** | closed-loop magnitude and phase, `stat.NicholsM` / `stat.NicholsN` | Cartesian — the response itself is `Line` and needs nothing | **shipped** — see `examples/nichols` |
+| VSWR circles | constant \|Γ\|, `stat.SmithVSWR` | `coord.Smith` | **shipped** — see `examples/smith` |
+| Constant-Q arcs | \|x\| = Q·r, `stat.SmithQ` | `coord.Smith` | **shipped** — see `examples/smith` |
+| ZY overlay | the impedance families read through y = 1/z | `coord.Smith` | a family of its own, unwritten |
+| Hall chart | the same two circle families as Nichols, before the log-polar step | Cartesian or `coord.Polar` | a family of its own, unwritten |
+| Funnel plot contours | pseudo-confidence limits in (effect, standard error) | Cartesian | a family of its own, unwritten |
+| Psychrometric, Mollier | constant enthalpy, wet-bulb, relative humidity | Cartesian | three families of their own, unwritten |
+
+**The Nichols diagram is the one it was built for.** MATLAB's Control System
 Toolbox draws it and `python-control` draws it; outside those two the form does
 not exist, and Go has nothing. The arithmetic is smaller than the picture
 suggests: both contour families are circles in the complex L-plane, and the
 chart is that plane in log-polar view.
+
+![An open loop against the closed-loop contours it is read by](images/nichols.png)
+
+The four rows still marked unwritten are each a `Family` and nothing else: a few
+dozen lines of arithmetic in `stat`, no seam, no coord and no mark. That is the
+point of the bucket.
 
 ## J — needs a barycentric coord — **planned**, [ADR 0051](adr/0051-barycentric-coord.md)
 

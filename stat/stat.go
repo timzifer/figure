@@ -1,6 +1,6 @@
 // Package stat aggregates data before it is drawn.
 //
-// Two families live here and they answer different questions.
+// Three families live here and they answer different questions.
 //
 // The first is reduction: a column has more rows than the plot has pixels, so
 // which rows actually decide what the reader sees? The answers differ by mark.
@@ -15,10 +15,20 @@
 // different reading of the same column rather than a cheaper one. See [Bin],
 // [KDE], [ECDF], [Loess] and [Hex].
 //
-// Neither family changes a scale's domain by itself. A geom decides what its
+// The third is neither: a [Family] is a set of curves given by a *formula*
+// rather than by data — a Nichols chart's closed-loop contours, a Smith chart's
+// constant-VSWR circles — and it reduces nothing because there is nothing to
+// reduce. It is here because it is numbers in and numbers out like the rest,
+// and because what the curves look like is the coordinate stage's business
+// rather than this package's. See [Family] and
+// docs/adr/0050-locus-annotations.md.
+//
+// None of the three changes a scale's domain by itself. A geom decides what its
 // axis describes: a decimating layer trains on every row and reduces only when
 // it draws, so the axis reports what the data holds rather than what survived;
-// a histogram trains on the counts, because the counts are what it draws.
+// a histogram trains on the counts, because the counts are what it draws; and a
+// locus trains nothing at all, because it says what the region of the plane
+// means rather than what is in it.
 //
 // # Purity and determinism
 //
@@ -36,7 +46,9 @@
 //
 // Deliberately. A stat here is a function a geom calls in its Train, not a
 // stage between the data and the layer that a caller plugs a different one
-// into. A pluggable stat would have to know which axis it decides, how the
+// into. [Family] is not a counter-example: it is a curve with a name, not a
+// stage — nothing is fed through it, and what it answers is geometry rather
+// than a summary of anybody's rows. A pluggable stat would have to know which axis it decides, how the
 // layer treats a missing value and what the theme wants — which is exactly
 // what this package must not know. A caller with a summary of their own writes
 // a geom that calls it (see docs/adr/0028-distribution-stats.md), and the

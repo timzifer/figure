@@ -14,10 +14,10 @@ import (
 func TestExampleRuns(t *testing.T) {
 	dir := t.TempDir()
 	paths := map[string]string{}
-	for _, name := range []string{"antenna", "matching", "admittance"} {
+	for _, name := range []string{"antenna", "matching", "admittance", "vswr"} {
 		paths[name] = filepath.Join(dir, name+".svg")
 	}
-	if err := run(paths["antenna"], paths["matching"], paths["admittance"]); err != nil {
+	if err := run(paths["antenna"], paths["matching"], paths["admittance"], paths["vswr"]); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -27,6 +27,9 @@ func TestExampleRuns(t *testing.T) {
 		"antenna":    {"<svg", "A patch antenna across its band", "0.2", "0.5", "1.0", "2.0", "5.0"},
 		"matching":   {"<svg", "Matching 15 − j25 Ω to 50 Ω"},
 		"admittance": {"<svg", "The same two steps, read as admittance"},
+		// The two families are annotations rather than furniture, so what says
+		// they are there is the legend row each of them was named in.
+		"vswr": {"<svg", "The same antenna, read against 2:1", "VSWR", "Q"},
 	} {
 		b, err := os.ReadFile(paths[name])
 		if err != nil {

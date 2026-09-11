@@ -593,9 +593,16 @@ turned at a camera the host holds
 [ADR 0057](docs/adr/0057-orbiting-a-chart.md),
 [ADR 0064](docs/adr/0064-a-contour-and-its-lattice.md)); a contour plot of a
 sampled field, whose lines are the same tracing whether they are drawn flat or
-on a surface's floor; and an overlay a host paints a selection over, in one
+on a surface's floor; an overlay a host paints a selection over, in one
 view or in every view of a scene at once
-([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)).
+([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)); and a locus — a family
+of curves given by a formula rather than by data, of which `geom.HLine` is the
+degenerate member, which is what a Nichols diagram's closed-loop contours are
+and what the VSWR circles and constant-Q arcs
+[ADR 0033](docs/adr/0033-smith-charts.md) declined are: not furniture, but
+annotations defined in data space, so the coordinate stage draws them and
+`render` keeps its two tick lists
+([ADR 0050](docs/adr/0050-locus-annotations.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).
@@ -631,13 +638,6 @@ The record of how each of those arrived, and the argument that shaped it, is in
   `stat`" has no natural end: a reduction belongs there when its output is the
   chart's geometry and there is no reading of it that is not the chart
   ([ADR 0054](docs/adr/0054-statistical-instruments.md)).
-- **A locus** — a family of curves given by a formula rather than by data, of
-  which `geom.HLine` is the degenerate member. It is what a Nichols diagram's
-  closed-loop contours are, and what the VSWR circles, constant-Q arcs and ZY
-  overlay [ADR 0033](docs/adr/0033-smith-charts.md) declined are: not
-  furniture, but annotations defined in data space, so the coordinate stage
-  draws them and `render` keeps its two tick lists
-  ([ADR 0050](docs/adr/0050-locus-annotations.md)).
 - **A probability scale**, beside `Log` and `SymLog`: an axis warped by Φ⁻¹, the
   logit, the complementary log-log or the Gumbel link, so that a distribution's
   cumulative function plots straight. It is `geom.QQ` turned round — that mark

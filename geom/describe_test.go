@@ -8,6 +8,7 @@ import (
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 )
 
 func testSource() data.Source {
@@ -42,6 +43,8 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Segment(0, 1, 2, 3),
 		Region(0, 1, 2, 3),
 		Note(1, 2, "here", FontSize(9), Rotate(0.25), Align(ir.AlignEnd, ir.AlignBottom)),
+		Locus(stat.NicholsM, []float64{-3, 0, 3}, Label("M contours")),
+		Locus(stat.SmithVSWR, []float64{2}, Extend(true)),
 		Treemap(src, ID("x"), Parent("y"), Value("z"), Padding(0.01)),
 		Icicle(src, ID("x"), Parent("y"), Value("z"), ColorBy("z", cs)),
 		Sankey(src, From("x"), To("y"), Value("z"), Thickness(0.05), Padding(0.02)),
