@@ -34,6 +34,7 @@ import (
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/theme"
+	"github.com/timzifer/figure/three"
 )
 
 func main() {
@@ -158,6 +159,12 @@ type plate struct {
 	// configured at construction rather than added as a layer — a typesetter,
 	// a responsive theme, an axis title.
 	opts []figure.Option
+	// scene builds a projected chart, which is neither a plot nor a grid: a
+	// three.Plot holds a scene and the cameras on it rather than layers and a
+	// coord, so it is built whole rather than configured. It reaches the same
+	// two emitters through the same interface, because a target is an
+	// ir.Backend's target whatever drew into it.
+	scene func(f plate) chart
 }
 
 // chart is anything that can be rendered into a target: a plot, or a grid of
@@ -168,6 +175,9 @@ type chart interface {
 }
 
 func (f plate) chart() chart {
+	if f.scene != nil {
+		return f.scene(f)
+	}
 	if f.grid != nil {
 		g := figure.NewGrid(2,
 			figure.GridTheme(f.theme),
@@ -202,6 +212,8 @@ func figures() []plate {
 	return []plate{
 		qqFigure(),
 		labelsFigure(),
+		surfaceFigure(),
+		cascadeFigure(),
 		{
 			name: "signal", width: 800, high: 400, theme: theme.Dark, title: "Signal",
 			build: func(p *figure.Plot) {
@@ -1320,4 +1332,126 @@ func requestFlow() figure.Source {
 		String("from", []string{"web", "web", "mobile", "mobile", "api", "api", "api"}).
 		String("to", []string{"api", "cdn", "api", "cdn", "cache", "db", "search"}).
 		Float64("rps", []float64{620, 180, 340, 120, 500, 300, 160})
+}
+
+// surfaceFigure is the chart the third dimension exists for: the shape of a
+// response between its samples, which a heatmap of the same grid gives the
+// values of and hides the slope of.
+//
+// It is drawn from three cameras in one figure, because that is the
+// arrangement the package is built on and because a picture is the only way to
+// say what it buys: one scene, trained once, read as a shape and as two
+// profiles. See docs/adr/0062-a-scene-and-its-views.md.
+func surfaceFigure() plate {
+	return plate{
+		name: "surface", width: 900, high: 340, theme: theme.Light,
+		title: "A response surface, from three angles",
+		scene: func(f plate) chart {
+			// The grid is fine enough to read as a surface rather than as a
+			// mosaic, which is also what keeps it inside the depth order's
+			// promise: a quad's depth range is what has to stay narrow. It is
+			// still a drawing call per quad, three times over for three
+			// cameras — see the budget in gallery_test.go.
+			const n = 26
+			xs := make([]float64, 0, n*n)
+			ys := make([]float64, 0, n*n)
+			zs := make([]float64, 0, n*n)
+			for j := 0; j < n; j++ {
+				for i := 0; i < n; i++ {
+					x := -3 + 6*float64(i)/float64(n-1)
+					y := -3 + 6*float64(j)/float64(n-1)
+					xs = append(xs, x)
+					ys = append(ys, y)
+					zs = append(zs, math.Sin(x)*math.Cos(y)*1.4+0.25*x)
+				}
+			}
+			src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("z", zs)
+			sc := three.NewScene(three.XTitle("x"), three.YTitle("y"), three.ZTitle("z")).
+				Z(scale.Linear(scale.Nice())).
+				Add(three.Surface(src, geom.X("x"), geom.Y("y"), geom.Z("z"),
+					geom.Fill(palette.Blue)))
+
+			return three.New(
+				three.Size(f.width, f.high),
+				three.Title(f.title),
+				three.Theme(f.theme),
+				three.Columns(3),
+			).Scene(sc).Add(
+				three.View{Camera: three.Home(), Label: "three-quarter"},
+				three.View{Camera: three.LookAt(three.Elevation(1.45)), Label: "plan"},
+				three.View{Camera: three.LookAt(three.Azimuth(0), three.Elevation(0.02)), Label: "front"},
+			)
+		},
+	}
+}
+
+// cascadeFigure is the form ADR 0058 says decides whether the machinery pays
+// for itself: thirty sweeps of a spectrum, offset by sweep number, with a
+// carrier drifting through them.
+//
+// There is no cascade layer. It is thirty three-dimensional lines and one
+// geom.GroupBy — the same statement a grouped line chart makes in two
+// dimensions.
+func cascadeFigure() plate {
+	return plate{
+		name: "cascade", width: 760, high: 520, theme: theme.Dark,
+		title: "A drifting carrier, thirty sweeps",
+		scene: func(f plate) chart {
+			// A trajectory emits one primitive per segment, so this is
+			// traces × bins drawing calls — the most of any figure here, and
+			// what the budget in gallery_test.go is sized against.
+			const (
+				traces = 30
+				bins   = 101
+			)
+			var freq, sweep, power []float64
+			var trace []string
+			for n := 0; n < traces; n++ {
+				t := float64(n) / (traces - 1)
+				carrier := 900 + 24*t
+				harmonic := 960 + 6*t
+				for i := 0; i < bins; i++ {
+					fr := 860 + 140*float64(i)/(bins-1)
+					p := -92 + 3*math.Sin(float64(i)*0.7+float64(n)*0.3)
+					p = math.Max(p, lorentz(fr, carrier, -28, 1.6))
+					p = math.Max(p, lorentz(fr, harmonic, -58+22*t, 1.1))
+					freq = append(freq, fr)
+					sweep = append(sweep, float64(n))
+					power = append(power, p)
+					trace = append(trace, fmt.Sprintf("sweep %02d", n))
+				}
+			}
+			src := figure.NewTable().
+				Float64("f", freq).Float64("n", sweep).Float64("p", power).
+				String("trace", trace)
+
+			sc := three.NewScene(
+				three.XTitle("frequency (MHz)"),
+				three.YTitle("sweep"),
+				three.ZTitle("power (dBm)"),
+			).
+				Z(scale.Linear(scale.Nice())).
+				Add(three.Line3(src,
+					geom.X("f"), geom.Y("n"), geom.Z("p"),
+					geom.GroupBy("trace"),
+					geom.Color(palette.SkyBlue),
+					geom.Width(1),
+				))
+
+			return three.New(
+				three.Size(f.width, f.high),
+				three.Title(f.title),
+				three.Theme(f.theme),
+			).Scene(sc).Add(
+				three.View{Camera: three.LookAt(three.Azimuth(-0.9), three.Elevation(0.42))},
+			)
+		},
+	}
+}
+
+// lorentz is one resonance line, which is the shape a peak in a spectrum
+// actually has.
+func lorentz(f, at, top, width float64) float64 {
+	d := (f - at) / width
+	return top - 10*math.Log10(1+d*d)
 }

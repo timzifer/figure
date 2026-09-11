@@ -119,6 +119,31 @@ picture: a `Tween` that rebuilt its columns rather than rewriting them, and a
 driver that called `Rebuild` between frames
 ([ADR 0044](adr/0044-transitions.md)).
 
+`Surface64` and `Surface256` draw a projected surface of four thousand and
+sixty-five thousand quads. Decimation is off in a projected scene — a reduction
+defined over pixel columns measures nothing when one column of screen mixes
+values from everywhere along the view direction — so both really do project and
+order every quad on every frame, which makes this the honest price of the chart
+rather than of a reduced version of it. `Trajectory1k` and `Trajectory100k` are
+the same claim for a path, which emits one primitive per segment so that it can
+interleave with a surface. Both pairs are gated flat: the three things that
+would break them are the three ADR 0057 pre-committed the module to — a
+projection that did not write into pooled points, a depth order that used
+`sort.Slice` and its closure instead of `slices.SortFunc` over a pooled key
+slice, and a lattice traversal that sorted rather than iterated
+([ADR 0056](adr/0056-three-dimensional-charts.md),
+[ADR 0057](adr/0057-orbiting-a-chart.md)).
+
+`Orbit32` and `Orbit96` are the interaction rather than the chart: the same
+scene from a camera that moved, over and over, which is what a reader dragging
+across it produces. A camera is two floats and a frame is the same frame from
+another angle, so an orbit that allocated per frame would be a leak with a
+chart attached. Nine times the quads for the same count is what the pair pins,
+and the reason it holds is that a `three.Live` keeps its own scratch rather
+than borrowing from the pool: a scene large enough to be worth turning
+allocates enough between frames to run a collection, and `sync.Pool` is emptied
+by one.
+
 ## Results
 
 The table is what `benchtable.awk` wrote from one run of the command above,

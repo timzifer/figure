@@ -1,6 +1,6 @@
 # 0058 — What the third dimension is for, and where it stops paying
 
-**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** not started
+**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** rank 1 less the scatter, and the cascade as an example — see the annotated order of work
 
 ## Context
 
@@ -150,12 +150,21 @@ library:
 ## Order of work
 
 1. **0056's machinery, with surface, 3D scatter + droplines, and 3D line.**
-   Rank 1 minus the cascade, which needs no code.
-2. **The cascade**, as an example and a doc page rather than a geom.
+   Rank 1 minus the cascade, which needs no code. — **Shipped, less the
+   scatter and its droplines.** `three.Surface`, `three.Line3` and, out of
+   rank 2 because it costs four lines over the same machinery,
+   `three.Bar3` with the doc comment this record asks it to carry. The 3D
+   scatter is the one rank-1 form still missing and it needs no new
+   machinery: a marker primitive beside the face and the line, and the
+   dropline is a rule from each point to the floor.
+2. **The cascade**, as an example and a doc page rather than a geom. —
+   **Shipped**, as `examples/cascade`: thirty three-dimensional lines and one
+   `geom.GroupBy`, with no code in the library that knows what a cascade is.
 3. **`stat.Contour`**, which pays for the flat contour plot README currently
    disclaims and for the surface's floor in the same function.
 4. **0057's orbit.** Independent of 2 and 3, and the point at which the surface
-   stops being a picture and starts being an instrument.
+   stops being a picture and starts being an instrument. — **Shipped**, as
+   `three.Camera` and `three.Live`.
 5. **The spherical coord**, and with it rank 3 — patterns first, because they
    have the largest audience, and the Smith sphere last, because it is the
    test that the coord is a coord.

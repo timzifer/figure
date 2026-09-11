@@ -162,7 +162,15 @@ type Panel struct {
 	// Area is the panel's plot rectangle in device space.
 	Area ir.Rect
 	// X and Y are the panel's scales, ranged to Area.
+	//
+	// Both are nil for a panel with no screen axes — a projected scene, whose
+	// marks were placed by a camera rather than by a pair of intervals. A
+	// caller inverting a device position checks first, as [Index.At] does, and
+	// reads the value out of [Hit.Row] instead.
 	X, Y scale.Scale
+	// Z is the panel's depth scale, non-nil only for a panel announced by
+	// [github.com/timzifer/figure/three]. ADR 0056 is the record.
+	Z scale.Scale
 	// Y2 and X2 are the panel's secondary vertical and horizontal axes, when a
 	// layer in it was drawn against one, and nil otherwise.
 	//
@@ -317,7 +325,7 @@ func (ix *Index) Panel(p render.PanelInfo) {
 	for len(ix.panels) <= p.Index {
 		ix.panels = append(ix.panels, Panel{})
 	}
-	ix.panels[p.Index] = Panel{Area: p.Area, X: p.X, Y: p.Y, Coord: p.Coord}
+	ix.panels[p.Index] = Panel{Area: p.Area, X: p.X, Y: p.Y, Z: p.Z, Coord: p.Coord}
 	ix.panel, ix.layer, ix.label, ix.open = p.Index, -1, "", false
 	ix.layerX, ix.layerY = nil, nil
 }

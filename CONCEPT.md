@@ -584,8 +584,12 @@ coordinate systems, colour and size channels, facets and guides listed in
 native window and an opt-in GPU tier behind one `ir.Backend`; hit-testing,
 overlays, clickable guides, linked views, keyed transitions and streaming;
 typeset notation in labels; a described chart with a data table for a reader
-that is not an eye; and a JSON dialect a chart writes itself down as and reads
-itself back from.
+that is not an eye; a JSON dialect a chart writes itself down as and reads
+itself back from; and, in `figure/three`, a chart whose x, y and z are all
+data — a surface, a trajectory and a field of bars, projected above the IR so
+that every backend draws one, turned at a camera the host holds
+([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
+[ADR 0057](docs/adr/0057-orbiting-a-chart.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).
@@ -642,10 +646,16 @@ The record of how each of those arrived, and the argument that shaped it, is in
   two-state transitions and building one is a host-side loop; an API that owned
   the sequence would be a real addition rather than sugar, and would be argued
   on the evidence of people writing that loop.
-- **3D** — deliberately late and tightly scoped, split into four records: depth
-  as decoration, a third axis, orbiting a scene, and what the dimension is for
-  ([ADR 0055](docs/adr/0055-depth-without-a-third-axis.md) to
-  [ADR 0058](docs/adr/0058-what-3d-is-for.md)).
+- **The rest of 3D.** The third axis and its camera are built
+  ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
+  [ADR 0057](docs/adr/0057-orbiting-a-chart.md)); what is left of the four
+  records is the 3D scatter with its droplines, `stat.Contour` — which pays
+  for the flat contour plot as well as for a surface's floor — the oblique
+  coord that gives a flat mark volume without giving the chart a dimension
+  ([ADR 0055](docs/adr/0055-depth-without-a-third-axis.md)), and the spherical
+  coord that turns one projection into antenna patterns, Poincaré and Bloch
+  spheres and a stereonet
+  ([ADR 0058](docs/adr/0058-what-3d-is-for.md)).
 - A community plugin ecosystem.
 
 ---

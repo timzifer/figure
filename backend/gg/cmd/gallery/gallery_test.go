@@ -1,7 +1,10 @@
 package main
 
 import (
+	"image"
+
 	"bytes"
+	"github.com/timzifer/figure/ir"
 	"os"
 	"path/filepath"
 	"testing"
@@ -129,5 +132,63 @@ func TestPNGDiffToleratesNothingButNoise(t *testing.T) {
 	d, err := pngDiff(png, other)
 	if err == nil && d <= pngTolerance {
 		t.Fatalf("two different figures compared equal (diff %v)", d)
+	}
+}
+
+// countingTarget counts the drawing calls a figure makes, and nothing else.
+type countingTarget struct{ calls int }
+
+func (t *countingTarget) Open(ir.Surface) (ir.Backend, error) { return (*counter)(t), nil }
+func (t *countingTarget) Close() error                        { return nil }
+
+type counter countingTarget
+
+func (c *counter) Polyline([]ir.Point, ir.Stroke)          { c.calls++ }
+func (c *counter) StrokePath(*ir.Path, ir.Stroke)          { c.calls++ }
+func (c *counter) FillPath(*ir.Path, ir.Fill, ir.FillRule) { c.calls++ }
+func (c *counter) Text(ir.TextRun)                         { c.calls++ }
+func (c *counter) Markers(ir.Marker, []ir.Point, ir.MarkerStyle) {
+	c.calls++
+}
+func (c *counter) Image(image.Image, ir.Rect) { c.calls++ }
+func (c *counter) Push(*ir.Path, ir.Affine)   {}
+func (c *counter) Pop()                       {}
+func (c *counter) Flush() error               { return nil }
+func (c *counter) Measure(run ir.TextRun) ir.TextMetrics {
+	return ir.TextMetrics{Advance: float32(len(run.Text)) * float32(run.Font.Size) * 0.5}
+}
+
+// A documentation figure is drawn with a few thousand calls at most, and that
+// is a budget rather than an observation.
+//
+// The arithmetic is easy to lose sight of and it cost two red CI runs. A
+// shaded surface makes one drawing call per quad, because the IR carries no
+// per-mark colour ([ADR 0007]); a trajectory makes one per segment, so that
+// its pieces can be depth-ordered against everything else; a multi-view
+// figure makes them once per camera; and these tests render every figure
+// about five times in each of two formats. What turned that into ten minutes
+// under the race detector was a raster backend rasterising the panel's clip
+// into a mask and then consulting it on every call — a figure cost its calls
+// times its area. That is fixed where it belonged, in the backend
+// ([ir.Path.AsRect]), so a call is a call again.
+//
+// The budget stays, because the fix removed a multiplier and not the
+// underlying count, and because nothing else here notices a figure that
+// quietly starts drawing a hundred thousand marks. It is a wall rather than a
+// target: a flat chart uses tens, the two projected ones use most of it, and
+// a new figure that wants more than this wants a coarser grid or fewer
+// traces, because a picture in the documentation is read at four hundred
+// pixels wide.
+func TestNoFigureIsDrawnWithTooManyCalls(t *testing.T) {
+	const budget = 4000
+	for _, f := range figures() {
+		c := &countingTarget{}
+		if err := f.chart().Render(c); err != nil {
+			t.Fatalf("%s: %v", f.name, err)
+		}
+		if c.calls > budget {
+			t.Errorf("%s is drawn with %d calls, and the budget is %d: "+
+				"the gallery renders every figure about ten times over", f.name, c.calls, budget)
+		}
 	}
 }

@@ -69,6 +69,29 @@ alongside its palette colour — the chart survives a greyscale printout and the
 readers who cannot separate its first two colours — and it leaves a layer that
 named its own `geom.Dash` or `geom.Shape` alone.
 
+**A projected scene is described without its camera**, and that is a
+requirement rather than a nicety. A chart that has to be turned to be read is a
+chart some readers cannot read — and a static export, which is most of them,
+cannot be turned at all. So `three.Plot.Describe` reports the three ranges and
+what is plotted, it says the same thing at every angle, and a figure holding
+four cameras is described once:
+
+```
+1 layer with surface marks. Axes: bias (V) across the floor, drive (dBm) into
+the floor and gain (dB) upward. gain, a surface of 576 rows, bias from 1 to 3,
+drive from -20 to 5, gain from 6.000279955689806 to 19.956425561660566.
+```
+
+"Vertically" is deliberately absent: in three dimensions both floor axes are
+places and the third is the quantity, so a reader told "y vertically" would be
+reading the wrong chart. `DataTable` writes the depth column beside the other
+two, which is what a reader who cannot turn the picture is left with — and it
+is enough ([ADR 0057](adr/0057-orbiting-a-chart.md)).
+
+The same reasoning is why the default camera is a requirement rather than a
+default: a scene whose initial angle hides its own data behind itself is broken
+for everyone who cannot drag it.
+
 See [`examples/accessible`](../examples/accessible), which writes the picture, the
 page and the description as three files.
 

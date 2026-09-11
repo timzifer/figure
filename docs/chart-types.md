@@ -35,6 +35,7 @@ on any of them.
 | Distribution stats (`Bin`, KDE, hexbin, ECDF, loess) | **shipped** — [ADR 0028](adr/0028-distribution-stats.md) | histogram, violin, hexbin, ridgeline, beeswarm, smoothing |
 | A Smith coordinate system (`coord.Smith`) + pinned ticks (`scale.TickValues`) | **shipped** — [ADR 0033](adr/0033-smith-charts.md) | Smith chart, admittance (Y) chart, matching-network locus, impedance region |
 | Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
+| A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
 | A locus: a family of curves given by a formula (`geom.Locus`) | **planned** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
@@ -458,6 +459,33 @@ plus bucket I's contours; a **Pareto chart** is sorted bars with the cumulative
 percentage on the secondary axis; **Bland–Altman** is a scatter and
 three reference lines.
 
+## N — needs a projection — **shipped**, except the scatter
+
+The forms whose reading the flat chart of the same table cannot give, ranked
+that way rather than by popularity in
+[ADR 0058](adr/0058-what-3d-is-for.md). They are drawn by `figure/three`,
+which projects above the IR and orders back to front — so every backend draws
+them, and none of them needed the IR to gain anything.
+
+| Form | Machinery | Status |
+|---|---|---|
+| Surface over a grid, z = f(x, y) | `three.Surface`; the grid's own back-to-front order | **shipped** — `examples/surface` |
+| Terrain / DEM | the same surface with `geom.ColorBy` over the height | **shipped** — the depth axis is the key, so there is no colourbar |
+| Trajectory / phase space | `three.Line3`; one primitive per segment | **shipped** — `testdata/golden/trajectory.svg` |
+| Cascade / waterfall | `three.Line3` with `geom.GroupBy`: N traces offset along a floor axis | **shipped** as a recipe — `examples/cascade`, and no code in the library knows what a cascade is |
+| 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
+| Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
+| 3D scatter with droplines | a marker primitive beside the face and the line, and a rule to the floor | **planned** — the one rank-1 form still missing, and it needs no new machinery |
+| Contours projected on the floor and walls | `stat.Contour` over the same grid | **planned** — the same function pays for the flat contour plot |
+| Antenna pattern, Poincaré sphere, Bloch sphere, stereonet, 3D Smith | a spherical coord mapped into this scene | **planned** — [ADR 0058](adr/0058-what-3d-is-for.md) rank 3 |
+
+Refused, and each for a reason rather than for a schedule: arbitrary meshes and
+CAD (a painter's order is exact only over a set that can be totally ordered),
+volume rendering and voxels (those visualise fields, and `data.Source` hands out
+columns), LIDAR-scale point clouds (decimation is off in a projected scene), the
+3D pie, and animated 3D as a chart type — a scene that turns by itself is a
+video, and a reader cannot compare two moments of one.
+
 ## Already possible today
 
 Worth saying plainly, because they look like gaps and are not: a **band /
@@ -485,9 +513,19 @@ announced to no observer, because a tooltip a pointer can hit is a tooltip that
 flickers ([ADR 0046](adr/0046-overlay-layer.md)). Label collision avoidance is
 opt-in per layer ([ADR 0040](adr/0040-label-collision-avoidance.md)).
 
-What is left is five records, listed in the order they argue for — a dependency
-order rather than a preference. The first is the only one anything else waits
-on.
+Bucket N is drawn today too, and it is the newest: `figure/three` projects a
+scene above the IR and orders it back to front, so a surface, a trajectory, a
+cascade and a field of bars are drawn by every backend the library has
+([ADR 0056](adr/0056-three-dimensional-charts.md)), turned at a camera the host
+holds ([ADR 0057](adr/0057-orbiting-a-chart.md)), and looked at from as many
+cameras at once as a figure has room for
+([ADR 0062](adr/0062-a-scene-and-its-views.md)). What is left of it is the 3D
+scatter with its droplines, the contours on the floor, and the spherical coord —
+listed in [ADR 0058](adr/0058-what-3d-is-for.md)'s own order of work.
+
+What is left besides is five records, listed in the order they argue for — a
+dependency order rather than a preference. The first is the only one anything
+else waits on.
 
 1. **A locus** — I ([ADR 0050](adr/0050-locus-annotations.md)). First, because
    it is the only one of the five with a dependent: bucket J keeps it as the

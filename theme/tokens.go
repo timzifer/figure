@@ -1,6 +1,8 @@
 package theme
 
 import (
+	"math"
+
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/palette"
 )
@@ -153,9 +155,36 @@ func Build(t Tokens) Theme {
 		Sequential: t.Sequential,
 		Diverging:  t.Diverging,
 
+		// The scene's light comes over the reader's left shoulder and from
+		// above, which is where every reader has been taught light comes from
+		// since the first shaded drawing. It is a convention rather than a
+		// brand decision, so it is derived here and is not a token; a caller
+		// who disagrees reaches [Theme.With].
+		//
+		// The floor is 0.35 rather than 0: a face turned fully away from the
+		// light is still lit by the room, and one drawn black would read as a
+		// hole in the surface rather than as the far side of it.
+		LightDir:   unit3(-0.4, -0.6, 0.7),
+		LightFloor: 0.35,
+		DepthTop:   t.Background,
+		DepthSide:  t.Ink,
+		CubeFill:   palette.Lerp(t.Background, t.Ink, 0.04),
+		CubeEdge:   t.Line,
+		CubeGrid:   t.LineSubtle,
+
 		LineWidth:  1.75,
 		MarkerSize: 6,
 	}
+}
+
+// unit3 normalises a light direction at build time, so that the shading
+// arithmetic can dot with it and stop.
+func unit3(x, y, z float32) [3]float32 {
+	n := float32(math.Sqrt(float64(x*x + y*y + z*z)))
+	if n == 0 {
+		return [3]float32{0, 0, 1}
+	}
+	return [3]float32{x / n, y / n, z / n}
 }
 
 // Tokens returns the tokens a theme was built from, as far as they can be read

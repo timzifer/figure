@@ -31,7 +31,7 @@ import (
 // caller's data rather than from figure.
 func WriteTable(w io.Writer, c Chart) error {
 	tw := &tableWriter{w: w}
-	if len(c.Layers) == 0 {
+	if len(c.Layers) == 0 && len(c.Descs) == 0 {
 		tw.printf("<p>%s</p>\n", esc("This chart has no layers."))
 		return tw.err
 	}
@@ -41,16 +41,32 @@ func WriteTable(w io.Writer, c Chart) error {
 			tw.printf("<p>%s</p>\n", esc(fmt.Sprintf("Layer %d cannot describe itself.", i+1)))
 			continue
 		}
-		if d.Source == nil {
-			tw.annotation(d)
-			continue
-		}
-		tw.table(labelOf(d, i), d)
+		tw.layer(d, i)
 		if tw.err != nil {
 			return tw.err
 		}
 	}
+	// A chart whose layers are not geoms — a projected scene — writes the same
+	// tables from the same descriptions. The data is the third of the three
+	// channels a chart says what it is in, and it is the one a scene that must
+	// be turned to be read depends on most.
+	if len(c.Layers) == 0 {
+		for i, d := range c.Descs {
+			tw.layer(d, i)
+			if tw.err != nil {
+				return tw.err
+			}
+		}
+	}
 	return tw.err
+}
+
+func (t *tableWriter) layer(d geom.Desc, i int) {
+	if d.Source == nil {
+		t.annotation(d)
+		return
+	}
+	t.table(labelOf(d, i), d)
 }
 
 // Table returns what [WriteTable] writes.
@@ -169,7 +185,7 @@ func fields(d geom.Desc) []string {
 	// single row — an empty answer to "what is actually in this chart", which
 	// is the one thing docs/adr/0024-accessibility.md asks it not to give.
 	for _, name := range []string{
-		d.X, d.Y, d.X2, d.Y2, d.ColorCol, d.Group, d.WidthCol,
+		d.X, d.Y, d.Z, d.X2, d.Y2, d.ColorCol, d.Group, d.WidthCol,
 		d.From, d.To, d.ID, d.ParentCol, d.ValueCol,
 	} {
 		if name == "" || seen[name] {

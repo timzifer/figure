@@ -175,6 +175,68 @@ design explicitly:
 figure.New(figure.Size(200, 125), figure.ResponsiveFrom(800, 500))
 ```
 
+## Turning a scene
+
+```go
+live, _ := plot.Live(target)   // plot is a *three.Plot
+live.Draw()
+
+// the host's event handler, wherever the host's events come from
+const perPixel = 0.008 // radians; the host's choice, not figure's
+live.Camera(three.Orbit(live.CameraValue(), dx*perPixel, -dy*perPixel))
+live.Draw()
+```
+
+That is the whole of it. A camera is an immutable value, `three.Orbit` is a
+pure function from one to another, and figure installs no handler, opens no
+window and runs no loop — the host has an event source already and this takes
+two floats from it ([ADR 0057](adr/0057-orbiting-a-chart.md)). Nothing else
+about the chart changes: there is no orbit event kind, and `interact` is
+untouched.
+
+How many radians a pixel of drag is worth is the host's constant on purpose.
+That number is a statement about how the interaction *feels*, and so are
+inertia, momentum and springs — a library that decided one would be deciding it
+for every host.
+
+Easing an orbit is `three.Slerp` and the easings in the root package, in a loop
+the host owns. It does not go near `Live.Transition`: interpolation lives in
+data space because that is the only place identity means anything
+([ADR 0044](adr/0044-transitions.md)), and a camera has no rows.
+
+`live.Home()` returns to the angle the author chose, which matters more than it
+sounds — a reader who has turned the scene into a mess is one call from the
+picture the chart was designed at.
+
+**A figure may hold several cameras**, because a camera is a value rather than
+state of the scene. `live.Camera` turns them all together, which is what a
+synchronised orbit of a plan-and-elevations figure is; `live.SetCamera(i, cam)`
+turns one, and `live.ViewAt(x, y)` says which one the pointer is over
+([ADR 0062](adr/0062-a-scene-and-its-views.md)).
+
+**A turn skips the damage diff.** Under an orbit every drawing call in the
+moved view differs, because every point moved, so diffing two whole recordings
+would walk them to reach an answer known before it started. A frame whose
+camera moved is simply not comparable with the last one — the rule `Resize`
+already follows — and only the cells that turned are repainted, which is what
+makes a four-view figure affordable to drag. At rest the diff runs and earns
+its keep exactly as it does in a flat chart.
+
+**What a pointer can ask of a scene, and what it cannot.** A hit reports its
+kind, its layer, its series and its **row**; `Hit.X` and `Hit.Y` stay zero. A
+turned cube has no screen axes to invert a device position through, and naming
+a value nothing was drawn at would be worse than naming none. With row tracking
+on, the caller has an index into the table it supplied — figure says exactly
+which datum it is, and the program says what that datum contains
+([ADR 0056](adr/0056-three-dimensional-charts.md)).
+
+**There is no interactive SVG.** A camera is a parameter of the render, so a
+document is written once at the angle it was asked for. Emitting one with a
+script that re-projects the scene in the viewer means shipping a second
+renderer, in another language, inside a file. That is also why the default
+camera has to be readable on its own, and why the description never mentions
+one.
+
 ## Nanoseconds at any zoom
 
 A Unix nanosecond count in this century needs 61 bits, and a float64 has 53. Two

@@ -322,3 +322,62 @@ func apply(xs []float64, fn func(float64) float64) []float64 {
 	}
 	return out
 }
+
+// A clip has to clip, whichever branch the backend takes to install it.
+//
+// A rectangular clip is handed to gg as a scissor rectangle rather than as a
+// rasterised mask, because a mask is consulted again on every drawing call
+// inside it and that made a figure cost its calls times its area. The two
+// paths are different code, so both are checked here on the property that
+// matters: ink outside the clip does not reach the pixels.
+func TestAClipKeepsInkInsideItWhateverItsShape(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		clip func(*ir.Path)
+	}{
+		{"a rectangle", func(p *ir.Path) { p.Rect(ir.R(20, 20, 60, 60)) }},
+		{"a triangle", func(p *ir.Path) {
+			p.MoveTo(20, 20).LineTo(60, 20).LineTo(60, 60).Close()
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := ggbackend.NewSurface()
+			b, err := s.Open(ir.Surface{WidthPx: 100, HeightPx: 100, DPR: 1})
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+
+			var bg ir.Path
+			bg.Rect(ir.R(0, 0, 100, 100))
+			b.FillPath(&bg, ir.Fill{Color: ir.RGB(255, 255, 255)}, ir.NonZero)
+
+			var clip ir.Path
+			tc.clip(&clip)
+			b.Push(&clip, ir.Identity)
+			var wide ir.Path
+			wide.Rect(ir.R(-50, -50, 150, 150))
+			b.FillPath(&wide, ir.Fill{Color: ir.RGB(0, 0, 0)}, ir.NonZero)
+			b.Pop()
+
+			if err := b.Flush(); err != nil {
+				t.Fatalf("Flush: %v", err)
+			}
+			img := s.Image()
+			if img == nil {
+				t.Fatal("nothing was drawn")
+			}
+			dark := func(x, y int) bool {
+				r, _, _, _ := img.At(x, y).RGBA()
+				return r>>8 < 128
+			}
+			if !dark(40, 40) {
+				t.Error("the middle of the clip was not painted")
+			}
+			for _, p := range [][2]int{{5, 5}, {95, 5}, {5, 95}, {95, 95}, {40, 5}, {5, 40}} {
+				if dark(p[0], p[1]) {
+					t.Errorf("ink reached (%d,%d), which is outside the clip", p[0], p[1])
+				}
+			}
+		})
+	}
+}

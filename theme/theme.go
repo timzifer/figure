@@ -124,6 +124,23 @@ type Theme struct {
 	SeriesDashes  [][]float32
 	SeriesMarkers []ir.Marker
 
+	// A projected scene. A flat chart needs none of this; a three-dimensional
+	// one needs to know which way the light falls and what a face turned
+	// toward it and away from it are mixed toward. There is one directional
+	// light and no model beyond it: no specular, no shadows, no ambient
+	// occlusion, no textures — see docs/adr/0056-three-dimensional-charts.md.
+	//
+	// DepthTop and DepthSide are ADR 0055's two shades under ADR 0055's
+	// names: a mark extruded by an oblique coord and a face of a surface are
+	// both a colour seen in depth, and one ladder is right for both.
+	LightDir   [3]float32 // unit direction the light comes from, in scene space
+	LightFloor float64    // how lit the least-lit face still is, in [0, 1]
+	DepthTop   ir.Color   // a face turned toward the light mixes toward this
+	DepthSide  ir.Color   // one turned away mixes toward this
+	CubeFill   ir.Color   // the three faces a projected cube shows
+	CubeEdge   ir.Color   // its edges
+	CubeGrid   ir.Color   // the grid drawn on those faces
+
 	// Default geometry weights.
 	LineWidth  float32
 	MarkerSize float32
