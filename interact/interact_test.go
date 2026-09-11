@@ -320,3 +320,44 @@ func TestARowIsNotTakenFromAnotherLayer(t *testing.T) {
 		t.Errorf("row = %d, want 1", hit.Row)
 	}
 }
+
+// Every drawing call closes, including the ones no depth was announced for.
+// A label drawn between two faces would otherwise leave the mark count
+// standing, and every mark after it would take the depth announced for the one
+// before — a right number in the wrong place, which is the hardest kind to see.
+func TestADepthIsNotShiftedByAnUnannouncedCall(t *testing.T) {
+	ix := interact.New()
+	b := ix.Watch(irtest.New())
+	ix.Panel(render.PanelInfo{Index: 0, Area: ir.R(0, 0, 100, 100)})
+	ix.Layer(render.LayerInfo{Index: 0})
+
+	var box ir.Path
+	box.Rect(ir.R(10, 10, 30, 30))
+	ix.Depth(5)
+	b.FillPath(&box, ir.Solid(ir.Color{A: 255}), ir.NonZero)
+
+	// A label, which nothing announces a depth for.
+	b.Text(ir.TextRun{Text: "a", At: ir.Point{X: 50, Y: 50}})
+
+	var other ir.Path
+	other.Rect(ir.R(60, 60, 80, 80))
+	ix.Depth(9)
+	b.FillPath(&other, ir.Solid(ir.Color{A: 255}), ir.NonZero)
+	ix.End()
+
+	for _, tc := range []struct {
+		at   ir.Point
+		want float64
+	}{
+		{ir.Point{X: 20, Y: 20}, 5},
+		{ir.Point{X: 70, Y: 70}, 9},
+	} {
+		h, ok := ix.At(tc.at, 1)
+		if !ok {
+			t.Fatalf("nothing was found at %v", tc.at)
+		}
+		if !h.Deep || h.Depth != tc.want {
+			t.Errorf("the mark at %v is at depth %v (said: %v), want %v", tc.at, h.Depth, h.Deep, tc.want)
+		}
+	}
+}

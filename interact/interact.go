@@ -945,6 +945,12 @@ func (p *probe) FillPath(path *ir.Path, fill ir.Fill, rule ir.FillRule) {
 // endCall closes one drawing call: its marks are counted from the start again,
 // and the depths it was given are marked spent rather than dropped — a run of
 // faces is filled and then stroked, which is two calls over one list.
+//
+// Every drawing call has to close, including the ones nothing announces a depth
+// for. A layer that draws a label between two faces would otherwise leave the
+// count standing at one, and every mark after it would take the depth announced
+// for the mark before it — which is not a wrong number in an obvious place but
+// a right number in the wrong one.
 func (p *probe) endCall() {
 	p.n = 0
 	p.ix.spent = true
@@ -983,16 +989,19 @@ func (p *probe) Text(run ir.TextRun) {
 		{X: run.At.X, Y: run.At.Y - h},
 		{X: run.At.X + w, Y: run.At.Y},
 	}, 0)
+	p.endCall()
 }
 
 func (p *probe) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) {
 	p.b.Markers(shape, at, style)
 	p.add(Vertex, at, style.Size/2)
+	p.endCall()
 }
 
 func (p *probe) Image(img image.Image, dst ir.Rect) {
 	p.b.Image(img, dst)
 	p.add(Area, []ir.Point{dst.Min, dst.Max}, 0)
+	p.endCall()
 }
 
 func (p *probe) Push(clip *ir.Path, xform ir.Affine) {
