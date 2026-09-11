@@ -136,6 +136,32 @@ func TestPathAsRectRecognisesARectangleAndNothingElse(t *testing.T) {
 		t.Errorf("a parallelogram reported the rectangle %v", got)
 	}
 
+	// A path that doubles back on itself along two axes encloses nothing and
+	// has the whole box for a bounding box. Every one of its edges is
+	// axis-aligned, so an edge test alone admits it — and the box it would
+	// report is room a clip built from it must not have.
+	var doubledBack ir.Path
+	doubledBack.MoveTo(0, 0).LineTo(1, 0).LineTo(0, 0).LineTo(0, 1).Close()
+	if got, ok := doubledBack.AsRect(); ok {
+		t.Errorf("a path that encloses no area reported the rectangle %v", got)
+	}
+
+	// The same shape of mistake with three of the four corners: one of them
+	// visited twice, so the walk is a line rather than a box.
+	var repeated ir.Path
+	repeated.MoveTo(0, 0).LineTo(1, 0).LineTo(1, 1).LineTo(1, 0).Close()
+	if got, ok := repeated.AsRect(); ok {
+		t.Errorf("a path visiting one corner twice reported the rectangle %v", got)
+	}
+
+	// A degenerate box is not a rectangle either: it has two corners, not
+	// four, and a clip made from it would be a line.
+	var flat ir.Path
+	flat.MoveTo(0, 0).LineTo(1, 0).LineTo(1, 0).LineTo(0, 0).Close()
+	if got, ok := flat.AsRect(); ok {
+		t.Errorf("a zero-height path reported the rectangle %v", got)
+	}
+
 	for name, p := range map[string]*ir.Path{
 		"empty":      new(ir.Path),
 		"unclosed":   new(ir.Path).MoveTo(3, 5).LineTo(11, 5).LineTo(11, 17).LineTo(3, 17),

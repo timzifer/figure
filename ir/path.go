@@ -195,10 +195,17 @@ func (p *Path) Walk(fn func(op PathOp, pts []Point)) {
 // ruinous at a thousand. Recognising the shape here rather than in each
 // backend keeps one definition of what "this path is a rectangle" means.
 //
-// A single closed subpath of four corners qualifies when every edge, the
-// closing one included, runs along one axis; both windings and any starting
-// corner are accepted. A path that encloses no area still qualifies — it
-// draws nothing either way — so callers that care must check [Rect.Empty].
+// A single closed subpath of four points qualifies when it walks the four
+// distinct corners of its own bounding box, each once, along edges rather
+// than diagonals; both windings and any starting corner are accepted, and a
+// box with no area is not a rectangle.
+//
+// The corner test is the part that is easy to leave out and it is the part
+// that matters. Axis-aligned edges alone are not enough: (0,0), (1,0), (0,0),
+// (0,1) runs along an axis four times, doubles back on itself, encloses
+// nothing — and has the unit square for a bounding box. Reporting that box
+// would hand a clip *more* room than the path allows, which is the one
+// direction a clip must never be wrong in.
 func (p *Path) AsRect() (Rect, bool) {
 	if len(p.Ops) != 5 || len(p.Pts) != 4 {
 		return Rect{}, false
@@ -207,10 +214,39 @@ func (p *Path) AsRect() (Rect, bool) {
 		p.Ops[3] != OpLineTo || p.Ops[4] != OpClose {
 		return Rect{}, false
 	}
+	r := p.Bounds()
+	if r.Empty() {
+		return Rect{}, false
+	}
+	// Every point is a corner of the box, and no corner twice.
+	var seen [4]bool
+	for _, q := range p.Pts {
+		corner := 0
+		switch q.X {
+		case r.Min.X:
+		case r.Max.X:
+			corner |= 1
+		default:
+			return Rect{}, false
+		}
+		switch q.Y {
+		case r.Min.Y:
+		case r.Max.Y:
+			corner |= 2
+		default:
+			return Rect{}, false
+		}
+		if seen[corner] {
+			return Rect{}, false
+		}
+		seen[corner] = true
+	}
+	// And consecutive corners are joined by a side rather than a diagonal,
+	// which is what fixes the order they are walked in.
 	for i, a := range p.Pts {
 		if b := p.Pts[(i+1)%4]; a.X != b.X && a.Y != b.Y {
 			return Rect{}, false
 		}
 	}
-	return p.Bounds(), true
+	return r, true
 }
