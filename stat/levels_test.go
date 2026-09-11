@@ -79,16 +79,15 @@ func TestLevelsGivesAboutAsManyAsAsked(t *testing.T) {
 	}
 }
 
-// The Append form writes into a caller's slice, which is how a chart redrawn
-// every frame keeps its allocations flat.
+// The Append form writes into a caller's slice rather than one of its own. How
+// many times it allocates is checked in alloc_test.go, away from the race
+// detector.
 func TestAppendLevelsReusesTheCallersSlice(t *testing.T) {
 	dst := make([]float64, 0, 16)
 	dst = stat.AppendLevels(dst, 0, 10, 5)
 	first := &dst[0]
 
-	if got := testing.AllocsPerRun(10, func() { dst = stat.AppendLevels(dst, 0, 10, 5) }); got != 0 {
-		t.Errorf("AppendLevels allocated %.0f times into a slice with room", got)
-	}
+	dst = stat.AppendLevels(dst[:0], 0, 10, 5)
 	if &dst[0] != first {
 		t.Error("AppendLevels replaced the slice it was given")
 	}

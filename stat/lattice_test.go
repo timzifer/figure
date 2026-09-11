@@ -103,26 +103,3 @@ func TestALatticeReportsWhyATableIsNotOne(t *testing.T) {
 		t.Errorf("the bad row is %d, want 2", l.At)
 	}
 }
-
-// The type is a struct with a Reset so that a chart redrawn every frame
-// resolves into the same memory.
-func TestResolvingALatticeAgainDoesNotAllocate(t *testing.T) {
-	const n = 24
-	xs := make([]float64, 0, n*n)
-	ys := make([]float64, 0, n*n)
-	vs := make([]float64, 0, n*n)
-	for j := range n {
-		for i := range n {
-			xs, ys = append(xs, float64(i)), append(ys, float64(j))
-			vs = append(vs, float64(i*j))
-		}
-	}
-
-	var l stat.Lattice
-	if f := l.Reset(xs, ys, vs); f != stat.LatticeOK {
-		t.Fatal(f)
-	}
-	if got := testing.AllocsPerRun(10, func() { l.Reset(xs, ys, vs) }); got != 0 {
-		t.Errorf("resolving again allocated %.0f times, want none", got)
-	}
-}

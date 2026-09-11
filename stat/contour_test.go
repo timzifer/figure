@@ -228,29 +228,6 @@ func TestRunsAreGroupedByAscendingLevel(t *testing.T) {
 	}
 }
 
-// Reset keeps its buffers, which is why it is a struct at all.
-func TestTracingAgainDoesNotAllocate(t *testing.T) {
-	const n = 33
-	xs := make([]float64, n)
-	ys := make([]float64, n)
-	for i := range n {
-		xs[i], ys[i] = float64(i), float64(i)
-	}
-	z := make([]float64, n*n)
-	for j := range n {
-		for i := range n {
-			z[j*n+i] = math.Sin(float64(i)/3) * math.Cos(float64(j)/3)
-		}
-	}
-	levels := stat.Levels(-1, 1, 6)
-
-	var c stat.Contour
-	c.Reset(xs, ys, z, levels)
-	if got := testing.AllocsPerRun(10, func() { c.Reset(xs, ys, z, levels) }); got != 0 {
-		t.Errorf("tracing again allocated %.0f times, want none", got)
-	}
-}
-
 func trace(xs, ys, z []float64, level float64) [][]stat.Point {
 	var c stat.Contour
 	c.Reset(xs, ys, z, []float64{level})
