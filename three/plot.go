@@ -43,6 +43,8 @@ type Plot struct {
 	obs  render.Observer
 	rows geom.Rows
 
+	overlay Overlay
+
 	// sink is the scratch a repeatedly redrawn figure keeps rather than
 	// borrowing — see draw. It is nil for a plot rendered once.
 	sink *Sink

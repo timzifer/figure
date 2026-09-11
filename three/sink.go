@@ -79,6 +79,10 @@ type Sink struct {
 	// boxes is the cube's label-collision scratch, kept here so that it is
 	// pooled with everything else rather than made per view per frame.
 	boxes []ir.Rect
+	// oviews is the list an overlay is told the views in, kept here for the
+	// reason boxes is: a figure redrawn every frame must not allocate one per
+	// frame, and the orbit benchmarks are the gate that says so.
+	oviews []OverlayView
 
 	// The state a layer sets and this package resets between layers.
 	layer int32

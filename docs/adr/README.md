@@ -72,6 +72,7 @@ depends on.
 | [0060](0060-parameter-structs-at-every-seam.md) | Every seam an outsider implements takes a struct, and the count of optional interfaces stops growing | Accepted | — |
 | [0061](0061-columns-are-one-value.md) | A column is one value that grows, and identity is its spelling | Accepted | — |
 | [0062](0062-a-scene-and-its-views.md) | A scene is the data, a camera is a way of looking at it, and one figure may hold several | Accepted | — |
+| [0063](0063-an-overlay-over-a-scene.md) | A scene is painted over too, and the seam is `three`'s own | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -138,3 +139,10 @@ all need, none of which can be turned. It is a record of its own rather than a
 paragraph in 0057 because [ADR 0059](0059-renaming-and-restarting-the-version.md)
 asks for one: a change that is not on 0056's list needs a record here before it
 needs code.
+
+**0063 is what 0062 left unbuildable.** 0062 closed by saying that highlighting
+the row a pointer landed on in every view is the host's, which is right — and a
+host had nowhere to draw it, because ADR 0046's overlay stopped at the flat
+chart. The record adds the paint and not the state: `three.OverlayView.At` hands
+back the pixel the scene drew a value at, in every view, and which rows are
+marked is still nobody's business but the program's.

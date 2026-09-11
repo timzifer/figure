@@ -58,6 +58,23 @@
 // draws a surface on the day this package compiles: SVG, PDF, canvas, raster,
 // the native window, the GPU tier. See docs/adr/0056-three-dimensional-charts.md.
 //
+// # Painting over a finished figure
+//
+// [Plot.Overlay] and [Live.Overlay] install something to paint after every view
+// is drawn: a ring round the rows a reader picked, a leader line, a caption. It
+// is where a host draws a selection, because there is no selection in here — a
+// scene with four cameras shares its data by holding one pointer and nothing
+// propagates between the views, which is the division
+// docs/adr/0045-linked-views.md made for two charts and
+// docs/adr/0062-a-scene-and-its-views.md restated for two cameras.
+//
+// An overlay is told where every view landed and, through [OverlayView.At], the
+// pixel any value of the data was drawn at in it — which is the only direction
+// that exists here, since a device point in a turned cube resolves to no triple
+// of values. It is drawn last, clipped by nothing, and announced to no
+// observer, so nothing it paints is hit-testable. See
+// docs/adr/0063-an-overlay-over-a-scene.md.
+//
 // # What it does not do
 //
 // No perspective: under one, the same value is taller at the front of the
