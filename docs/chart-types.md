@@ -13,13 +13,21 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped. J through M are planned and have records but
-no code** — [ADR 0051](adr/0051-barycentric-coord.md) through
-[ADR 0054](adr/0054-statistical-instruments.md). They are written down early
+**Buckets A through I have shipped. J through M, and O through Q, are planned
+and have records but no code** — [ADR 0051](adr/0051-barycentric-coord.md)
+through [ADR 0054](adr/0054-statistical-instruments.md), and
+[ADR 0065](adr/0065-horizon-charts.md) through
+[ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
 answered again, differently, later. Each is additive and nothing shipped waits
 on any of them.
+
+The last three arrived differently from the rest and are marked as such: they
+come from reading [xeno.graphics](https://xeno.graphics) against this file
+rather than from the code asking for them, and
+[the sweep](#the-sweep-of-the-unusual-forms) at the end records what the same
+reading declined.
 
 ## The plumbing, and what it unlocks
 
@@ -41,6 +49,9 @@ on any of them.
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
+| A raster mark (`geom.Raster`) | **planned** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
+| A folded axis (`geom.Horizon`) | **planned** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
+| A bivariate colour channel (`scale.BivariateColorScale`) | **planned** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
 
 ## A — needs a rectangle mark, and nothing else — **shipped**
 
@@ -242,6 +253,18 @@ form and a determinism test, per CONTRIBUTING's rule for reductions.
 | Trend line | `stat.Loess` | `geom.Trend` |
 | QQ | `stat.QQ` with a theoretical quantile function | `geom.QQ` for normal quantiles; unreleased |
 | Contour | `stat.Contour` | `geom.Contour` |
+| Raincloud | the violin's own KDE, unchanged | `Violin` + `Boxplot` + `Beeswarm` in one slot — see below |
+
+**A raincloud is three of these in one slot, and it needs an option rather
+than a mark.** The KDE's curve, the box and the individual points answer three
+different questions about one distribution — the shape, the summary and the
+sample size — and the form's whole claim is that a reader should not have to
+choose. All three marks are drawn today. What is missing is that
+`violinGeom.outline` is symmetric about the slot's centre, so the cloud cannot
+be moved off the rain: a half-violin option and a per-layer offset inside the
+slot are the diff, and after it the chart is a recipe rather than a mark.
+`geom.Dodge` is not that offset — it separates *groups* within a slot, where
+this separates *layers* over one.
 
 **`stat.Bin` changed meaning.** It is the 1-D histogram now, because that is what
 "bin" means without a qualifier; the 2-D binner it used to name is
@@ -292,15 +315,17 @@ chart's extent is the whole disc whatever the data does. And an edge is a
 **chord** by default: a line between two measured samples asserting a linear
 sweep in impedance is an assertion the instrument did not make.
 
-**Not drawn, and for one reason.** Constant-|Γ| (VSWR) circles, constant-Q arcs
-and a combined ZY overlay are each a third grid family, and there are two tick
-lists. That is the same constraint that chose the data model, and the two would
-be reopened together.
+**Not drawn by the coord, and for one reason.** Constant-|Γ| (VSWR) circles,
+constant-Q arcs and a combined ZY overlay would each be a third grid family, and
+there are two tick lists. That is the same constraint that chose the data model,
+and the two would be reopened together.
 
 **Bucket I is the answer, and it is not the one ADR 0033 predicted.** All three
 are curves given by a formula in impedance space rather than grid lines given by
 a tick, so they are annotations, and the Smith coord draws them without knowing
-they exist. See [ADR 0050](adr/0050-locus-annotations.md).
+they exist. The first two are drawn today — `geom.Locus(stat.SmithVSWR, …)` and
+`geom.Locus(stat.SmithQ, …)`, in `examples/smith` — and the overlay is one more
+family nobody has written. See [ADR 0050](adr/0050-locus-annotations.md).
 
 ## H — what is not a chart type
 
@@ -387,6 +412,7 @@ true, an edge is a `LineTo`, `Area` is four transformed corners, `Invert` is a
 | Phase and flammability diagrams | the same, plus `Region` and `geom.Locus` for the boundaries |
 | Probability simplex | the same, over three class probabilities |
 | Piper diagram | two ternary panels and one Cartesian panel in a `Grid`, plus the projection arithmetic |
+| Durov diagram | the same two ternaries, projected into a central rectangle rather than Piper's diamond |
 
 **The third grid family is the interesting part.** Three labelled ladders, two
 tick lists. The constant-c lines are drawn as a second subpath inside the X
@@ -500,6 +526,120 @@ columns), LIDAR-scale point clouds (decimation is off in a projected scene), the
 3D pie, and animated 3D as a chart type — a scene that turns by itself is a
 video, and a reader cannot compare two moments of one.
 
+## O — needs a raster — **planned**, [ADR 0066](adr/0066-a-raster-mark.md)
+
+Bucket A calls a heatmap a recipe, and for a few dozen categories by a few
+dozen categories it is one. A *measured field* is the same picture two orders of
+magnitude larger: a spectrogram is two thousand frames by five hundred bins, and
+one `Rect` per cell is a million primitives drawing a picture whose every cell
+is smaller than a pixel.
+
+`ir.Backend.Image` is in the interface and every backend implements it,
+`stat.Grid.Raster` already paints a grid of numbers into a reusable buffer, and
+`stat.Lattice` ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) already turns
+a long `(x, y, v)` table into a product grid. `geom.Raster` is those three
+wired together, reading the channels `geom.Contour` reads so that a field and
+its own isolines cannot disagree.
+
+| Chart | Recipe |
+|---|---|
+| **Spectrogram, waterfall** | `Raster` over (time, frequency, level), with `Resample(geom.Max)` so a peak survives the downscale |
+| Hovmöller diagram | `Raster` over (time, latitude or position, anomaly) through a diverging ramp |
+| Recurrence plot | `Raster` over a distance matrix — the stat is a reduction, the picture is this mark |
+| Dense heatmap of a measured field | `Raster` where `Rect` stops scaling; the two draw the same chart at different sizes |
+| Thermal or line-scan sensor frame | `Raster` over the frame's own lattice |
+| The backdrop under a contour | `Raster` + `Contour` on one source, one lattice, one reading |
+
+**It is the mark that can have a colourbar.** `geom.Hexbin` deliberately has
+none — its counts are not known until the plot rectangle is, and the guide
+column is measured before it. A raster's values are the data's, known in
+`Train`, so the reader gets a labelled bar in the units they measured. Two
+things are refused rather than approximated: an unequally spaced lattice, which
+an image cannot carry and `Rect` draws correctly today, and smooth upscaling,
+which would paint colours between two measurements.
+
+## P — needs a folded axis — **planned**, [ADR 0065](adr/0065-horizon-charts.md)
+
+Every answer to scale in this library is an answer about *rows*: decimation,
+the density raster, the hexbin. A **horizon chart** answers the other one. It
+cuts the value range into bands, draws each band at the panel's full height and
+tells them apart by colour, so a strip one quarter as tall keeps the resolution
+of a chart four times the size — which is what makes forty sensors legible on
+one screen. Heer, Kong and Agrawala measured the crossover in 2009: below about
+forty pixels of height it beats the filled line chart of the same series.
+
+| Chart | Recipe |
+|---|---|
+| Horizon chart | `geom.Horizon` with `Bands(3)` or `BandHeight(h)` |
+| A wall of them | one `facet` panel or one `Plot.Track` per series — both exist |
+
+**The interesting part is the ladder it gives up.** `render` labels nothing a
+scale did not write, and a mark may not invent furniture — the constraint
+[ADR 0033](adr/0033-smith-charts.md) recorded and
+[ADR 0051](adr/0051-barycentric-coord.md) declined to reopen. It does not have
+to be reopened here: after the fold the Y scale describes one band and its
+ticks are true of every band on screen, and what the reader is missing is
+*which* band, which is a colour. So the guide is a classed colourbar whose
+breaks are the fold's own boundaries — `scale.Quantize` reports them,
+`ColorGuide` keys on them, and [ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)
+already makes it answer a pointer.
+
+## Q — needs a bivariate colour channel — **planned**, [ADR 0067](adr/0067-a-bivariate-colour-channel.md)
+
+Three forms that look unrelated stop at the same seam: `scale.ColorScale` is
+one number in and one colour out, and `geom.ColorBy` names one column.
+
+| Chart | What the second reading is |
+|---|---|
+| **VSUP** — a value-suppressing uncertainty palette | the uncertainty, which takes *resolution* away from the value rather than contrast |
+| **Multi-class hexbin** | how purely one class dominates the bin |
+| Bivariate choropleth | the second quantity of the 3×3 square |
+
+The guide side has been ready since
+[ADR 0027](adr/0027-size-channel-and-the-guide-column.md), which priced a
+fourth kind at "a constant and two functions". The scale side is the decision,
+and the shape chosen is the one `ClassedColorScale` already uses: an optional
+interface riding `ColorScale`, so a bivariate scale handed to an ordinary layer
+degrades to the univariate reading instead of failing.
+
+**Two things in the tree argue that this is not an ornament.**
+[ADR 0036](adr/0036-error-bars.md) exists because a measurement carries a claim
+about how well it is known and that half had nowhere to go — this is the same
+sentence with the channel changed, in the channel where a filled cell reads as
+a measurement whether or not one was taken. And the three answers to
+overplotting all report *how many* and none reports *who*:
+`geom/decimate.go`'s `autoReduction` returns `NoDecimation` the moment colour
+varies, because a density raster of rows in eight colours has no colour to
+paint. A bin that keeps its classes is the missing half.
+
+## The sweep of the unusual forms
+
+Buckets O, P and Q came out of reading [xeno.graphics](https://xeno.graphics)
+against this file. Most of that catalogue is already here — violin, beeswarm,
+hexbin, ridgeline, streamgraph, sunburst, chord, arc diagram, sankey, treemap,
+marimekko, rose, slope — and what follows is what the reading turned up
+*besides* the three records, so that the verdicts survive the conversation.
+
+| Form | Verdict |
+|---|---|
+| **Raincloud plot** | an option, not a mark: bucket F above |
+| **Durov diagram** | one row in bucket J, beside Piper, once the barycentric coord exists |
+| **Hovmöller diagram** | drawable today with `Rect`, and the reason bucket O is about the *size* rather than about the form |
+| **Parallel coordinates, parallel sets** | the widest genuine gap on the page, and the answer is already named in bucket D: a coord of its own, reporting its axes as furniture the way `coord.Polar` reports a radar's spokes. Go has nothing and neither does D3 out of the box |
+| **Recurrence plot** | a distance matrix and bucket O's mark; the stat is small and the picture is a raster |
+| **Cycle plot, seasonal subseries** | drawable today — a facet per cycle position and a line per cycle — and missing only a gallery figure |
+| **Bump chart** | `Line` over ordinal ranks with `geom.AvoidOverlap` on the labels ([ADR 0040](adr/0040-label-collision-avoidance.md)); a recipe |
+| **Calendar heatmap** | already listed in bucket A; what is missing is a date→(week, weekday) helper, not machinery |
+| **Voronoi** | the one layout the node-link refusal does not cover — Fortune's algorithm is O(n log n), deterministic and bounded, which is `stat.Squarify`'s shape. It would also sharpen hit-testing ([ADR 0015](adr/0015-hit-testing.md)). Not written up: nobody has asked for the chart, and the hit-test is a performance question rather than a form |
+| Word cloud, Demers cartogram, Venn | declined for [ADR 0039](adr/0039-relational-layouts.md)'s reason: each is a packing optimiser with its own failure modes, and a layout that runs until it settles is not a pure function of its input |
+| Isotype, tally, pictorial bar | a `Text` mark repeated on a grid; drawable today, and a chart type only in the sense that a font is |
+| Kagi, point-and-figure, Renko | a domain reduction of a price series — bucket M's admission rule decides them, and the reduction is the chart |
+
+**Ranking, if only one of these gets built.** Parallel coordinates reaches the
+most readers and needs the most argument; the raster reaches the most charts
+already half-drawn and needs the least. Nothing here waits on anything in
+buckets I through M.
+
 ## Already possible today
 
 Worth saying plainly, because they look like gaps and are not: a **band /
@@ -537,30 +677,43 @@ cameras at once as a figure has room for
 scatter with its droplines, the contours on the floor, and the spherical coord —
 listed in [ADR 0058](adr/0058-what-3d-is-for.md)'s own order of work.
 
-What is left besides is five records, listed in the order they argue for — a
-dependency order rather than a preference. The first is the only one anything
-else waits on.
+**The locus has landed**, which was the first of this list and the only entry
+anything else waited on: bucket J keeps it as the escape hatch for a fourth grid
+family and bucket M's funnel plot is a scatter plus one, and it closed three
+lines ADR 0033 left open that no other work would have closed
+([ADR 0050](adr/0050-locus-annotations.md)).
 
-1. **A locus** — I ([ADR 0050](adr/0050-locus-annotations.md)). First, because
-   it is the only one of the five with a dependent: bucket J keeps it as the
-   escape hatch for a fourth grid family, and bucket M's funnel plot is a
-   scatter plus one. It also closes three lines ADR 0033 left open, which no
-   other work will close.
-2. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
+What is left besides is four records, listed in the order they argue for — a
+dependency order rather than a preference. Nothing in the list now waits on
+anything else in it.
+
+1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
    widest genuine gap in the general-purpose world with a real user base, on
    the seam the coordinate stage already cut, and the cheapest coord in the
    package because the map is affine.
-3. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
+2. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
    The smallest diff in this list and the one with the rarest output: five
    charts and no new mark, because every one of them is `geom.ECDF` on a warped
    axis.
-4. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
+3. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
    four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.
-5. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
+4. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
    Last, and deliberately: it is the widest reach in the catalogue and the least
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.
+
+**Buckets O, P and Q are outside that order and do not join it.** Nothing in
+them waits on a locus, a coord, a scale or a layout, and nothing in J through M
+waits on them — which is the property that lets them be picked up whenever
+there is room rather than scheduled against the five. Among themselves the
+order is the one the records give: the **raster** (O) first, because it is the
+only one with a dependent — it is the backdrop 0064's contours are drawn over,
+and it turns three forms that are currently impossible at size into recipes;
+then the **horizon chart** (P), which is the form this repository's own
+examples keep asking for; then the **bivariate colour channel** (Q), which is a
+seam rather than a shape and should be built when the second of its three
+customers is actually wanted.
 
 ---
 
