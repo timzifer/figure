@@ -76,3 +76,59 @@ func TestColorConstantDomainDoesNotDivideByZero(t *testing.T) {
 		t.Error("a constant domain must still produce a colour")
 	}
 }
+
+// Training a colour scale twice is training it once, which is the property two
+// charts of one table rest on: a flat contour and a projected surface each
+// train the ramp they share, and a colour has to mean one number in both.
+//
+// It is checked through Color as well as through the domain, because the domain
+// is only interesting as the thing that decides the ink — and over every kind
+// of scale this package builds, because the property belongs to the contract
+// rather than to one implementation.
+func TestTrainingAColourScaleTwiceIsTrainingItOnce(t *testing.T) {
+	values := []float64{-4, -1, 0, 2.5, 7}
+	for _, tc := range []struct {
+		name string
+		make func() scale.ColorScale
+	}{
+		{"sequential", func() scale.ColorScale { return scale.Sequential(palette.Viridis) }},
+		{"diverging", func() scale.ColorScale { return scale.Diverging(palette.BlueOrange) }},
+		{"reversed", func() scale.ColorScale {
+			return scale.Sequential(palette.Viridis, scale.ColorReverse())
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			once, twice := tc.make(), tc.make()
+			once.Train(values...)
+			twice.Train(values...)
+			twice.Train(values...)
+
+			if a, b := once.Domain(); true {
+				if c, d := twice.Domain(); a != c || b != d {
+					t.Errorf("one training gives [%v, %v] and two give [%v, %v]", a, b, c, d)
+				}
+			}
+			for _, v := range values {
+				if once.Color(v) != twice.Color(v) {
+					t.Errorf("%v is %v after one training and %v after two", v, once.Color(v), twice.Color(v))
+				}
+			}
+		})
+	}
+}
+
+// A pinned domain ignores training altogether, which is the spelling to reach
+// for when two charts must agree whatever each of them was handed: two subsets
+// of one table train to two domains, and the same colour then means two
+// different numbers.
+func TestAPinnedColourDomainIgnoresTraining(t *testing.T) {
+	s := scale.Sequential(palette.Viridis, scale.ColorDomain(-10, 10))
+	before := s.Color(0)
+	s.Train(-1000, 1000, 3)
+	if lo, hi := s.Domain(); lo != -10 || hi != 10 {
+		t.Errorf("a pinned domain moved to [%v, %v]", lo, hi)
+	}
+	if got := s.Color(0); got != before {
+		t.Errorf("the colour of 0 moved from %v to %v", before, got)
+	}
+}

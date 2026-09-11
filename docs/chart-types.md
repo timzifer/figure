@@ -476,7 +476,7 @@ them, and none of them needed the IR to gain anything.
 | 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
 | Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
 | 3D scatter with droplines | a marker primitive beside the face and the line, and a rule to the floor | **planned** — the one rank-1 form still missing, and it needs no new machinery |
-| Contours projected on the floor and walls | `stat.Contour` over the same grid | **planned** — the same function pays for the flat contour plot |
+| Contours projected on the floor | `three.Contour` over `stat.Contour` | **shipped** — the same tracing as the flat plot, so the two cannot disagree. The walls are declined: a contour is a statement about z over (x, y), and a wall contains z ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) |
 | Antenna pattern, Poincaré sphere, Bloch sphere, stereonet, 3D Smith | a spherical coord mapped into this scene | **planned** — [ADR 0058](adr/0058-what-3d-is-for.md) rank 3 |
 
 Refused, and each for a reason rather than for a schedule: arbitrary meshes and

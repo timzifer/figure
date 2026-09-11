@@ -204,7 +204,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
 Deliberately **not** here: geographic projections, node-link and Venn diagrams,
-contour plots, and any engine that links two charts together — a link is a
+and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and
