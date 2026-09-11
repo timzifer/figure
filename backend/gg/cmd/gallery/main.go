@@ -211,6 +211,7 @@ func (f plate) render() (svg, png []byte, err error) {
 func figures() []plate {
 	return []plate{
 		qqFigure(),
+		nicholsFigure(),
 		labelsFigure(),
 		surfaceFigure(),
 		cascadeFigure(),

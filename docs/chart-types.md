@@ -13,9 +13,9 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through H have shipped. I through M, and O through Q, are planned
-and have records but no code** — [ADR 0050](adr/0050-locus-annotations.md) through
-[ADR 0054](adr/0054-statistical-instruments.md), and
+**Buckets A through I have shipped. J through M, and O through Q, are planned
+and have records but no code** — [ADR 0051](adr/0051-barycentric-coord.md)
+through [ADR 0054](adr/0054-statistical-instruments.md), and
 [ADR 0065](adr/0065-horizon-charts.md) through
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
@@ -44,7 +44,7 @@ reading declined.
 | A Smith coordinate system (`coord.Smith`) + pinned ticks (`scale.TickValues`) | **shipped** — [ADR 0033](adr/0033-smith-charts.md) | Smith chart, admittance (Y) chart, matching-network locus, impedance region |
 | Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
 | A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
-| A locus: a family of curves given by a formula (`geom.Locus`) | **planned** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
+| A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
@@ -315,15 +315,17 @@ chart's extent is the whole disc whatever the data does. And an edge is a
 **chord** by default: a line between two measured samples asserting a linear
 sweep in impedance is an assertion the instrument did not make.
 
-**Not drawn, and for one reason.** Constant-|Γ| (VSWR) circles, constant-Q arcs
-and a combined ZY overlay are each a third grid family, and there are two tick
-lists. That is the same constraint that chose the data model, and the two would
-be reopened together.
+**Not drawn by the coord, and for one reason.** Constant-|Γ| (VSWR) circles,
+constant-Q arcs and a combined ZY overlay would each be a third grid family, and
+there are two tick lists. That is the same constraint that chose the data model,
+and the two would be reopened together.
 
 **Bucket I is the answer, and it is not the one ADR 0033 predicted.** All three
 are curves given by a formula in impedance space rather than grid lines given by
 a tick, so they are annotations, and the Smith coord draws them without knowing
-they exist. See [ADR 0050](adr/0050-locus-annotations.md).
+they exist. The first two are drawn today — `geom.Locus(stat.SmithVSWR, …)` and
+`geom.Locus(stat.SmithQ, …)`, in `examples/smith` — and the overlay is one more
+family nobody has written. See [ADR 0050](adr/0050-locus-annotations.md).
 
 ## H — what is not a chart type
 
@@ -343,7 +345,7 @@ something else.
 | A PDF in a script WinAnsi cannot hold | **shipped** — [ADR 0038](adr/0038-embedded-fonts.md) | `pdf.WithFont`. The PDF emitter named the base-14 Helvetica and encoded WinAnsi, so every rune outside Latin-1 became `?` — Greek, Cyrillic, Hebrew, Thai and every CJK script, in the format people send to customers. |
 | Absence in a text or temporal column | **shipped** — [ADR 0034](adr/0034-null-values.md) | `data.Column.Nulls`. A null read back as `""` was a band of its own on an ordinal axis and one read back as the zero time stretched a domain across two millennia. |
 
-## I — needs a locus — **planned**, [ADR 0050](adr/0050-locus-annotations.md)
+## I — needs a locus — **shipped**, [ADR 0050](adr/0050-locus-annotations.md)
 
 A **locus** is a family of curves given by a formula rather than by data: the
 set of points in the plane where some derived quantity is constant. `geom.HLine`
@@ -358,21 +360,35 @@ circle is not
 implemented as a circle, it is implemented as the set of impedances whose
 reflection has a given magnitude, and `coord.Smith` makes it a circle.
 
-| Chart | The family | Coord |
-|---|---|---|
-| **Nichols diagram** | closed-loop magnitude and phase, `stat.NicholsM` / `stat.NicholsN` | Cartesian — the response itself is `Line` and needs nothing |
-| VSWR circles | constant \|Γ\| | `coord.Smith` |
-| Constant-Q arcs | \|x\| = Q·r | `coord.Smith` |
-| ZY overlay | the impedance families read through y = 1/z | `coord.Smith` |
-| Hall chart | the same two circle families as Nichols, before the log-polar step | Cartesian or `coord.Polar` |
-| Funnel plot contours | pseudo-confidence limits in (effect, standard error) | Cartesian |
-| Psychrometric, Mollier | constant enthalpy, wet-bulb, relative humidity | Cartesian |
+`geom.Locus(family, levels)` takes the family positionally the way `HLine` takes
+its one literal, and `stat` names four of them. A family a caller writes in Go
+is a first-class one and draws; what it cannot do is be written down, which is
+[ADR 0041](adr/0041-qq-plots.md)'s rule for a quantile function applied to a
+curve. A locus is the one annotation that does **not** train the axes by
+default: it says what the region of the plane means, and the region is whatever
+the axes already show.
 
-**The Nichols diagram is the one to build it for.** MATLAB's Control System
+| Chart | The family | Coord | Status |
+|---|---|---|---|
+| **Nichols diagram** | closed-loop magnitude and phase, `stat.NicholsM` / `stat.NicholsN` | Cartesian — the response itself is `Line` and needs nothing | **shipped** — see `examples/nichols` |
+| VSWR circles | constant \|Γ\|, `stat.SmithVSWR` | `coord.Smith` | **shipped** — see `examples/smith` |
+| Constant-Q arcs | \|x\| = Q·r, `stat.SmithQ` | `coord.Smith` | **shipped** — see `examples/smith` |
+| ZY overlay | the impedance families read through y = 1/z | `coord.Smith` | a family of its own, unwritten |
+| Hall chart | the same two circle families as Nichols, before the log-polar step | Cartesian or `coord.Polar` | a family of its own, unwritten |
+| Funnel plot contours | pseudo-confidence limits in (effect, standard error) | Cartesian | a family of its own, unwritten |
+| Psychrometric, Mollier | constant enthalpy, wet-bulb, relative humidity | Cartesian | three families of their own, unwritten |
+
+**The Nichols diagram is the one it was built for.** MATLAB's Control System
 Toolbox draws it and `python-control` draws it; outside those two the form does
 not exist, and Go has nothing. The arithmetic is smaller than the picture
 suggests: both contour families are circles in the complex L-plane, and the
 chart is that plane in log-polar view.
+
+![An open loop against the closed-loop contours it is read by](images/nichols.png)
+
+The four rows still marked unwritten are each a `Family` and nothing else: a few
+dozen lines of arithmetic in `stat`, no seam, no coord and no mark. That is the
+point of the bucket.
 
 ## J — needs a barycentric coord — **planned**, [ADR 0051](adr/0051-barycentric-coord.md)
 
@@ -661,33 +677,34 @@ cameras at once as a figure has room for
 scatter with its droplines, the contours on the floor, and the spherical coord —
 listed in [ADR 0058](adr/0058-what-3d-is-for.md)'s own order of work.
 
-What is left besides is five records, listed in the order they argue for — a
-dependency order rather than a preference. The first is the only one anything
-else waits on.
+**The locus has landed**, which was the first of this list and the only entry
+anything else waited on: bucket J keeps it as the escape hatch for a fourth grid
+family and bucket M's funnel plot is a scatter plus one, and it closed three
+lines ADR 0033 left open that no other work would have closed
+([ADR 0050](adr/0050-locus-annotations.md)).
 
-1. **A locus** — I ([ADR 0050](adr/0050-locus-annotations.md)). First, because
-   it is the only one of the five with a dependent: bucket J keeps it as the
-   escape hatch for a fourth grid family, and bucket M's funnel plot is a
-   scatter plus one. It also closes three lines ADR 0033 left open, which no
-   other work will close.
-2. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
+What is left besides is four records, listed in the order they argue for — a
+dependency order rather than a preference. Nothing in the list now waits on
+anything else in it.
+
+1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
    widest genuine gap in the general-purpose world with a real user base, on
    the seam the coordinate stage already cut, and the cheapest coord in the
    package because the map is affine.
-3. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
+2. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
    The smallest diff in this list and the one with the rarest output: five
    charts and no new mark, because every one of them is `geom.ECDF` on a warped
    axis.
-4. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
+3. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
    four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.
-5. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
+4. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
    Last, and deliberately: it is the widest reach in the catalogue and the least
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.
 
 **Buckets O, P and Q are outside that order and do not join it.** Nothing in
-them waits on a locus, a coord, a scale or a layout, and nothing in I through M
+them waits on a locus, a coord, a scale or a layout, and nothing in J through M
 waits on them — which is the property that lets them be picked up whenever
 there is room rather than scheduled against the five. Among themselves the
 order is the one the records give: the **raster** (O) first, because it is the

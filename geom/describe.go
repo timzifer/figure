@@ -61,6 +61,12 @@ const (
 	// at each end and a marker at the measurement.
 	MarkErrorBar Mark = "errorbar"
 
+	// MarkLocus is a family of curves given by a formula rather than by a tick:
+	// a Nichols chart's M and N contours, a Smith chart's VSWR circles. It is
+	// an annotation because none of those is at a value of either axis — see
+	// docs/adr/0050-locus-annotations.md.
+	MarkLocus Mark = "locus"
+
 	MarkHLine   Mark = "hline"
 	MarkVLine   Mark = "vline"
 	MarkHBand   Mark = "hband"
@@ -181,6 +187,13 @@ type Desc struct {
 	Datum Datum
 	Text  string
 
+	// Family is the set of curves a [Locus] draws, at the values in Levels. It
+	// is nil for every other mark. A family this library names is written down
+	// as that name and read back by it; one a caller wrote in Go is a layer
+	// that draws and does not serialise — see
+	// [github.com/timzifer/figure/stat.FamilyName].
+	Family Family
+
 	// TextCol is the column a [Text] layer reads its labels from, and Elide
 	// whether it truncates one that does not fit rather than dropping it.
 	// Both are unused by a layer that draws no text.
@@ -300,6 +313,11 @@ func FromDesc(d Desc) (Geom, error) {
 		return Region(d.Datum.X0, d.Datum.Y0, d.Datum.X1, d.Datum.Y1, opts...), nil
 	case MarkNote:
 		return Note(d.Datum.X0, d.Datum.Y0, d.Text, opts...), nil
+	case MarkLocus:
+		if d.Family == nil {
+			return nil, fmt.Errorf("figure/geom: a locus needs the family it draws")
+		}
+		return Locus(d.Family, d.Levels, opts...), nil
 	}
 
 	if build, ok := registered(d.Mark); ok {

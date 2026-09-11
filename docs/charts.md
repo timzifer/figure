@@ -192,13 +192,63 @@ impedance, which is what a matching network's steps are. And
 as a conductance and a susceptance — the Y chart a shunt element is read on, and
 the same physical reflection in the same place, against the other grid.
 
-Not drawn: constant-|Γ| circles, constant-Q arcs and a combined ZY overlay. Each
-is a third grid family, and a coord may draw one grid line per tick a scale
-emits — the same constraint that makes the columns an impedance in the first
-place.
+The constant-|Γ| circles and constant-Q arcs a paper chart is printed with are
+drawn too, and not by the coord: each is a `geom.Locus`, an annotation that
+takes a family of curves and the levels to draw it at.
 
-A runnable version of the sweep above, a two-element matching network and the
-admittance chart is in [`examples/smith`](../examples/smith).
+```go
+p.Add(geom.Locus(stat.SmithVSWR, []float64{1.5, 2, 3}))   // 2:1 is the datasheet number
+p.Add(geom.Locus(stat.SmithQ, []float64{1, 2, 5}))
+```
+
+Neither is implemented as a shape on the disc. A VSWR circle is the set of
+impedances whose reflection has a given magnitude, emitted as impedances, and
+the coord makes it a circle; a Q arc is the locus |x| = Q·r, which is two
+straight rays in impedance and therefore two arcs here. A coord may still draw
+only one grid line per tick a scale emits — that constraint is what makes the
+columns an impedance in the first place — and none of these four curves is at a
+value of either axis, which is why none of them is furniture. See
+[ADR 0050](adr/0050-locus-annotations.md). A combined ZY overlay is the same
+mark again and is not written yet.
+
+A runnable version of the sweep above, a two-element matching network, the
+admittance chart and the sweep read against 2:1 is in
+[`examples/smith`](../examples/smith).
+
+## A Nichols diagram is a line and the grid printed under it
+
+![An open loop against the closed-loop contours it is read by](images/nichols.png)
+
+The chart control engineers read an open loop on: the open-loop phase in degrees
+along X, the open-loop gain in decibels along Y. Both axes are linear and both
+are ordinary, so the response is a `geom.Line` over two columns and figure drew
+that on day one. What makes it a Nichols diagram is the grid printed
+underneath — two families of curves describing the *closed* loop T = L/(1+L),
+neither of which is at a value of either axis:
+
+```go
+p.X(scale.Linear(scale.Domain(-270, -90)))
+p.Y(scale.Linear(scale.Domain(-24, 36)))
+p.Add(geom.Locus(stat.NicholsM, []float64{-12, -6, -3, -1, 0, 1, 3, 6, 12}, geom.Dash()))
+p.Add(geom.Locus(stat.NicholsN, []float64{-1, -5, -10, -20, -45, -90, -150}, geom.Dash(2, 3)))
+p.Add(geom.Line(loop, geom.X("phase"), geom.Y("gain")))
+```
+
+The reading is the one a Bode plot cannot give in a single picture: where the
+response is tangent to a contour, that contour is the peak of the closed loop.
+The orange loop above touches 3 dB and the green one cuts well inside 12 dB and
+passes close to the critical point at (−180°, 0 dB), where the contours converge
+and the loop would oscillate.
+
+A locus is the one annotation that does not extend the axis domain to include
+itself. The others do — a threshold line the chart does not reach is still worth
+seeing — but a family of curves says what the region of the plane means, and the
+0 dB contour runs to −∞ dB, so an axis trained on it would have no ticks left
+anywhere a reader is looking. `geom.Extend(true)` asks for the other behaviour
+on a bounded family.
+
+The chart above, and a detail view of the tangency, is in
+[`examples/nichols`](../examples/nichols).
 
 ## A surface is a third scale, projected
 

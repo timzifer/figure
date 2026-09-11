@@ -84,6 +84,19 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   constant-resistance circles from X, constant-reactance arcs from Y — so
   `render` was not touched for it
   ([ADR 0033](adr/0033-smith-charts.md)).
+- **A locus** — `geom.Locus` draws a family of curves given by a formula rather
+  than by data, at the levels the caller names. It is what a Nichols diagram's
+  closed-loop contours are and what a Smith chart's constant-VSWR circles and
+  constant-Q arcs are: none of them is at a value of either axis, so none of
+  them is a grid line, and all of them are annotations —
+  `geom.HLine` is the degenerate member of the same idea. The family emits
+  points in **data space**, so the coordinate stage draws it: `stat.SmithVSWR`
+  is the set of impedances whose reflection has a given magnitude and
+  `coord.Smith` is what makes it a circle, with no Smith-shaped code in the
+  family or the mark. `stat` names four families and a caller can write their
+  own; alone among the annotations a locus does not extend the axis domain to
+  include itself, because a family says what the region of the plane means
+  ([ADR 0050](adr/0050-locus-annotations.md)).
 - **Three dimensions** — `figure/three` is the chart whose x, y and z are all
   data. A `three.Surface` over a regular grid gives the shape of a response
   between its samples, which is exactly what a heatmap of the same grid hides;

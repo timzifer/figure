@@ -1,6 +1,6 @@
 # 0050 — A locus is an annotation, and the coord draws it
 
-**Status:** Proposed · **Date:** 2026-09-08 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implemented:** 2026-09-11
 
 ## Context
 
@@ -267,6 +267,66 @@ an example, and a gallery figure. The coord package is not opened.
   and is bucket F's, unrelated to this and still open. The names are close
   enough to be worth keeping apart: a locus is a formula, a contour is a
   measurement.
+
+## Amendment: what building it sharpened
+
+Three things the record left open turned out to have one answer each, and a
+fourth was wrong about where a type lives.
+
+**`Family` is `stat`'s type, and `geom` names it.** The record puts the
+interface in `geom` and the built-in families in `stat`, which cannot both be
+true: `geom` imports `stat` and not the other way round, so a family written
+there could not name a type declared here. `geom.Family` and `geom.Extent` are
+aliases of `stat.Family` and `stat.Extent` — the same move `ir.Color` makes for
+`color.NRGBA` — so the seam is named where a caller looks for it and defined
+where it can be implemented.
+
+**The extent carries a sample count, and a family is refined rather than
+walked.** The record says a locus is sampled in `Build`, in device space, and
+leaves how open. `Extent.Steps` is that count, and it is what the two Nichols
+families set their *tolerance* from rather than their sample count: the chart is
+the log-polar view of a circle, and the two are not evenly spaced against each
+other. An N contour passes through L = 0, so the arc of its circle that is the
+whole plunge to −∞ dB is a hair of the circle and the rest is a smooth curve a
+few dozen samples describe. Walked uniformly, the −1° contour stops dead at
+−6 dB, which draws a contour hanging in mid-air well above the bottom of the
+panel. So a Nichols curve is bisected until its step is a few pixels, and the
+refinement stops at a step that leaves the window — which is also what bounds
+it, because the arc approaching the origin is self-similar and a rule that only
+looked at the step would halve for ever.
+
+**A curve that runs to infinity is cut a little outside the panel**, at a tenth
+of its height beyond each edge, so that it leaves the picture at the edge rather
+than short of it. Something has to cut it: a device coordinate is a float32, and
+every sample past the edge is a point in a file nobody can see. The Smith
+families' equivalent is `Extent.far`, which is why a constant-Q arc reaches the
+rim of the disc — an infinite impedance is the rim — rather than stopping at the
+panel's own `X1`.
+
+**A branch is found by the step it takes, not by looking for it.** Every N
+contour passes through the origin, where the phase turns by half a turn between
+one sample and the next; a step above ninety degrees ends the run and starts
+another. Without it the two branches are joined by a line drawn across the chart
+at whatever depth the sampling happened to stop at. The same rule costs nothing
+on a curve that does not have one, because no family here bends that far in one
+step of a few hundred.
+
+**"It announces nothing" means it announces no *row*.** A locus is a layer, and
+a layer's drawing calls reach the hit index like every annotation's have since
+v0.1 — one mark per run, so a family costs the index its curves and not its
+samples. What it cannot report is a row, because there is no row: a hit on a
+contour reports where the pointer is, with `Row == -1`, exactly as a hit on a
+reference line does. Keeping the curves out of the index altogether would mean a
+new optional interface and a change in `render`, which this record's consequences
+table says it does not need; `interact`'s `TestALocusReportsNoRow` pins what it
+does do instead.
+
+One thing the record got exactly right and is worth recording as confirmed: the
+coord really does draw the family for free. `stat.SmithVSWR` emits impedances
+and `coord.Smith` makes them the circle they look like; there is no Smith-shaped
+code in the family, in the mark, or in `render`, and `render`, `ir`, `coord`,
+`scale` and `layout` are untouched by this record's implementation, exactly as
+its consequences table says.
 
 ## Revisit if
 

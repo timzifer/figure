@@ -261,6 +261,16 @@ type Mark struct {
 	// "bins": 8 for a contour would be a document claiming the mark bins.
 	Levels     []float64 `json:"levels,omitempty"`
 	LevelCount int       `json:"levelCount,omitempty"`
+	// Family is the set of curves a locus draws Levels of: "nichols-m",
+	// "nichols-n", "smith-vswr" or "smith-q". Vega-Lite has none of them, so
+	// these are figure's own names.
+	//
+	// It is a name and not a description of the curves, because the curves are
+	// a formula: naming the family is the only way a document can be read back
+	// as the same lines. A family a caller wrote in Go has no name here and
+	// declines to be written down, which is the rule
+	// docs/adr/0041-qq-plots.md set for a quantile function.
+	Family string `json:"family,omitempty"`
 	// Bandwidth is the kernel width a violin or a ridgeline estimates with, in
 	// the data's own units. Vega-Lite's density transform spells it the same
 	// way.
