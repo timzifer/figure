@@ -174,6 +174,24 @@ func (f OverlayFrame) View(i int) (OverlayView, bool) {
 // turn it into geometry.
 type Point3 struct{ X, Y, Z float64 }
 
+// Mark is one place to draw a ring, and whether the reader can see what is
+// there.
+//
+// Hidden is the half that is easy to leave out and wrong to. A projected scene
+// occludes itself: the point a reader picked out may be on the far side of the
+// surface it is on, and a ring drawn plainly over it says "this is here" when
+// what is here is a piece of surface with the marked point somewhere behind it.
+// The reader then reads a position off the near face that is not the position
+// they picked.
+type Mark struct {
+	// At is where to draw, in device space — typically what
+	// [github.com/timzifer/figure/interact.Index.Locate] answered.
+	At ir.Point
+	// Hidden says something in the scene is in front of this point, so the ring
+	// is drawn dashed rather than solid.
+	Hidden bool
+}
+
 // Highlight rings a set of marks, to say "these ones".
 //
 // It is the reason this seam exists. A hit on a projected scene reports which
@@ -184,19 +202,39 @@ type Point3 struct{ X, Y, Z float64 }
 // every answer, and the same measurement is then marked in the three-quarter,
 // the plan and both profiles at once.
 //
-// The zero value draws nothing. A Highlight holds the path it drew last, so
+// # A ring behind something is dashed
+//
+// A scene hides its own far side, so a mark may be behind the surface it
+// belongs to. Such a ring is drawn dashed and the rest solid, which is the
+// convention an engineering drawing has used for a hidden edge for as long as
+// there have been engineering drawings — and this figure is already in that
+// register, since ADR 0062's whole argument for several views is the plan and
+// the two elevations a machinist reads.
+//
+// Dashed rather than inverted, and the reason is the same one that makes the
+// rings an overlay at all: an inverted ring would have to know what colour the
+// thing in front of it was drawn in, which means reading pixels back — and what
+// it read would be the shade of one face rather than a statement about depth. A
+// dash says the one thing that is true, which is that something is in front.
+//
+// Whether a mark is hidden is the host's to decide, because only the host has
+// the hit index the answer comes out of. See [Mark].
+//
+// The zero value draws nothing. A Highlight holds the paths it drew last, so
 // one belongs to one figure — install a second for a second.
 type Highlight struct {
+	// Marks are the places to ring, in device space, each saying whether it is
+	// behind something. Each is drawn in the view whose Area contains it, or in
+	// View when one is named; a mark in no view is not drawn.
+	Marks []Mark
 	// Data are points in the data, rung in every view. That is the default
 	// rather than a setting: a figure with four cameras is one chart looked at
-	// four ways, so a value marked in one of them is marked in all four. Set
-	// View to confine them to one.
+	// four ways, so a value marked in one of them is marked in all four.
+	//
+	// They are always drawn solid. A value is a place in the cube rather than
+	// something the scene drew, so there is nothing for it to be behind — and a
+	// caller who does mean a drawn mark has [Mark] and its answer.
 	Data []Point3
-	// At are points already in device space, for a host that got them from a
-	// hit or from [github.com/timzifer/figure/interact.Index.Locate]. Each is
-	// drawn in the view whose Area contains it, or in View when one is named; a
-	// point in no view is not drawn.
-	At []ir.Point
 
 	// View confines the rings to one view, or -1 for the rule above.
 	//
@@ -214,30 +252,38 @@ type Highlight struct {
 	// an annotation rather than as data.
 	Color ir.Color
 	Width float32
+	// Dash is the pattern a hidden ring is drawn with. A nil one takes a short
+	// even dash, which is what a hidden edge is drawn with.
+	Dash []float32
 
-	// path is the rings, kept between frames rather than made per frame. A
-	// highlight is a pointer the caller holds and moves, so it is redrawn on
-	// every frame of whatever gesture is moving it, and a path made here would
-	// be an allocation per frame on the one path this package benchmarks.
-	path ir.Path
+	// The rings, kept between frames rather than made per frame: a highlight is
+	// a pointer the caller moves, so it is redrawn on every frame of whatever
+	// gesture is moving it.
+	shown, hidden ir.Path
 }
 
 // DrawOverlay implements [Overlay].
 func (h *Highlight) DrawOverlay(b ir.Backend, f OverlayFrame) {
-	if len(h.At) == 0 && len(h.Data) == 0 {
+	if len(h.Marks) == 0 && len(h.Data) == 0 {
 		return
 	}
 	r := orElseLen(h.Radius, 6)
-	h.path.Reset()
-	// Every ring at once: the arithmetic is [ir.Path.Grow]'s own, and reserving
-	// here is what keeps a selection of any size two allocations on its first
-	// frame and none on the rest.
-	n := len(h.At) + len(h.Data)*len(f.Views)
-	h.path.Grow(n*ir.CircleOps, n*ir.CirclePts)
+	h.shown.Reset()
+	h.hidden.Reset()
+	// Reserved in one go, which is [ir.Path.Grow]'s own arithmetic: a selection
+	// of any size costs two allocations on its first frame and none after.
+	n := len(h.Marks) + len(h.Data)*len(f.Views)
+	h.shown.Grow(n*ir.CircleOps, n*ir.CirclePts)
 
-	for _, at := range h.At {
-		if v, ok := h.viewFor(f, at); ok && v.Area.Contains(at) {
-			h.path.Circle(at, r)
+	for _, m := range h.Marks {
+		v, ok := h.viewFor(f, m.At)
+		if !ok || !v.Area.Contains(m.At) {
+			continue
+		}
+		if m.Hidden {
+			h.hidden.Circle(m.At, r)
+		} else {
+			h.shown.Circle(m.At, r)
 		}
 	}
 	for _, p := range h.Data {
@@ -249,18 +295,27 @@ func (h *Highlight) DrawOverlay(b ir.Backend, f OverlayFrame) {
 			// dropped, which is what every layer here does with one, so a ring
 			// stays somewhere the reader can see it.
 			if at, ok := v.At(p.X, p.Y, p.Z); ok {
-				h.path.Circle(at, r)
+				h.shown.Circle(at, r)
 			}
 		}
 	}
-	if h.path.Empty() {
-		return
-	}
-	b.StrokePath(&h.path, ir.Stroke{
+
+	stroke := ir.Stroke{
 		Color: orElseColor(h.Color, f.Theme.LabelColor),
 		Width: orElseLen(h.Width, 2),
-	})
+	}
+	if !h.shown.Empty() {
+		b.StrokePath(&h.shown, stroke)
+	}
+	if !h.hidden.Empty() {
+		stroke.Dash = orElseDash(h.Dash, hiddenDash)
+		b.StrokePath(&h.hidden, stroke)
+	}
 }
+
+// hiddenDash is what a ring behind something is drawn with: short and even, the
+// way a hidden edge is drawn.
+var hiddenDash = []float32{3, 3}
 
 // viewFor resolves which view a device point belongs to: the one the highlight
 // named, or the one containing it.
@@ -284,6 +339,14 @@ func (os Overlays) DrawOverlay(b ir.Backend, f OverlayFrame) {
 			o.DrawOverlay(b, f)
 		}
 	}
+}
+
+// orElseDash returns d, or fallback when the caller named none.
+func orElseDash(d, fallback []float32) []float32 {
+	if d == nil {
+		return fallback
+	}
+	return d
 }
 
 // orElseColor returns c, or fallback when c is fully transparent — which is

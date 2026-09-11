@@ -277,6 +277,77 @@ func TestAHighlightRingsOneValueInEveryView(t *testing.T) {
 	}
 }
 
+// A scene hides its own far side, so a ring may be over a point the reader
+// cannot actually see. Such a ring is dashed and a visible one is solid, which
+// is the hidden-line convention an engineering drawing has always used — and it
+// is what stops a reader taking a position off the near face that is not the
+// position they picked.
+func TestARingBehindSomethingIsDashed(t *testing.T) {
+	rec := irtest.New()
+	h := &Highlight{View: -1, Marks: []Mark{
+		{At: ir.Point{X: 160, Y: 140}},
+		{At: ir.Point{X: 240, Y: 200}, Hidden: true},
+	}}
+	if _, err := New(Size(400, 320)).Scene(surfaceScene(4, 4)).Overlay(h).draw(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	var solid, dashed int
+	for _, c := range rec.Filter("StrokePath") {
+		if c.Stroke.Width != 2 {
+			continue
+		}
+		if len(c.Stroke.Dash) > 0 {
+			dashed++
+		} else {
+			solid++
+		}
+	}
+	if solid != 1 || dashed != 1 {
+		t.Errorf("the highlight drew %d solid and %d dashed strokes, want one of each", solid, dashed)
+	}
+}
+
+// The two groups are drawn as two paths and not two strokes per ring, so a
+// selection of any size is two calls.
+func TestRingsAreBatchedIntoTwoPaths(t *testing.T) {
+	rec := irtest.New()
+	h := &Highlight{View: -1}
+	for i := range 8 {
+		h.Marks = append(h.Marks, Mark{
+			At:     ir.Point{X: float32(120 + 10*i), Y: 160},
+			Hidden: i%2 == 0,
+		})
+	}
+	if _, err := New(Size(400, 320)).Scene(surfaceScene(4, 4)).Overlay(h).draw(rec); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, c := range rec.Filter("StrokePath") {
+		if c.Stroke.Width == 2 {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("eight rings took %d strokes, want two", n)
+	}
+}
+
+// A value named in the data is rung solid: it is a place in the cube rather
+// than something the scene drew, so there is nothing for it to be behind.
+func TestAValueIsRungSolid(t *testing.T) {
+	rec := irtest.New()
+	h := &Highlight{Data: []Point3{{X: 0.5, Y: 0.5, Z: 0.5}}, View: -1}
+	if _, err := New(Size(400, 320)).Scene(surfaceScene(4, 4)).Overlay(h).draw(rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range rec.Filter("StrokePath") {
+		if c.Stroke.Width == 2 && len(c.Stroke.Dash) > 0 {
+			t.Error("a value was rung dashed")
+		}
+	}
+}
+
 // A highlight confined to one view draws in that view and nowhere else.
 func TestAHighlightMayBeConfinedToOneView(t *testing.T) {
 	rec := irtest.New()
@@ -375,7 +446,7 @@ func TestInstallingAnOverlayRepaintsTheWholeCanvas(t *testing.T) {
 	if err := live.Draw(); err != nil {
 		t.Fatal(err)
 	}
-	live.Overlay(&Highlight{At: []ir.Point{{X: 200, Y: 160}}, View: -1})
+	live.Overlay(&Highlight{Marks: []Mark{{At: ir.Point{X: 200, Y: 160}}}, View: -1})
 	if err := live.Draw(); err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +492,7 @@ func TestATurnWithAnOverlayRepaintsTheWholeCanvas(t *testing.T) {
 	if whole, rects := turn(nil); whole || len(rects) != 1 {
 		t.Errorf("a turn with no overlay damaged %v (whole=%v), want the one cell that moved", rects, whole)
 	}
-	if whole, rects := turn(&Highlight{At: []ir.Point{{X: 100, Y: 100}}, View: -1}); !whole {
+	if whole, rects := turn(&Highlight{Marks: []Mark{{At: ir.Point{X: 100, Y: 100}}}, View: -1}); !whole {
 		t.Errorf("a turn with an overlay damaged %v, want the whole canvas", rects)
 	}
 }
@@ -430,7 +501,7 @@ func TestATurnWithAnOverlayRepaintsTheWholeCanvas(t *testing.T) {
 // frame no camera turned is compared with the last one call for call.
 func TestAnOverlayThatMovedIsRepainted(t *testing.T) {
 	rec := irtest.New()
-	h := &Highlight{At: []ir.Point{{X: 120, Y: 120}}, View: -1}
+	h := &Highlight{Marks: []Mark{{At: ir.Point{X: 120, Y: 120}}}, View: -1}
 
 	live, err := New(Size(400, 320)).Scene(surfaceScene(4, 4)).Overlay(h).Live(rec.Target())
 	if err != nil {
@@ -442,7 +513,7 @@ func TestAnOverlayThatMovedIsRepainted(t *testing.T) {
 		t.Fatal(err)
 	}
 	frames := rec.Frames
-	h.At[0] = ir.Point{X: 260, Y: 200}
+	h.Marks[0].At = ir.Point{X: 260, Y: 200}
 	if err := live.Draw(); err != nil {
 		t.Fatal(err)
 	}
