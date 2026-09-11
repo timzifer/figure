@@ -162,6 +162,16 @@ func (l *linear) Map(v float64) float32 {
 	return place(rlo, rhi, t)
 }
 
+// Map64 implements [Precise].
+func (l *linear) Map64(v float64) float64 {
+	lo, hi := l.effective()
+	rlo, rhi := l.rangeOf()
+	if hi == lo {
+		return float64(rlo)
+	}
+	return place64(rlo, rhi, (v-lo)/(hi-lo))
+}
+
 func (l *linear) Invert(pos float32) float64 {
 	lo, hi := l.effective()
 	rlo, rhi := l.rangeOf()
