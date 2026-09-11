@@ -114,22 +114,40 @@ func (c cube) draw(b ir.Backend, path *ir.Path, boxes *[]ir.Rect) {
 }
 
 // walls fills the three faces pointing away from the camera and outlines them.
+//
+// Each wall is filled on its own rather than as three subpaths of one path.
+// The picture is the same — the walls do not overlap and are wound alike — but
+// gg v0.52.5's GPU tier is not: after one fill made of several large subpaths
+// sharing edges, it loses most of the fills that follow over the same tiles,
+// which on a surface is most of its faces. Three calls instead of one is
+// nothing on a figure that makes hundreds. The outline is still one stroke,
+// because strokes were never the problem and one call is the cheaper one.
 func (c cube) walls(b ir.Backend, path *ir.Path) {
-	path.Reset()
-	for a := 0; a < 3; a++ {
-		pts := c.faceCorners(a, c.far[a])
-		path.MoveTo(pts[0].X, pts[0].Y)
-		for _, p := range pts[1:] {
-			path.LineTo(p.X, p.Y)
-		}
-		path.Close()
-	}
 	if c.th.CubeFill.A != 0 {
-		b.FillPath(path, ir.Solid(c.th.CubeFill), ir.NonZero)
+		for a := 0; a < 3; a++ {
+			path.Reset()
+			c.wall(path, a)
+			b.FillPath(path, ir.Solid(c.th.CubeFill), ir.NonZero)
+		}
 	}
 	if c.th.CubeEdge.A != 0 {
+		path.Reset()
+		for a := 0; a < 3; a++ {
+			c.wall(path, a)
+		}
 		b.StrokePath(path, ir.Stroke{Color: c.th.CubeEdge, Width: pickWidth(c.th.AxisWidth)})
 	}
+}
+
+// wall appends the far face perpendicular to axis a to path, as one closed
+// subpath.
+func (c cube) wall(path *ir.Path, a int) {
+	pts := c.faceCorners(a, c.far[a])
+	path.MoveTo(pts[0].X, pts[0].Y)
+	for _, p := range pts[1:] {
+		path.LineTo(p.X, p.Y)
+	}
+	path.Close()
 }
 
 // faceCorners projects the four corners of the face perpendicular to axis a at
