@@ -24,6 +24,10 @@ const (
 	MarkBoxplot Mark = "boxplot"
 	MarkRect    Mark = "rect"
 	MarkText    Mark = "text"
+	// MarkContour is the level sets of a value over a grid. It is here rather
+	// than among the distribution marks because it reduces nothing: the grid it
+	// is handed is the grid it traces.
+	MarkContour Mark = "contour"
 
 	// The distribution marks. Each of them replaces the rows with a summary of
 	// where they are, so each of them decides one of its own axes: a histogram
@@ -136,6 +140,11 @@ type Desc struct {
 	// what interval. Zero and an empty interval mean the layer chooses.
 	Bins         int
 	BinLo, BinHi float64
+	// Levels and LevelCount configure a [Contour]: the values it traces, or
+	// about how many of them to choose from the data. Levels wins where both
+	// are set, and each carries what the layer is actually using.
+	Levels     []float64
+	LevelCount int
 	// Bandwidth is the kernel width a [Violin] or a [Ridgeline] estimates with,
 	// Span the fraction of the rows one local fit of a [Trend] sees, Smooth how
 	// it fits, and Overlap how far a ridge rises. Each carries the value the
@@ -326,6 +335,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Ridgeline(d.Source, opts...), nil
 	case MarkHexbin:
 		return Hexbin(d.Source, opts...), nil
+	case MarkContour:
+		return Contour(d.Source, opts...), nil
 	case MarkBeeswarm:
 		return Beeswarm(d.Source, opts...), nil
 	case MarkECDF:
@@ -379,6 +390,8 @@ func (d Desc) options() []Option {
 		onSecondary(d.OnY2, d.OnX2),
 		Bins(d.Bins),
 		BinRange(d.BinLo, d.BinHi),
+		Levels(d.Levels...),
+		LevelCount(d.LevelCount),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -505,6 +518,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Bins:       c.bins,
 		BinLo:      c.binLo,
 		BinHi:      c.binHi,
+		Levels:     c.levels,
+		LevelCount: c.levelCount,
 		Bandwidth:  c.bandwidth,
 		Span:       c.span,
 		Smooth:     c.smooth,

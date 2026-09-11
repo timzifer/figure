@@ -194,6 +194,9 @@ type config struct {
 	dodgePad   float64
 	order      Ordering
 
+	levels     []float64
+	levelCount int
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 
@@ -261,6 +264,27 @@ func Y(col string) Option { return func(c *config) { c.ycol = col } }
 // renderer. The layers that read it are in
 // [github.com/timzifer/figure/three]. ADR 0056 is the record.
 func Z(col string) Option { return func(c *config) { c.zcol = col } }
+
+// Levels pins the contour levels a [Contour] traces.
+//
+// It is what makes two charts of two tables comparable, which is the argument
+// [BinRange] makes for a histogram: levels chosen from each table's own extent
+// put the same value on different lines, and a reader comparing the two is then
+// comparing the level lists rather than the data. It is also how a flat contour
+// and a projected scene's floor are made the same lines — both are handed this.
+//
+// Naming none asks [LevelCount] for a round set chosen from the data.
+func Levels(vs ...float64) Option {
+	return func(c *config) { c.levels = append(c.levels[:0], vs...) }
+}
+
+// LevelCount asks a [Contour] for about n levels, chosen from the data at a
+// round step by [github.com/timzifer/figure/stat.Levels]. It is ignored when
+// [Levels] named them, and defaults to [DefaultLevels].
+//
+// About n, because a round step a reader can do arithmetic with is worth more
+// than an exact count of awkward ones.
+func LevelCount(n int) Option { return func(c *config) { c.levelCount = n } }
 
 // Color sets the mark colour, overriding the palette.
 func Color(col ir.Color) Option { return func(c *config) { c.color = &col } }

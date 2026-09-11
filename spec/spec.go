@@ -253,6 +253,14 @@ type Mark struct {
 	Bins     int      `json:"bins,omitempty"`
 	BinStart *float64 `json:"binStart,omitempty"`
 	BinEnd   *float64 `json:"binEnd,omitempty"`
+	// Levels are the values a contour traces, and LevelCount about how many to
+	// choose from the data when Levels names none.
+	//
+	// They are spelled apart from Bins, which is the near miss worth avoiding:
+	// there are n levels and n+1 bands between them, so a document that said
+	// "bins": 8 for a contour would be a document claiming the mark bins.
+	Levels     []float64 `json:"levels,omitempty"`
+	LevelCount int       `json:"levelCount,omitempty"`
 	// Bandwidth is the kernel width a violin or a ridgeline estimates with, in
 	// the data's own units. Vega-Lite's density transform spells it the same
 	// way.
@@ -346,6 +354,16 @@ type Encoding struct {
 	// Width is figure's: the column a bar takes its width from. Vega-Lite has
 	// no equivalent channel, so no name is borrowed for it.
 	Width *Channel `json:"width,omitempty"`
+
+	// Z is the third column of a mark sampled over a grid — a contour's value.
+	//
+	// It is a channel and not a third axis. A flat chart has two positional
+	// scales and this document has no vocabulary for a third: what z carries
+	// here is a value *at* a position, the way colour is, and the mark decides
+	// what to do with it. A projected scene's z is a different thing and is
+	// deliberately not in this dialect at all; see
+	// docs/adr/0056-three-dimensional-charts.md.
+	Z *Channel `json:"z,omitempty"`
 
 	// Key is the field that identifies a row across renders, from
 	// [github.com/timzifer/figure/geom.KeyBy].

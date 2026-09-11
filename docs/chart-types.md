@@ -225,7 +225,7 @@ binds force layouts and not tree layouts: Reingold–Tilford, in Buchheim's
 linear-time form, is O(n), deterministic and bounded, which is `stat.Squarify`'s
 shape exactly. See [ADR 0053](adr/0053-tidy-tree-layout.md).
 
-## F — needs new stats — **shipped**, except contour
+## F — needs new stats — **shipped**
 
 `CONCEPT §8` promised `Bin`, `Density` and `Smooth`, and `stat/` carries them:
 each is a pure function with an `Append`
@@ -241,7 +241,7 @@ form and a determinism test, per CONTRIBUTING's rule for reductions.
 | ECDF | `stat.ECDF` | `geom.ECDF` |
 | Trend line | `stat.Loess` | `geom.Trend` |
 | QQ | `stat.QQ` with a theoretical quantile function | `geom.QQ` for normal quantiles; unreleased |
-| Contour | `stat.Contour` | missing |
+| Contour | `stat.Contour` | `geom.Contour` |
 
 **`stat.Bin` changed meaning.** It is the 1-D histogram now, because that is what
 "bin" means without a qualifier; the 2-D binner it used to name is

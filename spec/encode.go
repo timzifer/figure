@@ -494,6 +494,11 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	case geom.MarkHexbin:
 		fill()
 		m.DensityCells = d.CellSize
+	case geom.MarkContour:
+		stroke()
+		// The levels the layer is actually tracing, so that a document reads
+		// back as the same lines — which is the whole reason to pin them.
+		m.Levels, m.LevelCount = d.Levels, d.LevelCount
 	case geom.MarkBeeswarm:
 		stroke()
 		fill()
@@ -601,6 +606,9 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.Group != "" {
 			enc.Detail = &Channel{Field: d.Group, Type: "nominal"}
+		}
+		if d.Z != "" {
+			enc.Z = &Channel{Field: d.Z}
 		}
 		if d.WidthCol != "" {
 			enc.Width = &Channel{Field: d.WidthCol}
