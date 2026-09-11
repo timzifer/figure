@@ -175,12 +175,14 @@ func TestTheTierPutsDownAsMuchInkAsTheCPU(t *testing.T) {
 	// test that asserts Close is a no-op.
 	withTier := ink(t, render(t))
 	surfaceOnTier := renderSurface(t)
+	signalOnTier := renderSignal(t)
 	gpu.Close()
 	if gpu.Enabled() {
 		t.Fatal("the tier is still registered after Close, so the reference would be drawn on it")
 	}
 	onCPU := ink(t, render(t))
 	surfaceOnCPU := renderSurface(t)
+	signalOnCPU := renderSignal(t)
 
 	if onCPU == 0 {
 		t.Fatal("the reference render is blank")
@@ -199,6 +201,48 @@ func TestTheTierPutsDownAsMuchInkAsTheCPU(t *testing.T) {
 		t.Errorf("%d of %d pixels of a surface differ from the CPU by more than anti-aliasing can explain: "+
 			"faces are being lost", bad, total)
 	}
+
+	// A thick line over a dense signal turns back on itself at almost every
+	// sample. gg up to v0.52.5 filled a GPU stroke's outline even-odd, which
+	// cancels wherever the outline covers itself, so such a line came out as
+	// its own outline with the inside missing. The fork figure builds against
+	// fills it non-zero, as gg's CPU stroker does.
+	bad, total = wrongPixels(signalOnTier, signalOnCPU)
+	t.Logf("signal: %d of %d pixels differ by more than anti-aliasing (%.2f%%)",
+		bad, total, 100*float64(bad)/float64(total))
+	if float64(bad) > maxWrongFraction*float64(total) {
+		t.Errorf("%d of %d pixels of a thick line differ from the CPU by more than anti-aliasing can explain: "+
+			"the stroke is cancelling where it overlaps itself", bad, total)
+	}
+}
+
+// renderSignal is a thick line over a dense signal: the case a stroke outline
+// filled even-odd gets wrong, because nearly every turn overlaps itself.
+func renderSignal(t *testing.T) image.Image {
+	t.Helper()
+	const n = 400
+	ts := make([]float64, n)
+	vs := make([]float64, n)
+	for i := range n {
+		x := float64(i) / 40
+		ts[i] = x
+		vs[i] = math.Sin(x) + 0.55*math.Sin(37*x) + 0.35*math.Sin(91*x+0.3)
+	}
+	src := figure.Float64Columns(map[string][]float64{"t": ts, "v": vs})
+	p := figure.New(figure.Size(900, 360))
+	p.X(scale.Linear())
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(src, geom.X("t"), geom.Y("v"), geom.Color(palette.Blue), geom.Width(5)))
+
+	var buf bytes.Buffer
+	if err := p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	img, err := png.Decode(bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return img
 }
 
 func render(t *testing.T) image.Image {

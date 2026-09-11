@@ -16,3 +16,5 @@ require (
 	github.com/gogpu/gputypes v0.5.2 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.1
