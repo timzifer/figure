@@ -185,6 +185,9 @@ func (s *Sink) noteRow(p *prim) {
 	n := float32(len(pts))
 	s.rowAt = append(s.rowAt, ir.Point{X: c.X / n, Y: c.Y / n})
 	s.rowNo = append(s.rowNo, int(p.row))
+	// The depth the painter already sorted by, so that a host can tell whether
+	// the reader can actually see the row it was just told about.
+	s.rowZ = append(s.rowZ, float64(p.depth))
 }
 
 // flushRows reports the rows collected since the last layer change.
@@ -194,9 +197,9 @@ func (s *Sink) noteRow(p *prim) {
 // layers interleave, so a layer opens more than once per view.
 func (s *Sink) flushRows(rows geom.Rows) {
 	if rows != nil && len(s.rowAt) > 0 {
-		rows.Marks(geom.MarkRows{At: s.rowAt, Rows: s.rowNo})
+		rows.Marks(geom.MarkRows{At: s.rowAt, Rows: s.rowNo, Depth: s.rowZ})
 	}
-	s.rowAt, s.rowNo = s.rowAt[:0], s.rowNo[:0]
+	s.rowAt, s.rowNo, s.rowZ = s.rowAt[:0], s.rowNo[:0], s.rowZ[:0]
 }
 
 func labelAt(labels []string, i int) string {

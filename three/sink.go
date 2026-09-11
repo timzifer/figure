@@ -76,6 +76,7 @@ type Sink struct {
 	line  []ir.Point
 	rowAt []ir.Point
 	rowNo []int
+	rowZ  []float64
 	// boxes is the cube's label-collision scratch, kept here so that it is
 	// pooled with everything else rather than made per view per frame.
 	boxes []ir.Rect
@@ -216,6 +217,7 @@ func (s *Sink) reset() {
 	s.line = s.line[:0]
 	s.rowAt = s.rowAt[:0]
 	s.rowNo = s.rowNo[:0]
+	s.rowZ = s.rowZ[:0]
 	s.boxes = s.boxes[:0]
 	s.layer, s.row, s.fwd = 0, -1, Vec3{}
 }

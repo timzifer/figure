@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/interact"
 	"github.com/timzifer/figure/internal/irtest"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/render"
@@ -560,5 +561,34 @@ func TestAnOverlayDoesNotAllocatePerFrame(t *testing.T) {
 	with := frame(&Highlight{Data: []Point3{{X: 0.5, Y: 0.5, Z: 0.5}}, View: -1})
 	if with > plain {
 		t.Errorf("a frame with an overlay allocated %.0f times against %.0f without one", with, plain)
+	}
+}
+
+// A scene tells a host how far each row it reports was from the camera, which
+// is the number that says whether the reader can actually see it. A flat chart
+// has no such number and says so.
+func TestAReportedRowCarriesItsDepth(t *testing.T) {
+	rec := irtest.New()
+	idx := interact.New()
+	idx.TrackRows(true)
+
+	p := New(Size(400, 320)).Scene(surfaceScene(6, 6)).Observer(idx).TrackRows(idx)
+	if _, err := p.draw(idx.Watch(rec)); err != nil {
+		t.Fatal(err)
+	}
+
+	refs := idx.RowsOf(0, 0, nil)
+	if len(refs) < 4 {
+		t.Fatalf("the surface reported %d rows", len(refs))
+	}
+	near, far := math.Inf(1), math.Inf(-1)
+	for _, r := range refs {
+		if !r.Deep {
+			t.Fatalf("row %d came back with no depth", r.Row)
+		}
+		near, far = math.Min(near, r.Depth), math.Max(far, r.Depth)
+	}
+	if !(far > near) {
+		t.Errorf("every row of a turned surface is at depth %v, so nothing is in front of anything", near)
 	}
 }

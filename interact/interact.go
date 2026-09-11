@@ -238,6 +238,12 @@ type rowMark struct {
 	panel, layer int
 	at           ir.Point
 	row          int
+	// depth is how far the mark was from the camera, for a chart that has one,
+	// and is zero for every flat chart. See [RowRef.Depth].
+	depth float64
+	// deep says the depth is a measurement rather than the zero value, which a
+	// flat chart's rows carry and a scene's may legitimately equal.
+	deep bool
 }
 
 type mark struct {
@@ -307,13 +313,16 @@ func (ix *Index) Marks(m geom.MarkRows) {
 	if !ix.track || !ix.open || len(m.At) != len(m.Rows) {
 		return
 	}
+	deep := len(m.Depth) == len(m.At)
 	for i, p := range m.At {
 		if m.Rows[i] < 0 {
 			continue
 		}
-		ix.rows = append(ix.rows, rowMark{
-			panel: ix.panel, layer: ix.layer, at: p, row: m.Rows[i],
-		})
+		r := rowMark{panel: ix.panel, layer: ix.layer, at: p, row: m.Rows[i]}
+		if deep {
+			r.depth, r.deep = m.Depth[i], true
+		}
+		ix.rows = append(ix.rows, r)
 	}
 }
 
@@ -566,6 +575,17 @@ type RowRef struct {
 	Row int
 	// At is where the row landed, in device space.
 	At ir.Point
+
+	// Depth is how far the mark was from the camera, and Deep whether that is
+	// a measurement at all: a flat chart has no depth and leaves both alone.
+	// Larger is farther, which is the order a painter walks.
+	//
+	// It is what lets a caller tell whether the reader can actually see a row
+	// it has just been pointed at. A projected scene hides its own far side, so
+	// a mark drawn plainly over a point behind a surface says the wrong thing
+	// about where that point is — and this is the number that says so.
+	Depth float64
+	Deep  bool
 }
 
 // Locate reports where a source row of a layer landed in the render just
@@ -633,7 +653,10 @@ func (ix *Index) RowsIn(r ir.Rect, dst []RowRef) []RowRef {
 // layer drew. A rowMark does not carry it: rows and marks are separate lists
 // on purpose, and the label belongs to the layer rather than to either.
 func (ix *Index) refOf(r rowMark) RowRef {
-	ref := RowRef{Panel: r.panel, Layer: r.layer, Row: r.row, At: r.at}
+	ref := RowRef{
+		Panel: r.panel, Layer: r.layer, Row: r.row, At: r.at,
+		Depth: r.depth, Deep: r.deep,
+	}
 	for _, m := range ix.marks {
 		if m.panel == r.panel && m.layer == r.layer {
 			ref.Series = m.label

@@ -49,6 +49,23 @@ type MarkRows struct {
 	// them.
 	At   []ir.Point
 	Rows []int
+
+	// Depth is how far each mark is from the camera, or nil for a chart that
+	// has none — which is every flat one, and is why it is a separate slice
+	// rather than a third column of a triple. Larger is farther, which is the
+	// order a painter walks.
+	//
+	// It exists because a projected scene hides its own far side: a host that
+	// has just been told where a row landed cannot otherwise tell whether the
+	// reader can see it, and a mark drawn plainly over a point that is behind a
+	// surface says the wrong thing about where that point is. This is the
+	// number the answer comes out of, and it is the one the painter already
+	// sorted by, so it costs nothing to say.
+	//
+	// It is parallel to At and Rows when it is there at all, and lent for the
+	// duration of the call like them. ADR 0060 is why this is a field rather
+	// than a second interface.
+	Depth []float64
 }
 
 // Marks reports the rows behind a set of marks, if anyone asked. A geom calls
