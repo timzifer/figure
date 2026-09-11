@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/interact"
 	"github.com/timzifer/figure/internal/irtest"
@@ -591,4 +592,68 @@ func TestAReportedRowCarriesItsDepth(t *testing.T) {
 	if !(far > near) {
 		t.Errorf("every row of a turned surface is at depth %v, so nothing is in front of anything", near)
 	}
+}
+
+// A hit says how near the nearest thing at a point is, which is what lets a
+// caller tell whether the row it is asking about is behind it.
+func TestAHitCarriesTheDepthOfWhatIsThere(t *testing.T) {
+	rec := irtest.New()
+	idx := interact.New()
+	idx.TrackRows(true)
+
+	// A ripple seen from close to the floor: ridges hide the troughs behind
+	// them, which is the whole case this exists for. A bowl seen from above
+	// hides nothing and would prove nothing.
+	p := New(Size(400, 320)).Scene(rippleScene(16, 16)).Observer(idx).TrackRows(idx).
+		Add(View{Camera: LookAt(Azimuth(-0.6), Elevation(0.08))})
+	if _, err := p.draw(idx.Watch(rec)); err != nil {
+		t.Fatal(err)
+	}
+
+	refs := idx.RowsOf(0, 0, nil)
+	if len(refs) == 0 {
+		t.Fatal("the surface reported no rows")
+	}
+	behind, deep := 0, 0
+	for _, r := range refs {
+		h, ok := idx.At(r.At, 0)
+		if !ok || !h.Deep {
+			continue
+		}
+		deep++
+		if h.Depth < r.Depth-1e-6 {
+			behind++
+		}
+	}
+	if deep == 0 {
+		t.Fatal("no hit over a reported row carried a depth")
+	}
+	// A surface at the author's angle hides part of itself, so some rows are
+	// behind the face in front of them and most are not. Both halves matter:
+	// none would mean the test proves nothing, and all would mean the depths
+	// are not being matched to the right marks.
+	if behind == 0 {
+		t.Error("no row of a turned surface is behind anything")
+	}
+	if behind == deep {
+		t.Errorf("all %d rows are behind something, which cannot be right", deep)
+	}
+}
+
+// rippleScene is a surface that hides part of itself from any low camera: the
+// ridges stand in front of the troughs behind them.
+func rippleScene(nx, ny int) *Scene {
+	xs := make([]float64, 0, nx*ny)
+	ys := make([]float64, 0, nx*ny)
+	zs := make([]float64, 0, nx*ny)
+	for j := range ny {
+		for i := range nx {
+			x := -3 + 6*float64(i)/float64(nx-1)
+			y := -3 + 6*float64(j)/float64(ny-1)
+			xs, ys = append(xs, x), append(ys, y)
+			zs = append(zs, math.Sin(x)*math.Cos(y))
+		}
+	}
+	src := data.Float64Columns(map[string][]float64{"x": xs, "y": ys, "z": zs})
+	return NewScene().Add(Surface(src, geom.X("x"), geom.Y("y"), geom.Z("z")))
 }

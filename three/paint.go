@@ -57,6 +57,9 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 	if len(s.prims) == 0 {
 		return
 	}
+	// An observer that wants to know how far away each mark is, for the reason
+	// render.DepthObserver gives. Resolved once rather than per primitive.
+	deep, _ := obs.(render.DepthObserver)
 
 	s.pts = grow(s.pts, len(s.verts))[:0]
 	for _, v := range s.verts {
@@ -89,11 +92,14 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 		case kindLine:
 			s.line = grow(s.line, int(p.hi-p.lo))[:0]
 			s.line = append(s.line, s.pts[p.lo:p.hi]...)
+			if deep != nil {
+				deep.Depth(float64(p.depth))
+			}
 			b.Polyline(s.line, ir.Stroke{Color: p.style.Stroke, Width: p.style.Width})
 			s.noteRow(p)
 			i++
 		default:
-			i = s.faces(b, i)
+			i = s.faces(b, deep, i)
 		}
 	}
 	s.flushRows(rows)
@@ -125,7 +131,7 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 // So an outlined or translucent face is drawn on its own, in its place in the
 // order, and the merge is kept for the case it is free in. Either way each
 // face is its own subpath, so a hit index still sees one mark per quad.
-func (s *Sink) faces(b ir.Backend, i int) int {
+func (s *Sink) faces(b ir.Backend, deep render.DepthObserver, i int) int {
 	first := &s.prims[s.order[i].idx]
 
 	j := i + 1
@@ -148,6 +154,13 @@ func (s *Sink) faces(b ir.Backend, i int) int {
 			s.path.LineTo(q.X, q.Y)
 		}
 		s.path.Close()
+		// Once per subpath, in the order the subpaths are appended, which is
+		// the order an index walking them will see. A merged run is several
+		// depths in one call, so saying it per call would be saying the
+		// farthest one for all of them.
+		if deep != nil {
+			deep.Depth(float64(p.depth))
+		}
 		s.noteRow(p)
 	}
 

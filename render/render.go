@@ -218,6 +218,28 @@ type Observer interface {
 	End()
 }
 
+// DepthObserver is implemented by an [Observer] that wants to know how far from
+// the camera each mark it is about to be told about was drawn.
+//
+// It is optional, and it is optional because most charts have no answer: a flat
+// chart has no depth, and nothing in this package calls it. [figure/three] does,
+// once per primitive, with the number its painter sorted by — larger is farther.
+//
+// It exists because a projected scene hides its own far side, and an observer
+// that indexes marks cannot otherwise tell a mark in front from the one behind
+// it: the topmost mark at a point is the nearest, but nothing says how near, so
+// nothing can say whether some *other* mark the caller is asking about is
+// behind it. A host ringing the row a reader picked needs exactly that, so that
+// a ring over a point on the far side of a surface can say so rather than
+// claiming the point is where the near face is.
+//
+// The depth holds until it is set again and is reset for each layer, which is
+// the contract [Observer.Layer] already has for everything else.
+type DepthObserver interface {
+	// Depth is how far the marks that follow are from the camera.
+	Depth(d float64)
+}
+
 // LayerInfo is what [Observer.Layer] is handed: which layer is opening, and
 // what it is drawn against.
 //
