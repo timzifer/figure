@@ -108,7 +108,12 @@ func (c Camera) Forward() Vec3 { e := c.Eye(); return Vec3{-e.X, -e.Y, -e.Z} }
 // with its own constant:
 //
 //	const perPixel = 0.008 // radians; the host's choice, not figure's
-//	live.Camera(three.Orbit(live.CameraValue(), dx*perPixel, -dy*perPixel))
+//	live.Camera(three.Orbit(live.CameraValue(), -dx*perPixel, dy*perPixel))
+//
+// The signs are the ones a reader expects of taking hold of the scene: the side
+// facing them follows the pointer. The azimuth grows anticlockwise seen from
+// above, so a drag to the right, which carries the camera the other way, is a
+// falling azimuth; device y grows downward, so a drag down lifts the camera.
 //
 // Elevation is clamped just inside the poles; azimuth wraps.
 func Orbit(c Camera, dAz, dEl float64) Camera {

@@ -121,10 +121,11 @@ func twoScenes(out string) error {
 // The constant is the host's, not figure's: how many radians a pixel of drag
 // is worth is a statement about how the interaction feels, and feel belongs to
 // whoever owns the input layer. Inertia, momentum and springs are the same
-// argument and are not here either.
+// argument and are not here either. The signs make a drag take hold of the
+// scene: the side facing the reader follows the pointer. See [three.Orbit].
 func turn(cam three.Camera, dx, dy float64) three.Camera {
 	const perPixel = 0.008 // radians
-	return three.Orbit(cam, dx*perPixel, -dy*perPixel)
+	return three.Orbit(cam, -dx*perPixel, dy*perPixel)
 }
 
 // saddle is a response with a ridge in one direction and a trough in the

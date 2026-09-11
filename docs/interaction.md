@@ -183,9 +183,14 @@ live.Draw()
 
 // the host's event handler, wherever the host's events come from
 const perPixel = 0.008 // radians; the host's choice, not figure's
-live.Camera(three.Orbit(live.CameraValue(), dx*perPixel, -dy*perPixel))
+live.Camera(three.Orbit(live.CameraValue(), -dx*perPixel, dy*perPixel))
 live.Draw()
 ```
+
+The signs make a drag take hold of the scene, as it does in three.js's
+OrbitControls, in Blender and in matplotlib: the side facing the reader follows
+the pointer. The camera goes the other way round — a drag to the right is a
+falling azimuth, and a drag down, device y growing downward, lifts it.
 
 That is the whole of it. A camera is an immutable value, `three.Orbit` is a
 pure function from one to another, and figure installs no handler, opens no

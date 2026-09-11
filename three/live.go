@@ -14,7 +14,7 @@ import (
 // the view and does not draw returns nothing, and a method that draws returns
 // an error. So turning a scene is two calls —
 //
-//	live.Camera(three.Orbit(live.CameraValue(), dx*perPixel, -dy*perPixel))
+//	live.Camera(three.Orbit(live.CameraValue(), -dx*perPixel, dy*perPixel))
 //	live.Draw()
 //
 // — and that is what leaves the host owning its own loop. This package
