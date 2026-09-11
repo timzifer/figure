@@ -112,6 +112,16 @@ func New(opts ...Option) *Plot {
 // Scene sets what the plot's views look at.
 func (p *Plot) Scene(s *Scene) *Plot { p.scene = s; return p }
 
+// CurrentScene reports the scene the plot draws, or nil for a plot whose views
+// each brought their own.
+//
+// It is spelled apart from [Plot.Scene] because that name is taken by the
+// setter, which is the one a caller writes; this is for a host that has to read
+// a layer back — to ask what a row it was handed is called, say — and would
+// otherwise have to be given the scene a second time. [View.Scene] is the
+// per-view override to resolve it against.
+func (p *Plot) CurrentScene() *Scene { return p.scene }
+
 // Add appends views, in reading order across the grid.
 func (p *Plot) Add(vs ...View) *Plot { p.views = append(p.views, vs...); return p }
 
