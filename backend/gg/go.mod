@@ -7,7 +7,7 @@ go 1.25.0
 // says which.
 require (
 	github.com/gogpu/gg v0.52.5
-	github.com/timzifer/figure v0.9.0
+	github.com/timzifer/figure v0.10.0
 	golang.org/x/image v0.45.0
 )
 
@@ -16,5 +16,3 @@ require (
 	github.com/gogpu/gputypes v0.5.2 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
-
-replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.3
