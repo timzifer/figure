@@ -445,6 +445,13 @@ func (p *polar) Furniture(dst *Furniture, req FurnitureRequest) {
 	// Labels round a ring do not share a row, so the greedy overlap filter
 	// that keeps a dense Cartesian axis readable must not run over them.
 	dst.XLabelsShareARow = false
+	// The radial axis runs along the start spoke, through the marks rather
+	// than beside them, and the rim is the edge every slice reaches. Drawn
+	// under the data, both are painted over by the first slice.
+	dst.AxesOverData = true
+	// The angle's labels are the reading; the radius's are a scale beside
+	// it. Where two collide, the angle's is the one to keep.
+	dst.LabelsYFirst = p.theta == FromY
 
 	if p.theta == FromY {
 		p.radial(dst.x(), xTicks, m)
@@ -460,8 +467,15 @@ func (p *polar) Furniture(dst *Furniture, req FurnitureRequest) {
 // outside the rim at each tick's own angle.
 func (p *polar) angular(s side, ticks []scale.Tick, m Metrics) {
 	p.ring(s.axis, float64(p.r1))
+	seam := p.seam(ticks)
 	for _, t := range ticks {
 		grid, tick := s.next()
+		if seam && math.Abs(float64(t.Pos)-p.sweep) < seamEps {
+			// The end of a full turn is its start, and the tick there already
+			// has a spoke and a label: this one would write "100" over "0".
+			s.mark(false, Label{})
+			continue
+		}
 		a := p.angle(float64(t.Pos))
 		if !t.Minor {
 			grid.line(p.onCircle(a, float64(p.r0)), p.onCircle(a, float64(p.r1)))
@@ -478,11 +492,53 @@ func (p *polar) angular(s side, ticks []scale.Tick, m Metrics) {
 	}
 }
 
+// seam reports whether a full turn's last tick lands on its first. When the
+// sweep closes the circle, the end of the angular domain and its start are one
+// spoke, and a tick at each would write two labels over each other — "0" and
+// "100" at twelve o'clock on a pie. The one at the start is kept; a turn with
+// no tick at its start keeps the one at its end, because that is then the only
+// label on the spoke.
+func (p *polar) seam(ticks []scale.Tick) bool {
+	if !p.fullTurn() {
+		return false
+	}
+	for _, t := range ticks {
+		if math.Abs(float64(t.Pos)) < seamEps {
+			return true
+		}
+	}
+	return false
+}
+
+// fullTurn reports whether the angular scale closes the circle.
+func (p *polar) fullTurn() bool { return math.Abs(p.sweep) >= 2*math.Pi-seamEps }
+
+// seamEps is how close, in radians, two angles have to be to be one spoke. A
+// scale snaps its range ends exactly, so this only has to absorb the float32
+// the range is stored in.
+const seamEps = 1e-4
+
+// labelSide is the canvas angle the radial axis's labels are set off their
+// spoke towards. A full turn has marks on both sides of the spoke, and the
+// labels go clockwise of it, as they always have. A partial sweep leaves one
+// side empty — the lower half of a gauge — and the labels go there, off the
+// marks: on the other side they would be written over the first slice.
+func (p *polar) labelSide() float64 {
+	if !p.fullTurn() && (p.sweep > 0) != p.ccw {
+		return p.start - math.Pi/2
+	}
+	return p.start + math.Pi/2
+}
+
 // radial fills the furniture of the axis that goes out: a concentric ring per
 // tick instead of a horizontal grid line, the starting spoke as the axis line,
-// and the labels written along that spoke.
+// and the labels written along that spoke, a pad off it on [polar.labelSide].
 func (p *polar) radial(s side, ticks []scale.Tick, m Metrics) {
 	s.axis.line(p.onCircle(p.start, float64(p.r0)), p.onCircle(p.start, float64(p.r1)))
+	off := p.labelSide()
+	sn, cn := math.Sincos(off)
+	dx, dy := m.LabelPad*float32(sn), -m.LabelPad*float32(cn)
+	h, v := radialAlign(off)
 	for _, t := range ticks {
 		grid, tick := s.next()
 		r := float64(t.Pos)
@@ -500,11 +556,7 @@ func (p *polar) radial(s side, ticks []scale.Tick, m Metrics) {
 			tick.line(p.onCircle(p.start, r), p.onCircle(p.start, r+float64(l)))
 		}
 		at := p.onCircle(p.start, r)
-		s.mark(true, Label{
-			At: ir.Point{X: at.X + m.LabelPad, Y: at.Y},
-			H:  ir.AlignStart,
-			V:  ir.AlignMiddle,
-		})
+		s.mark(true, Label{At: ir.Point{X: at.X + dx, Y: at.Y + dy}, H: h, V: v})
 	}
 }
 

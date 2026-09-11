@@ -59,6 +59,11 @@ func validLabelBox(b ir.Rect) bool {
 	return true
 }
 
+// LabelBounds is the box a text run covers once aligned about its anchor and
+// turned, given what Measure said about it. It is the box [Labels.Place]
+// tests, exported for a caller that thins labels rather than moving them.
+func LabelBounds(run ir.TextRun, m ir.TextMetrics) ir.Rect { return labelBounds(run, m) }
+
 // Measure supplies baseline-relative ink and font metrics. Rotate all four
 // corners after alignment, including italic overhang beyond the advance box.
 func labelBounds(run ir.TextRun, m ir.TextMetrics) ir.Rect {

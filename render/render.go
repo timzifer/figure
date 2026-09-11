@@ -473,6 +473,7 @@ func Draw(b ir.Backend, c Chart) error {
 	}
 
 	fur := acquireFurniture()
+	axesOver := false
 	for i, p := range panels {
 		area := lay.Areas[i]
 		cd, xTicks, yTicks := p.rangeTo(c.coordOf(p), area, th)
@@ -483,7 +484,11 @@ func Draw(b ir.Backend, c Chart) error {
 		cd.Furniture(fur, coord.FurnitureRequest{Area: area, Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
 		drawPanelFill(b, area, th)
 		drawGrid(b, th, p, fur, xTicks, yTicks)
-		drawAxes(b, th, p, fur, xTicks, yTicks)
+		if fur.AxesOverData {
+			axesOver = true
+		} else {
+			drawAxes(b, th, p, fur, xTicks, yTicks)
+		}
 		drawSecondaryAxes(b, th, p, cd, area)
 		drawStrip(b, lay.Strips[i], th, p.Strip, 0)
 		drawStrip(b, lay.RightStrips[i], th, p.RightStrip, halfPi)
@@ -500,6 +505,9 @@ func Draw(b ir.Backend, c Chart) error {
 	// last — see [Observer.End].
 	if c.Observer != nil {
 		c.Observer.End()
+	}
+	if axesOver {
+		drawAxesOverData(b, c, panels, lay.Areas, th)
 	}
 
 	// The solver reserves one box per guide, in order, so these are parallel.
@@ -903,7 +911,16 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 	// X ticks. Where the labels sit along one line they will collide on a
 	// dense axis; drop the ones that would overlap rather than let them run
 	// together. Labels arranged around a ring share no line and are all kept.
-	keep := selectXLabels(b, fur, xTicks, tickFont, th.TickLabelPad)
+	//
+	// Labels that share no line — round a ring, along its spoke — are thinned
+	// against each other by their boxes instead, across both axes at once.
+	var keep, keepY []bool
+	if fur.XLabelsShareARow {
+		keep = selectXLabels(b, fur, xTicks, tickFont, th.TickLabelPad)
+	} else {
+		keep, keepY = selectScatteredLabels(b, fur, xTicks, yTicks, tickFont, th.TickLabelPad,
+			th.ShowTicksX && p.ShowX, th.ShowTicksY && p.ShowY)
+	}
 	for i, t := range xTicks {
 		if !inFurniture(fur.InX, i) || !th.ShowTicksX {
 			continue
@@ -927,10 +944,88 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 		if axis.Visible() {
 			strokeShape(b, shapeAt(fur.TickY, i), axis)
 		}
-		if t.Label == "" || !p.ShowY {
+		if t.Label == "" || !p.ShowY || (keepY != nil && !keepY[i]) {
 			continue
 		}
 		b.Text(labelRun(t.Label, tickFont, fur.LabelY[i], th.TickColor))
+	}
+}
+
+// selectScatteredLabels thins the tick labels of a panel whose labels do not
+// share a row — a polar panel's, round its rim and along its spoke — by their
+// boxes: greedily, each kept only if it clears every label kept before it by
+// pad. A gauge's radial numbers sit in a row across a ring a few dozen pixels
+// deep, and the axis's tick count was chosen for a whole panel.
+//
+// The two axes are thinned together, because a label along the spoke can run
+// into one round the rim, and the axis [coord.Furniture.LabelsYFirst] names
+// goes first so that the angle's labels are the ones that stay. A label that
+// will not be drawn takes no room.
+func selectScatteredLabels(m layout.Measurer, fur *coord.Furniture, xTicks, yTicks []scale.Tick,
+	font ir.FontRef, pad float32, showX, showY bool,
+) (keepX, keepY []bool) {
+	keepX, keepY = make([]bool, len(xTicks)), make([]bool, len(yTicks))
+	var kept []ir.Rect
+	thin := func(ticks []scale.Tick, labels []coord.Label, in, keep []bool, show bool) {
+		if !show {
+			return
+		}
+		for i, t := range ticks {
+			if t.Label == "" || !inFurniture(in, i) || i >= len(labels) {
+				continue
+			}
+			run := labelRun(t.Label, font, labels[i], ir.Color{})
+			box := layout.LabelBounds(run, m.Measure(run))
+			if overlapsAny(box, kept, pad) {
+				continue
+			}
+			keep[i] = true
+			kept = append(kept, box)
+		}
+	}
+	if fur.LabelsYFirst {
+		thin(yTicks, fur.LabelY, fur.InY, keepY, showY)
+		thin(xTicks, fur.LabelX, fur.InX, keepX, showX)
+	} else {
+		thin(xTicks, fur.LabelX, fur.InX, keepX, showX)
+		thin(yTicks, fur.LabelY, fur.InY, keepY, showY)
+	}
+	return keepX, keepY
+}
+
+// overlapsAny reports whether box comes within pad of any of kept.
+func overlapsAny(box ir.Rect, kept []ir.Rect, pad float32) bool {
+	for _, k := range kept {
+		if box.Min.X < k.Max.X+pad && box.Max.X+pad > k.Min.X &&
+			box.Min.Y < k.Max.Y+pad && box.Max.Y+pad > k.Min.Y {
+			return true
+		}
+	}
+	return false
+}
+
+// drawAxesOverData is the axis pass for the panels whose coord reported
+// [coord.Furniture.AxesOverData]: they skipped their axes in the furniture
+// pass, and have them stroked here, over the marks.
+//
+// Each panel is ranged again rather than its furniture kept from the first
+// pass. Panels share scale objects, so the data pass left every shared scale
+// on the last panel it drew, and the tick positions a kept furniture was
+// built from would be that panel's. Only a chart with such a panel pays for
+// the second ranging; a Cartesian chart never reaches this function.
+func drawAxesOverData(b ir.Backend, c Chart, panels []Panel, areas []ir.Rect, th theme.Theme) {
+	fur := acquireFurniture()
+	defer releaseFurniture(fur)
+	for i, p := range panels {
+		if i >= len(areas) {
+			break
+		}
+		cd, xTicks, yTicks := p.rangeTo(c.coordOf(p), areas[i], th)
+		fur.Reset()
+		cd.Furniture(fur, coord.FurnitureRequest{Area: areas[i], Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
+		if fur.AxesOverData {
+			drawAxes(b, th, p, fur, xTicks, yTicks)
+		}
 	}
 }
 
