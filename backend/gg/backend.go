@@ -116,10 +116,78 @@ func (b *backend) StrokePath(p *ir.Path, style ir.Stroke) {
 	if !style.Visible() || p == nil || p.Empty() {
 		return
 	}
-	b.buildPath(p)
+	if b.mayBeHairline(style) {
+		b.buildOpenPath(p)
+	} else {
+		b.buildPath(p)
+	}
 	b.applyStroke(style)
 	b.fail(b.ctx.Stroke())
 	b.drew = true
+}
+
+// mayBeHairline reports whether gg could draw this stroke as a hairline: a
+// line narrower than one device pixel, which gg rasterises by snapping its
+// axis-aligned segments to pixel centres rather than by expanding it.
+//
+// gg decides on the width times the transform's scale, and whether that scale
+// includes the device scale is gg's business, so this asks whether the stroke
+// is under a pixel at either — erring towards the workaround, which costs
+// nothing a reader can see on a line that thin.
+func (b *backend) mayBeHairline(style ir.Stroke) bool {
+	s := b.dpr
+	if s <= 0 || s > 1 {
+		s = 1
+	}
+	return float64(style.Width)*s < 1
+}
+
+// buildOpenPath is [backend.buildPath] with every straight-line subpath closed
+// by an explicit segment back to its start rather than by ClosePath.
+//
+// It works round a bug in gg v0.52.5's hairline snapping. To put a thin
+// horizontal or vertical segment on a pixel centre, gg starts a new subpath
+// at the snapped position whenever it differs from the current point — and a
+// ClosePath afterwards closes to *that* start rather than the subpath's own,
+// joining the box's last corner to the wrong point. On the cube of a
+// three-dimensional chart, drawn at 0.75 px, that is a long diagonal across
+// the backdrop. At one pixel or wider gg expands the stroke instead and the
+// box is correct, which is why only a hairline takes this path.
+//
+// An explicit segment has no start to close to, so there is nothing to get
+// wrong. What it changes is the corner the path began at, which gets two caps
+// instead of a join — invisible on a line under a pixel wide.
+//
+// A subpath with a curve in it keeps its ClosePath, because gg recognises a
+// circle by its verbs and draws a thin one with a distance field rather than
+// by snapping; replacing its close would turn that off. The upstream fix is to
+// keep the subpath's original start while snapping.
+func (b *backend) buildOpenPath(p *ir.Path) {
+	b.ctx.ClearPath()
+	var start ir.Point
+	curved := false
+	p.Walk(func(op ir.PathOp, pts []ir.Point) {
+		switch op {
+		case ir.OpMoveTo:
+			start, curved = pts[0], false
+			b.ctx.MoveTo(float64(pts[0].X), float64(pts[0].Y))
+		case ir.OpLineTo:
+			b.ctx.LineTo(float64(pts[0].X), float64(pts[0].Y))
+		case ir.OpCubicTo:
+			curved = true
+			b.ctx.CubicTo(
+				float64(pts[0].X), float64(pts[0].Y),
+				float64(pts[1].X), float64(pts[1].Y),
+				float64(pts[2].X), float64(pts[2].Y),
+			)
+		case ir.OpClose:
+			if curved {
+				b.ctx.ClosePath()
+				return
+			}
+			b.ctx.LineTo(float64(start.X), float64(start.Y))
+		}
+	})
 }
 
 func (b *backend) FillPath(p *ir.Path, fill ir.Fill, rule ir.FillRule) {

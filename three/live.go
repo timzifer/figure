@@ -291,7 +291,11 @@ func (l *Live) Draw() error {
 // ADR 0057 asks for, and it is what a figure of four views wants: three of
 // them genuinely did not change.
 func (l *Live) turnedRects() []ir.Rect {
-	if !l.drawn {
+	// An overlay draws where it likes — a ring may sit on a cell's edge, a
+	// leader line may run into the margin between two of them — so no list of
+	// cells describes what it damaged, and a turn with one installed repaints
+	// the canvas. A figure with no overlay pays exactly what it paid before.
+	if !l.drawn || l.p.overlay != nil {
 		return nil
 	}
 	l.rects = l.rects[:0]

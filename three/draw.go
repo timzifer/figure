@@ -107,6 +107,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 	}
 	var path ir.Path
 	boxes := sink.boxes[:0]
+	oviews := sink.oviews[:0]
 
 	for i, v := range views {
 		area := lay.Areas[i]
@@ -122,6 +123,20 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 			inner = area
 		}
 		pr := project(v.Camera, inner)
+
+		if p.overlay != nil {
+			// Collected here rather than recomputed afterwards: the projector
+			// is built in this loop and nowhere else, and inner is discarded
+			// at the bottom of it.
+			oviews = append(oviews, OverlayView{
+				Index: i, Label: v.Label, Area: area, Inner: inner,
+				Camera:  v.Camera,
+				X:       scales[axisX],
+				Y:       scales[axisY],
+				Z:       scales[axisZ],
+				Project: Projection{p: pr},
+			})
+		}
 
 		var clip ir.Path
 		clip.Rect(area)
@@ -158,9 +173,21 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 	}
 
 	sink.boxes = boxes
+	sink.oviews = oviews
 
 	if p.obs != nil {
 		p.obs.End()
+	}
+
+	// Last of all, over every view, clipped by nothing. See [Overlay]. Each
+	// view's own clip was popped at the bottom of the loop, so an overlay that
+	// wants one pushes [OverlayView.Area] itself.
+	//
+	// It is after Observer.End for ADR 0046's reason: an overlay is not a mark
+	// and must not be hit-testable, and drawing it before End would attribute
+	// its calls to whichever layer happened to be painted last.
+	if p.overlay != nil {
+		p.overlay.DrawOverlay(b, OverlayFrame{Canvas: canvas, Views: oviews, Theme: th})
 	}
 	return lay.Areas, nil
 }

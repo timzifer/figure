@@ -586,10 +586,16 @@ overlays, clickable guides, linked views, keyed transitions and streaming;
 typeset notation in labels; a described chart with a data table for a reader
 that is not an eye; a JSON dialect a chart writes itself down as and reads
 itself back from; and, in `figure/three`, a chart whose x, y and z are all
-data — a surface, a trajectory and a field of bars, projected above the IR so
-that every backend draws one, turned at a camera the host holds
+data — a surface, a trajectory, a field of bars and the contours of a field on
+the floor beneath them, projected above the IR so that every backend draws one,
+turned at a camera the host holds
 ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
-[ADR 0057](docs/adr/0057-orbiting-a-chart.md)).
+[ADR 0057](docs/adr/0057-orbiting-a-chart.md),
+[ADR 0064](docs/adr/0064-a-contour-and-its-lattice.md)); a contour plot of a
+sampled field, whose lines are the same tracing whether they are drawn flat or
+on a surface's floor; and an overlay a host paints a selection over, in one
+view or in every view of a scene at once
+([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).
@@ -618,7 +624,7 @@ The record of how each of those arrived, and the argument that shaped it, is in
   [ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own
   terms before it lands. Venn is a circle-packing optimiser and UpSet is a
   matrix chart rather than a relational layout at all.
-- **More stats: contour**, and a bucket of **domain reductions** — the
+- **A bucket of domain reductions** — the
   Kaplan–Meier estimator, the SPC control-limit family, ACF and PACF, ROC and
   Lorenz — none of which needs a shape figure does not already draw. The record
   is mostly about where the line is, because "put the field's arithmetic in
@@ -649,8 +655,7 @@ The record of how each of those arrived, and the argument that shaped it, is in
 - **The rest of 3D.** The third axis and its camera are built
   ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
   [ADR 0057](docs/adr/0057-orbiting-a-chart.md)); what is left of the four
-  records is the 3D scatter with its droplines, `stat.Contour` — which pays
-  for the flat contour plot as well as for a surface's floor — the oblique
+  records is the 3D scatter with its droplines, the oblique
   coord that gives a flat mark volume without giving the chart a dimension
   ([ADR 0055](docs/adr/0055-depth-without-a-third-axis.md)), and the spherical
   coord that turns one projection into antenna patterns, Poincaré and Bloch

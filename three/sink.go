@@ -76,9 +76,14 @@ type Sink struct {
 	line  []ir.Point
 	rowAt []ir.Point
 	rowNo []int
+	rowZ  []float64
 	// boxes is the cube's label-collision scratch, kept here so that it is
 	// pooled with everything else rather than made per view per frame.
 	boxes []ir.Rect
+	// oviews is the list an overlay is told the views in, kept here for the
+	// reason boxes is: a figure redrawn every frame must not allocate one per
+	// frame, and the orbit benchmarks are the gate that says so.
+	oviews []OverlayView
 
 	// The state a layer sets and this package resets between layers.
 	layer int32
@@ -212,6 +217,7 @@ func (s *Sink) reset() {
 	s.line = s.line[:0]
 	s.rowAt = s.rowAt[:0]
 	s.rowNo = s.rowNo[:0]
+	s.rowZ = s.rowZ[:0]
 	s.boxes = s.boxes[:0]
 	s.layer, s.row, s.fwd = 0, -1, Vec3{}
 }

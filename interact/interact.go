@@ -113,6 +113,16 @@ type Hit struct {
 	// device units. It is zero for a point inside an area.
 	Distance float32
 
+	// Depth is how far the mark was from the camera, and Deep whether the
+	// chart said at all — a flat one has no depth and leaves both alone.
+	// Larger is farther.
+	//
+	// A hit reports the nearest mark at a point, so this is how near the
+	// nearest thing there is. Compared with the depth of a row the caller is
+	// asking about — [RowRef.Depth] — it says whether that row is behind it.
+	Depth float64
+	Deep  bool
+
 	// Hidden reports whether the series this hit's layer is currently turned
 	// off, and is only meaningful when Kind is [LegendRow]. It is what lets a
 	// handler say "show" or "hide" rather than having to ask the chart.
@@ -226,6 +236,15 @@ type Index struct {
 	// set by [Index.Layer] and nil where the renderer did not say — which
 	// is every renderer that has one axis per direction to say anything about.
 	layerX, layerY scale.Scale
+
+	// depths is what [Index.Depth] has been told for the marks of the call
+	// being indexed, one entry per mark it will produce, and spent says the
+	// call has had them. They are cleared when the next depth arrives rather
+	// than when a call ends, because one run of faces is filled and then
+	// stroked — two calls over one list. The slice is kept rather than
+	// replaced so that a redrawn chart bins into the same memory.
+	depths []float64
+	spent  bool
 }
 
 // rowMark is where one source row landed.
@@ -238,14 +257,24 @@ type rowMark struct {
 	panel, layer int
 	at           ir.Point
 	row          int
+	// depth is how far the mark was from the camera, for a chart that has one,
+	// and is zero for every flat chart. See [RowRef.Depth].
+	depth float64
+	// deep says the depth is a measurement rather than the zero value, which a
+	// flat chart's rows carry and a scene's may legitimately equal.
+	deep bool
 }
 
 type mark struct {
 	panel, layer int
-	kind         Kind
-	label        string
-	lo, hi       int // into pts
-	bounds       ir.Rect
+	// depth is how far the mark was from the camera, for a chart that says —
+	// see [Index.Depth] — and deep whether it said at all.
+	depth  float64
+	deep   bool
+	kind   Kind
+	label  string
+	lo, hi int // into pts
+	bounds ir.Rect
 	// hidden is whether the series a LegendRow mark stands for is currently
 	// turned off. It is meaningless on any other kind.
 	hidden bool
@@ -273,6 +302,7 @@ func New() *Index { return &Index{panel: -1, layer: -1} }
 
 // Reset empties the index, keeping its memory for the next render.
 func (ix *Index) Reset() {
+	ix.depths, ix.spent = ix.depths[:0], false
 	ix.panels = ix.panels[:0]
 	ix.marks = ix.marks[:0]
 	ix.pts = ix.pts[:0]
@@ -303,17 +333,46 @@ func (ix *Index) TrackingRows() bool { return ix.track }
 //
 // The slices are lent for the call — they come from the geom's pooled
 // scratch — so the positions are copied out.
+// Depth implements [render.DepthObserver]: it notes how far from the camera the
+// marks that follow were drawn.
+//
+// One call per mark, in the order the marks are then announced, because a
+// projected scene draws several faces in one call and they are at several
+// depths. The list is consumed by the drawing call that follows and cleared
+// with it, so a chart that says nothing costs nothing.
+func (ix *Index) Depth(d float64) {
+	if !ix.open {
+		return
+	}
+	if ix.spent {
+		ix.depths, ix.spent = ix.depths[:0], false
+	}
+	ix.depths = append(ix.depths, d)
+}
+
+// depthAt is the depth announced for the i'th mark of the call being indexed,
+// and whether one was.
+func (ix *Index) depthAt(i int) (float64, bool) {
+	if i < 0 || i >= len(ix.depths) {
+		return 0, false
+	}
+	return ix.depths[i], true
+}
+
 func (ix *Index) Marks(m geom.MarkRows) {
 	if !ix.track || !ix.open || len(m.At) != len(m.Rows) {
 		return
 	}
+	deep := len(m.Depth) == len(m.At)
 	for i, p := range m.At {
 		if m.Rows[i] < 0 {
 			continue
 		}
-		ix.rows = append(ix.rows, rowMark{
-			panel: ix.panel, layer: ix.layer, at: p, row: m.Rows[i],
-		})
+		r := rowMark{panel: ix.panel, layer: ix.layer, at: p, row: m.Rows[i]}
+		if deep {
+			r.depth, r.deep = m.Depth[i], true
+		}
+		ix.rows = append(ix.rows, r)
 	}
 }
 
@@ -502,6 +561,7 @@ func (ix *Index) At(pt ir.Point, tol float32) (Hit, bool) {
 		best, found = Hit{
 			Panel: m.panel, Layer: m.layer, Series: m.label,
 			Kind: m.kind, At: at, Distance: d, Row: -1,
+			Depth: m.depth, Deep: m.deep,
 			Hidden: m.hidden, Class: m.class,
 			Lo: m.bandLo, Hi: m.bandHi, Value: m.value,
 		}, true
@@ -566,6 +626,17 @@ type RowRef struct {
 	Row int
 	// At is where the row landed, in device space.
 	At ir.Point
+
+	// Depth is how far the mark was from the camera, and Deep whether that is
+	// a measurement at all: a flat chart has no depth and leaves both alone.
+	// Larger is farther, which is the order a painter walks.
+	//
+	// It is what lets a caller tell whether the reader can actually see a row
+	// it has just been pointed at. A projected scene hides its own far side, so
+	// a mark drawn plainly over a point behind a surface says the wrong thing
+	// about where that point is — and this is the number that says so.
+	Depth float64
+	Deep  bool
 }
 
 // Locate reports where a source row of a layer landed in the render just
@@ -633,7 +704,10 @@ func (ix *Index) RowsIn(r ir.Rect, dst []RowRef) []RowRef {
 // layer drew. A rowMark does not carry it: rows and marks are separate lists
 // on purpose, and the label belongs to the layer rather than to either.
 func (ix *Index) refOf(r rowMark) RowRef {
-	ref := RowRef{Panel: r.panel, Layer: r.layer, Row: r.row, At: r.at}
+	ref := RowRef{
+		Panel: r.panel, Layer: r.layer, Row: r.row, At: r.at,
+		Depth: r.depth, Deep: r.deep,
+	}
 	for _, m := range ix.marks {
 		if m.panel == r.panel && m.layer == r.layer {
 			ref.Series = m.label
@@ -815,6 +889,9 @@ type probe struct {
 	at    ir.Affine
 	stack []ir.Affine
 	sub   []ir.Point // one subpath, reused
+	// n counts the marks this drawing call has produced, which is how a mark
+	// is matched to the depth announced for it. See [Index.Depth].
+	n int
 }
 
 // add records one mark, in device space.
@@ -837,26 +914,46 @@ func (p *probe) add(kind Kind, pts []ir.Point, pad float32) {
 			ix.pts = append(ix.pts, p.at.Apply(q))
 		}
 	}
-	ix.marks = append(ix.marks, mark{
+	m := mark{
 		panel: ix.panel, layer: ix.layer, kind: kind, label: ix.label,
 		lo: lo, hi: len(ix.pts), bounds: bounds(ix.pts[lo:], pad),
 		x: ix.layerX, y: ix.layerY,
-	})
+	}
+	m.depth, m.deep = ix.depthAt(p.n)
+	p.n++
+	ix.marks = append(ix.marks, m)
 }
 
 func (p *probe) Polyline(pts []ir.Point, style ir.Stroke) {
 	p.b.Polyline(pts, style)
 	p.add(Vertex, pts, style.Width/2)
+	p.endCall()
 }
 
 func (p *probe) StrokePath(path *ir.Path, style ir.Stroke) {
 	p.b.StrokePath(path, style)
 	p.addSubpaths(Vertex, path, style.Width/2)
+	p.endCall()
 }
 
 func (p *probe) FillPath(path *ir.Path, fill ir.Fill, rule ir.FillRule) {
 	p.b.FillPath(path, fill, rule)
 	p.addSubpaths(Area, path, 0)
+	p.endCall()
+}
+
+// endCall closes one drawing call: its marks are counted from the start again,
+// and the depths it was given are marked spent rather than dropped — a run of
+// faces is filled and then stroked, which is two calls over one list.
+//
+// Every drawing call has to close, including the ones nothing announces a depth
+// for. A layer that draws a label between two faces would otherwise leave the
+// count standing at one, and every mark after it would take the depth announced
+// for the mark before it — which is not a wrong number in an obvious place but
+// a right number in the wrong one.
+func (p *probe) endCall() {
+	p.n = 0
+	p.ix.spent = true
 }
 
 // addSubpaths indexes one mark per subpath rather than one per call.
@@ -892,16 +989,19 @@ func (p *probe) Text(run ir.TextRun) {
 		{X: run.At.X, Y: run.At.Y - h},
 		{X: run.At.X + w, Y: run.At.Y},
 	}, 0)
+	p.endCall()
 }
 
 func (p *probe) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) {
 	p.b.Markers(shape, at, style)
 	p.add(Vertex, at, style.Size/2)
+	p.endCall()
 }
 
 func (p *probe) Image(img image.Image, dst ir.Rect) {
 	p.b.Image(img, dst)
 	p.add(Area, []ir.Point{dst.Min, dst.Max}, 0)
+	p.endCall()
 }
 
 func (p *probe) Push(clip *ir.Path, xform ir.Affine) {

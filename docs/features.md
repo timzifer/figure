@@ -190,7 +190,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `Tooltip` paint over the finished chart, after the guides and clipped by
   nothing. What an overlay draws is not hit-testable, because a tooltip a
   pointer can hit is a tooltip that flickers
-  ([ADR 0046](adr/0046-overlay-layer.md)).
+  ([ADR 0046](adr/0046-overlay-layer.md)). A projected scene has the same stage
+  in `three.Overlay`, with `three.Highlight` and its own frame: an overlay there
+  is told where each view landed and what pixel a value of the data was drawn at
+  in it, because a device point in a turned cube resolves to no triple of values
+  ([ADR 0063](adr/0063-an-overlay-over-a-scene.md)).
 - **Guides you can click** — a hit on a legend row reports which series it
   stands for, and `Live.Toggle` puts that series away and brings it back; the
   row stays, dimmed, and the axes do not move
@@ -200,7 +204,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
 Deliberately **not** here: geographic projections, node-link and Venn diagrams,
-contour plots, and any engine that links two charts together — a link is a
+and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and

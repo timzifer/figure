@@ -225,7 +225,7 @@ binds force layouts and not tree layouts: Reingold–Tilford, in Buchheim's
 linear-time form, is O(n), deterministic and bounded, which is `stat.Squarify`'s
 shape exactly. See [ADR 0053](adr/0053-tidy-tree-layout.md).
 
-## F — needs new stats — **shipped**, except contour
+## F — needs new stats — **shipped**
 
 `CONCEPT §8` promised `Bin`, `Density` and `Smooth`, and `stat/` carries them:
 each is a pure function with an `Append`
@@ -241,7 +241,7 @@ form and a determinism test, per CONTRIBUTING's rule for reductions.
 | ECDF | `stat.ECDF` | `geom.ECDF` |
 | Trend line | `stat.Loess` | `geom.Trend` |
 | QQ | `stat.QQ` with a theoretical quantile function | `geom.QQ` for normal quantiles; unreleased |
-| Contour | `stat.Contour` | missing |
+| Contour | `stat.Contour` | `geom.Contour` |
 
 **`stat.Bin` changed meaning.** It is the 1-D histogram now, because that is what
 "bin" means without a qualifier; the 2-D binner it used to name is
@@ -476,7 +476,7 @@ them, and none of them needed the IR to gain anything.
 | 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
 | Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
 | 3D scatter with droplines | a marker primitive beside the face and the line, and a rule to the floor | **planned** — the one rank-1 form still missing, and it needs no new machinery |
-| Contours projected on the floor and walls | `stat.Contour` over the same grid | **planned** — the same function pays for the flat contour plot |
+| Contours projected on the floor | `three.Contour` over `stat.Contour` | **shipped** — the same tracing as the flat plot, so the two cannot disagree. The walls are declined: a contour is a statement about z over (x, y), and a wall contains z ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) |
 | Antenna pattern, Poincaré sphere, Bloch sphere, stereonet, 3D Smith | a spherical coord mapped into this scene | **planned** — [ADR 0058](adr/0058-what-3d-is-for.md) rank 3 |
 
 Refused, and each for a reason rather than for a schedule: arbitrary meshes and

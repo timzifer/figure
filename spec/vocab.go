@@ -43,6 +43,8 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "ridgeline", "", nil
 	case geom.MarkHexbin:
 		return "hexbin", "", nil
+	case geom.MarkContour:
+		return "contour", "", nil
 	case geom.MarkBeeswarm:
 		return "beeswarm", "", nil
 	case geom.MarkECDF:
@@ -125,6 +127,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkRidgeline, nil
 	case "hexbin":
 		return geom.MarkHexbin, nil
+	case "contour":
+		return geom.MarkContour, nil
 	case "beeswarm":
 		return geom.MarkBeeswarm, nil
 	case "ecdf":

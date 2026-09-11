@@ -107,3 +107,13 @@ func (b base) describe() geom.Desc {
 func (g *surface) Describe() geom.Desc { return g.base.describe() }
 func (g *line3) Describe() geom.Desc   { return g.base.describe() }
 func (g *bar3) Describe() geom.Desc    { return g.base.describe() }
+
+func (g *contour3) Describe() geom.Desc {
+	d := g.base.describe()
+	// The levels the layer is actually tracing, so that a description of a
+	// scene that chose its own says which lines it drew.
+	if len(g.levels) > 0 {
+		d.Levels = g.levels
+	}
+	return d
+}
