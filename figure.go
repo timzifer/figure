@@ -382,6 +382,15 @@ func New(opts ...Option) *Plot {
 	return p
 }
 
+// Theme reports the theme the plot was given, unscaled — the one [Theme] set,
+// or [themepkg.Light] if none was.
+//
+// It is what a host that restyles a chart reads before it does: a widget that
+// follows its application's colours lays them over this rather than replacing
+// it, so that what the author chose to show — grid lines, axis lines, ticks —
+// survives the change of page.
+func (p *Plot) Theme() themepkg.Theme { return p.theme }
+
 // themeFor returns the theme to draw at the given size: the plot's own, scaled
 // to the size when the plot is responsive.
 func (p *Plot) themeFor(w, h int) themepkg.Theme {
