@@ -1,6 +1,7 @@
 package gpu
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/gogpu/gg"
@@ -35,9 +36,11 @@ import (
 // package has always promised. The cost is one device probe at startup, which
 // is the probe the first chart would have paid for anyway.
 func init() {
-	if gg.Accelerator() != nil && !accelerateDraws() {
-		gg.CloseAccelerator()
-	}
+	Do(func() {
+		if gg.Accelerator() != nil && !accelerateDraws() {
+			gg.CloseAccelerator()
+		}
+	})
 }
 
 // accelerateDraws reports whether a stroked path put by the registered
@@ -118,7 +121,7 @@ func Disable() {
 	// accelerator, and leaving it registered would make "the CPU" a different
 	// rasterizer from the one a program without this package gets.
 	gg.RegisterCoverageFiller(nil)
-	gg.CloseAccelerator()
+	Do(gg.CloseAccelerator)
 }
 
 // Enable brings back a tier [Disable] set aside and reports whether it is on.
@@ -140,13 +143,20 @@ func Enable() bool {
 	if parked == nil {
 		return false
 	}
-	if err := gg.RegisterAccelerator(parked); err != nil {
-		return false
-	}
-	gg.RegisterCoverageFiller(parkedFiller)
-	if !accelerateDraws() {
-		gg.RegisterCoverageFiller(nil)
-		gg.CloseAccelerator()
+	ok := false
+	Do(func() {
+		if err := gg.RegisterAccelerator(parked); err != nil {
+			return
+		}
+		gg.RegisterCoverageFiller(parkedFiller)
+		if !accelerateDraws() {
+			gg.RegisterCoverageFiller(nil)
+			gg.CloseAccelerator()
+			return
+		}
+		ok = true
+	})
+	if !ok {
 		return false
 	}
 	parked, parkedFiller = nil, nil
@@ -163,7 +173,60 @@ func Close() {
 	mu.Lock()
 	defer mu.Unlock()
 	parked, parkedFiller = nil, nil
-	gg.CloseAccelerator()
+	Do(gg.CloseAccelerator)
+}
+
+// Do runs f on the one OS thread this package keeps for the GPU, and returns
+// when f has returned. Everything here that touches the device goes through it:
+// the startup probe, [Enable], [Disable] and [Close].
+//
+// It is exported because the device is not the only thing on that thread — the
+// driver's own per-thread state is too, and on Windows releasing the device is
+// what makes the driver tear its DLLs down. A rendering goroutine that drew on
+// one thread and a switch that released the device on another have been seen to
+// hang the process inside `vkDestroyInstance`, in the driver's thread-local
+// storage cleanup, with no Go frame anywhere near it. Keeping the draws on the
+// same thread as the teardown is what stopped it. See
+// docs/gpu-tier-close-hang.md.
+//
+// So a program that renders charts and offers a GPU on/off switch should put
+// its rendering here as well:
+//
+//	gpu.Do(func() { err = p.Render(ggbackend.File("chart.png")) })
+//
+// f must not call back into this package: the thread is running f, and a second
+// call would wait for itself. A panic in f is recovered on the thread and raised
+// again in the caller, so that the thread survives it; the original stack is
+// lost in the crossing.
+func Do(f func()) {
+	done := make(chan any, 1)
+	jobs <- func() {
+		defer func() { done <- recover() }()
+		f()
+	}
+	if p := <-done; p != nil {
+		panic(p)
+	}
+}
+
+// jobs is what Do hands work to, and the goroutine reading it is the thread:
+// locked at birth, never unlocked, alive for as long as the program is. Closing
+// the tier does not end it — [Close] is not final for the driver, whose DLLs are
+// unloaded on this thread, and a program may close and never render again.
+var jobs = startThread()
+
+func startThread() chan func() {
+	jobs := make(chan func())
+	ready := make(chan struct{})
+	go func() {
+		runtime.LockOSThread()
+		close(ready)
+		for f := range jobs {
+			f()
+		}
+	}()
+	<-ready
+	return jobs
 }
 
 // The tier set aside by Disable, and what guards the switch: a program may

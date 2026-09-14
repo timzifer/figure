@@ -40,7 +40,11 @@ func TestAChartRendersWithTheTierEitherWay(t *testing.T) {
 	p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
 
 	var buf bytes.Buffer
-	if err := p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)); err != nil {
+	// Through the tier's own thread, which is where a program that switches the
+	// GPU off and on has to draw: see gpu.Do.
+	var err error
+	gpu.Do(func() { err = p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)) })
+	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	if buf.Len() == 0 {
@@ -117,7 +121,11 @@ func renderSurface(t *testing.T) image.Image {
 		three.View{Camera: three.LookAt(three.Azimuth(2.2), three.Elevation(0.6))},
 	)
 	var buf bytes.Buffer
-	if err := p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)); err != nil {
+	// Through the tier's own thread, which is where a program that switches the
+	// GPU off and on has to draw: see gpu.Do.
+	var err error
+	gpu.Do(func() { err = p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)) })
+	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	img, err := png.Decode(bytes.NewReader(buf.Bytes()))
@@ -273,7 +281,11 @@ func renderSignal(t *testing.T) image.Image {
 	p.Add(geom.Line(src, geom.X("t"), geom.Y("v"), geom.Color(palette.Blue), geom.Width(5)))
 
 	var buf bytes.Buffer
-	if err := p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)); err != nil {
+	// Through the tier's own thread, which is where a program that switches the
+	// GPU off and on has to draw: see gpu.Do.
+	var err error
+	gpu.Do(func() { err = p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)) })
+	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	img, err := png.Decode(bytes.NewReader(buf.Bytes()))
@@ -295,7 +307,11 @@ func render(t *testing.T) image.Image {
 	p.Add(geom.Line(src, geom.X("x"), geom.Y("y")))
 
 	var buf bytes.Buffer
-	if err := p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)); err != nil {
+	// Through the tier's own thread, which is where a program that switches the
+	// GPU off and on has to draw: see gpu.Do.
+	var err error
+	gpu.Do(func() { err = p.Render(ggbackend.Writer(&buf, ggbackend.FormatPNG)) })
+	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	img, err := png.Decode(bytes.NewReader(buf.Bytes()))
