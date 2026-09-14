@@ -32,4 +32,4 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 )
 
-replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.4
+replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.5
