@@ -165,20 +165,37 @@ under the next one. See [ADR 0033](docs/adr/0033-smith-charts.md).
 not.** `render.drawAxes` walks `for i, t := range xTicks`, takes the geometry
 from `fur.GridX[i]` and the *text* from `t.Label`. That is why a Smith chart's
 columns are an impedance rather than the reflection coefficient an instrument
-reports: with Γ on the axes the impedance grid would have no tick behind it. It
-is also why there are no VSWR circles. Before reaching for a second grid family,
-read ADR 0033's "Revisit if" — widening this is one decision, not several.
+reports: with Γ on the axes the impedance grid would have no tick behind it.
+Before reaching for a second grid family, read ADR 0033's "Revisit if" —
+widening this is one decision, not several.
 
 **And check first whether the family is furniture at all.**
-[ADR 0050](docs/adr/0050-locus-annotations.md) is the proposed answer for the
-four families 0033 declined, and it does not widen anything: a curve given by a
-formula rather than by a tick is an *annotation* defined in data space, so the
-coord draws it through `Point` like any other mark and `render` never sees it.
+[ADR 0050](docs/adr/0050-locus-annotations.md) is the answer for the four
+families 0033 declined, and it widened nothing: a curve given by a formula
+rather than by a tick is an *annotation* defined in data space, so the coord
+draws it through `Point` like any other mark and `render` never sees it. That is
+what `geom.Locus` is, and it is why there are VSWR circles now and still no
+second tick list.
 A `Shape` may also hold more than one subpath, which is how a ternary chart's
 third grid family is drawn without a third tick list
 ([ADR 0051](docs/adr/0051-barycentric-coord.md)). What genuinely still needs the
 wider seam is a *labelled* family with no tick behind it — a projection's
 graticule, a ternary's third ladder — and that is one decision for all of them.
+
+**A locus is sampled against the panel, and the Nichols families are refined
+rather than walked.** `stat.Extent.Steps` is a tolerance rather than a count for
+them: a Nichols chart is the log-polar view of a circle, and the arc that passes
+near the origin is a hair of the circle and is the whole plunge to −∞ dB, while
+the rest of the same circle is a smooth curve a few dozen samples describe. A
+uniform walk resolves one or the other — the −1° N contour sampled uniformly
+stops dead at −6 dB, hanging in mid-air well above the bottom of the panel — so
+`nichols.refine` bisects until the step is a few pixels and stops at a step that
+leaves the window. Do not "simplify" the window rule away: it is also what
+*bounds* the refinement, because the arc approaching the origin is self-similar
+and a rule that only looked at the step would halve for ever. The other half is
+`emit`'s ninety-degree break, which is how the branch point at L = 0 is found
+without looking for it. See [ADR 0050](docs/adr/0050-locus-annotations.md)'s
+amendment.
 
 **PDF is figure's own emitter, not `gg-pdf`.** That library cannot draw
 geometry — its path operations reach a stub in `gxpdf` — so the roadmap's plan
@@ -1176,11 +1193,14 @@ quantile function, which is a distribution library rather than a chart. And
 `geom.Ridgeline` is the **first geom that refuses a scale outright** — it errors
 on a continuous Y axis rather than drawing every ridge on top of the last.
 
-Deliberately not done. A Smith chart has **no constant-|Γ| (VSWR)
-circles, no constant-Q arcs and no combined ZY overlay** — each is a third grid
-family against two tick lists, per the trap above — and it reads a **normalised
+Deliberately not done. A Smith chart's **coord** draws no constant-|Γ|
+(VSWR) circles and no constant-Q arcs — each would be a third grid family
+against two tick lists, per the trap above. They are drawn as `geom.Locus`
+layers instead, which is an annotation and not furniture
+([ADR 0050](docs/adr/0050-locus-annotations.md)); the **combined ZY overlay** is
+one more family nobody has written. The chart still reads a **normalised
 impedance** rather than the reflection coefficient a VNA reports, for the same
-reason. `coord.SmithZ` is the bridge. It does not implement `coord.Exploder`:
+tick reason. `coord.SmithZ` is the bridge. It does not implement `coord.Exploder`:
 the middle of a Smith chart is a matched load, not an origin of magnitude, so
 there is no direction away from it that means anything. And it does not zoom.
 

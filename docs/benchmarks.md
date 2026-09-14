@@ -119,6 +119,15 @@ picture: a `Tween` that rebuilt its columns rather than rewriting them, and a
 driver that called `Rebuild` between frames
 ([ADR 0044](adr/0044-transitions.md)).
 
+**A formula for furniture.** `Nichols480` and `Nichols1440` draw the same
+chart — two `geom.Locus` layers, sixteen curves between them — on a panel three
+times as wide. A locus is sampled against the device rectangle, so the wider
+panel is a finer curve out of more points, and the pair is gated flat because
+the layer owns the buffers it samples into: the way to break it is to allocate
+the curve per level or per frame rather than appending into a kept slice, which
+is invisible in the picture and is a fresh megabyte behind every drag of a
+resize handle ([ADR 0050](adr/0050-locus-annotations.md)).
+
 `Surface64` and `Surface256` draw a projected surface of four thousand and
 sixty-five thousand quads. Decimation is off in a projected scene — a reduction
 defined over pixel columns measures nothing when one column of screen mixes

@@ -141,8 +141,11 @@ picture cannot drift away from the code that produced it.
   placement, calendar-unit time steps, minor ticks per decade, pinned tick
   sequences.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
-  violins, ridgelines, hexbins, beeswarms, ECDFs, trends, treemaps, icicles,
-  sankeys, arcs, error bars, intervals, text, annotations.
+  violins, ridgelines, hexbins, beeswarms, ECDFs, trends, contours, treemaps,
+  icicles, sankeys, arcs, error bars, intervals, text, annotations — including a
+  **locus**, a family of curves given by a formula rather than by data, which is
+  what a Nichols diagram's closed-loop contours and a Smith chart's VSWR circles
+  are.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is
   a sunburst), and Smith.
 - **Three dimensions** — `figure/three` draws a chart whose x, y and z are all

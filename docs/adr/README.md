@@ -59,7 +59,7 @@ depends on.
 | [0047](0047-clickable-legend.md) | A legend answers to a pointer; hiding is the chart's, toggling the caller's | Accepted | — |
 | [0048](0048-clickable-colourbar-and-size-key.md) | A colourbar and a size key report a quantity, because neither is a series | Accepted | — |
 | [0049](0049-paths-colour-in-classes.md) | A path colours in classes, and the scale decides where the colour changes | Accepted | — |
-| [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Proposed | — |
+| [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Accepted, amended | — |
 | [0051](0051-barycentric-coord.md) | A ternary chart is a barycentric coord, and its third grid family is not furniture | Proposed | — |
 | [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Proposed | — |
 | [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Proposed | — |
@@ -74,6 +74,9 @@ depends on.
 | [0062](0062-a-scene-and-its-views.md) | A scene is the data, a camera is a way of looking at it, and one figure may hold several | Accepted | — |
 | [0063](0063-an-overlay-over-a-scene.md) | A scene is painted over too, and the seam is `three`'s own | Accepted | — |
 | [0064](0064-a-contour-and-its-lattice.md) | A contour is one tracing, and the lattice under it is one resolver | Accepted | — |
+| [0065](0065-horizon-charts.md) | A horizon chart folds its own axis, and the colourbar is the ladder it gives up | Proposed | — |
+| [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Proposed | — |
+| [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Proposed | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -86,23 +89,35 @@ that opens after v1.0 gets a record here before it gets code.
 
 ## Records not yet implemented
 
-**0050 to 0054 are proposed, not accepted, and no code implements them.** They
+**0051 to 0054 are proposed, not accepted, and no code implements them.** They
 are written down because the alternative is worse: each one answers a question
 an earlier record left open — 0033's "Revisit if" for the first two, 0039's for
 the fourth, 0041's serialisation rule for the third — and a question answered in
 a conversation and not in the repository gets answered again, differently, later.
 
+**0050 is the one of the five that has been built**, and it is *Accepted,
+amended*: `geom.Locus` draws a family of curves given by a formula, `stat` names
+four of them, and a Nichols diagram and a Smith chart's VSWR circles and
+constant-Q arcs are the charts that came with it. Its amendment says where the
+implementation sharpened it — chiefly that `Family` is `stat`'s type that `geom`
+names, and that a Nichols curve is refined against the panel rather than walked
+uniformly round its circle, because the chart is the log-polar view of that
+circle and a uniform walk resolves the plunge to −∞ dB or the rest of the curve
+and never both.
+
 They are also deliberately written as a set, because four of the five lean on
-each other. 0050 introduces the mark 0051 keeps as its escape hatch for a
-ternary chart's third grid family and 0053 uses for a funnel plot's contours;
+each other. 0050 introduced the mark 0051 keeps as its escape hatch for a
+ternary chart's third grid family and 0053 uses for a funnel plot's contours,
+and it is now there to be leant on;
 0051 and 0053 both cite 0041's rule that a named member of a closed family
 serialises and an arbitrary Go function does not; 0053 narrows a category 0039
 refused rather than reopening it. Reading any one of them alone will make it
 look more expensive than it is.
 
 A proposed record becomes accepted when it is implemented, or is deleted with a
-sentence saying what it got wrong. Neither is urgent: nothing in v1.7 depends on
-any of them, and each is additive by construction.
+sentence saying what it got wrong — 0050 is the worked example of the first.
+Neither is urgent for the remaining four: nothing in v1.7 depends on any of
+them, and each is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built
@@ -155,3 +170,23 @@ what *one* function means when two packages draw from it: one tracing, one
 lattice resolver, and a saddle rule that is a function of four corner values, so
 that a reading taken off the plan and one taken off the surface's floor cannot
 disagree.
+
+**0065 to 0067 came out of one sweep rather than out of the code**, which
+makes them the first records here written from the outside in: the catalogue at
+[xeno.graphics](https://xeno.graphics) was read against `docs/chart-types.md`,
+and three of the forms on it turned out to want machinery this library does not
+have while the rest turned out to be recipes, options or rows in a record that
+already exists. That accounting is in
+[chart-types.md](../chart-types.md#the-sweep-of-the-unusual-forms), so that the
+ones declined stay declined for a reason rather than being rediscovered.
+
+They are independent of each other and of 0050 to 0054. **0066 is the one with
+a dependent**: a raster is what makes a Hovmöller diagram, a spectrogram and a
+recurrence plot ordinary rather than impossible, and it is also the backdrop
+0064's contours are usually drawn over — so a plan that builds one of them
+builds it first. **0065 is the one that fits the examples already in the
+repository**, which are a machine, a status board and a stream. **0067 is the
+one that is a seam rather than a shape**, and it is written as a set of three
+customers for that reason: a palette that suppresses a value's resolution, a
+bin that says which class it holds, and the bivariate square, none of which
+would justify the interface alone.

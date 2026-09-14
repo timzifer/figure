@@ -288,6 +288,17 @@ Register it by name if it should be reachable from a config file. Reach for
 `data.Source`, and must *not* implement `geom.Faceter` — a layer with no rows is
 furniture and belongs on every panel of a facet.
 
+**A locus family** — a Nichols contour, a VSWR circle, a psychrometric line —
+goes in `stat/` and implements `stat.Family`: numbers in, data-space points out,
+appended into the caller's buffers like every other `Append` form here. It sees
+the panel's extent and never a scale, so that a family cannot depend on how the
+axes are configured, and it is a **value with a name** rather than a function,
+because that name is the only thing a document can be written down as
+([ADR 0050](docs/adr/0050-locus-annotations.md)). Give it a determinism test
+like every other reduction, and one that states what the curve *is* — every
+point of `stat.NicholsM` at 3 dB is an open loop whose closed loop is 3 dB, and
+a test that says so catches an arithmetic slip that a picture will not.
+
 Anything that changes the IR or the `Backend` interface needs an ADR. So does
 anything that answers one of the open questions in
 [CONCEPT.md §17](CONCEPT.md#17-the-decisions-this-design-rests-on).

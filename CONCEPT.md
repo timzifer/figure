@@ -593,9 +593,16 @@ turned at a camera the host holds
 [ADR 0057](docs/adr/0057-orbiting-a-chart.md),
 [ADR 0064](docs/adr/0064-a-contour-and-its-lattice.md)); a contour plot of a
 sampled field, whose lines are the same tracing whether they are drawn flat or
-on a surface's floor; and an overlay a host paints a selection over, in one
+on a surface's floor; an overlay a host paints a selection over, in one
 view or in every view of a scene at once
-([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)).
+([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)); and a locus — a family
+of curves given by a formula rather than by data, of which `geom.HLine` is the
+degenerate member, which is what a Nichols diagram's closed-loop contours are
+and what the VSWR circles and constant-Q arcs
+[ADR 0033](docs/adr/0033-smith-charts.md) declined are: not furniture, but
+annotations defined in data space, so the coordinate stage draws them and
+`render` keeps its two tick lists
+([ADR 0050](docs/adr/0050-locus-annotations.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).
@@ -631,13 +638,6 @@ The record of how each of those arrived, and the argument that shaped it, is in
   `stat`" has no natural end: a reduction belongs there when its output is the
   chart's geometry and there is no reading of it that is not the chart
   ([ADR 0054](docs/adr/0054-statistical-instruments.md)).
-- **A locus** — a family of curves given by a formula rather than by data, of
-  which `geom.HLine` is the degenerate member. It is what a Nichols diagram's
-  closed-loop contours are, and what the VSWR circles, constant-Q arcs and ZY
-  overlay [ADR 0033](docs/adr/0033-smith-charts.md) declined are: not
-  furniture, but annotations defined in data space, so the coordinate stage
-  draws them and `render` keeps its two tick lists
-  ([ADR 0050](docs/adr/0050-locus-annotations.md)).
 - **A probability scale**, beside `Log` and `SymLog`: an axis warped by Φ⁻¹, the
   logit, the complementary log-log or the Gumbel link, so that a distribution's
   cumulative function plots straight. It is `geom.QQ` turned round — that mark
@@ -661,6 +661,30 @@ The record of how each of those arrived, and the argument that shaped it, is in
   coord that turns one projection into antenna patterns, Poincaré and Bloch
   spheres and a stereonet
   ([ADR 0058](docs/adr/0058-what-3d-is-for.md)).
+- **A raster mark.** A heatmap is a recipe over `geom.Rect` and stops being one
+  at the size a measured field comes in: a spectrogram is two thousand frames
+  by five hundred bins, and one rectangle per cell is a million primitives
+  drawing cells smaller than a pixel. `ir.Backend.Image` is in the interface,
+  `stat.Grid.Raster` paints a grid into a reusable buffer and `stat.Lattice`
+  already resolves the table, so the mark is those three wired together —
+  reading the channels `geom.Contour` reads, so that a field and its own
+  isolines cannot disagree ([ADR 0066](docs/adr/0066-a-raster-mark.md)).
+- **A horizon chart.** Every answer to scale here is an answer about rows;
+  this is the one about series. It folds the value range into bands drawn at
+  the panel's full height and tells them apart by colour, so forty sensors fit
+  on one screen at the resolution of one. The part that needed deciding is the
+  axis it gives up: after the fold the scale still describes one band honestly,
+  and *which* band is a classed colourbar rather than new furniture
+  ([ADR 0065](docs/adr/0065-horizon-charts.md)).
+- **A bivariate colour channel.** `geom.ErrorBar` exists because a measurement
+  carries a claim about how well it is known and that half had nowhere to go;
+  the colour channel is where the omission misleads most, because a filled cell
+  reads as a measurement whether or not one was taken. One optional interface
+  beside `ColorScale` — the move `ClassedColorScale` already makes — gives a
+  value-suppressing uncertainty palette, a multi-class hexbin and the bivariate
+  square, the second of which is the missing half of the overplotting story:
+  decimation, the raster and the bin all report how many and none reports who
+  ([ADR 0067](docs/adr/0067-a-bivariate-colour-channel.md)).
 - A community plugin ecosystem.
 
 ---

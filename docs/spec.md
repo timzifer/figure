@@ -60,6 +60,16 @@ What did land is `geom.Z`, the depth channel, beside `geom.X` and `geom.Y`. It
 costs the document nothing: no flat mark reads it, and writing a line's depth
 column into a document would read as though it meant something.
 
+**A curve family written in Go does not round-trip either.** A `geom.Locus`
+draws a family this library names — `"nichols-m"`, `"nichols-n"`,
+`"smith-vswr"`, `"smith-q"` — as that name and its levels, and reads it back by
+the name. A `stat.Family` a caller wrote in Go is a perfectly good family and
+draws; it has no name to write down, so writing the chart fails rather than
+producing a document that decodes into a layer drawing nothing. The escape
+hatch is the one [ADR 0041](adr/0041-qq-plots.md) chose for a quantile
+function: materialise the curve as data and draw it with a line
+([ADR 0050](adr/0050-locus-annotations.md)).
+
 ## Plotting Arrow data
 
 ```go

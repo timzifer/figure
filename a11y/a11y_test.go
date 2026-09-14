@@ -9,6 +9,7 @@ import (
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 )
 
 func table() data.Source {
@@ -89,6 +90,31 @@ func TestAnnotationsAreDescribedByTheirValues(t *testing.T) {
 	})
 	if !strings.Contains(s.Detail, "limit") {
 		t.Errorf("the annotation is not in the description:\n%s", s.Detail)
+	}
+}
+
+// A locus is furniture: it says which family was drawn and at what levels, and
+// the curves themselves are not enumerated. A table of the ten thousand points
+// one was sampled at answers a question nobody asked, and the points are not in
+// the data either way.
+func TestALocusIsNamedRatherThanEnumerated(t *testing.T) {
+	html, err := a11y.Table(a11y.Chart{
+		Layers: []geom.Geom{geom.Locus(stat.NicholsN, []float64{-45, -90})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, "nichols-n") || !strings.Contains(html, "-45, -90") {
+		t.Errorf("the locus does not say which curves it drew:\n%s", html)
+	}
+	if strings.Contains(html, "<table>") {
+		t.Errorf("a locus was given a table:\n%s", html)
+	}
+	// The four values an annotation is placed by are not this mark's: a locus
+	// is not at a value of either axis, and reporting "x 0" would be a number
+	// the chart does not contain.
+	if strings.Contains(html, "x 0") {
+		t.Errorf("a locus was reported as having a datum:\n%s", html)
 	}
 }
 

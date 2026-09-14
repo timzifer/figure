@@ -7,6 +7,7 @@ import (
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 )
 
 // Of writes a chart down.
@@ -306,6 +307,18 @@ func encodeLayer(g geom.Geom, hoisted bool, axes axisKinds) (Layer, error) {
 	}
 
 	m := Mark{Type: typ, Orient: orient, Extra: d.Extra}
+	if d.Mark == geom.MarkLocus {
+		// A named family round-trips as its name, and one a caller wrote in Go
+		// does not round-trip at all. Saying so is the point: a document that
+		// dropped the family would decode into a layer that draws nothing, and
+		// the escape hatch is the one docs/adr/0041-qq-plots.md already chose —
+		// materialise the curve as data and draw it with a line.
+		name, ok := stat.FamilyName(d.Family)
+		if !ok {
+			return Layer{}, fmt.Errorf("a locus of %T cannot be written down: only a family this library names has a name to write", d.Family)
+		}
+		m.Family = name
+	}
 	if d.OnY2 {
 		m.YAxis = axisSecondaryY
 	}
@@ -533,6 +546,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Tension > 0 {
 			m.Interpolate, m.Tension = "cardinal", d.Tension
 		}
+	case geom.MarkLocus:
+		stroke()
+		// The levels and nothing else places this mark: a locus has no datum,
+		// because it is not at a value of either axis. Its family is written by
+		// the encoder rather than here, because a family with no name is a
+		// layer that cannot be written down at all — see [encodeLayer].
+		m.Levels, m.Extend = d.Levels, boolPtr(d.Extend)
 	case geom.MarkHLine, geom.MarkVLine, geom.MarkSegment:
 		stroke()
 		m.Extend = boolPtr(d.Extend)

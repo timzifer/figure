@@ -189,6 +189,15 @@ END {
 	# would each show up here as sixty thousand allocations and nowhere else in
 	# the picture. Decimation is off in a projected scene, so this really does
 	# draw every quad of the grid on every frame.
+	# A chart whose furniture is a formula. A locus is sampled against the
+	# device rectangle, so the wider panel draws a finer curve out of more
+	# points — and the layer owns the buffers it samples into, so the frame
+	# costs the same either way. The way to break it is to allocate the curve
+	# per level or per frame instead of appending into a kept slice, which is
+	# invisible in the picture and is a fresh megabyte behind every drag of a
+	# resize handle.
+	flat("BenchmarkNichols480", "BenchmarkNichols1440", 8)
+
 	flat("BenchmarkSurface64", "BenchmarkSurface256", 8)
 	flat("BenchmarkTrajectory1k", "BenchmarkTrajectory100k", 8)
 

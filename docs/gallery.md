@@ -27,7 +27,7 @@ picture here cannot drift away from the code that produced it.
 | ![Disk usage by directory as a treemap, one rectangle per file sized by its share](images/treemap.png) | ![The same directory tree as a sunburst, the root at the middle and the files at the rim](images/sunburst.png) |
 | ![Requests per second through a service, drawn as a sankey diagram](images/sankey.png) | ![The same traffic as an arc diagram, each service a segment of the rail and each route a band arcing over it](images/arc.png) |
 | ![The same traffic again as a chord diagram, each service an arc and each route a ribbon crossing the disc](images/chord.png) | ![A response surface drawn from three cameras at once: a three-quarter view, a plan and a front elevation of one scene](images/surface.png) |
-| ![Thirty sweeps of a spectrum offset by sweep number, with a carrier drifting upward and a harmonic growing behind it](images/cascade.png) | |
+| ![Thirty sweeps of a spectrum offset by sweep number, with a carrier drifting upward and a harmonic growing behind it](images/cascade.png) | ![An open loop at two gains on a Nichols diagram, drawn over the contours of constant closed-loop gain and phase](images/nichols.png) |
 
 ---
 

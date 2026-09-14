@@ -14,6 +14,7 @@ import (
 	"github.com/timzifer/figure/internal/irtest"
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
 	"github.com/timzifer/figure/three"
 )
@@ -491,6 +492,41 @@ func benchmarkSurface(b *testing.B, n int) {
 
 func BenchmarkSurface64(b *testing.B)  { benchmarkSurface(b, 64) }
 func BenchmarkSurface256(b *testing.B) { benchmarkSurface(b, 256) }
+
+// nicholsGrid is a chart whose furniture is a formula: two locus layers of
+// sixteen curves between them, over a panel of the given width.
+//
+// The width is the point. A locus is sampled against the device rectangle, so a
+// wider panel is a finer curve and more points — and none of them may be a
+// fresh allocation, because the layer owns the buffers it samples into and the
+// chart behind a resize handle is redrawn on every drag.
+func nicholsGrid(width int) *figure.Plot {
+	p := figure.New(figure.Size(width, width*7/8), figure.Title("Nichols"))
+	p.X(scale.Linear(scale.Domain(-270, -90)))
+	p.Y(scale.Linear(scale.Domain(-24, 36)))
+	p.Add(geom.Locus(stat.NicholsM, []float64{-12, -6, -3, -1, 0, 1, 3, 6, 12}, geom.Dash()))
+	p.Add(geom.Locus(stat.NicholsN, []float64{-1, -5, -10, -20, -45, -90, -150}, geom.Dash(2, 3)))
+	return p
+}
+
+func benchmarkNichols(b *testing.B, width int) {
+	onOnePGate(b)
+	p := nicholsGrid(width)
+	target := irtest.NullTarget()
+	if err := p.Render(target); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := p.Render(target); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkNichols480(b *testing.B)  { benchmarkNichols(b, 480) }
+func BenchmarkNichols1440(b *testing.B) { benchmarkNichols(b, 1440) }
 
 // benchmarkTrajectory prices a path through the box, one primitive per
 // segment.

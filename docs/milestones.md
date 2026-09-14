@@ -1033,6 +1033,54 @@ invert a device position through — figure says exactly which datum it is and
 the program says what that datum contains, which is
 [ADR 0045](adr/0045-linked-views.md)'s bargain one dimension up. ✔
 
+### A locus: a family of curves given by a formula — **shipped**
+
+[ADR 0033](adr/0033-smith-charts.md) had named what would reopen it — a second
+chart wanting a grid family its axes have no tick for — and when the second
+chart turned up it turned out not to want that seam at all.
+
+A **Nichols diagram** is how control engineers read an open loop: phase in
+degrees along X, gain in decibels along Y. figure drew that on day one; it is a
+`geom.Line` over two linear axes. What makes it a Nichols diagram is the grid
+printed underneath, two families of curves describing the *closed* loop
+T = L/(1+L) — and neither family is at a value of either axis. A grid line is
+where an axis says a value is; these are where the *chart* says something is,
+which is the definition of an annotation, and figure has had annotations since
+v0.1. So `geom.Locus` went in `geom/annotate.go` beside `HLine`, which is the
+degenerate member of the same idea: the locus of constant y.
+
+**The coord draws the family for free, and that is the whole return.** A family
+emits points in data space, so a locus goes through the coordinate stage like
+every other mark. A constant-VSWR circle is not implemented as a circle: it is
+the set of impedances whose reflection has a given magnitude, and `coord.Smith`
+makes it the circle it looks like. A constant-Q arc is the locus |x| = Q·r, two
+straight rays in impedance and therefore two arcs on the disc, by the same map
+and with no second implementation. Four families, two charts, and nothing below
+`geom` touched: `render`, `ir`, `coord`, `scale` and `layout` are unchanged.
+
+**What the implementation had to decide is how finely to draw a formula.** A
+Nichols chart is the log-polar view of a circle, and the two are not evenly
+spaced against each other: the arc passing near the origin is a hair of the
+circle and is the whole plunge to −∞ dB, while the rest of it is a smooth curve
+a few dozen samples describe. Walked uniformly the −1° contour stops dead at
+−6 dB — a contour hanging in mid-air well above the bottom of the panel — so a
+curve is bisected until its step is a few pixels and the refinement stops at a
+step that leaves the window, which is also what bounds it. The branch point
+where every N contour passes through L = 0 is found by the half-turn the phase
+takes between two samples rather than by looking for it.
+
+Not in this milestone. **No labels written along a curve** — "3 dB" rotated to
+the tangent needs an anchor rule and a seat at the table
+[ADR 0040](adr/0040-label-collision-avoidance.md) sets, and the chart reads
+without it because the contours nest. **No automatic level selection**: which
+contours a chart prints is a convention of its field, which is
+`scale.TickValues`'s situation exactly. **No ZY overlay, Hall chart or
+psychrometric families** — each is a `Family` and nothing else, a few dozen
+lines of arithmetic in `stat` whenever someone wants one. And a family a caller
+writes in Go **draws but does not serialise**, which is
+[ADR 0041](adr/0041-qq-plots.md)'s rule for a quantile function applied to a
+curve. ✔
+
 ---
 
 **[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Chart forms](charts.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Chart-type catalogue](chart-types.md) · [Benchmarks](benchmarks.md)

@@ -12,6 +12,7 @@ import (
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/render"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
 )
 
@@ -97,6 +98,46 @@ func TestAHitReportsTheRowUnderThePointer(t *testing.T) {
 	}
 	if hit.Distance > 0.01 {
 		t.Errorf("distance = %v, want 0 on the marker itself", hit.Distance)
+	}
+}
+
+// A locus is a layer like any other and its curves are indexed like any other
+// annotation's — but there is no row behind a formula, so a hit on one reports
+// where the pointer is and not what it is pointing at. The reading a Nichols
+// chart is for is the reader's rather than the tooltip's; see
+// docs/adr/0050-locus-annotations.md.
+func TestALocusReportsNoRow(t *testing.T) {
+	ix := interact.New()
+	rec := irtest.New()
+	c := render.Chart{
+		Width: 400, Height: 300, DPR: 1, Theme: theme.Light,
+		X: scale.Linear(scale.Domain(0, 10)), Y: scale.Linear(scale.Domain(-5, 5)),
+		Layers:   []geom.Geom{geom.Locus(stat.SmithVSWR, []float64{2})},
+		Observer: ix,
+	}
+	if err := render.Draw(ix.Watch(rec), c); err != nil {
+		t.Fatalf("Draw: %v", err)
+	}
+	// One circle is one run, and one run is one mark: a family costs the index
+	// its curves and not its samples.
+	if got := ix.MarkCount(); got != 1 {
+		t.Errorf("one curve was indexed as %d marks", got)
+	}
+	found := false
+	for x := float32(0); x <= 400 && !found; x += 2 {
+		for y := float32(0); y <= 300 && !found; y += 2 {
+			h, ok := ix.At(ir.Point{X: x, Y: y}, 2)
+			if !ok {
+				continue
+			}
+			found = true
+			if h.Row != -1 {
+				t.Errorf("a hit on a locus reports row %d; there is no row behind a formula", h.Row)
+			}
+		}
+	}
+	if !found {
+		t.Error("the curve was drawn and nothing could be pointed at")
 	}
 }
 

@@ -65,6 +65,10 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "sankey", "", nil
 	case geom.MarkArc:
 		return "arc-diagram", "", nil
+	case geom.MarkLocus:
+		// A family of curves given by a formula. Vega-Lite has no mark for it
+		// and no transform that could stand in, so this is figure's own name.
+		return "locus", "", nil
 	case geom.MarkHLine:
 		return "rule", "horizontal", nil
 	case geom.MarkVLine:
@@ -137,6 +141,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkQQ, nil
 	case "trend":
 		return geom.MarkTrend, nil
+	case "locus":
+		return geom.MarkLocus, nil
 	case "errorbar":
 		return geom.MarkErrorBar, nil
 	case "treemap":

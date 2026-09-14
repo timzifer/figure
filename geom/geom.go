@@ -237,6 +237,7 @@ type config struct {
 	dashSet     bool
 	markerSet   bool
 	extend      bool
+	extendSet   bool
 	fontSize    float64
 	halign      ir.HAlign
 	valign      ir.VAlign
@@ -747,7 +748,13 @@ func Rotate(radians float64) Option { return func(c *config) { c.rotation = radi
 // still worth seeing, because "we are nowhere near the limit" is the answer
 // the reader came for. Turn it off for an annotation that should appear only
 // when the data reaches it.
-func Extend(on bool) Option { return func(c *config) { c.extend = on } }
+//
+// [Locus] is the one mark whose default is the other way round, and it reads
+// this option rather than the default — a curve given by a formula says what
+// the region of the plane means and does not ask the axes to go and find it.
+func Extend(on bool) Option {
+	return func(c *config) { c.extend, c.extendSet = on, true }
+}
 
 func newConfig(opts []Option) config {
 	c := config{

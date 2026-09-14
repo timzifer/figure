@@ -10,6 +10,7 @@ import (
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
 )
 
@@ -218,6 +219,21 @@ func domainValue(v any, origin int64) (float64, error) {
 	return 0, fmt.Errorf("%v is not a domain bound", v)
 }
 
+// family is the set of curves a locus draws, read back from the name a document
+// wrote it down under.
+//
+// A name this library has no family for decodes to nothing, and the layer it
+// would build is refused by [geom.FromDesc] — which is the failure worth
+// having: a document naming a family that arrived with a plugin nobody
+// installed should say so rather than draw an empty chart.
+func family(name string) geom.Family {
+	if name == "" {
+		return nil
+	}
+	f, _ := stat.FamilyNamed(name)
+	return f
+}
+
 func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	mark, err := geomMark(l.Mark, l.Encoding)
 	if err != nil {
@@ -256,6 +272,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		AlignSet:   l.Mark.Align != "" || l.Mark.Baseline != "",
 		Bins:       l.Mark.Bins,
 		Levels:     l.Mark.Levels,
+		Family:     family(l.Mark.Family),
 		LevelCount: l.Mark.LevelCount,
 		Bandwidth:  l.Mark.Bandwidth,
 		Span:       l.Mark.Span,

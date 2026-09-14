@@ -24,6 +24,7 @@ import (
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
 )
 
@@ -31,18 +32,20 @@ func main() {
 	antenna := flag.String("antenna", "antenna.svg", "output path for the measured sweep")
 	matching := flag.String("matching", "matching.svg", "output path for the matching locus")
 	admittance := flag.String("admittance", "admittance.svg", "output path for the admittance chart")
+	vswr := flag.String("vswr", "vswr.svg", "output path for the sweep read against VSWR circles")
 	flag.Parse()
-	if err := run(*antenna, *matching, *admittance); err != nil {
+	if err := run(*antenna, *matching, *admittance, *vswr); err != nil {
 		fmt.Fprintln(os.Stderr, "smith:", err)
 		os.Exit(1)
 	}
 }
 
-func run(antenna, matching, admittance string) error {
+func run(antenna, matching, admittance, vswr string) error {
 	for _, step := range []func() error{
 		func() error { return measuredSweep(antenna) },
 		func() error { return matchingNetwork(matching) },
 		func() error { return shuntOnTheYChart(admittance) },
+		func() error { return againstTheCircles(vswr) },
 	} {
 		if err := step(); err != nil {
 			return err
@@ -183,6 +186,41 @@ func shuntOnTheYChart(out string) error {
 		figure.Legend(false),
 	))
 	p.Add(geom.Line(src, geom.X("g"), geom.Y("b"), geom.Color(palette.OkabeIto[2])))
+	return p.Render(figure.SVG(out))
+}
+
+// againstTheCircles is the sweep read against the two families a paper chart is
+// printed with, and it is the same mark the Nichols diagram in examples/nichols
+// draws its grid with.
+//
+// Neither family is implemented as a shape on the disc. A VSWR circle is the
+// set of impedances whose reflection has a given magnitude, emitted as
+// impedances; a constant-Q arc is the locus |x| = Q·r, which is two straight
+// rays in impedance. The coord maps both into the curves they look like, and
+// there is no Smith-specific drawing code in either — see
+// docs/adr/0050-locus-annotations.md.
+//
+// What the circles buy is the reading the chart is otherwise only qualitative
+// about: not "the locus passes near the middle" but "the band is inside 2:1
+// from here to here", which is the number a datasheet quotes.
+func againstTheCircles(out string) error {
+	re, im := s11Sweep(121)
+	r, x := make([]float64, len(re)), make([]float64, len(re))
+	for i := range re {
+		r[i], x[i] = coord.SmithZ(re[i], im[i])
+	}
+	src := figure.NewTable().Float64("r", r).Float64("x", x)
+
+	p := smithAxes(figure.New(
+		figure.Size(620, 560),
+		figure.Title("The same antenna, read against 2:1"),
+		figure.Theme(theme.Light),
+		figure.Coord(coord.Smith()),
+	))
+	p.Add(geom.Locus(stat.SmithVSWR, []float64{1.5, 2, 3}, geom.Dash(), geom.Label("VSWR")))
+	p.Add(geom.Locus(stat.SmithQ, []float64{1, 2, 5}, geom.Dash(2, 3), geom.Label("Q")))
+	p.Add(geom.Line(src, geom.X("r"), geom.Y("x"),
+		geom.Color(palette.OkabeIto[1]), geom.Width(2), geom.Label("S₁₁")))
 	return p.Render(figure.SVG(out))
 }
 
