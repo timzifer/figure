@@ -99,7 +99,19 @@ END {
 	# draws every row through coord.Coord.Points. The batch form is why that is
 	# flat; a per-row interface call is the shape that would break it, and it
 	# has broken exactly this way once before. See docs/adr/0018.
-	flat("BenchmarkPolar1k", "BenchmarkPolar100k", 8)
+	#
+	# The slack is wide for the same reason Bubbles' is: a frame of a hundred
+	# thousand rows drawn through a coord is large enough to run a collection
+	# between frames, and sync.Pool is emptied by one — so the frame that
+	# follows refills the scratch's buffers. The gap was 8 when the pair was
+	# written and sat exactly on the slack; drawing the axes over the data
+	# carried it to 13. It is a cost per *frame*, not per row: a million rows
+	# cost what a hundred thousand cost, to the allocation, and holding the
+	# angular domain fixed while the rows grow gives the same gap. The ceiling
+	# beside it is the real guard — it is what catches a frame that grows with
+	# the data rather than with the pool.
+	flat("BenchmarkPolar1k", "BenchmarkPolar100k", 16)
+	atMost("BenchmarkPolar100k", 128)
 
 	# The v0.8 sugar: a donut whose slices name their own radii and are broken
 	# out of the ring per row. The displacement is collected per mark and
