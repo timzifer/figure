@@ -58,6 +58,21 @@ func TestEveryBarFaceIsShadedByItsOutwardNormal(t *testing.T) {
 	}
 }
 
+// Every face a box shows turns toward the camera, from below the floor as much
+// as from above it. A camera under the bars that was handed the top saw into
+// each box through its missing bottom.
+func TestEveryBarFaceTurnsTowardTheCamera(t *testing.T) {
+	for _, cam := range octants() {
+		fwd := cam.Forward()
+		_, normals := visibleFaces(fwd, 0.2, 0.3, 0.4, 0.5, 0, 0.8)
+		for k, n := range normals {
+			if n.Dot(fwd) >= 0 {
+				t.Errorf("camera %+v: face %d's normal %v faces away from it", cam, k, n)
+			}
+		}
+	}
+}
+
 func inside(v Vec3, x0, y0, x1, y1, lo, hi float32) bool {
 	return v.X > x0 && v.X < x1 && v.Y > y0 && v.Y < y1 && v.Z > lo && v.Z < hi
 }
