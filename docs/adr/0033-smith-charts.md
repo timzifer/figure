@@ -161,7 +161,7 @@ the chord it is.
 | `interact` | works unchanged: a hover inverts through the coord and then through the scales, and under this coord the second step is the identity, so a hit reports the impedance |
 | `a11y` | unchanged; it never mentions a coord |
 | layout | inherited from Polar: the solver reserves gutters for tick labels that a disc writes inside itself or around its rim, so the disc is a little smaller and a little higher than centre. `SmithRadius` is the same mitigation Polar's `Radius` is. ADR 0018 declined to teach `layout` about a radial axis and this record declines again |
-| zoom and pan | a no-op. `Frame` re-derives the range from the domain every frame, so moving the domain relabels the grid and moves nothing. That is right: a Smith chart's extent is the unit disc, always |
+| zoom and pan | a no-op. `Frame` re-derives the range from the domain every frame, so moving the domain would move no mark — only drop the pinned ticks the new domain no longer reaches and redraw the grid under a curve that stayed put. A Smith chart's extent is the unit disc, always, so the coord implements `coord.Fixed` and `Live` leaves its axes alone on a wheel, a drag, a rubber band and a reset. (The first cut let the domains move, and a reader saw the axis change under a curve that did not.) |
 
 ## Not in scope
 

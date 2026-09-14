@@ -195,6 +195,26 @@ type Exploder interface {
 	Explode(x0, y0, x1, y1 float32, by float64) (dx, dy float32)
 }
 
+// Fixed is implemented by a coord whose picture a pan or a zoom cannot move.
+//
+// It is an optional interface, like [Exploder]. A Smith chart is the example:
+// its extent is the unit disc whatever the domains say, so a domain moved by a
+// wheel or a drag moves no mark — it only drops the ticks the new domain no
+// longer reaches and redraws the grid under a curve that stayed where it was.
+// An interactive chart reads [Steerable] and leaves such a panel's axes alone.
+type Fixed interface {
+	// Fixed reports whether the coord's picture is independent of its
+	// scales' domains.
+	Fixed() bool
+}
+
+// Steerable reports whether a pan or a zoom can move what c draws: true unless
+// c implements [Fixed] and says otherwise.
+func Steerable(c Coord) bool {
+	f, ok := c.(Fixed)
+	return !ok || !f.Fixed()
+}
+
 // Metrics are the theme lengths a coord needs in order to place furniture.
 // They are passed in rather than read because a coord must not know what a
 // theme is.

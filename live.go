@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/interact"
@@ -509,7 +510,7 @@ func (l *Live) Wheel(x, y, factor float64) error {
 	}
 	pt := ir.Point{X: float32(x), Y: float32(y)}
 	p, ok := l.panelAt(pt)
-	if !ok {
+	if !ok || !coord.Steerable(p.Coords()) {
 		return nil
 	}
 	// The interval each scale maps into is the coord's answer, and so is where
@@ -539,7 +540,7 @@ func (l *Live) ZoomTo(r ir.Rect) error {
 	}
 	mid := ir.Point{X: (r.Min.X + r.Max.X) / 2, Y: (r.Min.Y + r.Max.Y) / 2}
 	p, ok := l.panelAt(mid)
-	if !ok {
+	if !ok || !coord.Steerable(p.Coords()) {
 		return nil
 	}
 	cd := p.Coords()
@@ -557,7 +558,7 @@ func (l *Live) ZoomTo(r ir.Rect) error {
 // does: the data follows the pointer, so dragging right shows earlier data.
 func (l *Live) PanBy(dx, dy float64) error {
 	p, ok := l.panelAt(l.last)
-	if !ok {
+	if !ok || !coord.Steerable(p.Coords()) {
 		return nil
 	}
 	// The drag is a device delta and the scales speak in the interval the
@@ -585,6 +586,11 @@ func (l *Live) PanBy(dx, dy float64) error {
 // and redraws. It is the "reset view" every interactive chart needs.
 func (l *Live) Autoscale() error {
 	for _, p := range l.idx.Panels() {
+		// A fixed coord's domains were never moved, and releasing them would
+		// retrain them to the data and drop the grid's pinned ticks.
+		if !coord.Steerable(p.Coords()) {
+			continue
+		}
 		autoscale(p.X)
 		autoscale(p.Y)
 		autoscale(p.Y2)

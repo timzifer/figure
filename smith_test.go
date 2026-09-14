@@ -53,6 +53,52 @@ func smithPlot(opts ...figure.Option) *figure.Plot {
 	return smithGrid(p)
 }
 
+// A Smith panel's extent is the unit disc whatever the domains say, so a pan or
+// a zoom has nothing to move. Moving the domains anyway dropped the pinned
+// ticks the new domain no longer reached and redrew the grid under a curve that
+// stayed where it was — the axis changing while the data did not.
+func TestSteeringASmithChartLeavesItsAxesAlone(t *testing.T) {
+	p := smithPlot()
+	p.Add(geom.Line(seriesRL(0.5, 40), geom.X("r"), geom.Y("x")))
+
+	rec := irtest.New()
+	live, err := p.Live(rec.Target())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+	pn := live.Index().Panels()[0]
+	at := pn.Coords().Point(pn.X.Map(1), pn.Y.Map(0.5))
+
+	for _, step := range []struct {
+		name string
+		do   func() error
+	}{
+		{"a wheel", func() error { return live.Wheel(float64(at.X), float64(at.Y), 0.5) }},
+		{"a drag", func() error { return live.PanBy(40, -30) }},
+		{"a rubber band", func() error {
+			return live.ZoomTo(ir.Rect{
+				Min: ir.Point{X: at.X - 30, Y: at.Y - 30},
+				Max: ir.Point{X: at.X + 30, Y: at.Y + 30},
+			})
+		}},
+		{"a reset", live.Autoscale},
+	} {
+		if err := step.do(); err != nil {
+			t.Fatalf("%s: %v", step.name, err)
+		}
+		if lo, hi := pn.X.Domain(); lo != 0 || hi != 50 {
+			t.Errorf("%s moved the resistance domain to [%v, %v]", step.name, lo, hi)
+		}
+		if lo, hi := pn.Y.Domain(); lo != -50 || hi != 50 {
+			t.Errorf("%s moved the reactance domain to [%v, %v]", step.name, lo, hi)
+		}
+	}
+}
+
 // The whole claim of the milestone: the same layer, in a different coordinate
 // system, is a different chart — and every point of it lands inside the disc.
 func TestASmithChartIsALineInADifferentCoordinateSystem(t *testing.T) {
