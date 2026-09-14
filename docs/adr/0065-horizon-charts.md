@@ -1,6 +1,6 @@
 # 0065 — A horizon chart folds its own axis, and the colourbar is the ladder it gives up
 
-**Status:** Proposed · **Date:** 2026-09-11 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-11 · **Implemented:** 2026-09-14
 
 ## Context
 
@@ -158,3 +158,40 @@ naming the strip height. Neither needs anything.
   heavy. A `Plot.Horizons(src, groupCol)` that lays out one track per group is
   sugar over this and needs no new machinery, but it should not be invented
   before anyone has written the long form twice.
+
+## Amendment: what building it sharpened
+
+Four things, none of which changes the decision.
+
+**The default guide is a `Threshold` scale, not a `Quantize` one.** The record
+names `scale.Quantize` because it cuts a ramp into equal classes, which is what
+a fold does — but the boundaries a horizon chart has to print are *its own*, in
+the data's units, and a quantize scale derives its boundaries from whatever
+domain it was trained on. Handing it the right domain and hoping it re-derives
+the same numbers would be two computations of one fact. `scale.Threshold` takes
+the boundaries directly, so `geom.Horizon.breaks` is the single place the fold's
+edges exist and the bar cannot disagree with the picture. The ramp is
+`palette.BlueOrange`: the record's "two arms of one diverging ramp" is a
+property of the ramp rather than of the scale, so nothing else was needed.
+
+**A band nothing reaches into is not drawn.** The obvious implementation emits
+one filled run per band per arm per frame, and a series that stays above its
+origin then pays for `k` empty runs below it on every frame — no pixels, real
+primitives, and a golden file full of degenerate paths. `reaches` is the scan
+that skips them, and the fill count is therefore a fact about the data: the test
+asserting six fills for a series spanning both arms is asserting the fold.
+
+**The mark reports one position per row, at the band the row ends in.** The
+record says the row-to-mark correspondence is gone, which is true of the
+*drawing* — one row becomes up to `k` spans — and it leaves nothing for
+[ADR 0015](0015-hit-testing.md) to index. Reporting the terminal band is the
+answer that names one row per position: the full bands below it are a stretch
+of solid colour rather than a reading, so the reading is where the value
+stopped. A hover then lands on the row it looks like it landed on, and
+`interact` needed nothing.
+
+**`Tension` is ignored, and that is a rule rather than an omission.** A spline
+through a clamped fraction overshoots both ends of the only interval a band
+has, so a smoothed horizon draws ink outside its own band. The band's floor is
+shared with `geom.Area` — `appendFloor` became a function so that the two marks
+cannot disagree about what the floor of a filled run is.

@@ -148,7 +148,7 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, fill, lin
 				// which is a pair of mapped positions like any other: under a
 				// polar coord it is the arc at the baseline radius, not a
 				// chord across the middle of the chart.
-				g.appendFloor(&sc.fill, cd, x, keep, base)
+				appendFloor(&sc.fill, cd, x, keep, base)
 			}
 			sc.fill.Close()
 			b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
@@ -171,13 +171,19 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, fill, lin
 	return nil
 }
 
-// appendFloor closes an area over a baseline: back along the baseline from the
-// last mark to the first.
+// appendFloor closes a filled shape over a baseline: back along the baseline
+// from the last mark to the first.
 //
 // Under a Cartesian coord that is the two corners it has always been. Under
 // one that bends its edges the baseline is a curve of its own, so the run is
 // walked at the same resolution the top edge was drawn at.
-func (g *areaGeom) appendFloor(p *ir.Path, cd coord.Coord, x []float32, keep []int, base float32) {
+//
+// It is a function rather than a method because two marks close a shape this
+// way: an [Area] over its baseline, and one band of a [Horizon] over its own
+// floor. The second is the same shape drawn against a folded axis, and two
+// copies of this arithmetic would be two chances to disagree about what the
+// floor of a filled run is.
+func appendFloor(p *ir.Path, cd coord.Coord, x []float32, keep []int, base float32) {
 	first, last := x[0], x[len(x)-1]
 	if keep != nil {
 		first, last = x[keep[0]], x[keep[len(keep)-1]]

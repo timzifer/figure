@@ -141,7 +141,7 @@ picture cannot drift away from the code that produced it.
   placement, calendar-unit time steps, minor ticks per decade, pinned tick
   sequences.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
-  violins, ridgelines, hexbins, beeswarms, ECDFs, trends, contours, treemaps,
+  violins, ridgelines, hexbins, beeswarms, ECDFs, trends, contours, horizons, treemaps,
   icicles, sankeys, arcs, error bars, intervals, text, annotations — including a
   **locus**, a family of curves given by a formula rather than by data, which is
   what a Nichols diagram's closed-loop contours and a Smith chart's VSWR circles

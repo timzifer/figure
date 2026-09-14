@@ -29,6 +29,14 @@ const (
 	// is handed is the grid it traces.
 	MarkContour Mark = "contour"
 
+	// MarkHorizon is a series folded into bands of equal height, each drawn at
+	// the panel's full height and told apart by colour. It is not a
+	// distribution mark — it summarises nothing — and it is not a position
+	// adjustment either: an adjustment moves a mark, and the fold cuts one
+	// row's value into several drawn spans. See
+	// docs/adr/0065-horizon-charts.md.
+	MarkHorizon Mark = "horizon"
+
 	// The distribution marks. Each of them replaces the rows with a summary of
 	// where they are, so each of them decides one of its own axes: a histogram
 	// and a hexbin count, a violin and a ridgeline estimate a density, an ECDF
@@ -146,6 +154,14 @@ type Desc struct {
 	// what interval. Zero and an empty interval mean the layer chooses.
 	Bins         int
 	BinLo, BinHi float64
+	// Bands and BandHeight configure a [Horizon]: how many bands to fold the
+	// extent into, or how tall one band is in the data's own units. BandHeight
+	// wins where both are set, and both carry what the caller asked for rather
+	// than what the fold resolved — a resolved count is a fact about the rows
+	// the layer happened to be given, and pinning it would turn a chart of
+	// 50 kW bands into one pinned to however many of them today needed.
+	Bands      int
+	BandHeight float64
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -355,6 +371,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Hexbin(d.Source, opts...), nil
 	case MarkContour:
 		return Contour(d.Source, opts...), nil
+	case MarkHorizon:
+		return Horizon(d.Source, opts...), nil
 	case MarkBeeswarm:
 		return Beeswarm(d.Source, opts...), nil
 	case MarkECDF:
@@ -408,6 +426,8 @@ func (d Desc) options() []Option {
 		onSecondary(d.OnY2, d.OnX2),
 		Bins(d.Bins),
 		BinRange(d.BinLo, d.BinHi),
+		Bands(d.Bands),
+		BandHeight(d.BandHeight),
 		Levels(d.Levels...),
 		LevelCount(d.LevelCount),
 		Bandwidth(d.Bandwidth),
@@ -536,6 +556,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Bins:       c.bins,
 		BinLo:      c.binLo,
 		BinHi:      c.binHi,
+		Bands:      c.bands,
+		BandHeight: c.bandHeight,
 		Levels:     c.levels,
 		LevelCount: c.levelCount,
 		Bandwidth:  c.bandwidth,

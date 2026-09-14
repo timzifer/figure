@@ -74,7 +74,7 @@ depends on.
 | [0062](0062-a-scene-and-its-views.md) | A scene is the data, a camera is a way of looking at it, and one figure may hold several | Accepted | — |
 | [0063](0063-an-overlay-over-a-scene.md) | A scene is painted over too, and the seam is `three`'s own | Accepted | — |
 | [0064](0064-a-contour-and-its-lattice.md) | A contour is one tracing, and the lattice under it is one resolver | Accepted | — |
-| [0065](0065-horizon-charts.md) | A horizon chart folds its own axis, and the colourbar is the ladder it gives up | Proposed | — |
+| [0065](0065-horizon-charts.md) | A horizon chart folds its own axis, and the colourbar is the ladder it gives up | Accepted, amended | — |
 | [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Proposed | — |
 | [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Proposed | — |
 
@@ -184,9 +184,17 @@ They are independent of each other and of 0050 to 0054. **0066 is the one with
 a dependent**: a raster is what makes a Hovmöller diagram, a spectrogram and a
 recurrence plot ordinary rather than impossible, and it is also the backdrop
 0064's contours are usually drawn over — so a plan that builds one of them
-builds it first. **0065 is the one that fits the examples already in the
-repository**, which are a machine, a status board and a stream. **0067 is the
-one that is a seam rather than a shape**, and it is written as a set of three
-customers for that reason: a palette that suppresses a value's resolution, a
-bin that says which class it holds, and the bivariate square, none of which
-would justify the interface alone.
+builds it first. **0067 is the one that is a seam rather than a shape**, and it
+is written as a set of three customers for that reason: a palette that
+suppresses a value's resolution, a bin that says which class it holds, and the
+bivariate square, none of which would justify the interface alone.
+
+**0065 was the one that fitted the examples already in the repository** — a
+machine, a status board and a stream — and it is the one of the three that has
+been built. `geom.Horizon` folds a series into bands of equal height and
+`stat.Fold` is the arithmetic under it; `examples/horizon` is the wall of
+sixteen meters the form exists for. Its amendment records where the
+implementation sharpened it, chiefly that the guide is a `scale.Threshold` over
+the fold's own boundaries rather than a `Quantize` asked to re-derive them, and
+that a row is reported at the band it ends in so that a hit test has one
+position per row to index.
