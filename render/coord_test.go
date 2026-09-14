@@ -2,11 +2,13 @@ package render_test
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/internal/irtest"
+	"github.com/timzifer/figure/internal/layout"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/render"
 	"github.com/timzifer/figure/theme"
@@ -107,6 +109,114 @@ func plotArea(rec *irtest.Recorder) float32 {
 		}
 	}
 	return 0
+}
+
+// A polar radial axis runs along a spoke through the marks, and the first
+// slice of a pie starts exactly on it — so its line, its tick marks and its
+// labels are drawn after the data, while the grid stays underneath. A
+// Cartesian axis sits on the panel's edge and keeps the order it always had.
+func TestAPolarAxisIsDrawnOverTheData(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		coord coord.Coord
+		over  bool
+	}{
+		{"cartesian", nil, false},
+		{"polar", coord.Polar(), true},
+		{"pie", coord.Pie(), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := chart(line())
+			c.Coord = tc.coord
+			rec := draw(t, c)
+
+			// The data is everything between the clip the panel pushes and the
+			// pop that closes it — matched by depth, because a guide drawn
+			// afterwards may push and pop a clip of its own.
+			push, pop, depth := -1, -1, 0
+			for i, call := range rec.Calls {
+				switch {
+				case push < 0 && call.Op == "Push" && call.HasClip:
+					push, depth = i, 1
+				case push < 0 || pop >= 0:
+				case call.Op == "Push":
+					depth++
+				case call.Op == "Pop":
+					if depth--; depth == 0 {
+						pop = i
+					}
+				}
+			}
+			if push < 0 || pop < 0 {
+				t.Fatal("no data clip was pushed and popped")
+			}
+
+			th := c.Theme
+			axes, grid := 0, 0
+			for i, call := range rec.Calls {
+				stroke := call.Stroke
+				switch {
+				case call.Op != "Polyline" && call.Op != "StrokePath":
+					continue
+				case stroke.Color == th.AxisColor && stroke.Width == th.AxisWidth:
+					axes++
+					if after := i > pop; after != tc.over {
+						t.Errorf("axis call %d (%s) drawn after the data: %v, want %v", i, call.Op, after, tc.over)
+					}
+				case stroke.Color == th.GridColor && stroke.Width == th.GridWidth:
+					grid++
+					if i > push {
+						t.Errorf("grid call %d (%s) drawn after the data clip was pushed", i, call.Op)
+					}
+				}
+			}
+			if axes == 0 || grid == 0 {
+				t.Fatalf("drew %d axis and %d grid strokes, want some of each", axes, grid)
+			}
+			// A legend is drawn after the data on every chart, so only the
+			// polar half can say anything about labels by their order: none
+			// of its tick labels may come before the data.
+			if !tc.over {
+				return
+			}
+			for i, call := range rec.Calls {
+				if call.Op == "Text" && call.Text.Color == th.TickColor && i < push {
+					t.Errorf("tick label %q drawn before the data", call.Text.Text)
+				}
+			}
+		})
+	}
+}
+
+// A gauge's radial labels sit in a row across a ring a few dozen pixels deep,
+// with a tick count chosen for a whole panel. Every label a polar panel writes
+// clears every other: the ones that would not fit are dropped, not piled up.
+func TestPolarTickLabelsDoNotOverlap(t *testing.T) {
+	c := chart(line())
+	c.Coord = coord.Polar(coord.Theta(coord.FromY), coord.Hole(0.6),
+		coord.Sweep(math.Pi), coord.Start(-math.Pi/2))
+	rec := draw(t, c)
+
+	var boxes []ir.Rect
+	var texts []string
+	for _, call := range rec.Calls {
+		if call.Op != "Text" || call.Text.Color != c.Theme.TickColor {
+			continue
+		}
+		boxes = append(boxes, layout.LabelBounds(call.Text, rec.Measure(call.Text)))
+		texts = append(texts, call.Text.Text)
+	}
+	if len(boxes) < 4 {
+		t.Fatalf("a gauge wrote only %v", texts)
+	}
+	for i := range boxes {
+		for j := i + 1; j < len(boxes); j++ {
+			a, b := boxes[i], boxes[j]
+			if a.Min.X < b.Max.X && b.Min.X < a.Max.X && a.Min.Y < b.Max.Y && b.Min.Y < a.Max.Y {
+				t.Errorf("tick labels %q and %q overlap: %v and %v", texts[i], texts[j], a, b)
+			}
+		}
+	}
 }
 
 // A polar chart clips to a disc rather than to a rectangle, and the coord is

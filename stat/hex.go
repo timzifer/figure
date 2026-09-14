@@ -37,7 +37,8 @@ type Hex struct {
 
 	// Counts holds Cols*Rows cells in row-major order.
 	Counts []uint32
-	// Max is the busiest cell's count, and N the number of rows binned.
+	// Max is the busiest cell's count, and N the number of rows binned. Both
+	// count only cells that reach into the rectangle, and those whole.
 	Max uint32
 	N   int
 }
@@ -51,11 +52,27 @@ type Cell struct {
 
 // Reset prepares h for cells of the given radius over the rectangle with
 // corners (x0, y0) and (x1, y1), clearing any previous counts and reusing the
-// existing buffer when it is large enough.
+// existing buffer when it is large enough. The lattice has a cell centred on
+// the rectangle's lower corner; [Hex.ResetAt] puts it somewhere else.
 //
 // A radius of zero or less is meaningless and is replaced with one, which
 // draws a lattice of unit cells rather than dividing by nothing.
 func (h *Hex) Reset(radius, x0, y0, x1, y1 float64) {
+	h.ResetAt(radius, math.Min(x0, x1), math.Min(y0, y1), x0, y0, x1, y1)
+}
+
+// ResetAt is [Hex.Reset] with a lattice that has a cell centred on (ax, ay),
+// which need not be inside the rectangle.
+//
+// It is what keeps a lattice fixed to the data rather than to the screen. A
+// panned plot moves every point by the same offset; a lattice anchored to the
+// rectangle stays where it was, so the points slide across the cell borders
+// and a redrawn cloud comes out binned differently every frame. Anchor it to
+// where one fixed point of the data landed and the lattice moves with the
+// points, so a pan moves the cells and changes none of them.
+//
+// A non-finite anchor is replaced with the rectangle's lower corner.
+func (h *Hex) ResetAt(radius, ax, ay, x0, y0, x1, y1 float64) {
 	if !(radius > 0) {
 		radius = 1
 	}
@@ -63,14 +80,22 @@ func (h *Hex) Reset(radius, x0, y0, x1, y1 float64) {
 	h.MinX, h.MaxX = math.Min(x0, x1), math.Max(x0, x1)
 	h.MinY, h.MaxY = math.Min(y0, y1), math.Max(y0, y1)
 	h.Max, h.N = 0, 0
+	if math.IsNaN(ax) || math.IsInf(ax, 0) || math.IsNaN(ay) || math.IsInf(ay, 0) {
+		ax, ay = h.MinX, h.MinY
+	}
 
 	dx, dy := h.dx(), h.dy()
-	// The lattice origin sits one cell outside the rectangle's lower corner, so
-	// that the half-cell offset of an odd row and the nearest-centre refinement
-	// below both stay inside the array without a special case at the edge.
-	h.X0, h.Y0 = h.MinX-dx, h.MinY-dy
-	h.Cols = int(math.Ceil((h.MaxX-h.MinX)/dx)) + 3
-	h.Rows = int(math.Ceil((h.MaxY-h.MinY)/dy)) + 3
+	lx, ly, hx, hy := h.bounds()
+	// The lattice origin sits at least one cell outside the lower corner of
+	// what is binned, so that the half-cell offset of an odd row and the
+	// nearest-centre refinement below both stay inside the array without a
+	// special case at the edge. It is a whole number of columns and an even
+	// number of rows from the anchor: an odd number would move the half-cell
+	// offset onto the other rows and the anchor off its centre.
+	h.X0 = ax - math.Ceil((ax-(lx-dx))/dx)*dx
+	h.Y0 = ay - math.Ceil((ay-(ly-dy))/(2*dy))*2*dy
+	h.Cols = int(math.Ceil((hx-h.X0)/dx)) + 2
+	h.Rows = int(math.Ceil((hy-h.Y0)/dy)) + 2
 
 	n := h.Cols * h.Rows
 	if cap(h.Counts) < n {
@@ -85,6 +110,28 @@ func (h *Hex) Reset(radius, x0, y0, x1, y1 float64) {
 // of one row, and the vertical distance between two rows.
 func (h *Hex) dx() float64 { return math.Sqrt(3) * h.Radius }
 func (h *Hex) dy() float64 { return 1.5 * h.Radius }
+
+// bounds is the rectangle points are binned from: the rectangle the lattice
+// covers, grown by the widest a cell touching it can reach past it.
+//
+// A cell at the edge is counted whole or not at all. Counting only the rows
+// inside the rectangle would give an edge cell a count that depends on how
+// much of it happens to be showing, so a plot panned a pixel would shade its
+// border cells differently — and one panned further would take a busy cell
+// down to a single row before it left the picture.
+func (h *Hex) bounds() (lx, ly, hx, hy float64) {
+	dx, r := h.dx(), h.Radius
+	return h.MinX - dx, h.MinY - 2*r, h.MaxX + dx, h.MaxY + 2*r
+}
+
+// visible reports whether a cell's hexagon reaches into the rectangle — or
+// near enough: the test is its bounding box, which overlaps the rectangle's
+// corners by a sliver the hexagon does not.
+func (h *Hex) visible(col, row int) bool {
+	x, y := h.Center(col, row)
+	hw := h.dx() / 2
+	return x+hw > h.MinX && x-hw < h.MaxX && y+h.Radius > h.MinY && y-h.Radius < h.MaxY
+}
 
 // Cell returns the cell a position falls in, and whether it is inside the
 // lattice.
@@ -102,8 +149,12 @@ func (h *Hex) dy() float64 { return 1.5 * h.Radius }
 // points to a cell that is not their nearest. The vertical term therefore
 // carries (dy/dx)², which is exactly 3/4, and [TestEveryHexPointLandsInItsNearestCell]
 // is what holds it: without it the picture grows seams along every second row.
+//
+// A point outside the rectangle is placed when the cell it falls in reaches
+// into it; see [Hex.bounds].
 func (h *Hex) Cell(x, y float64) (col, row int, ok bool) {
-	if !(x >= h.MinX) || !(x <= h.MaxX) || !(y >= h.MinY) || !(y <= h.MaxY) {
+	lx, ly, hx, hy := h.bounds()
+	if !(x >= lx) || !(x <= hx) || !(y >= ly) || !(y <= hy) {
 		// Written so that NaN falls outside.
 		return 0, 0, false
 	}
@@ -129,7 +180,7 @@ func (h *Hex) Cell(x, y float64) (col, row int, ok bool) {
 	}
 
 	col, row = int(pi), int(pj)
-	if col < 0 || row < 0 || col >= h.Cols || row >= h.Rows {
+	if col < 0 || row < 0 || col >= h.Cols || row >= h.Rows || !h.visible(col, row) {
 		return 0, 0, false
 	}
 	return col, row, true

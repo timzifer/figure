@@ -52,10 +52,12 @@ import (
 // is not broken, it is a different chart, and the coord does not guess which
 // one was meant.
 //
-// A consequence worth knowing: a zoom moves nothing. [scale.Zoomer.SetDomain]
-// changes the domain, the next Frame changes the range to match, and every
-// point stays where it was. That is right — the disc is always the whole
-// picture — but it means a Smith panel is not pannable, only relabelled.
+// A consequence worth knowing: a zoom has nothing to move. Were the domain
+// changed, the next Frame would change the range to match and every point would
+// stay where it was — while the pinned ticks the new domain no longer reaches
+// dropped out of the grid. The disc is always the whole picture, so the coord
+// reports itself [Fixed] and an interactive chart leaves a Smith panel's axes
+// alone rather than relabelling them under a curve that does not move.
 //
 // # A measured sweep
 //
@@ -520,7 +522,12 @@ func (s *smith) Describe() Desc {
 	return Desc{Type: TypeSmith, Radius: s.radius, Admittance: s.admittance, Arc: s.arc}
 }
 
+// Fixed reports true: the disc is the whole picture whatever the domains are.
+// See [Fixed] and the note on zooming at [Smith].
+func (s *smith) Fixed() bool { return true }
+
 var (
 	_ Coord     = (*smith)(nil)
 	_ Describer = (*smith)(nil)
+	_ Fixed     = (*smith)(nil)
 )

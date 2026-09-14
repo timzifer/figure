@@ -1,6 +1,8 @@
 package gpu
 
 import (
+	"sync"
+
 	"github.com/gogpu/gg"
 
 	// The blank import is the whole mechanism: gg's gpu package registers an
@@ -83,7 +85,91 @@ const probeSize = 16
 // back, which is gg's own advice for the accelerator it registers here.
 func Enabled() bool { return gg.Accelerator() != nil }
 
+// Available reports whether the tier can be had: it is on, or it was on and
+// [Disable] set it aside. A machine whose probe failed at startup, or a program
+// that called [Close], answers false — there is nothing for [Enable] to bring
+// back.
+func Available() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	return parked != nil || gg.Accelerator() != nil
+}
+
+// Disable gives the GPU device back and draws on the CPU from here on, but
+// keeps the accelerator so that [Enable] can bring the tier back. It is what a
+// program offering "GPU on/off" calls; [Close] is what one that is done with
+// the GPU calls.
+//
+// Each rasterizer keeps per-context GPU state from the moment it first draws,
+// and that state belongs to the device this releases. So a chart drawn before
+// the switch must be closed before it and made again after it: switching the
+// tier under a live chart leaves it holding a device that is gone.
+//
+// Calling it with the tier already off does nothing.
+func Disable() {
+	mu.Lock()
+	defer mu.Unlock()
+	a := gg.Accelerator()
+	if a == nil {
+		return
+	}
+	parked, parkedFiller = a, gg.GetCoverageFiller()
+	// The filler goes with it: gg installs the GPU's coverage filler beside the
+	// accelerator, and leaving it registered would make "the CPU" a different
+	// rasterizer from the one a program without this package gets.
+	gg.RegisterCoverageFiller(nil)
+	gg.CloseAccelerator()
+}
+
+// Enable brings back a tier [Disable] set aside and reports whether it is on.
+//
+// The device is made again on the first draw, and the tier proves it draws
+// before it is kept, exactly as it did at startup: an adapter that has gone
+// away since — a driver reset, an unplugged eGPU — leaves the program on the
+// CPU rather than drawing charts without their geometry.
+//
+// It is true without doing anything when the tier is already on, and false
+// when there is nothing to bring back. The rule about charts drawn across the
+// switch is the one [Disable] gives.
+func Enable() bool {
+	mu.Lock()
+	defer mu.Unlock()
+	if gg.Accelerator() != nil {
+		return true
+	}
+	if parked == nil {
+		return false
+	}
+	if err := gg.RegisterAccelerator(parked); err != nil {
+		return false
+	}
+	gg.RegisterCoverageFiller(parkedFiller)
+	if !accelerateDraws() {
+		gg.RegisterCoverageFiller(nil)
+		gg.CloseAccelerator()
+		return false
+	}
+	parked, parkedFiller = nil, nil
+	return true
+}
+
 // Close releases the GPU device and everything held on it, after which
 // rendering falls back to the CPU rasterizer. It is what a program defers from
 // main; calling it twice, or with no GPU registered, does nothing.
-func Close() { gg.CloseAccelerator() }
+//
+// Unlike [Disable] it is final: a tier set aside is forgotten too, and
+// [Enable] has nothing to bring back afterwards.
+func Close() {
+	mu.Lock()
+	defer mu.Unlock()
+	parked, parkedFiller = nil, nil
+	gg.CloseAccelerator()
+}
+
+// The tier set aside by Disable, and what guards the switch: a program may
+// flip it from a UI goroutine while another asks whether it is on.
+var (
+	mu           sync.Mutex
+	parked       gg.GPUAccelerator
+	parkedFiller gg.CoverageFiller
+)

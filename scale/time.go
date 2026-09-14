@@ -156,6 +156,16 @@ func (s *timeScale) Map(v float64) float32 {
 	return place(rlo, rhi, (v-lo)/(hi-lo))
 }
 
+// Map64 implements [Precise].
+func (s *timeScale) Map64(v float64) float64 {
+	lo, hi := s.span()
+	rlo, rhi := s.rangeOf()
+	if hi == lo {
+		return float64(rlo)
+	}
+	return place64(rlo, rhi, (v-lo)/(hi-lo))
+}
+
 func (s *timeScale) Invert(pos float32) float64 {
 	lo, hi := s.span()
 	rlo, rhi := s.rangeOf()

@@ -340,6 +340,74 @@ func TestEveryHexPointLandsInItsNearestCell(t *testing.T) {
 	}
 }
 
+// A panned plot moves every point by one offset. A lattice anchored where one
+// of them landed moves with them, and an edge cell counts the rows the
+// rectangle cuts off, so every cell that is showing both before and after the
+// pan holds the same count. Anchored to the rectangle instead, or counting only
+// what is inside it, the border cells flicker while the plot is dragged.
+func TestAPannedHexLatticeKeepsItsCounts(t *testing.T) {
+	const radius = 6
+	xs, ys := scatterOf(2000, 3), scatterOf(2000, 7)
+	for i := range xs {
+		xs[i], ys[i] = 50+xs[i]*30, 50+ys[i]*30
+	}
+	type key struct{ col, row int }
+	bin := func(ox, oy float64) map[key]uint32 {
+		var h stat.Hex
+		h.ResetAt(radius, xs[0]+ox, ys[0]+oy, 0, 0, 100, 100)
+		for i := range xs {
+			h.Add(xs[i]+ox, ys[i]+oy)
+		}
+		out := map[key]uint32{}
+		for _, c := range h.Cells(nil) {
+			// Where the cell is relative to the anchor, in half columns and
+			// rows, is what names it independently of the pan.
+			k := key{
+				int(math.Round((c.X - xs[0] - ox) / (math.Sqrt(3) * radius / 2))),
+				int(math.Round((c.Y - ys[0] - oy) / (1.5 * radius))),
+			}
+			out[k] = c.Count
+		}
+		return out
+	}
+	still := bin(0, 0)
+	for _, pan := range [][2]float64{{3.7, -2.2}, {17.1, 9.3}, {-41.9, 0.4}} {
+		moved := bin(pan[0], pan[1])
+		shared := 0
+		for k, n := range moved {
+			m, ok := still[k]
+			if !ok {
+				continue
+			}
+			shared++
+			if m != n {
+				t.Errorf("panned by %v, the cell at %v holds %d rows; unpanned it held %d", pan, k, n, m)
+			}
+		}
+		if shared < 20 {
+			t.Errorf("panned by %v, only %d cells showed both times", pan, shared)
+		}
+	}
+}
+
+// A point outside the rectangle belongs to an edge cell as much as one inside
+// does, and the cell is counted whole.
+func TestAHexEdgeCellCountsWhatTheRectangleCutsOff(t *testing.T) {
+	var h stat.Hex
+	h.ResetAt(10, 0, 0, 0, 0, 100, 100)
+	// (0, 0) is a cell centre on the rectangle's corner; both points are in
+	// that cell, and one of them is outside the rectangle.
+	h.Add(2, 2)
+	h.Add(-3, -2)
+	if h.N != 2 || h.Max != 2 {
+		t.Errorf("binned %d rows with a busiest cell of %d, want both rows in one cell", h.N, h.Max)
+	}
+	// A point whose cell does not reach the rectangle is not binned at all.
+	if h.Add(-19, 50) {
+		t.Error("a point in a cell wholly outside the rectangle was binned")
+	}
+}
+
 func TestHexCellsComeOutInAFixedOrder(t *testing.T) {
 	var h stat.Hex
 	h.Reset(6, 0, 0, 50, 50)

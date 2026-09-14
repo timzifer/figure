@@ -190,6 +190,35 @@ func place(rlo, rhi float32, t float64) float32 {
 	return rlo + float32(float32(t)*(rhi-rlo))
 }
 
+// place64 is place without the rounding to float32.
+func place64(rlo, rhi float32, t float64) float64 {
+	return float64(rlo) + t*(float64(rhi)-float64(rlo))
+}
+
+// Precise is implemented by a scale that can map a value at float64
+// precision. It is an optional interface, for the reason [Zoomer] is.
+//
+// [Scale.Map] answers in float32, which is plenty for where a mark is drawn
+// and not enough for which side of a line it falls on. A position rounded to
+// float32 is out by a few hundred-thousandths of a pixel, and by a different
+// few every time the domain moves — so a layer that sorts points into bins in
+// device space, and is panned, sees the points nearest a bin edge hop across
+// it and back from one frame to the next. Mapped at float64, a pan moves every
+// position by the same offset to within a rounding error nothing lands on.
+type Precise interface {
+	// Map64 is [Scale.Map] at float64 precision.
+	Map64(v float64) float64
+}
+
+// Map64 maps v through s at float64 precision when s is [Precise], and
+// through [Scale.Map] otherwise.
+func Map64(s Scale, v float64) float64 {
+	if p, ok := s.(Precise); ok {
+		return p.Map64(v)
+	}
+	return float64(s.Map(v))
+}
+
 func (d *domainRange) rangeOf() (float32, float32) {
 	if !d.rset {
 		return 0, 1

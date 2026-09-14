@@ -33,13 +33,13 @@ require (
 )
 
 // gg is replaced by a fork carrying GPU-tier fixes that are still open upstream
-// (gogpu/gg#534, #537, #538, #539). This is the only module that needs them:
-// every one changes what gg's GPU accelerator draws, and this module is what
-// registers that accelerator — the raster backend and the window backend draw
-// on the CPU. go.work applies the replacement to the whole workspace.
+// (gogpu/gg#534, #537, #538, #539, #540). This is the only module that needs
+// them: every one changes what gg's GPU accelerator draws, and this module is
+// what registers that accelerator — the raster backend and the window backend
+// draw on the CPU. go.work applies the replacement to the whole workspace.
 //
 // A replace does not reach anyone who imports this module, and the release
 // check refuses one, so the tier is held out of releases (-skip backend/gg/gpu)
 // until a gg release carries the fixes. Then this goes, and the require above
 // moves to that release.
-replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.4
+replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.5

@@ -2,6 +2,7 @@ package geom_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/timzifer/figure/data"
@@ -242,6 +243,75 @@ func TestAHexbinDrawsHexagons(t *testing.T) {
 	}
 	if total < 10 {
 		t.Errorf("got %d cells, want a lattice rather than a handful", total)
+	}
+}
+
+// Dragging a hexbin moves its cells; it does not re-bin them. Every cell that
+// shows before and after a pan is the same cell, shifted by the pan, in the
+// same shade — including the ones the panel's edge cuts through.
+func TestAPannedHexbinMovesItsCells(t *testing.T) {
+	xs, ys := make([]float64, 3000), make([]float64, 3000)
+	for i := range xs {
+		a, r := float64(i)*2.399, math.Sqrt(float64(i%1000)/1000)*4
+		xs[i] = 5 + r*math.Cos(a)
+		ys[i] = 5 + r*math.Sin(a)*0.7
+	}
+	src := data.Float64Columns(map[string][]float64{"x": xs, "y": ys})
+	g := geom.Hexbin(src, geom.X("x"), geom.Y("y"), geom.DensityCells(9))
+	x, y := scale.Linear(), scale.Linear()
+	rec, f := frameOn(t, g, x, y, 300, 300)
+
+	type cell struct {
+		top  ir.Point
+		fill ir.Fill
+	}
+	cells := func(rec *irtest.Recorder) []cell {
+		var out []cell
+		for _, c := range rec.Filter("FillPath") {
+			k := 0
+			for _, op := range c.Path.Ops {
+				switch op {
+				case ir.OpMoveTo:
+					out = append(out, cell{c.Path.Pts[k], c.Fill})
+					k++
+				case ir.OpLineTo:
+					k++
+				}
+			}
+		}
+		return out
+	}
+	if err := g.Build(rec, f); err != nil {
+		t.Fatal(err)
+	}
+	before := cells(rec)
+	x0, y0 := f.X.Map(5), f.Y.Map(5)
+
+	xlo, xhi := x.Domain()
+	ylo, yhi := y.Domain()
+	x.(scale.Zoomer).SetDomain(xlo+(xhi-xlo)*0.13, xhi+(xhi-xlo)*0.13)
+	y.(scale.Zoomer).SetDomain(ylo-(yhi-ylo)*0.07, yhi-(yhi-ylo)*0.07)
+	rec = irtest.New()
+	if err := g.Build(rec, f); err != nil {
+		t.Fatal(err)
+	}
+	after := cells(rec)
+	dx, dy := f.X.Map(5)-x0, f.Y.Map(5)-y0
+
+	shared := 0
+	for _, a := range after {
+		for _, b := range before {
+			if math.Abs(float64(a.top.X-dx-b.top.X)) > 0.01 || math.Abs(float64(a.top.Y-dy-b.top.Y)) > 0.01 {
+				continue
+			}
+			shared++
+			if !reflect.DeepEqual(a.fill, b.fill) {
+				t.Errorf("the cell at %v was shaded %v and, panned to %v, %v", b.top, b.fill, a.top, a.fill)
+			}
+		}
+	}
+	if shared < len(after)/2 {
+		t.Errorf("%d of %d panned cells sit where an unpanned cell moved to; the lattice did not move with the data", shared, len(after))
 	}
 }
 

@@ -78,6 +78,23 @@ type Furniture struct {
 	// two labels on opposite sides of a ring can share an x and still be a
 	// finger apart.
 	XLabelsShareARow bool
+
+	// AxesOverData reports whether the axis lines, tick marks and tick labels
+	// lie inside the region the data is drawn in, so that render has to stroke
+	// them after the marks rather than before. A Cartesian axis runs along the
+	// panel's edge, outside every mark, and keeps the order it always had. A
+	// polar radial axis runs along a spoke through the ring — the first slice
+	// of a pie and the empty end of a gauge both start exactly on it — and
+	// drawn first it is painted over. The grid stays under the data either
+	// way: it is a reference behind the marks, not a label on them.
+	AxesOverData bool
+
+	// LabelsYFirst decides which axis keeps its labels where the two collide.
+	// Labels that do not share a row are thinned by render against every
+	// other label by their boxes, greedily in axis order — X first, unless
+	// this is set. A polar coord sets it when Y is the angle: the labels round
+	// the rim are the reading, and the radial ones are a scale beside it.
+	LabelsYFirst bool
 }
 
 // Reset empties f while keeping every buffer it has grown, including those of
@@ -90,6 +107,8 @@ func (f *Furniture) Reset() {
 	f.LabelX, f.LabelY = f.LabelX[:0], f.LabelY[:0]
 	f.InX, f.InY = f.InX[:0], f.InY[:0]
 	f.XLabelsShareARow = false
+	f.AxesOverData = false
+	f.LabelsYFirst = false
 }
 
 // resetShapes empties every shape the slice has ever held — not merely the

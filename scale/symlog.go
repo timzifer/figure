@@ -119,6 +119,17 @@ func (s *symlogScale) Map(v float64) float32 {
 	return place(rlo, rhi, t)
 }
 
+// Map64 implements [Precise].
+func (s *symlogScale) Map64(v float64) float64 {
+	lo, hi := s.span()
+	rlo, rhi := s.rangeOf()
+	flo, fhi := s.forward(lo), s.forward(hi)
+	if fhi == flo {
+		return float64(rlo)
+	}
+	return place64(rlo, rhi, (s.forward(v)-flo)/(fhi-flo))
+}
+
 func (s *symlogScale) Invert(pos float32) float64 {
 	lo, hi := s.span()
 	rlo, rhi := s.rangeOf()

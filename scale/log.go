@@ -139,6 +139,19 @@ func (l *logScale) Map(v float64) float32 {
 	return place(rlo, rhi, t)
 }
 
+// Map64 implements [Precise].
+func (l *logScale) Map64(v float64) float64 {
+	if !l.Defined(v) {
+		return math.NaN()
+	}
+	lo, hi := l.effective()
+	rlo, rhi := l.rangeOf()
+	if hi == lo {
+		return float64(rlo)
+	}
+	return place64(rlo, rhi, (math.Log(v)-math.Log(lo))/(math.Log(hi)-math.Log(lo)))
+}
+
 func (l *logScale) Invert(pos float32) float64 {
 	lo, hi := l.effective()
 	rlo, rhi := l.rangeOf()

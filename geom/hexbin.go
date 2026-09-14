@@ -1,6 +1,9 @@
 package geom
 
 import (
+	"slices"
+
+	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/scale"
@@ -30,6 +33,12 @@ import (
 // then mapped through the axes comes out stretched by whatever aspect ratio the
 // panel happens to have. So the binning happens in Build, where the rectangle
 // is known, exactly as the density raster's does.
+//
+// Device space is where the lattice is measured, not what it is pinned to. It
+// is pinned to the data — to where the first row landed — and a cell at the
+// edge of the panel counts every row in it, including the ones the clip hides.
+// Together those are what let a panned plot move its cells rather than re-bin
+// them: the same cells, the same counts, just somewhere else on screen.
 //
 // The cost of that is one thing this layer deliberately does not have: a
 // colourbar. The counts are not known until the plot rectangle is, and the
@@ -95,18 +104,25 @@ func (g *hexGeom) Build(b ir.Backend, f Frame) error {
 	if radius <= 0 {
 		radius = DefaultHexRadius
 	}
-	sc.hex.Reset(radius,
+	cd := f.Coords()
+	d, described := cd.(coord.Describer)
+	exact := described && d.Describe().Default()
+	ok := sc.plottable(g.s, f.X, f.Y)
+	// The lattice is pinned to where the first row landed. See [hexGeom.at].
+	first := slices.Index(ok, true)
+	if first < 0 {
+		return nil
+	}
+	ax, ay := g.at(f, cd, exact, first)
+	sc.hex.ResetAt(radius, ax, ay,
 		float64(area.Min.X), float64(area.Min.Y),
 		float64(area.Max.X), float64(area.Max.Y))
 
-	cd := f.Coords()
-	ok := sc.plottable(g.s, f.X, f.Y)
 	for i := range g.s.x {
 		if !ok[i] {
 			continue
 		}
-		at := cd.Point(f.X.Map(g.s.x[i]), f.Y.Map(g.s.y[i]))
-		sc.hex.Add(float64(at.X), float64(at.Y))
+		sc.hex.Add(g.at(f, cd, exact, i))
 	}
 	if sc.hex.N == 0 {
 		return nil
@@ -136,6 +152,32 @@ func (g *hexGeom) Build(b ir.Backend, f Frame) error {
 		b.FillPath(&sc.fill, ir.Solid(run.color), ir.NonZero)
 	}
 	return nil
+}
+
+// at is where row i lands in device space, at float64 precision when the
+// coord is Cartesian.
+//
+// The lattice is pinned to where the first row landed rather than to the
+// rectangle, because the rectangle stays put when the plot is panned and the
+// data does not. A lattice pinned to the rectangle re-bins a panned cloud
+// against borders it has slid across, and cells flicker between counts; pinned
+// to a row, the lattice slides with the cloud and every cell keeps its count.
+//
+// That only holds if a pan moves every position by exactly the same offset,
+// and a position rounded to float32 does not: it is out by a different few
+// hundred-thousandths of a pixel every frame, so the rows nearest a cell border
+// hop across it and back while the plot is dragged — and a cell holding one
+// row blinks between its faintest shade and nothing. Under a Cartesian coord
+// the device position is the scales' own answer, so it is taken at float64
+// through [scale.Map64]. Any other coord maps in float32 and keeps the flicker,
+// which a pan there — a rotation, or a slide along a radius — makes the least
+// of the problems a hexbin has.
+func (g *hexGeom) at(f Frame, cd coord.Coord, exact bool, i int) (x, y float64) {
+	if exact {
+		return scale.Map64(f.X, g.s.x[i]), scale.Map64(f.Y, g.s.y[i])
+	}
+	p := cd.Point(f.X.Map(g.s.x[i]), f.Y.Map(g.s.y[i]))
+	return float64(p.X), float64(p.Y)
 }
 
 // shades resolves each cell's colour and batches the cells by it.

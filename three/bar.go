@@ -113,9 +113,13 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 	return nil
 }
 
-// visibleFaces returns the top of a box and the two sides that face the
+// visibleFaces returns the lid of a box and the two sides that face the
 // camera, with the outward normal of each. The other three faces are behind
 // them by construction and drawing them would be ink nobody sees.
+//
+// The lid is the top only while the camera is above it. A camera below the
+// floor sees the bottom instead, and a box drawn with its top from there shows
+// the inside of its far walls through the missing bottom: hollow.
 //
 // The normals are returned rather than derived from the corners, because which
 // side of the box is visible depends on the camera and the winding therefore
@@ -127,12 +131,16 @@ func visibleFaces(fwd Vec3, x0, y0, x1, y1, lo, hi float32) ([3][4]Vec3, [3]Vec3
 	var out [3][4]Vec3
 	var normals [3]Vec3
 
-	out[0] = [4]Vec3{{x0, y0, hi}, {x1, y0, hi}, {x1, y1, hi}, {x0, y1, hi}}
-	normals[0] = Vec3{0, 0, 1}
-
 	// The visible face along an axis is the one on the near side: the camera
 	// looks along fwd, so the face at the low end is the visible one when fwd
 	// points toward the high one.
+	zs, nz := hi, float32(1)
+	if fwd.Z > 0 {
+		zs, nz = lo, -1
+	}
+	out[0] = [4]Vec3{{x0, y0, zs}, {x1, y0, zs}, {x1, y1, zs}, {x0, y1, zs}}
+	normals[0] = Vec3{0, 0, nz}
+
 	xs, nx := x1, float32(1)
 	if fwd.X > 0 {
 		xs, nx = x0, -1
