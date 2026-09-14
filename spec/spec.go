@@ -253,6 +253,17 @@ type Mark struct {
 	Bins     int      `json:"bins,omitempty"`
 	BinStart *float64 `json:"binStart,omitempty"`
 	BinEnd   *float64 `json:"binEnd,omitempty"`
+	// Bands is how many bands a horizon folds its extent into, and BandHeight
+	// how tall one band is in the data's own units. They are figure's own.
+	//
+	// They are spelled apart from Bins for the reason Levels is: a histogram's
+	// bins divide the rows and a fold's bands divide one row's value, so a
+	// document that said "bins" for a horizon would claim the mark binned.
+	// BandHeight wins where both are written, and it is the one to write: a
+	// band pinned in the data's units means the same thing in every document
+	// that carries it.
+	Bands      int     `json:"bands,omitempty"`
+	BandHeight float64 `json:"bandHeight,omitempty"`
 	// Levels are the values a contour traces, and LevelCount about how many to
 	// choose from the data when Levels names none.
 	//

@@ -43,6 +43,8 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Segment(0, 1, 2, 3),
 		Region(0, 1, 2, 3),
 		Note(1, 2, "here", FontSize(9), Rotate(0.25), Align(ir.AlignEnd, ir.AlignBottom)),
+		Horizon(src, X("x"), Y("y"), Bands(4), Baseline(1.5)),
+		Horizon(src, X("x"), Y("y"), BandHeight(0.5), ColorBy("z", cs)),
 		Locus(stat.NicholsM, []float64{-3, 0, 3}, Label("M contours")),
 		Locus(stat.SmithVSWR, []float64{2}, Extend(true)),
 		Treemap(src, ID("x"), Parent("y"), Value("z"), Padding(0.01)),

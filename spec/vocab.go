@@ -45,6 +45,11 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "hexbin", "", nil
 	case geom.MarkContour:
 		return "contour", "", nil
+	case geom.MarkHorizon:
+		// A folded axis. Vega-Lite draws the form as a layered-area recipe
+		// with a clip per band rather than as a mark, so there is no name to
+		// borrow and this is figure's own.
+		return "horizon", "", nil
 	case geom.MarkBeeswarm:
 		return "beeswarm", "", nil
 	case geom.MarkECDF:
@@ -133,6 +138,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkHexbin, nil
 	case "contour":
 		return geom.MarkContour, nil
+	case "horizon":
+		return geom.MarkHorizon, nil
 	case "beeswarm":
 		return geom.MarkBeeswarm, nil
 	case "ecdf":

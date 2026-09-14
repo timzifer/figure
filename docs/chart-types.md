@@ -1,9 +1,9 @@
 # Chart types: what exists, what is missing, and what each one costs
 
-figure draws twenty data-bearing marks today — `Line`, `Scatter`, `Bar`,
+figure draws twenty-one data-bearing marks today — `Line`, `Scatter`, `Bar`,
 `Area`, `Step`, `Boxplot`, `Rect`, `Text`, `ErrorBar`, `Histogram`, `Violin`,
-`Ridgeline`, `Hexbin`, `Beeswarm`, `ECDF`, `Trend`, `Treemap`, `Icicle`,
-`Sankey` and `Arc`, plus the annotations in `geom/annotate.go`. This document is the catalogue of what it does not draw
+`Ridgeline`, `Hexbin`, `Beeswarm`, `ECDF`, `Trend`, `Horizon`, `Treemap`,
+`Icicle`, `Sankey` and `Arc`, plus the annotations in `geom/annotate.go`. This document is the catalogue of what it does not draw
 yet, sorted **by the machinery each form needs** rather than by how popular it
 is. Sorted that way the list stops being a wish list and becomes a schedule:
 half of these charts share four pieces of plumbing, and once those exist the
@@ -13,10 +13,11 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped. J through M, and O through Q, are planned
-and have records but no code** — [ADR 0051](adr/0051-barycentric-coord.md)
-through [ADR 0054](adr/0054-statistical-instruments.md), and
-[ADR 0065](adr/0065-horizon-charts.md) through
+**Buckets A through I have shipped, and so has P.** **J through M, and O and Q,
+are planned and have records but no code** —
+[ADR 0051](adr/0051-barycentric-coord.md) through
+[ADR 0054](adr/0054-statistical-instruments.md),
+[ADR 0066](adr/0066-a-raster-mark.md) and
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
@@ -50,7 +51,7 @@ reading declined.
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 | A raster mark (`geom.Raster`) | **planned** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
-| A folded axis (`geom.Horizon`) | **planned** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
+| A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
 | A bivariate colour channel (`scale.BivariateColorScale`) | **planned** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
 
 ## A — needs a rectangle mark, and nothing else — **shipped**
@@ -558,7 +559,7 @@ things are refused rather than approximated: an unequally spaced lattice, which
 an image cannot carry and `Rect` draws correctly today, and smooth upscaling,
 which would paint colours between two measurements.
 
-## P — needs a folded axis — **planned**, [ADR 0065](adr/0065-horizon-charts.md)
+## P — needs a folded axis — **shipped**, [ADR 0065](adr/0065-horizon-charts.md)
 
 Every answer to scale in this library is an answer about *rows*: decimation,
 the density raster, the hexbin. A **horizon chart** answers the other one. It
@@ -571,18 +572,31 @@ forty pixels of height it beats the filled line chart of the same series.
 | Chart | Recipe |
 |---|---|
 | Horizon chart | `geom.Horizon` with `Bands(3)` or `BandHeight(h)` |
-| A wall of them | one `facet` panel or one `Plot.Track` per series — both exist |
+| A wall of them | one `facet` panel or one `Plot.Track` per series — both exist; see `examples/horizon` |
+
+**Pin the band height, not the band count.** `BandHeight(h)` gives the band in
+the data's own units and wins where both are set. A count divides whatever the
+data happened to reach, so two charts of the same quantity over two days have
+different bands and cannot be read against each other — which is the one thing
+this form exists to prevent. `Baseline` is the origin the fold is measured
+from, so a deviation from a set point is folded about the set point.
 
 **The interesting part is the ladder it gives up.** `render` labels nothing a
 scale did not write, and a mark may not invent furniture — the constraint
 [ADR 0033](adr/0033-smith-charts.md) recorded and
-[ADR 0051](adr/0051-barycentric-coord.md) declined to reopen. It does not have
+[ADR 0051](adr/0051-barycentric-coord.md) declined to reopen. It did not have
 to be reopened here: after the fold the Y scale describes one band and its
 ticks are true of every band on screen, and what the reader is missing is
 *which* band, which is a colour. So the guide is a classed colourbar whose
-breaks are the fold's own boundaries — `scale.Quantize` reports them,
+breaks are the fold's own boundaries — `scale.Threshold` is handed them,
 `ColorGuide` keys on them, and [ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)
 already makes it answer a pointer.
+
+**One layer draws one series**, and `GroupBy` is an error rather than an
+overlap: every band of every series is the whole panel, so N of them together
+are a solid rectangle. `stat.Fold` is the arithmetic — numbers in, numbers out,
+with an `Append` form — and the fold runs in `Train`, because it does not
+describe the vertical axis but replaces it.
 
 ## Q — needs a bivariate colour channel — **planned**, [ADR 0067](adr/0067-a-bivariate-colour-channel.md)
 

@@ -221,13 +221,15 @@ type config struct {
 	budget     int
 	cellSize   float64
 
-	bins      int
-	binLo     float64
-	binHi     float64
-	bandwidth float64
-	span      float64
-	smooth    Smoothing
-	overlap   float64
+	bins       int
+	binLo      float64
+	binHi      float64
+	bands      int
+	bandHeight float64
+	bandwidth  float64
+	span       float64
+	smooth     Smoothing
+	overlap    float64
 
 	closed      bool
 	onY2        bool
@@ -579,6 +581,25 @@ func Bins(n int) Option { return func(c *config) { c.bins = n } }
 func BinRange(lo, hi float64) Option {
 	return func(c *config) { c.binLo, c.binHi = lo, hi }
 }
+
+// Bands sets how many bands a [Horizon] folds its trained extent into. The
+// default is [DefaultBands].
+//
+// It is the convenient spelling and not the comparable one: the bands are then
+// as tall as the data happened to reach, so two charts of the same quantity
+// over different days have different bands and cannot be read against each
+// other. [BandHeight] is the spelling for anything measured, and it wins where
+// both are set.
+func Bands(n int) Option { return func(c *config) { c.bands = n } }
+
+// BandHeight sets the height of one band of a [Horizon] in the data's own
+// units, and how many bands there are then follows from the data.
+//
+// It is the spelling to prefer. A band that means 50 kW is a band a plant
+// engineer already has, and it means the same thing in every chart drawn this
+// way — which is the whole point of the form, and what a count of bands chosen
+// from each day's own maximum gives up. It overrides [Bands].
+func BandHeight(h float64) Option { return func(c *config) { c.bandHeight = h } }
 
 // Bandwidth sets the kernel width a [Violin] or a [Ridgeline] estimates its
 // density with, in the data's own units. The default, 0, lets

@@ -512,6 +512,14 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// The levels the layer is actually tracing, so that a document reads
 		// back as the same lines — which is the whole reason to pin them.
 		m.Levels, m.LevelCount = d.Levels, d.LevelCount
+	case geom.MarkHorizon:
+		fill()
+		rows()
+		// The fold and nothing else. A horizon has no stroke — every band is a
+		// filled region whose only edge is the one the next band starts at —
+		// and no group, because a grouped one is an error rather than a
+		// picture.
+		m.Bands, m.BandHeight, m.Origin = d.Bands, d.BandHeight, d.Baseline
 	case geom.MarkBeeswarm:
 		stroke()
 		fill()

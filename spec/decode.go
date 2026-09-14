@@ -271,6 +271,8 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		VAlign:     vAlignOf(l.Mark.Baseline),
 		AlignSet:   l.Mark.Align != "" || l.Mark.Baseline != "",
 		Bins:       l.Mark.Bins,
+		Bands:      l.Mark.Bands,
+		BandHeight: l.Mark.BandHeight,
 		Levels:     l.Mark.Levels,
 		Family:     family(l.Mark.Family),
 		LevelCount: l.Mark.LevelCount,
