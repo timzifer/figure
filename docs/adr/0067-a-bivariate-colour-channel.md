@@ -1,6 +1,6 @@
 # 0067 — A colour channel may carry two readings, and the second one takes resolution away
 
-**Status:** Proposed · **Date:** 2026-09-11 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-11 · **Implemented:** 2026-09-15
 
 ## Context
 
@@ -172,3 +172,71 @@ cell is through a hit rather than through a key — which is exactly what
 - The multi-class bin turns out to want a purity key after all. That reopens
   the hexbin's guide-ordering problem rather than this record, and the fix
   there is to bin in data space, which would be its own decision.
+
+## Amendment: what building it sharpened
+
+The seam and its three customers are built: `scale.BivariateColorScale` beside
+`ColorScale`, `scale.VSUP` and `scale.BivariateMatrix`, `geom.UncertaintyBy`,
+a square key as the fourth guide kind, a class dimension in `stat.Hex` and the
+multi-class hexbin over it, and `"vsup"` and `"bivariate"` colour scales with an
+`uncertainty` channel in `spec`. `examples/bivariate` draws all three charts.
+Seven things came out sharper than the record, and none of them widens
+`ColorScale`.
+
+**The interface trains its second reading and describes its own key.** The
+record's interface had `ColorAt` and `SecondDomain` and no way for the second
+domain to be trained, and nothing a guide could draw from. So it has
+`TrainSecond`, which `geom` calls beside `Train` exactly when a layer read a
+second column, and `KeyCells`, the key as rectangles in data space with a colour
+each. The key is drawn from the cells and placed by where each sits in the two
+domains, which is how one drawing function draws a VSUP's tree — eight cells
+across at the bottom, one at the top — and a matrix's square without asking
+which it has. That is the record's "a difference in what the guide draws, not in
+what the solver measures", made literal.
+
+**`BivariateMatrix` takes its colours, not two ramps.** The record wrote
+`BivariateMatrix(a, b, k)` and, two sections later, refused "blending two
+arbitrary ramps", because a mixed colour corresponds to no entry in either.
+Both cannot hold, and the refusal is the one worth keeping: a bivariate square
+is a designed set of colours, so the constructor takes the matrix — rows for the
+first reading, columns for the second, rectangular allowed — and `palette`
+ships Joshua Stevens' published 3×3 as `palette.BivariateBlueRed`, registered by
+name so that a document names it rather than spelling nine colours.
+
+**Both constructors are classed scales too.** A VSUP is `Quantize` over its most
+certain layer and a matrix is `Quantize` over its rows, so both implement
+`ClassedColorScale` for the first reading. A bivariate scale handed to a layer
+with no second column therefore draws the classed bar that layer would have
+drawn — the record's "degrades to the univariate reading", with the bar
+included — and only a layer that names both readings gets the square key.
+
+**A path refuses two readings.** The record said nothing in `geom` changes
+shape, and for the marks that paint one colour per mark that is true. A line or
+a step changes colour where its reading crosses a class boundary
+([ADR 0049](0049-paths-colour-in-classes.md)), and two readings cross theirs in
+different places, so a path given `UncertaintyBy` is `ErrRampOnPath`, named,
+rather than a path that silently follows one of them. A second column named for
+a scale that reads one number is `ErrNotBivariate`.
+
+**The VSUP's neutral is a constant, and so is how far it goes.** Each layer up
+the tree halves the classes and mixes a little further toward a light grey, to at
+most seven tenths of the way: the most uncertain layer is mostly neutral and
+still faintly the hue it came from, which is Correll, Moritz and Heer's
+arrangement — resolution taken away, not the colour removed.
+
+**A multi-class hexbin names its classes by first appearance and wants its own
+matrix.** The classes are `GroupBy`'s series, interned in the order the table
+names them, and the scale is trained on the class index and on impurity from
+zero to one less a class's even share before any cell is counted — which is the
+record's asymmetry: the classes are known in `Train`, the counts are not. The
+first reading of that matrix is a name, and a name wants a hue of its own, so a
+square of two quantities like Stevens' reads poorly here; the example builds a
+matrix of class colours faded toward grey across purity, and that is the
+recipe to copy.
+
+**The key reports nothing to an observer.** A colourbar reports a quantity
+because a position on it is one; a position in a square key is a pair, and a
+drag across one is the two-dimensional brush the record leaves to the host. So
+the key draws and indexes nothing, and a multi-class hexbin still says how pure
+a cell is through its colour rather than through a hit, as its counts always
+were.

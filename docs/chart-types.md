@@ -14,10 +14,9 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so have K, L, M, O and P.** **J and Q
-are planned and have records but no code** —
-[ADR 0051](adr/0051-barycentric-coord.md) and
-[ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
+**Buckets A through I have shipped, and so have K, L, M, O, P and Q.** **J is
+planned and has a record but no code** —
+[ADR 0051](adr/0051-barycentric-coord.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
 answered again, differently, later. Each is additive and nothing shipped waits
@@ -51,7 +50,7 @@ reading declined.
 | Domain reductions in `stat` | **shipped** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 | A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
-| A bivariate colour channel (`scale.BivariateColorScale`) | **planned** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
+| A bivariate colour channel (`scale.BivariateColorScale`) | **shipped** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
 
 ## A — needs a rectangle mark, and nothing else — **shipped**
 
@@ -617,7 +616,7 @@ are a solid rectangle. `stat.Fold` is the arithmetic — numbers in, numbers out
 with an `Append` form — and the fold runs in `Train`, because it does not
 describe the vertical axis but replaces it.
 
-## Q — needs a bivariate colour channel — **planned**, [ADR 0067](adr/0067-a-bivariate-colour-channel.md)
+## Q — needs a bivariate colour channel — **shipped**, [ADR 0067](adr/0067-a-bivariate-colour-channel.md)
 
 Three forms that look unrelated stop at the same seam: `scale.ColorScale` is
 one number in and one colour out, and `geom.ColorBy` names one column.
@@ -644,6 +643,11 @@ overplotting all report *how many* and none reports *who*:
 `geom/decimate.go`'s `autoReduction` returns `NoDecimation` the moment colour
 varies, because a density raster of rows in eight colours has no colour to
 paint. A bin that keeps its classes is the missing half.
+
+All three are drawn in `examples/bivariate`: `scale.VSUP` with
+`geom.UncertaintyBy` over a field of estimates, `scale.BivariateMatrix` with
+`palette.BivariateBlueRed` over two rates, and `geom.Hexbin` with `GroupBy` and
+a matrix of class colours faded across purity.
 
 ## The sweep of the unusual forms
 
@@ -746,9 +750,9 @@ order was the one the records give, and two of the three have been built: the
 **raster** (O), which was the only one with a dependent — it is the backdrop
 0064's contours are drawn over, and it turns three forms that were impossible
 at size into recipes — and the **horizon chart** (P), which is the form this
-repository's own examples kept asking for. What is left is the **bivariate
-colour channel** (Q), which is a seam rather than a shape and should be built
-when the second of its three customers is actually wanted.
+repository's own examples kept asking for — and the **bivariate colour
+channel** (Q) has followed them, a seam rather than a shape, with all three of
+its customers.
 
 ---
 

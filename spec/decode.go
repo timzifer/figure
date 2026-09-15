@@ -374,6 +374,7 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.From, d.To = fieldOf(enc.From), fieldOf(enc.To)
 	d.ID, d.ParentCol, d.ValueCol = fieldOf(enc.ID), fieldOf(enc.Parent), fieldOf(enc.Value)
 	d.EventCol = fieldOf(enc.Event)
+	d.UncertaintyCol = fieldOf(enc.Uncertainty)
 	// The stack rides the channel it adjusts. A document that names none
 	// leaves the mark's own default in place, which is why this is a pair
 	// rather than a value — see [geom.Desc].
@@ -483,6 +484,10 @@ func decodeColorScale(s Scale) (scale.ColorScale, error) {
 		d.Kind = scale.KindQuantize
 	case string(scale.KindQuantile):
 		d.Kind = scale.KindQuantile
+	case string(scale.KindVSUP):
+		d.Kind = scale.KindVSUP
+	case string(scale.KindBivariate):
+		d.Kind = scale.KindBivariate
 	case string(scale.KindNamed):
 		d.Kind = scale.KindNamed
 	case string(scale.KindQualitative), "ordinal", "nominal":
@@ -505,6 +510,7 @@ func decodeColorScale(s Scale) (scale.ColorScale, error) {
 	}
 	d.Base, d.Constant = s.Base, s.Constant
 	d.Breaks, d.Classes = s.Breaks, s.Classes
+	d.Layers = s.Layers
 	if s.Center != nil {
 		d.Center = *s.Center
 	}

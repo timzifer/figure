@@ -1,6 +1,7 @@
 package geom
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/timzifer/figure/coord"
@@ -63,6 +64,13 @@ type hexGeom struct {
 	cfg config
 	s   series
 	err error
+
+	// class is each row's class for a multi-class hexbin — the series
+	// [GroupBy] named, by first appearance — and keys the class names. Both
+	// are nil for a hexbin of counts.
+	class []int
+	keys  []string
+	bv    scale.BivariateColorScale
 }
 
 func (g *hexGeom) Train(t Training) error {
@@ -81,6 +89,50 @@ func (g *hexGeom) Train(t Training) error {
 	}
 	trainColumn(x, g.s.x)
 	trainColumn(y, g.s.y)
+	g.err = g.trainClasses()
+	return g.err
+}
+
+// trainClasses reads the classes of a multi-class hexbin: a layer that names
+// both [GroupBy] and a bivariate colour scale.
+//
+// A cell's colour is then two readings — which class dominates it and how
+// purely — and the scale is trained on both ranges before any cell is counted:
+// the classes are known in Train, because they are the groups, while the
+// counts are not known until the plot rectangle is. That is the asymmetry
+// docs/adr/0067-a-bivariate-colour-channel.md describes, and it is why this
+// layer names its classes in the legend and has no key for its purity.
+func (g *hexGeom) trainClasses() error {
+	g.class, g.keys, g.bv = g.class[:0], g.keys[:0], nil
+	bv, ok := scale.Bivariate(g.cfg.colorScale)
+	if !ok || g.cfg.groupCol == "" {
+		return nil
+	}
+	labels, ok := data.Labels(g.src, g.cfg.groupCol)
+	if !ok {
+		return fmt.Errorf("%w: %q", ErrNoColumn, g.cfg.groupCol)
+	}
+	if len(labels) != len(g.s.x) {
+		return errLength(g.cfg.xcol, g.cfg.groupCol, len(g.s.x), len(labels))
+	}
+	at := make(map[string]int, 8)
+	g.class = grow(g.class, len(labels))
+	for i, l := range labels {
+		k, seen := at[l]
+		if !seen {
+			k = len(g.keys)
+			at[l] = k
+			g.keys = append(g.keys, l)
+		}
+		g.class[i] = k
+	}
+	n := len(g.keys)
+	// The first reading is the class index and the second is how impure a
+	// cell may be: from a cell of one class to one split evenly over all of
+	// them.
+	bv.Train(0, float64(n-1))
+	bv.TrainSecond(0, 1-1/float64(n))
+	g.bv = bv
 	return nil
 }
 
@@ -118,11 +170,19 @@ func (g *hexGeom) Build(b ir.Backend, f Frame) error {
 		float64(area.Min.X), float64(area.Min.Y),
 		float64(area.Max.X), float64(area.Max.Y))
 
+	if g.bv != nil {
+		sc.hex.CountClasses(len(g.keys))
+	}
 	for i := range g.s.x {
 		if !ok[i] {
 			continue
 		}
-		sc.hex.Add(g.at(f, cd, exact, i))
+		x, y := g.at(f, cd, exact, i)
+		if g.bv != nil {
+			sc.hex.AddClass(x, y, g.class[i])
+			continue
+		}
+		sc.hex.Add(x, y)
 	}
 	if sc.hex.N == 0 {
 		return nil
@@ -196,6 +256,11 @@ func (g *hexGeom) shades(sc *scratch, base ir.Color) []indexRun {
 		scaling = stat.Linear
 	}
 	for i, c := range sc.cells {
+		if g.bv != nil {
+			class, purity := c.Dominant()
+			sc.cols[i] = g.bv.ColorAt(float64(class), 1-purity)
+			continue
+		}
 		t := sc.hex.Fraction(c.Count, scaling)
 		if g.cfg.colorScale != nil {
 			// The ramp is read along itself rather than across the counts.
@@ -219,6 +284,23 @@ func (g *hexGeom) shades(sc *scratch, base ir.Color) []indexRun {
 // in it is evidence, and evidence drawn at two percent opacity is evidence
 // nobody sees.
 const hexFloor = 0.25
+
+// Legends names the classes of a multi-class hexbin, each in the colour a cell
+// of that class alone is painted, and is the single entry [hexGeom.Legend]
+// gives otherwise.
+func (g *hexGeom) Legends(f Frame) []LegendEntry {
+	if g.err != nil {
+		return nil
+	}
+	if g.bv == nil {
+		return LegendsOr(g, f, nil)
+	}
+	out := make([]LegendEntry, 0, len(g.keys))
+	for k, name := range g.keys {
+		out = append(out, LegendEntry{Label: name, Color: g.bv.ColorAt(float64(k), 0), Kind: SwatchBox})
+	}
+	return out
+}
 
 func (g *hexGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
@@ -245,4 +327,5 @@ func (g *hexGeom) Describe() Desc {
 var (
 	_ Describer = (*hexGeom)(nil)
 	_ Faceter   = (*hexGeom)(nil)
+	_ Legender  = (*hexGeom)(nil)
 )
