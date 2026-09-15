@@ -1,5 +1,7 @@
 package stat
 
+import "sync"
+
 // A hierarchy is a self-referential edge table: every row is a node, and the
 // row names the node that is its parent. That is the shape
 // docs/chart-types.md argues a treemap, an icicle and a sunburst all read, and
@@ -32,40 +34,69 @@ const NoParent = -1
 // hierarchy with a cycle is not a hierarchy, and the caller is the one that can
 // say so in terms of its own data.
 //
-// It sweeps one level at a time rather than recursing, so a hierarchy deep
-// enough to blow a stack does not, and it costs one pass per level. That is a
-// bounded traversal rather than an iteration to convergence: it visits every
-// reachable node exactly once and stops when a level adds nobody, which makes
-// it a pure function of its input in the sense ADR 0012 requires.
+// It walks up from each node rather than recursing, so a hierarchy deep enough
+// to blow a stack does not, and it costs time linear in the number of nodes
+// however deep the hierarchy is: every node is given its depth once and never
+// walked through again. That is a bounded traversal rather than an iteration
+// to convergence, which makes it a pure function of its input in the sense
+// ADR 0012 requires.
 func Depth(parent []int) []int { return AppendDepth(nil, parent) }
+
+// Markers dst holds while [AppendDepth] runs. A settled node holds its depth,
+// or -1 for one on a cycle, and neither is ever overwritten.
+const (
+	depthUnknown = -2
+	depthOnWalk  = -3
+	depthOnCycle = -1
+)
 
 // AppendDepth is [Depth] writing into dst, which it truncates and grows as
 // needed.
+//
+// It needs no memory beyond dst. From each unsettled node it walks up the
+// parent links marking what it passes, until it reaches a node that is
+// settled, a root, or a node it marked on this same walk — which is a cycle.
+// It then walks the same path a second time, now knowing how long it is, and
+// settles every node on it: one more than the node it stopped at, counting
+// back down, or -1 when the walk ended on a cycle. A node that merely hangs
+// off a cycle is as unreachable from a root as one on it, and gets -1 too.
 func AppendDepth(dst []int, parent []int) []int {
 	n := len(parent)
 	dst = dst[:0]
+	for range n {
+		dst = append(dst, depthUnknown)
+	}
 	for i := range n {
-		if isRoot(parent, i, n) {
-			dst = append(dst, 0)
+		if dst[i] != depthUnknown {
 			continue
 		}
-		dst = append(dst, -1)
-	}
-	for d := 0; ; d++ {
-		grew := false
-		for i := range n {
-			if dst[i] >= 0 {
+
+		// First walk: mark the path and find where it ends.
+		steps, v := 0, i
+		for dst[v] == depthUnknown && !isRoot(parent, v, n) {
+			dst[v] = depthOnWalk
+			v = parent[v]
+			steps++
+		}
+		base := depthOnCycle
+		switch {
+		case dst[v] == depthUnknown:
+			// A root nobody had reached yet.
+			dst[v], base = 0, 0
+		case dst[v] >= 0:
+			base = dst[v]
+		}
+
+		// Second walk: settle the path, deepest node first.
+		for k, u := 0, i; k < steps; k, u = k+1, parent[u] {
+			if base == depthOnCycle {
+				dst[u] = depthOnCycle
 				continue
 			}
-			if p := parent[i]; dst[p] == d {
-				dst[i] = d + 1
-				grew = true
-			}
-		}
-		if !grew {
-			return dst
+			dst[u] = base + steps - k
 		}
 	}
+	return dst
 }
 
 // isRoot reports whether i has no parent inside the list. An index out of
@@ -103,11 +134,10 @@ func AppendRollup(dst []float64, value []float64, parent, depth []int) []float64
 	}
 	// Deepest first, so that a node's own subtree is complete before it is
 	// added into its parent's.
-	for d := maxDepth(depth); d > 0; d-- {
-		for i := range n {
-			if depth[i] != d {
-				continue
-			}
+	lv := acquireLevels(depth[:n])
+	defer lv.release()
+	for d := lv.deepest(); d > 0; d-- {
+		for _, i := range lv.at(d) {
 			if p := parent[i]; p >= 0 && p < n {
 				dst[p] += dst[i]
 			}
@@ -171,16 +201,13 @@ func AppendPartition(lo, hi []float64, total []float64, parent, depth []int) ([]
 			cursor += total[i] / grand
 		}
 	}
-	for d := 1; d <= maxDepth(depth); d++ {
-		for i := range n {
-			if depth[i] == d-1 {
-				hi[i] = lo[i]
-			}
+	lv := acquireLevels(depth[:n])
+	defer lv.release()
+	for d := 1; d <= lv.deepest(); d++ {
+		for _, i := range lv.at(d - 1) {
+			hi[i] = lo[i]
 		}
-		for i := range n {
-			if depth[i] != d {
-				continue
-			}
+		for _, i := range lv.at(d) {
 			p := parent[i]
 			lo[i] = hi[p]
 			hi[p] += total[i] / grand
@@ -196,12 +223,75 @@ func AppendPartition(lo, hi []float64, total []float64, parent, depth []int) ([]
 	return lo, hi
 }
 
-func maxDepth(depth []int) int {
-	m := 0
+// levels is a hierarchy's nodes grouped by depth: every node at depth d, in
+// index order, is order[start[d]:start[d+1]].
+//
+// It is what lets [AppendRollup] and [AppendPartition] visit one level at a
+// time without scanning the whole table for each level, which on a hierarchy n
+// levels deep is n scans of n nodes. Grouping is a counting sort — one pass to
+// count, one to place — and it is stable, so a level is still visited in the
+// order its rows appeared and every sum is taken in the order it always was.
+//
+// The two functions return caller-owned slices and have no room in their
+// signatures for a third buffer, so the grouping comes from a pool: a chart
+// redrawn every frame takes the same one back each time rather than
+// allocating it.
+type levels struct {
+	order, start []int
+}
+
+var levelPool = sync.Pool{New: func() any { return new(levels) }}
+
+// acquireLevels groups the nodes of depth by level. A node at depth -1 is on a
+// cycle and belongs to no level.
+func acquireLevels(depth []int) *levels {
+	lv := levelPool.Get().(*levels)
+	deepest := -1
 	for _, d := range depth {
-		if d > m {
-			m = d
+		deepest = max(deepest, d)
+	}
+	lv.start = growInts(lv.start, deepest+2)
+	clear(lv.start)
+	for _, d := range depth {
+		if d >= 0 {
+			lv.start[d+1]++
 		}
 	}
-	return m
+	for d := 1; d < len(lv.start); d++ {
+		lv.start[d] += lv.start[d-1]
+	}
+	lv.order = growInts(lv.order, lv.start[len(lv.start)-1])
+	// start[d] doubles as level d's fill cursor, which leaves it pointing at
+	// the start of level d+1; shifting back afterwards restores it.
+	for i, d := range depth {
+		if d >= 0 {
+			lv.order[lv.start[d]] = i
+			lv.start[d]++
+		}
+	}
+	for d := len(lv.start) - 1; d > 0; d-- {
+		lv.start[d] = lv.start[d-1]
+	}
+	lv.start[0] = 0
+	return lv
+}
+
+func (lv *levels) release() { levelPool.Put(lv) }
+
+// deepest is the deepest level with a node on it, or -1 for no nodes.
+func (lv *levels) deepest() int { return len(lv.start) - 2 }
+
+// at lists the nodes at depth d, in index order.
+func (lv *levels) at(d int) []int {
+	if d < 0 || d > lv.deepest() {
+		return nil
+	}
+	return lv.order[lv.start[d]:lv.start[d+1]]
+}
+
+func growInts(dst []int, n int) []int {
+	if cap(dst) < n {
+		return make([]int, n)
+	}
+	return dst[:n]
 }
