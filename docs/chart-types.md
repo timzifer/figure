@@ -14,9 +14,10 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so have O and P.** **J through M and Q
+**Buckets A through I have shipped, and so have K, O and P.** **J, L, M and Q
 are planned and have records but no code** —
-[ADR 0051](adr/0051-barycentric-coord.md) through
+[ADR 0051](adr/0051-barycentric-coord.md),
+[ADR 0053](adr/0053-tidy-tree-layout.md),
 [ADR 0054](adr/0054-statistical-instruments.md) and
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
@@ -47,7 +48,7 @@ reading declined.
 | A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
 | A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
-| A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
+| A probability scale (`scale.Probability`) | **shipped** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 | A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
@@ -421,7 +422,7 @@ ticks' own shapes, so they cost `Furniture` nothing; their *labels* are what is
 missing, and that is deliberately left as the case that would reopen ADR 0033's
 seam — once, together with a projection's graticule, rather than twice.
 
-## K — needs a probability scale — **planned**, [ADR 0052](adr/0052-probability-scales.md)
+## K — needs a probability scale — **shipped**, [ADR 0052](adr/0052-probability-scales.md)
 
 Probability paper: an axis warped so that one distribution's cumulative
 function plots as a straight line, and the line's slope and intercept are the
@@ -430,8 +431,10 @@ round — it warps the sample and leaves the axis linear, so its ladder is
 labelled in z-scores; this warps the axis, so the ladder is labelled in
 percentages, which is what the reader came for.
 
-**Every chart in this bucket is `geom.ECDF` on a warped axis. There is no new
-mark.**
+**Every chart in this bucket is an ordinary mark on a warped axis. There is no
+new mark.** `geom.ECDF` draws the staircase; a reliability engineer's median
+ranks are `geom.Scatter` over `stat.MedianRank`, which is what
+`examples/weibull` draws.
 
 | Chart | Axis | Field |
 |---|---|---|
@@ -709,16 +712,16 @@ lines ADR 0033 left open that no other work would have closed
 
 What is left besides is four records, listed in the order they argue for — a
 dependency order rather than a preference. Nothing in the list now waits on
-anything else in it.
+anything else in it, and the second of them has been built.
 
 1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
    widest genuine gap in the general-purpose world with a real user base, on
    the seam the coordinate stage already cut, and the cheapest coord in the
    package because the map is affine.
 2. **A probability scale** — K ([ADR 0052](adr/0052-probability-scales.md)).
-   The smallest diff in this list and the one with the rarest output: five
-   charts and no new mark, because every one of them is `geom.ECDF` on a warped
-   axis.
+   **Shipped.** The smallest diff in this list and the one with the rarest
+   output: five charts and no new mark, because every one of them is an ECDF or
+   a scatter of median ranks on a warped axis.
 3. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
    four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.

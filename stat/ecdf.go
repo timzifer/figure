@@ -48,3 +48,37 @@ func AppendECDF(dst []Point, sorted []float64) []Point {
 	}
 	return dst
 }
+
+// MedianRank returns Benard's median-rank plotting positions of an ascending
+// column: one point per observation, whose Y is (i − 0.3)/(n + 0.4) for the
+// i-th of n usable values.
+//
+// It is the plotting position probability paper is read with. An [ECDF]
+// reaches 1 at its last observation, and 1 is off the end of every probability
+// axis, so its top step cannot be drawn there; a median rank never reaches 0 or
+// 1 by construction, so every observation has a place. It is also one point per
+// *row* rather than per distinct value, because in a life test each failure is
+// its own rank even when two units fail at the same hour.
+//
+// The column must be sorted ascending, and NaN and infinities are ignored, for
+// the reasons [ECDF] gives.
+func MedianRank(sorted []float64) []Point { return AppendMedianRank(nil, sorted) }
+
+// AppendMedianRank is [MedianRank] writing into a caller-owned slice. dst is
+// truncated first.
+func AppendMedianRank(dst []Point, sorted []float64) []Point {
+	dst = dst[:0]
+	n := countFinite(sorted)
+	if n == 0 {
+		return dst
+	}
+	i := 0
+	for _, v := range sorted {
+		if !finite(v) {
+			continue
+		}
+		i++
+		dst = append(dst, Point{X: v, Y: (float64(i) - 0.3) / (float64(n) + 0.4)})
+	}
+	return dst
+}

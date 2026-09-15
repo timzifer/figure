@@ -61,7 +61,7 @@ depends on.
 | [0049](0049-paths-colour-in-classes.md) | A path colours in classes, and the scale decides where the colour changes | Accepted | — |
 | [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Accepted, amended | — |
 | [0051](0051-barycentric-coord.md) | A ternary chart is a barycentric coord, and its third grid family is not furniture | Proposed | — |
-| [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Proposed | — |
+| [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Accepted, amended | — |
 | [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Proposed | — |
 | [0054](0054-statistical-instruments.md) | A domain reduction belongs in `stat` when its output is the chart | Proposed | — |
 | [0055](0055-depth-without-a-third-axis.md) | A mark gains volume before a chart gains a dimension | Planned | — |
@@ -89,8 +89,8 @@ that opens after v1.0 gets a record here before it gets code.
 
 ## Records not yet implemented
 
-**0051 to 0054 are proposed, not accepted, and no code implements them.** They
-are written down because the alternative is worse: each one answers a question
+**0051, 0053 and 0054 are proposed, not accepted, and no code implements
+them; 0052 was proposed with them and has since been built.** They were written down because the alternative is worse: each one answers a question
 an earlier record left open — 0033's "Revisit if" for the first two, 0039's for
 the fourth, 0041's serialisation rule for the third — and a question answered in
 a conversation and not in the repository gets answered again, differently, later.
@@ -105,6 +105,14 @@ uniformly round its circle, because the chart is the log-polar view of that
 circle and a uniform walk resolves the plunge to −∞ dB or the rest of the curve
 and never both.
 
+**0052 is the second**, also *Accepted, amended*: `scale.Probability` warps an
+axis by one of four named links, and `examples/weibull` is a life test on
+Weibull paper with no mark of its own. Its amendment closes the record's one
+open question — the plotting position is `stat.MedianRank` under a scatter,
+not an option on the ECDF — and records that the ECDF had been handing a NaN
+to the backend at the bottom of its staircase on any axis without a zero,
+which a probability axis made impossible to miss.
+
 They are also deliberately written as a set, because four of the five lean on
 each other. 0050 introduced the mark 0051 keeps as its escape hatch for a
 ternary chart's third grid family and 0053 uses for a funnel plot's contours,
@@ -115,8 +123,8 @@ refused rather than reopening it. Reading any one of them alone will make it
 look more expensive than it is.
 
 A proposed record becomes accepted when it is implemented, or is deleted with a
-sentence saying what it got wrong — 0050 is the worked example of the first.
-Neither is urgent for the remaining four: nothing in v1.7 depends on any of
+sentence saying what it got wrong — 0050 and 0052 are worked examples of the
+first. Neither is urgent for the remaining three: nothing in v1.7 depends on any of
 them, and each is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*

@@ -164,7 +164,7 @@ const maxSpecDecimals = 15
 // what keeps a column of labels aligned, and a spec that names a prefix but
 // not a precision must not lose that.
 type autoFormat struct {
-	mode     byte // 'f', 'e' or 'g'
+	mode     byte // 'f', 'e', 'g', 'l' or 'p'
 	decimals int
 }
 
@@ -188,6 +188,13 @@ func (a autoFormat) digits(v float64) string {
 		// and 'g' once the digits get unreadable. It is a mode rather than a
 		// decimal count because a decade is not a step.
 		return formatLog(v)
+	case 'p':
+		// A probability ladder's own choice: the shortest decimal that
+		// writes the rung, after rounding away the binary noise that
+		// multiplying by a hundred leaves — 0.999 is 99.9 per cent, not
+		// 99.89999999999999.
+		r, _ := strconv.ParseFloat(strconv.FormatFloat(v, 'g', 10, 64), 64)
+		return strconv.FormatFloat(r, 'f', -1, 64)
 	case 'e':
 		return strconv.FormatFloat(v, 'e', a.decimals, 64)
 	case 'g':

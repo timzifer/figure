@@ -10,8 +10,9 @@
 // # How the options are named
 //
 // Each constructor has its own option type — [LinearOption], [LogOption],
-// [SymLogOption], [TimeOption], [OrdinalOption], [SizeOption], [ColorOption] —
-// because the choices differ: a log axis has a base and a linear one does not.
+// [SymLogOption], [ProbabilityOption], [TimeOption], [OrdinalOption],
+// [SizeOption], [ColorOption] — because the choices differ: a log axis has a
+// base and a linear one does not.
 // The bare names belong to the default scale: [Domain], [Nice], [Zero] and
 // [Format] configure [Linear], which is what a plot has when nobody chose, and
 // every other family carries its constructor's name as a prefix — [LogDomain],

@@ -1,6 +1,6 @@
 # 0052 — A probability scale warps the axis, where a QQ plot warps the sample
 
-**Status:** Proposed · **Date:** 2026-09-08 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implemented:** 2026-09-15
 
 ## Context
 
@@ -168,3 +168,62 @@ would justify is `geom.Segment` or `geom.Trend` today.
   a shared "transform" concept rather than being spelled out per family.
 - Median ranks turn out to be wanted by more than one mark, which would make
   the plotting position an option on the stat rather than on the geom.
+
+## Amendment: what building it sharpened
+
+`scale.Probability` is built, with the four links, a `"probability"` scale type
+in `spec`, `stat.MedianRank`, and `examples/weibull` — a bearing-life sample on
+Weibull paper whose test recovers β from the ranks by regression, which is the
+claim the chart makes. Six things were left open or came out differently, and
+none of them changes the decision.
+
+**The open question closed on `stat.MedianRank`, and `geom.ECDF` gained no
+option.** A median rank is one point per *row* — in a life test each failure is
+its own rank even when two units fail at the same hour — and it is read as
+points, where an ECDF is one step per distinct value and is read as a
+staircase. An option on the ECDF would have made one mark draw two different
+objects. So the Weibull plot is `geom.Scatter` over `stat.MedianRank`, which is
+what the example draws, and the ECDF stays what it was.
+
+**What the ECDF did need was to stop handing the backend NaN.** Its staircase
+rises from 0 and reaches 1, and it mapped both unconditionally: on a probability
+axis both ends are NaN, and on a log Y — which has existed since v0.2 — the
+bottom one already was. It now leaves out a vertex its Y axis cannot place.
+Only the two ends can be one, so what remains is still one unbroken staircase.
+It also trains its Y axis on the fractions its curves reach, beside the `0, 1`
+it always trained: an axis that ignores both of those would otherwise never be
+trained at all and would frame its default rather than the data. On a linear
+axis neither change moves a pixel.
+
+**A link is `Apply` and `Unapply`, and the named set is closed the way
+`stat.Family`'s is.** `scale.Link` is an interface a caller may implement; the
+four this package names are values of one unexported type, and
+`scale.LinkName` / `scale.LinkNamed` are the pair `stat.FamilyName` /
+`stat.FamilyNamed` already are. A `Desc` carries the name, and is empty for a
+link written in Go — which `scale.FromDesc` refuses with `ErrUnknownKind` and
+`spec.Of` refuses by name, rather than either substituting probit. A *document*
+that omits `link` does read as probit; that is a default of the document
+format, not of the `Desc`, so a nameless link can never quietly become one.
+
+**The ladder is the scale's own, not `scale.TickValues`.** `TickValues` is a
+linear scale's fixed list; the ladder depends on the domain, because it extends
+a decade at a time into whichever tail the domain reaches — 0.01 %, 99.99 %
+and on to 10⁻¹² — and a fixed list would either stop short or print rungs
+nobody can see. Thinning is by rank rather than by stride: the median first,
+then the decades both ways, then 5 / 20 / 80 / 95, then 30 / 70, so a short
+axis loses rungs in mirrored pairs and stays symmetric about 50 %. When even
+the decades do not fit they are stepped, the way a log scale steps decades. A
+rung that loses its label stays as a minor tick unless
+`ProbabilityMinorTicks(false)`.
+
+**Per cent is a label mode, and a spec replaces it outright.** With no format
+the axis writes per cent at the shortest precision each rung needs, after
+rounding away the binary noise multiplying by a hundred leaves — 0.999 is
+"99.9%", not "99.89999999999999%". `ProbabilityNumberFormat` takes the
+[`NumberFormat`](0035-label-format-and-locale.md) grammar and wins entirely, so
+`"#.1%"` fixes a decimal and `"#"` writes the bare fraction; the locale applies
+either way, "99,9 %" in German.
+
+**A pan stops at the sixth decade of a tail.** `SetDomain` clamps into
+[10⁻⁶, 1 − 10⁻⁶], for the reason a log axis clamps a drag that walks below
+zero: the caller is a pointer, not a programmer.

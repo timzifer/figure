@@ -121,6 +121,11 @@ func axisChannel(s scale.Scale, title string) (*Channel, error) {
 	if !ok {
 		return nil, fmt.Errorf("%T cannot describe itself: it does not implement scale.Describer", s)
 	}
+	if d.Kind == scale.KindProbability && d.Link == "" {
+		// A document that dropped the link would read back as probit paper,
+		// which is a different axis rather than the same one labelled less.
+		return nil, fmt.Errorf("a probability scale with a link of its own cannot be written down: only a link this library names has a name to write")
+	}
 	return &Channel{Type: channelType(d.Kind), Title: title, Scale: encodeScale(d)}, nil
 }
 
@@ -145,6 +150,9 @@ func encodeScale(d scale.Desc) *Scale {
 		out.MinorTicks = boolPtr(d.MinorTicks)
 	case scale.KindSymLog:
 		out.Type, out.Base, out.Constant = "symlog", d.Base, d.Threshold
+		out.MinorTicks = boolPtr(d.MinorTicks)
+	case scale.KindProbability:
+		out.Type, out.Link = "probability", d.Link
 		out.MinorTicks = boolPtr(d.MinorTicks)
 	case scale.KindTime:
 		out.Type, out.TimeZone = "time", d.Location

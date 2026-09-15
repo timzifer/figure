@@ -62,6 +62,17 @@ func (g *ecdfGeom) Train(t Training) error {
 	// 0.97 because no observation reached the top would read as a distribution
 	// with something missing from it.
 	y.Train(0, 1)
+	// An axis with no position for 0 or 1 — probability paper, a log axis —
+	// ignores those two, and frames the fractions the curves actually reach.
+	// A curve rises, so its first fraction and the two last ones are all
+	// that can bound it; the buffer is the sort buffer, reused rather than
+	// allocated per frame.
+	g.vals = g.vals[:0]
+	for _, curve := range g.curves {
+		n := len(curve)
+		g.vals = append(g.vals, curve[0].Y, curve[max(n-2, 0)].Y)
+	}
+	y.Train(g.vals...)
 	return nil
 }
 
@@ -144,6 +155,12 @@ func (g *ecdfGeom) Build(b ir.Backend, f Frame) error {
 // fraction) pairs instead would slope between the steps, which claims
 // observations between two measurements that were never made — the same reason
 // [Step] exists beside [Line].
+//
+// A vertex whose fraction the Y axis cannot place is left out rather than
+// handed on as NaN. Only the two ends can be such a vertex — the 0 the curve
+// rises from and the 1 it reaches — so what remains is still one unbroken
+// staircase, which is what makes an ECDF on a [scale.Probability] axis a
+// probability plot.
 func (g *ecdfGeom) staircase(b ir.Backend, f Frame, sc *scratch, cd coord.Coord, curve []stat.Point, stroke ir.Stroke) {
 	if len(curve) == 0 || !stroke.Visible() {
 		return
@@ -153,8 +170,12 @@ func (g *ecdfGeom) staircase(b ir.Backend, f Frame, sc *scratch, cd coord.Coord,
 	prev := 0.0
 	for _, p := range curve {
 		at := f.X.Map(p.X)
-		sc.sx = append(sc.sx, at, at)
-		sc.sy = append(sc.sy, f.Y.Map(prev), f.Y.Map(p.Y))
+		for _, fr := range [2]float64{prev, p.Y} {
+			if defined(f.Y, fr) {
+				sc.sx = append(sc.sx, at)
+				sc.sy = append(sc.sy, f.Y.Map(fr))
+			}
+		}
 		prev = p.Y
 	}
 	pts := cd.Points(grow(sc.pts, n)[:0], sc.sx, sc.sy)
