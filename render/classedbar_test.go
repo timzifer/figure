@@ -115,3 +115,49 @@ func TestAThresholdLineGetsAClassedColourbar(t *testing.T) {
 		t.Errorf("a classed line drew %d gradients, want a stepped bar", got)
 	}
 }
+
+// A boundary somebody computed is written as precisely as it is. A control
+// chart's limits at 12.73 and 37.26 on a bar over 10..40 were labelled "13"
+// and "37" — the axis's whole-number precision — which are boundaries the
+// chart does not have.
+func TestAComputedBoundaryIsNotRoundedToTheAxis(t *testing.T) {
+	rec := draw(t, chart(colored(scale.Threshold(palette.Viridis, []float64{12.73, 37.26}))))
+	for _, want := range []string{"12.73", "37.26"} {
+		if !hasText(rec, want) {
+			t.Errorf("the bar has no %q boundary label: %v", want, texts(rec))
+		}
+	}
+	for _, wrong := range []string{"13", "37"} {
+		if hasText(rec, wrong) {
+			t.Errorf("the bar rounded a boundary to %q: %v", wrong, texts(rec))
+		}
+	}
+}
+
+// A boundary with no short decimal is written to a precision the narrowest
+// class can carry, not to every digit it has.
+func TestAnIrrationalBoundaryIsWrittenToAReadablePrecision(t *testing.T) {
+	rec := draw(t, chart(colored(scale.Threshold(palette.Viridis, []float64{20 + 1.0/3, 30}))))
+	if !hasText(rec, "20.33") {
+		t.Errorf("want the boundary at 20⅓ written as 20.33 over classes about ten wide: %v", texts(rec))
+	}
+}
+
+func TestALayerCanDeclineItsGuide(t *testing.T) {
+	rec := draw(t, chart(colored(scale.Sequential(palette.Viridis), geom.Guide(false))))
+	if n := len(gradients(rec)); n != 0 {
+		t.Errorf("a layer that declined its guide still drew %d colourbars", n)
+	}
+	classed := draw(t, chart(colored(scale.Threshold(palette.Viridis, []float64{20, 30}), geom.Guide(false))))
+	if hasText(classed, "20") || hasText(classed, "30") {
+		t.Errorf("a classed layer that declined its guide still labelled its boundaries: %v", texts(classed))
+	}
+
+	// Declining is this layer's alone: another layer on the same scale still
+	// brings the bar.
+	shared := scale.Sequential(palette.Viridis)
+	both := draw(t, chart(colored(shared, geom.Guide(false)), colored(shared)))
+	if n := len(gradients(both)); n != 1 {
+		t.Errorf("%d colourbars with one of two layers declining, want 1", n)
+	}
+}

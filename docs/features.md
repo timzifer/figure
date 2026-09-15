@@ -43,6 +43,14 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   with elbow or straight branches; under `coord.Polar` it is a radial tree, and
   in a track over a heatmap's ordinal axis it is a clustered heatmap
   ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+- **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
+  series, with an opt-in log-log confidence band and censoring ticks, from a
+  time column and a `geom.Event` indicator. `stat` holds the arithmetic of the
+  charts that have no mark of their own: control limits for the individuals,
+  X̄–R, p, np, c and u charts and Nelson's eight run rules; the ACF and PACF with
+  their white-noise bound; ROC and precision–recall curves with their areas;
+  and the Lorenz curve with its Gini coefficient
+  ([ADR 0054](adr/0054-statistical-instruments.md)).
 - **Series in one layer** — `geom.GroupBy` splits a long table into N series
   drawn by one layer, each with its own colour and its own legend entry.
 - **Position adjustments** — `geom.Stack` (from zero, to 100 %, about a
@@ -69,7 +77,8 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `scale.Threshold` for boundaries that come from outside the data,
   `scale.Quantize` for equal ones, `scale.Quantile` for equally many
   observations in each. A classed scale's colourbar is drawn in bands and
-  labelled at the boundaries.
+  labelled at the boundaries, each written as precisely as it is — a limit at
+  502.73 reads 502.73 however the bar's axis would round.
 - **Paths that change colour** — `Line` and `Step` take `ColorBy` too, and draw
   the path in stretches of one colour. Where a stretch ends follows from the
   scale rather than from an option: a classed scale puts the corner *on* the
@@ -155,7 +164,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   line up ([ADR 0010](adr/0010-panel-layout.md)).
 - **Chart furniture** — axes, grid, tick labels with collision avoidance, chart
   and axis titles, and one guide column carrying a legend, **colourbars** and
-  **size keys**, stacked in that order and measured by one solver.
+  **size keys**, stacked in that order and measured by one solver. A layer
+  whose colour is already explained on the chart declines its colourbar and
+  size key with `geom.Guide(false)`; another layer on the same scale still
+  brings them.
 - **Themes** — light and dark, built from a dozen
   [tokens](../theme/tokens.go) rather than fifty fields, with a colourblind-safe
   ([Okabe-Ito](https://jfly.uni-koeln.de/color/)) default palette and

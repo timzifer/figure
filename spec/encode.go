@@ -359,6 +359,11 @@ func encodeLayer(g geom.Geom, hoisted bool, axes axisKinds) (Layer, error) {
 // round trip is unaffected: an option the mark ignores draws nothing either
 // way.
 func writeMarkProps(m *Mark, d geom.Desc) {
+	// Every mark that can have a guide can decline it, and the default is
+	// left unwritten.
+	if d.HideGuide {
+		m.Guide = boolPtr(false)
+	}
 	stroke := func() {
 		m.StrokeWidth = d.Width
 		if d.DashSet {
@@ -562,6 +567,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	case geom.MarkECDF:
 		stroke()
 		group()
+	case geom.MarkSurvival:
+		stroke()
+		group()
+		m.Confidence, m.CensorMarks = d.Confidence, d.CensorMarks
 	case geom.MarkQQ:
 		stroke()
 		fill()
@@ -696,6 +705,9 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.ValueCol != "" {
 			enc.Value = &Channel{Field: d.ValueCol, Type: "quantitative"}
+		}
+		if d.EventCol != "" {
+			enc.Event = &Channel{Field: d.EventCol, Type: "quantitative"}
 		}
 		if d.SizeCol != "" && d.SizeScale != nil {
 			ss, err := encodeSizeScale(d.SizeScale)

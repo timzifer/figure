@@ -157,20 +157,15 @@ func TestAForestAndACycleAndOneNode(t *testing.T) {
 }
 
 func TestADeepOrWideHierarchyDoesNotRecurse(t *testing.T) {
-	// The depths are written out rather than asked of stat.Depth, which sweeps
-	// a level at a time and is quadratic on a chain; this test is about the
-	// layout's own walk.
 	const n = 200_000
-	chain, chainDepth := make([]int, n), make([]int, n)
-	star, starDepth := make([]int, n), make([]int, n)
+	chain, star := make([]int, n), make([]int, n)
 	for i := range chain {
-		chain[i], chainDepth[i] = i-1, i
-		star[i], starDepth[i] = 0, 1
+		chain[i], star[i] = i-1, 0
 	}
-	star[0], starDepth[0] = -1, 0
-	for k, parent := range [][]int{chain, star} {
+	star[0] = -1
+	for _, parent := range [][]int{chain, star} {
 		var lt stat.Tidy
-		lt.Reset(parent, [][]int{chainDepth, starDepth}[k])
+		lt.Reset(parent, stat.Depth(parent))
 		for _, x := range lt.X {
 			if !(x > 0 && x < 1) {
 				t.Fatalf("a node at %v", x)

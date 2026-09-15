@@ -199,6 +199,12 @@ type config struct {
 	resample   Resampling
 	branch     Branch
 
+	eventCol    string
+	confidence  float64
+	censorMarks bool
+
+	hideGuide bool
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 

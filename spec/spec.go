@@ -286,6 +286,15 @@ type Mark struct {
 	// and so left out, or "straight". Vega-Lite has no tree mark, so these are
 	// figure's names.
 	Branch string `json:"branch,omitempty"`
+	// Confidence is the level of a survival curve's pointwise band, and
+	// CensorMarks whether it ticks its censored times. Both are figure's.
+	Confidence  float64 `json:"confidence,omitempty"`
+	CensorMarks bool    `json:"censorMarks,omitempty"`
+	// Guide is false for a layer that contributes no colourbar and no size
+	// key, and absent otherwise. Vega-Lite says the same by setting a
+	// channel's legend to null; figure's guides belong to the layer rather
+	// than to a channel, so the switch is on the mark.
+	Guide *bool `json:"guide,omitempty"`
 	// Family is the set of curves a locus draws Levels of: "nichols-m",
 	// "nichols-n", "smith-vswr" or "smith-q". Vega-Lite has none of them, so
 	// these are figure's own names.
@@ -424,6 +433,11 @@ type Encoding struct {
 	ID     *Channel `json:"id,omitempty"`
 	Parent *Channel `json:"parent,omitempty"`
 	Value  *Channel `json:"value,omitempty"`
+
+	// Event is the column a survival layer reads its event indicator from:
+	// non-zero where a subject's time ends in the event, zero where it was
+	// censored. Vega-Lite has no survival mark, so the name is figure's.
+	Event *Channel `json:"event,omitempty"`
 
 	// Explode is figure's too: the column each mark's break-out is read from,
 	// which is how one slice leaves a donut and the rest stay in it. The

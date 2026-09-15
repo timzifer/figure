@@ -308,6 +308,8 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.Caps != nil {
 		d.Caps = *l.Mark.Caps
 	}
+	d.Confidence, d.CensorMarks = l.Mark.Confidence, l.Mark.CensorMarks
+	d.HideGuide = l.Mark.Guide != nil && !*l.Mark.Guide
 	if l.Mark.Extend != nil {
 		d.Extend = *l.Mark.Extend
 	}
@@ -370,6 +372,7 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.MidCol, d.ErrorCol, d.ErrorXCol = fieldOf(enc.Mid), fieldOf(enc.Error), fieldOf(enc.ErrorX)
 	d.From, d.To = fieldOf(enc.From), fieldOf(enc.To)
 	d.ID, d.ParentCol, d.ValueCol = fieldOf(enc.ID), fieldOf(enc.Parent), fieldOf(enc.Value)
+	d.EventCol = fieldOf(enc.Event)
 	// The stack rides the channel it adjusts. A document that names none
 	// leaves the mark's own default in place, which is why this is a pair
 	// rather than a value — see [geom.Desc].

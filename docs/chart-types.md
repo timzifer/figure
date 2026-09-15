@@ -14,10 +14,9 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so have K, L, O and P.** **J, M and Q
+**Buckets A through I have shipped, and so have K, L, M, O and P.** **J and Q
 are planned and have records but no code** —
-[ADR 0051](adr/0051-barycentric-coord.md),
-[ADR 0054](adr/0054-statistical-instruments.md) and
+[ADR 0051](adr/0051-barycentric-coord.md) and
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
@@ -49,7 +48,7 @@ reading declined.
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **shipped** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **shipped** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
-| Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
+| Domain reductions in `stat` | **shipped** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 | A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
 | A bivariate colour channel (`scale.BivariateColorScale`) | **planned** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
@@ -473,7 +472,7 @@ Given a column of heights the tree gives every leaf its own slot rather than
 compacting by depth, which is what keeps a dendrogram's leaves apart and in
 line with the heatmap's columns.
 
-## M — needs a domain reduction — **planned**, [ADR 0054](adr/0054-statistical-instruments.md)
+## M — needs a domain reduction — **shipped**, [ADR 0054](adr/0054-statistical-instruments.md)
 
 The other buckets are missing a shape. This one is missing only **arithmetic**:
 every chart in it is drawable with the marks that exist, and none of them
@@ -486,9 +485,9 @@ that is not the chart.*
 | Chart | Stat | Mark |
 |---|---|---|
 | Kaplan–Meier survival curve | `stat.KaplanMeier` + Greenwood | `geom.Survival`, with the risk table as a `Track` |
-| SPC: X̄-R, I-MR, p, np, c, u | `stat.ControlLimits` + the Nelson rules | `Line`, `Scatter`, `HLine` — **no mark**, because limits come from a baseline period and not from the plotted points |
+| SPC: X̄-R, I-MR, p, np, c, u | `stat.LimitsIMR`, `LimitsXbarR`, `LimitsNP`, `LimitsC`, `AppendLimitsP`, `AppendLimitsU` + `stat.AppendRunRules` | `Line`, `Scatter`, `HLine` — **no mark**, because limits come from a baseline period and not from the plotted points |
 | Correlogram | `stat.ACF`, `stat.PACF` | `Bar` + `HLine` |
-| ROC, precision–recall | `stat.ROC` | `Line` |
+| ROC, precision–recall | `stat.ROC`, `stat.PrecisionRecall` | `Line` |
 | Lorenz curve, Gini | `stat.Lorenz` | `Line` + `Segment` |
 
 **One of the five got cheaper while this was being written.**
@@ -503,7 +502,11 @@ missing.** A **forest plot** is `ErrorBar` + `Text` + a `Track` (the pooled
 estimate is a meta-analysis and is the caller's); a **funnel plot** is a scatter
 plus bucket I's contours; a **Pareto chart** is sorted bars with the cumulative
 percentage on the secondary axis; **Bland–Altman** is a scatter and
-three reference lines.
+three reference lines. The four are written out in
+[charts.md](charts.md#survival-curves-control-charts-and-the-other-instruments).
+
+`examples/survival` draws the first row with its risk table and
+`examples/spc` the second, with its limits frozen on a baseline.
 
 ## N — needs a projection — **shipped**, except the scatter
 
@@ -714,7 +717,7 @@ lines ADR 0033 left open that no other work would have closed
 
 What is left besides is four records, listed in the order they argue for — a
 dependency order rather than a preference. Nothing in the list now waits on
-anything else in it, and the second and third of them have been built.
+anything else in it, and all but the first of them have been built.
 
 1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
    widest genuine gap in the general-purpose world with a real user base, on
@@ -728,6 +731,7 @@ anything else in it, and the second and third of them have been built.
    **Shipped.** One mark, four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.
 4. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
+   **Shipped.**
    Last, and deliberately: it is the widest reach in the catalogue and the least
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.

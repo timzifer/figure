@@ -73,6 +73,9 @@ const (
 	// MarkTree is the node-link tree: a dendrogram, an org chart, and under a
 	// polar coord a radial dendrogram. See docs/adr/0053-tidy-tree-layout.md.
 	MarkTree Mark = "tree"
+	// MarkSurvival is the Kaplan–Meier survival curve. See
+	// docs/adr/0054-statistical-instruments.md.
+	MarkSurvival Mark = "survival"
 
 	// MarkErrorBar is the interval mark: a rule between two bounds, with a cap
 	// at each end and a marker at the measurement.
@@ -178,6 +181,16 @@ type Desc struct {
 	// Branch is the shape a [Tree] joins a node to its parent with. It is the
 	// zero value — [Elbow] — for every other mark.
 	Branch Branch
+	// EventCol, Confidence and CensorMarks configure a [Survival] layer: the
+	// column its event indicator is read from, the level of its confidence
+	// band (zero for none), and whether it ticks its censored times.
+	EventCol    string
+	Confidence  float64
+	CensorMarks bool
+	// HideGuide reports a layer that declined its colourbar and size key. It
+	// is negative so that a Desc written by hand, which names nothing, keeps
+	// the guides a layer has by default. See [Guide].
+	HideGuide bool
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -411,6 +424,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Arc(d.Source, opts...), nil
 	case MarkTree:
 		return Tree(d.Source, opts...), nil
+	case MarkSurvival:
+		return Survival(d.Source, opts...), nil
 	}
 	return nil, fmt.Errorf("%w: %q", ErrUnknownMark, d.Mark)
 }
@@ -452,6 +467,10 @@ func (d Desc) options() []Option {
 		LevelCount(d.LevelCount),
 		Resample(d.Resample),
 		Branches(d.Branch),
+		Event(d.EventCol),
+		Confidence(d.Confidence),
+		CensorMarks(d.CensorMarks),
+		Guide(!d.HideGuide),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -565,82 +584,86 @@ func (c config) describe(mark Mark) Desc {
 
 func (c config) describeStacking(mark Mark, def Stacking) Desc {
 	return Desc{
-		Mark:       mark,
-		X:          c.xcol,
-		Y:          c.ycol,
-		Z:          c.zcol,
-		X2:         c.x2col,
-		Y2:         c.y2col,
-		ColorCol:   c.colorCol,
-		ColorScale: c.colorScale,
-		SizeCol:    c.sizeCol,
-		SizeScale:  c.sizeScale,
-		Bins:       c.bins,
-		BinLo:      c.binLo,
-		BinHi:      c.binHi,
-		Bands:      c.bands,
-		BandHeight: c.bandHeight,
-		Levels:     c.levels,
-		LevelCount: c.levelCount,
-		Resample:   c.resample,
-		Branch:     c.branch,
-		Bandwidth:  c.bandwidth,
-		Span:       c.span,
-		Smooth:     c.smooth,
-		Overlap:    c.overlap,
-		Group:      c.groupCol,
-		Key:        c.keyCol,
-		Stack:      c.stackFor(def),
-		StackSet:   c.stackSet,
-		Dodge:      c.dodge,
-		DodgePad:   c.dodgePad,
-		Order:      c.order,
-		WidthCol:   c.widthCol,
-		From:       c.fromCol,
-		To:         c.toCol,
-		ID:         c.idCol,
-		ParentCol:  c.parentCol,
-		ValueCol:   c.valCol,
-		Padding:    c.padding,
-		Thickness:  c.thickness,
-		Explode:    c.explode,
-		ExplodeCol: c.explodeCol,
-		Label:      c.label,
-		TextCol:    c.textCol,
-		Elide:      c.elide,
-		Color:      c.color,
-		Fill:       c.fill,
-		Width:      c.width,
-		Dash:       c.dash,
-		DashSet:    c.dashSet,
-		Tension:    c.tension,
-		Missing:    c.missing,
-		Marker:     c.marker,
-		MarkerSet:  c.markerSet,
-		Closed:     c.closed,
-		OnY2:       c.onY2,
-		OnX2:       c.onX2,
-		Size:       c.size,
-		BarWidth:   c.barWidth,
-		Baseline:   c.baseline,
-		Opacity:    c.opacity,
-		Steps:      c.steps,
-		Whisker:    c.whisker,
-		Outliers:   c.outliers,
-		MidCol:     c.midCol,
-		ErrorCol:   c.errCol,
-		ErrorXCol:  c.errXCol,
-		Caps:       c.caps,
-		Decimate:   c.decimate,
-		Budget:     c.budget,
-		CellSize:   c.cellSize,
-		FontSize:   c.fontSize,
-		HAlign:     c.halign,
-		VAlign:     c.valign,
-		AlignSet:   c.alignSet,
-		Rotation:   c.rotation,
-		Extend:     c.extend,
-		Extra:      c.extra,
+		Mark:        mark,
+		X:           c.xcol,
+		Y:           c.ycol,
+		Z:           c.zcol,
+		X2:          c.x2col,
+		Y2:          c.y2col,
+		ColorCol:    c.colorCol,
+		ColorScale:  c.colorScale,
+		SizeCol:     c.sizeCol,
+		SizeScale:   c.sizeScale,
+		Bins:        c.bins,
+		BinLo:       c.binLo,
+		BinHi:       c.binHi,
+		Bands:       c.bands,
+		BandHeight:  c.bandHeight,
+		Levels:      c.levels,
+		LevelCount:  c.levelCount,
+		Resample:    c.resample,
+		Branch:      c.branch,
+		EventCol:    c.eventCol,
+		Confidence:  c.confidence,
+		CensorMarks: c.censorMarks,
+		HideGuide:   c.hideGuide,
+		Bandwidth:   c.bandwidth,
+		Span:        c.span,
+		Smooth:      c.smooth,
+		Overlap:     c.overlap,
+		Group:       c.groupCol,
+		Key:         c.keyCol,
+		Stack:       c.stackFor(def),
+		StackSet:    c.stackSet,
+		Dodge:       c.dodge,
+		DodgePad:    c.dodgePad,
+		Order:       c.order,
+		WidthCol:    c.widthCol,
+		From:        c.fromCol,
+		To:          c.toCol,
+		ID:          c.idCol,
+		ParentCol:   c.parentCol,
+		ValueCol:    c.valCol,
+		Padding:     c.padding,
+		Thickness:   c.thickness,
+		Explode:     c.explode,
+		ExplodeCol:  c.explodeCol,
+		Label:       c.label,
+		TextCol:     c.textCol,
+		Elide:       c.elide,
+		Color:       c.color,
+		Fill:        c.fill,
+		Width:       c.width,
+		Dash:        c.dash,
+		DashSet:     c.dashSet,
+		Tension:     c.tension,
+		Missing:     c.missing,
+		Marker:      c.marker,
+		MarkerSet:   c.markerSet,
+		Closed:      c.closed,
+		OnY2:        c.onY2,
+		OnX2:        c.onX2,
+		Size:        c.size,
+		BarWidth:    c.barWidth,
+		Baseline:    c.baseline,
+		Opacity:     c.opacity,
+		Steps:       c.steps,
+		Whisker:     c.whisker,
+		Outliers:    c.outliers,
+		MidCol:      c.midCol,
+		ErrorCol:    c.errCol,
+		ErrorXCol:   c.errXCol,
+		Caps:        c.caps,
+		Decimate:    c.decimate,
+		Budget:      c.budget,
+		CellSize:    c.cellSize,
+		FontSize:    c.fontSize,
+		HAlign:      c.halign,
+		VAlign:      c.valign,
+		AlignSet:    c.alignSet,
+		Rotation:    c.rotation,
+		Extend:      c.extend,
+		Extra:       c.extra,
 
 		AvoidOverlap: c.avoidLabels,
 	}

@@ -141,9 +141,9 @@ picture cannot drift away from the code that produced it.
   Extended-Wilkinson tick placement, calendar-unit time steps, minor ticks per
   decade, pinned tick sequences, probability paper.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
-  violins, ridgelines, hexbins, beeswarms, ECDFs, trends, contours, horizons,
-  rasters, treemaps, icicles, trees, sankeys, arcs, error bars, intervals, text,
-  annotations — including a **locus**, a family of curves given by a formula
+  violins, ridgelines, hexbins, beeswarms, ECDFs, survival curves, trends,
+  contours, horizons, rasters, treemaps, icicles, trees, sankeys, arcs, error
+  bars, intervals, text, annotations — including a **locus**, a family of curves given by a formula
   rather than by data, which is what a Nichols diagram's closed-loop contours
   and a Smith chart's VSWR circles are.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is

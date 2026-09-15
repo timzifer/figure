@@ -58,6 +58,24 @@ func (g ColorGuide) Key() string {
 // reader can see differ.
 const colorKeySamples = 16
 
+// Guide decides whether a layer contributes its guides — the colourbar of a
+// continuous or classed colour scale, and the size key of a size scale. The
+// default is true.
+//
+// It is for the layer whose colour is a reading rather than a quantity to be
+// looked up. A control chart's line coloured by [ColorBy] over a
+// [scale.Threshold] at its limits says "out of control" by its colour, and the
+// limits are already on the chart as rules with their values beside them; a
+// colourbar repeating them in the margin takes a column of the chart to say it
+// twice. The same holds for a layer that merely echoes another layer's scale.
+//
+// It is per layer, and it withdraws only this layer's contribution: another
+// layer painting from the same scale still brings the bar, because guides are
+// merged by what they look like rather than by who asked. It has nothing to do
+// with legend entries, which [github.com/timzifer/figure.Legend] and [Label]
+// decide.
+func Guide(show bool) Option { return func(c *config) { c.hideGuide = !show } }
+
 // Guided is implemented by a layer that paints from a continuous colour scale.
 //
 // It is an optional interface rather than a method on [Geom]: a layer that
@@ -77,7 +95,7 @@ type Guided interface {
 // exactly the seam ADR 0020 draws: a colourbar over eight categories would be
 // a ramp through colours nothing is painted with.
 func (c config) colorGuide(s series, err error) (ColorGuide, bool) {
-	if err != nil || !c.varying(s) {
+	if err != nil || c.hideGuide || !c.varying(s) {
 		return ColorGuide{}, false
 	}
 	if _, discrete := scale.Discrete(c.colorScale); discrete {
@@ -140,7 +158,7 @@ type Sized interface {
 // sizeGuide is the shared implementation: a layer has one exactly when it
 // resolved a size column through a size scale.
 func (c config) sizeGuide(s series, err error) (SizeGuide, bool) {
-	if err != nil || c.sizeScale == nil || s.sz == nil {
+	if err != nil || c.hideGuide || c.sizeScale == nil || s.sz == nil {
 		return SizeGuide{}, false
 	}
 	label := c.label
