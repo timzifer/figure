@@ -6,7 +6,7 @@ go 1.25.0
 // backend pins gg: an adapter is validated against exactly one release of what
 // it adapts, and says which.
 require (
-	github.com/apache/arrow-go/v18 v18.7.0
+	github.com/apache/arrow-go/v18 v18.8.0
 	github.com/timzifer/figure v0.8.0
 )
 
