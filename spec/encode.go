@@ -348,6 +348,11 @@ func encodeLayer(g geom.Geom, hoisted bool, axes axisKinds) (Layer, error) {
 			return Layer{}, err
 		}
 	}
+	if d.Links != nil {
+		if l.Links, err = encodeData(d.Links); err != nil {
+			return Layer{}, err
+		}
+	}
 	return l, nil
 }
 
@@ -476,6 +481,17 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.Extrude = d.Extrude
 		m.BarWidth = float64Ptr(d.BarWidth)
 		m.Explode = d.Explode
+	case geom.MarkDepends:
+		// An arrow is a stroke and a head, so it writes a stroke, the head's
+		// length as the mark's size, and which pair of edges it joins where
+		// the row does not say. It writes no fill: the head takes the stroke's
+		// colour, because an arrow with two colours in it is two marks.
+		stroke()
+		m.Size = d.Size
+		m.BarWidth = float64Ptr(d.BarWidth)
+		if d.Linkage != geom.FinishToStart {
+			m.Link = d.Linkage.String()
+		}
 	case geom.MarkArea:
 		stroke()
 		fill()
@@ -714,6 +730,12 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.UncertaintyCol != "" {
 			enc.Uncertainty = &Channel{Field: d.UncertaintyCol, Type: "quantitative"}
+		}
+		if d.ProgressCol != "" {
+			enc.Progress = &Channel{Field: d.ProgressCol, Type: "quantitative"}
+		}
+		if d.LinkCol != "" {
+			enc.Link = &Channel{Field: d.LinkCol, Type: "nominal"}
 		}
 		if d.SizeCol != "" && d.SizeScale != nil {
 			ss, err := encodeSizeScale(d.SizeScale)

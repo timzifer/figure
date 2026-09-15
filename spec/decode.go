@@ -338,6 +338,11 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.StrokeDash != nil {
 		d.Dash, d.DashSet = l.Mark.StrokeDash, true
 	}
+	// A linkage this reader does not have is the layer's default rather than
+	// an error, exactly as an unknown one in the column is: a document from a
+	// later version then draws a chart that is wrong in a place the reader can
+	// see rather than one that does not draw.
+	d.Linkage, _ = geom.LinkageNamed(l.Mark.Link)
 
 	if err := decodeLayerEncoding(&d, l.Encoding); err != nil {
 		return nil, err
@@ -355,6 +360,13 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		}
 		if d.Source == nil {
 			d.Source = shared
+		}
+	}
+	// The link table is never hoisted and never shared: it belongs to the one
+	// layer that reads it.
+	if l.Links != nil {
+		if d.Links, err = decodeData(l.Links); err != nil {
+			return nil, err
 		}
 	}
 	return geom.FromDesc(d)
@@ -375,6 +387,7 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.ID, d.ParentCol, d.ValueCol = fieldOf(enc.ID), fieldOf(enc.Parent), fieldOf(enc.Value)
 	d.EventCol = fieldOf(enc.Event)
 	d.UncertaintyCol = fieldOf(enc.Uncertainty)
+	d.ProgressCol, d.LinkCol = fieldOf(enc.Progress), fieldOf(enc.Link)
 	// The stack rides the channel it adjusts. A document that names none
 	// leaves the mark's own default in place, which is why this is a pair
 	// rather than a value — see [geom.Desc].

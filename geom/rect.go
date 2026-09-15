@@ -49,6 +49,7 @@ type rectGeom struct {
 	cfg  config
 	s    series
 	x2   []float64
+	prog progress
 	pull []float64
 	gaps []float64 // the buffer a slot-sized edge is measured out of
 	err  error
@@ -69,6 +70,9 @@ func (g *rectGeom) Train(t Training) error {
 			g.err = errLength(g.cfg.xcol, g.cfg.x2col, len(g.s.x), len(g.x2))
 			return g.err
 		}
+	}
+	if g.prog, g.err = g.cfg.trainProgress(g.src, len(g.s.x)); g.err != nil {
+		return g.err
 	}
 	if g.pull, g.err = g.cfg.trainBreakOut(g.src, len(g.s.x)); g.err != nil {
 		return g.err
@@ -141,16 +145,30 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 	// a category rather than a pixel.
 	rects := sc.rects[:0]
 	rows := sc.rows[:0]
+	done := sc.done[:0]
 	for i := range g.s.x {
 		if !ok[i] || (g.x2 != nil && !defined(f.X, g.x2[i])) {
 			continue
 		}
 		x0, x1 := spanOn(f.X, g.s.x, g.x2, i, halfX, true)
 		y0, y1 := spanOn(f.Y, g.s.y, g.s.y2, i, halfY, false)
-		rects = append(rects, ir.R(x0, y0, x1, y1))
+		cell := ir.R(x0, y0, x1, y1)
+		rects = append(rects, cell)
 		rows = append(rows, i)
+		if g.prog.on {
+			// The finished part is measured off the edges the *row* named, so
+			// that it grows from the start of the task rather than from the
+			// left of the panel — see [progress.done].
+			var near, far float32
+			if g.prog.horizontal {
+				near, far = edgesOn(f.X, g.s.x, g.x2, i, halfX)
+			} else {
+				near, far = edgesOn(f.Y, g.s.y, g.s.y2, i, halfY)
+			}
+			done = append(done, g.prog.done(cell, near, far, g.prog.at(i)))
+		}
 	}
-	sc.rects, sc.rows = rects, rows
+	sc.rects, sc.rows, sc.done = rects, rows, done
 	if len(rects) == 0 {
 		return nil
 	}
@@ -188,30 +206,58 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 	// One subpath per cell, whether they are batched by colour or drawn in one
 	// call, so that a pointer lands on the cell rather than on the sheet — see
 	// docs/adr/0015-hit-testing.md.
-	if cols := sc.colorsFor(g.cfg, g.s, rows); cols != nil {
-		for _, run := range sc.groupByRect(rects, cols, offs) {
-			if run.color.A == 0 {
+	//
+	// A layer with a progress column paints twice over: every cell at the
+	// unfinished alpha, and the finished part of every cell at full strength on
+	// top. Two passes rather than one shape per cell is what keeps the
+	// colour batching — and the hairline between the two parts is the same
+	// compositing this mark has always had between neighbouring cells.
+	cols := sc.colorsFor(g.cfg, g.s, rows)
+	paint := func(rs []ir.Rect, fade float64, outlined, skipEmpty bool) {
+		if cols != nil {
+			for _, run := range sc.groupByRect(rs, cols, offs) {
+				col := ir.Fade(run.color, fade)
+				if col.A == 0 {
+					continue
+				}
+				sc.fill.Reset()
+				for j, r := range run.rects {
+					if skipEmpty && (r.Min.X == r.Max.X || r.Min.Y == r.Max.Y) {
+						continue
+					}
+					areaAt(&sc.fill, cd, r, offsetAt(run.offs, j))
+				}
+				b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+			}
+			return
+		}
+		col := ir.Fade(fill, fade)
+		if col.A == 0 {
+			return
+		}
+		sc.fill.Reset()
+		for i, r := range rs {
+			if skipEmpty && (r.Min.X == r.Max.X || r.Min.Y == r.Max.Y) {
 				continue
 			}
-			sc.fill.Reset()
-			for j, r := range run.rects {
-				areaAt(&sc.fill, cd, r, offsetAt(run.offs, j))
-			}
-			b.FillPath(&sc.fill, ir.Solid(run.color), ir.NonZero)
+			areaAt(&sc.fill, cd, r, offsetAt(offs, i))
 		}
+		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		if outlined && outline && stroke.Visible() {
+			b.StrokePath(&sc.fill, stroke)
+		}
+	}
+	if !g.prog.on {
+		paint(rects, 1, true, false)
 		return nil
 	}
-	if fill.A == 0 {
-		return nil
-	}
-	sc.fill.Reset()
-	for i, r := range rects {
-		areaAt(&sc.fill, cd, r, offsetAt(offs, i))
-	}
-	b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
-	if outline && stroke.Visible() {
-		b.StrokePath(&sc.fill, stroke)
-	}
+	// The outline traces the whole span and is drawn once: a second one round
+	// the finished part would read as a boundary in the data rather than as
+	// the edge of a fill.
+	// A task that has not started has no finished part to draw, and a subpath
+	// of no area would still be a mark a pointer could be told it was inside.
+	paint(rects, unfinishedOpacity, true, true)
+	paint(done, 1, false, true)
 	return nil
 }
 

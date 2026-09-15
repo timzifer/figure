@@ -178,6 +178,8 @@ type config struct {
 	widthCol   string
 	fromCol    string
 	toCol      string
+	linkCol    string
+	linkage    Linkage
 	idCol      string
 	parentCol  string
 	valCol     string
@@ -185,6 +187,7 @@ type config struct {
 	thickness  float64
 	midCol     string
 	errCol     string
+	progCol    string
 	errXCol    string
 	explode    float64
 	explodeCol string
@@ -357,9 +360,11 @@ func Label(s string) Option { return func(c *config) { c.label = s } }
 // KeyBy names the column that identifies a row across renders, and across
 // charts.
 //
-// Nothing in this package reads it. A layer draws exactly what it drew before,
-// and the column need not be one the mark plots — it is an answer to a
-// question asked from outside: *which row is this, still*.
+// One mark in this package reads it — [Depends] joins its two tables by it —
+// and for every other one it changes nothing drawn: the layer draws exactly
+// what it drew before, and the column need not be one the mark plots, because
+// it is an answer to a question asked from outside: *which row is this,
+// still*.
 //
 // It exists because a row number is not an identity. [Rows] reports the row
 // behind a mark, and that row is an index into the table as it stands for that
@@ -368,12 +373,14 @@ func Label(s string) Option { return func(c *config) { c.label = s } }
 // measurements. A key is a value the data already carries, so it survives
 // whatever happens to the ordering.
 //
-// Two things want one. A tooltip in one chart that highlights a flow in
+// Three things want one. A tooltip in one chart that highlights a flow in
 // another needs a name for the thing under the pointer that the other chart
 // also knows — see [github.com/timzifer/figure.Event.Key]. And a transition
 // between two states of a table matches their rows by it, because "the same
 // bar, moved" and "one bar gone and another arrived" are different pictures
-// and only the data can say which this is.
+// and only the data can say which this is. And a schedule's constraints name
+// the tasks they join by it, which is the one case where leaving it out is an
+// error rather than a missed opportunity — see [ErrNoKey].
 //
 // The values are read with [github.com/timzifer/figure/data.Label], so a
 // numeric key is spelled the way a facet panel key and a categorical tick are
@@ -450,6 +457,40 @@ func From(col string) Option { return func(c *config) { c.fromCol = col } }
 
 // To is [From]'s other end.
 func To(col string) Option { return func(c *config) { c.toCol = col } }
+
+// ProgressBy names a column holding how much of each cell is finished, as a
+// fraction in [0, 1].
+//
+// It is what turns a [Rect] into a gantt bar that reads as a status rather
+// than as a plan: the cell is drawn twice, the whole span faded and the
+// finished part of it solid, so the bar still says when the task runs and now
+// also says how far it has got.
+//
+//	geom.Rect(tasks, geom.X("start"), geom.X2("end"), geom.Y("task"),
+//	    geom.ProgressBy("done"))
+//
+// The fraction grows from the edge the row named *first* — from [X] towards
+// [X2], or from [Y] towards [Y2] — so a reversed axis fills from the same end
+// of the task rather than from the same side of the screen. A row naming
+// neither pair fills its slot along the horizontal axis; a row naming both is
+// [ErrProgressAxis], because which of the two the fraction runs along is not
+// something to guess at. A value outside [0, 1] is clamped, and a missing one
+// is a cell whose progress is unknown, drawn solid.
+func ProgressBy(col string) Option { return func(c *config) { c.progCol = col } }
+
+// Link sets which edges of two spans a [Depends] layer joins, for every row of
+// its link table. The default is [FinishToStart], which is what a dependency
+// means when nobody said otherwise.
+//
+// [LinkBy] names a column holding it per row, and wins where both are given.
+func Link(k Linkage) Option { return func(c *config) { c.linkage = k } }
+
+// LinkBy names a column of a [Depends] layer's link table holding each row's
+// [Linkage] by name — "fs", "ss", "ff" or "sf", spelled as [Linkage.String]
+// spells it. A row naming nothing this package knows takes the layer's own
+// [Link], which is how a document from a later version draws a chart that is
+// wrong where the reader can see it rather than not at all.
+func LinkBy(col string) Option { return func(c *config) { c.linkCol = col } }
 
 // ID and Parent name a hierarchy: one row per node, the name it is known by and
 // the name of the node above it. With [Value] they are the whole encoding of a

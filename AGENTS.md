@@ -129,6 +129,40 @@ per panel, twice: once before the furniture pass and once before the data pass.
 Dropping the second call leaves every panel but the last drawing its data where
 the last panel's axis is. There is a test.
 
+**A dependency arrow is routed in device space, and it is the only geom that
+may be.** Everywhere else a geom computes a midpoint, a corner or a staircase
+step *before* the coord, because those are statements about the data —
+`geom.stepColumns` is the canonical case. `geom.Depends` puts its two *ends*
+through `coord.Point` like every other mark and then joins them with an elbow
+whose corners are device points and whose stub is in pixels, because there is
+nothing in data space between the finish of one task and the start of another:
+the route is a reading aid rather than a claim about any value in between. The
+direction out of each bar is **measured** from its own two edges rather than
+assumed, which is what makes a reversed axis turn both ends together and what
+makes one routing function serve a gantt drawn down the page as well as across
+it. See [ADR 0068](docs/adr/0068-gantt-charts.md).
+
+**A progress layer paints twice over, and that is what keeps the batching.**
+`geom.ProgressBy` draws every cell at the unfinished alpha and the finished
+part of every cell at full strength on top, in two passes — not one composite
+shape per cell. `geom.groupByRect` batches by colour, and a shape per cell
+would be a drawing call per cell and a per-mark colour in the IR, which is what
+[ADR 0007](docs/adr/0007-per-mark-colour.md) refuses. The fraction grows from
+the edge the *row* named first, which is why `geom.edgesOn` exists beside
+`spanOn`: the two return one pair of edges in the order the data has them and
+in the order the screen has them, and filling from the screen's side would say
+a task on a reversed axis had started at the end.
+
+**A layer may hold data its `Source` does not.** `geom.Depends` reads a second
+table, and `geom.Desc.Links`, `spec.Layer.Links` and
+`a11y`'s row count all had to learn it. Three things there are load-bearing:
+the link table is **never hoisted** in a document, because two dependency
+layers over one plan are two sets of constraints; `Subset` cuts the *task*
+table and leaves the links alone, so a constraint whose other end is in the
+next panel resolves to nothing and is dropped; and the layer reports **no
+rows**, because the row it would report belongs to the table `Source` does not
+hand out.
+
 **A track shares the panel's scale object, and that is the whole feature.**
 `Plot.tracked` gives every track panel the chart's own scale for the axis it
 runs along — `c.X` for a bottom or top band, `c.Y` for a left or right one. A zoom reaches a scale

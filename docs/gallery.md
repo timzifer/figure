@@ -28,6 +28,7 @@ picture here cannot drift away from the code that produced it.
 | ![Requests per second through a service, drawn as a sankey diagram](images/sankey.png) | ![The same traffic as an arc diagram, each service a segment of the rail and each route a band arcing over it](images/arc.png) |
 | ![The same traffic again as a chord diagram, each service an arc and each route a ribbon crossing the disc](images/chord.png) | ![A response surface drawn from three cameras at once: a three-quarter view, a plan and a front elevation of one scene](images/surface.png) |
 | ![Thirty sweeps of a spectrum offset by sweep number, with a carrier drifting upward and a harmonic growing behind it](images/cascade.png) | ![An open loop at two gains on a Nichols diagram, drawn over the contours of constant closed-loop gain and phase](images/nichols.png) |
+| ![A rebuild plan as a gantt chart: bars part filled by how far each task has got, arrows between them with the critical path in orange, milestone diamonds and a dashed line at today](images/gantt.png) | |
 
 ---
 

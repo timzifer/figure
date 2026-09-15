@@ -147,6 +147,18 @@ type Layer struct {
 	Mark     Mark      `json:"mark"`
 	Data     *Data     `json:"data,omitempty"`
 	Encoding *Encoding `json:"encoding,omitempty"`
+
+	// Links is the second table a dependency layer reads: one row per
+	// constraint, naming its two ends in the `from` and `to` channels. It is
+	// written by the one mark that has one — see
+	// [github.com/timzifer/figure/geom.Depends] — and is absent for every
+	// other layer.
+	//
+	// It is a second data block rather than a second top-level dataset
+	// because it belongs to the layer: two dependency layers over one plan
+	// are two sets of constraints, and hoisting them would make the document
+	// say they were one.
+	Links *Data `json:"links,omitempty"`
 }
 
 // Mark is what a layer draws, and how.
@@ -174,6 +186,11 @@ type Mark struct {
 	Baseline    string    `json:"baseline,omitempty"`
 	FontSize    float64   `json:"fontSize,omitempty"`
 	Angle       float64   `json:"angle,omitempty"`
+
+	// Link is which edges of two spans a dependency layer joins, for every row
+	// that does not name its own: "fs", "ss", "ff" or "sf". An absent field is
+	// "fs", which is what a dependency means when nobody said otherwise.
+	Link string `json:"link,omitempty"`
 
 	// Caps is whether an error bar carries a crossbar at each end. It is
 	// figure's own, it is a pointer because the default is true rather than
@@ -442,6 +459,18 @@ type Encoding struct {
 	ID     *Channel `json:"id,omitempty"`
 	Parent *Channel `json:"parent,omitempty"`
 	Value  *Channel `json:"value,omitempty"`
+
+	// Progress is the column a span reads its finished fraction from, and
+	// Link the column a dependency reads its linkage from. Both are figure's
+	// own: Vega-Lite has neither a span that is part done nor a mark that
+	// joins two rows of another table.
+	//
+	// Link is a channel of the layer's *link* table rather than of its data,
+	// which is the one place in this dialect where that is true. It is where
+	// it is because a document that put it anywhere else would be a document
+	// whose channels no longer all mean the same thing.
+	Progress *Channel `json:"progress,omitempty"`
+	Link     *Channel `json:"link,omitempty"`
 
 	// Event is the column a survival layer reads its event indicator from:
 	// non-zero where a subject's time ends in the event, zero where it was

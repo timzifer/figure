@@ -502,6 +502,42 @@ func figures() []plate {
 			},
 		},
 		{
+			// A schedule. The bars are the same rect the heatmap above is —
+			// a gantt chart has been a rect on a time axis against an ordinal
+			// one since v0.7 — and the three layers over them are what make
+			// it a plan somebody can work from: geom.ProgressBy fills each bar
+			// as far as it has got, geom.Depends draws the constraints between
+			// them and takes its colour from the link table, so the critical
+			// path is a column rather than a feature, and a milestone is a
+			// date rather than a span and is therefore a scatter.
+			// See docs/adr/0068-gantt-charts.md.
+			name: "gantt", width: 820, high: 420, theme: theme.Light,
+			title: "Instrument rebuild",
+			build: func(p *figure.Plot) {
+				tasks, links, milestones, lanes, now := rebuild()
+				p.X(scale.Time())
+				p.Y(scale.Ordinal(scale.Categories(lanes...)))
+				p.Add(
+					geom.Rect(tasks,
+						geom.X("start"), geom.X2("end"), geom.Y("task"),
+						geom.ProgressBy("done"),
+						geom.ColorBy("phase", scale.Qualitative(palette.OkabeIto))),
+					geom.Depends(tasks, links,
+						geom.X("start"), geom.X2("end"), geom.Y("task"),
+						geom.KeyBy("id"), geom.From("before"), geom.To("after"),
+						geom.LinkBy("kind"),
+						geom.ColorBy("path", scale.Named(map[string]ir.Color{
+							"critical": palette.Vermilion,
+							"slack":    palette.Gray,
+						}))),
+					geom.Scatter(milestones, geom.X("at"), geom.Y("task"),
+						geom.Shape(ir.MarkerDiamond), geom.Size(11),
+						geom.Color(palette.Black), geom.Label("milestone")),
+					geom.VLine(scale.Nanos(now), geom.Label("today")),
+				)
+			},
+		},
+		{
 			// A pie is not a new mark. It is the stacked bar of the plate
 			// above, drawn in a polar coord that takes theta from the Y axis —
 			// so the stacked total becomes a whole turn and each segment
@@ -1455,4 +1491,34 @@ func cascadeFigure() plate {
 func lorentz(f, at, top, width float64) float64 {
 	d := (f - at) / width
 	return top - 10*math.Log10(1+d*d)
+}
+
+// rebuild is the schedule the gantt plate draws: the spans, the constraints
+// over them, the dates that are not spans, the lanes in the order the plan
+// reads in, and where the reader is standing.
+//
+// The dates are constants rather than time.Now, because a figure the
+// documentation checks has to be the same picture every time it is drawn.
+func rebuild() (tasks, links, milestones *data.Table, lanes []string, now time.Time) {
+	day := func(d int) time.Time { return time.Date(2026, time.March, d, 0, 0, 0, 0, time.UTC) }
+	tasks = figure.NewTable().
+		String("id", []string{"survey", "design", "order", "parts", "frame", "detector", "optics", "commission"}).
+		String("task", []string{"survey", "design", "order parts", "parts in", "machine frame", "fit detector", "align optics", "commission"}).
+		Time("start", []time.Time{day(2), day(4), day(9), day(11), day(11), day(18), day(20), day(24)}).
+		Time("end", []time.Time{day(5), day(9), day(11), day(18), day(17), day(21), day(24), day(28)}).
+		Float64("done", []float64{1, 1, 1, 0.8, 0.55, 0.1, 0, 0}).
+		String("phase", []string{"plan", "plan", "supply", "supply", "build", "build", "build", "accept"})
+	links = figure.NewTable().
+		String("before", []string{"survey", "design", "order", "parts", "frame", "detector", "optics", "detector"}).
+		String("after", []string{"design", "order", "parts", "detector", "detector", "optics", "commission", "commission"}).
+		String("kind", []string{"fs", "fs", "fs", "fs", "ff", "fs", "fs", "ss"}).
+		String("path", []string{"critical", "critical", "critical", "critical", "slack", "critical", "critical", "slack"})
+	milestones = figure.NewTable().
+		Time("at", []time.Time{day(9), day(18), day(27)}).
+		String("task", []string{"design", "parts in", "hand-over"})
+	lanes = []string{
+		"hand-over", "commission", "align optics", "fit detector",
+		"machine frame", "parts in", "order parts", "design", "survey",
+	}
+	return tasks, links, milestones, lanes, day(23)
 }

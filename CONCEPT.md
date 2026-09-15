@@ -603,6 +603,11 @@ and what the VSWR circles and constant-Q arcs
 annotations defined in data space, so the coordinate stage draws them and
 `render` keeps its two tick lists
 ([ADR 0050](docs/adr/0050-locus-annotations.md)).
+A schedule that is a schedule rather than a picture of one: a span filled as far
+as the work has got, the constraints between spans drawn in all four linkages
+from a link table of their own, and a critical path that is a column of that
+table rather than a feature of the library
+([ADR 0068](docs/adr/0068-gantt-charts.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).

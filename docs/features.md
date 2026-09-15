@@ -23,7 +23,13 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   **`Step`** (pre/mid/post), **`Boxplot`** (Tukey whiskers, type-7 quartiles,
   outliers), and **`Rect`** — one box per row, bounded by the row rather than by
   a baseline, which is what a heatmap, a gantt bar, a candle and a waterfall
-  step all are.
+  step all are. `geom.ProgressBy` fills a cell as far as a column says it has
+  got — a gantt bar that reads as a status rather than as a plan.
+- **`Depends`** — the arrows between spans that a schedule's constraints are.
+  It reads two tables, the plan and a list of links over it, joins them by
+  `geom.KeyBy`, and draws all four linkages (`"fs"`, `"ss"`, `"ff"`, `"sf"`).
+  `geom.ColorBy` over the link table is how a critical path is drawn
+  ([ADR 0068](adr/0068-gantt-charts.md)).
 - **Distribution marks** — **`Histogram`**, **`Violin`**, **`Ridgeline`**,
   **`Hexbin`**, **`Beeswarm`**, **`ECDF`** and **`Trend`**. Each is a pure
   function in [`stat/`](../stat) — a 1-D binner, a Gaussian KDE with Silverman's

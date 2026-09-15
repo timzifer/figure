@@ -77,6 +77,11 @@ const (
 	// docs/adr/0054-statistical-instruments.md.
 	MarkSurvival Mark = "survival"
 
+	// MarkDepends is the dependency arrow: the link between two spans that a
+	// schedule's constraints are. It reads two tables — see [Depends] — and it
+	// is the one mark in this package that does.
+	MarkDepends Mark = "dependency"
+
 	// MarkErrorBar is the interval mark: a rule between two bounds, with a cap
 	// at each end and a marker at the measurement.
 	MarkErrorBar Mark = "errorbar"
@@ -153,7 +158,8 @@ type Desc struct {
 	WidthCol string
 
 	// Key is the column that identifies a row across renders, from [KeyBy].
-	// Nothing in this package reads it; it is carried so that the layer can be
+	// Only [Depends] reads it — it is how the two tables of a schedule are
+	// joined; for every other mark it is carried so that the layer can be
 	// written down and read back with the identity it was given.
 	Key string
 
@@ -228,6 +234,18 @@ type Desc struct {
 	From, To      string
 	ID, ParentCol string
 	ValueCol      string
+	// Links is a [Depends] layer's second table: one row per constraint,
+	// naming its two ends in From and To. It is nil for every other mark, and
+	// it is the one place a layer's configuration holds data that Source does
+	// not — a dependency is a statement about two rows of the task table and
+	// has nowhere else to live.
+	Links data.Source
+	// Linkage is which edges of two spans such a layer joins, and LinkCol the
+	// column of Links that answers it per row. Linkage carries the value the
+	// layer is actually using, which is [FinishToStart] for a layer that was
+	// told nothing — the same completeness [Desc.BarWidth] has.
+	Linkage Linkage
+	LinkCol string
 	// Padding is the gap between the shapes such a layout places, as a
 	// fraction of the plot, and Thickness how much of its slot a node fills.
 	// Both are zero when the layer left them to the mark.
@@ -248,6 +266,10 @@ type Desc struct {
 	// that draws and does not serialise — see
 	// [github.com/timzifer/figure/stat.FamilyName].
 	Family Family
+
+	// ProgressCol is the column a cell reads its completed fraction from, from
+	// [ProgressBy]. It is empty for a layer that draws each cell once.
+	ProgressCol string
 
 	// TextCol is the column a [Text] layer reads its labels from, and Elide
 	// whether it truncates one that does not fit rather than dropping it.
@@ -436,6 +458,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Tree(d.Source, opts...), nil
 	case MarkSurvival:
 		return Survival(d.Source, opts...), nil
+	case MarkDepends:
+		return Depends(d.Source, d.Links, opts...), nil
 	}
 	return nil, fmt.Errorf("%w: %q", ErrUnknownMark, d.Mark)
 }
@@ -490,6 +514,7 @@ func (d Desc) options() []Option {
 		Overlap(d.Overlap),
 		Elide(d.Elide),
 		AvoidOverlap(d.AvoidOverlap),
+		Link(d.Linkage),
 	}
 	if d.StackSet {
 		opts = append(opts, Stack(d.Stack))
@@ -523,6 +548,12 @@ func (d Desc) options() []Option {
 	}
 	if d.To != "" {
 		opts = append(opts, To(d.To))
+	}
+	if d.LinkCol != "" {
+		opts = append(opts, LinkBy(d.LinkCol))
+	}
+	if d.ProgressCol != "" {
+		opts = append(opts, ProgressBy(d.ProgressCol))
 	}
 	if d.ID != "" {
 		opts = append(opts, ID(d.ID))
@@ -635,6 +666,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		WidthCol:    c.widthCol,
 		From:        c.fromCol,
 		To:          c.toCol,
+		LinkCol:     c.linkCol,
+		ProgressCol: c.progCol,
 		ID:          c.idCol,
 		ParentCol:   c.parentCol,
 		ValueCol:    c.valCol,

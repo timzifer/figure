@@ -202,6 +202,12 @@ func describeDesc(i int, d geom.Desc, c Chart, secY, secX bool) Series {
 		return out
 	}
 	out.Rows = d.Source.Len()
+	if d.Links != nil {
+		// A dependency layer draws one mark per constraint and none per task,
+		// so the count that describes it is the link table's. Its extent is
+		// still the task table's, because that is where its marks land.
+		out.Rows = d.Links.Len()
+	}
 	out.XRange = columnRange(d.Source, d.X)
 	out.YRange = columnRange(d.Source, d.Y)
 	out.ZRange = columnRange(d.Source, d.Z)

@@ -413,6 +413,48 @@ p.Add(geom.Rect(src, geom.X("from"), geom.X2("to"), geom.Y("task")))
 Candlestick, waterfall, waffle and calendar are the same mark with different
 columns — see [docs/chart-types.md](chart-types.md).
 
+### A schedule is that bar, plus what it is waiting on
+
+![A rebuild plan as a gantt chart: part-filled bars, arrows between them, a
+critical path in orange, milestone diamonds and a dashed line at
+today](images/gantt.png)
+
+The bar above says when a task runs. A plan somebody works from has to say
+three more things, and each is one line:
+
+```go
+p.Add(
+    // How far each task has got: the whole span pale, the finished part solid.
+    geom.Rect(tasks, geom.X("start"), geom.X2("end"), geom.Y("task"),
+        geom.ProgressBy("done"),
+        geom.ColorBy("phase", scale.Qualitative(palette.Default))),
+
+    // What is waiting on what. The links are a table of their own, and
+    // colouring them by one of its columns is how a critical path is drawn.
+    geom.Depends(tasks, links,
+        geom.X("start"), geom.X2("end"), geom.Y("task"),
+        geom.KeyBy("id"), geom.From("before"), geom.To("after"),
+        geom.LinkBy("kind"),
+        geom.ColorBy("path", scale.Named(map[string]ir.Color{
+            "critical": palette.Red, "slack": palette.Gray,
+        }))),
+
+    // A milestone has no duration, so it is not a span: it is a point.
+    geom.Scatter(milestones, geom.X("at"), geom.Y("task"),
+        geom.Shape(ir.MarkerDiamond), geom.Size(11)),
+
+    // Where the reader is standing.
+    geom.VLine(scale.Nanos(today), geom.Label("today")),
+)
+```
+
+`geom.LinkBy` reads the four constraint kinds a schedule has — `"fs"`, `"ss"`,
+`"ff"` and `"sf"`, predecessor's edge to successor's — and `geom.Link` sets one
+for the whole layer. A link naming a task the plan does not hold is dropped,
+which is what lets the arrows survive a facet. The whole chart is
+[`examples/gantt`](../examples/gantt), and the argument behind the two
+additions is [ADR 0068](adr/0068-gantt-charts.md).
+
 A runnable version of all four charts is in [`examples/groups`](../examples/groups).
 
 ## Distributions

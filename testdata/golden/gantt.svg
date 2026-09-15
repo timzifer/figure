@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="320" viewBox="0 0 760 320" role="img" aria-labelledby="figure-title">
+<title id="figure-title">Rebuild</title>
+<defs>
+<clipPath id="c1"><path d="M53.406,32.8 L658.652,32.8 L658.652,288.825 L53.406,288.825 Z"/></clipPath>
+<path id="m2" d="M0,-5 L5,0 L0,5 L-5,0 Z" fill="#000000"/>
+<path id="m3" d="M0,-3 L3,0 L0,3 L-3,0 Z" fill="#000000"/>
+</defs>
+<path d="M0,0 L760,0 L760,320 L0,320 Z" fill="#ffffff"/>
+<polyline fill="none" points="53.406,32.8 53.406,288.825" stroke="#dddddd"/>
+<polyline fill="none" points="255.155,32.8 255.155,288.825" stroke="#dddddd"/>
+<polyline fill="none" points="456.903,32.8 456.903,288.825" stroke="#dddddd"/>
+<polyline fill="none" points="658.652,32.8 658.652,288.825" stroke="#dddddd"/>
+<polyline fill="none" points="53.406,288.825 658.652,288.825" stroke="#333333"/>
+<polyline fill="none" points="53.406,32.8 53.406,288.825" stroke="#333333"/>
+<polyline fill="none" points="53.406,288.825 53.406,293.825" stroke="#333333"/>
+<text x="53.406" y="297.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Mar 2</text>
+<polyline fill="none" points="255.155,288.825 255.155,293.825" stroke="#333333"/>
+<text x="255.155" y="297.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Mar 9</text>
+<polyline fill="none" points="456.903,288.825 456.903,293.825" stroke="#333333"/>
+<text x="456.903" y="297.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Mar 16</text>
+<polyline fill="none" points="658.652,288.825 658.652,293.825" stroke="#333333"/>
+<text x="658.652" y="297.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Mar 23</text>
+<polyline fill="none" points="48.406,256.822 53.406,256.822" stroke="#333333"/>
+<text x="44.406" y="256.822" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">accept</text>
+<polyline fill="none" points="48.406,192.816 53.406,192.816" stroke="#333333"/>
+<text x="44.406" y="192.816" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">build</text>
+<polyline fill="none" points="48.406,128.809 53.406,128.809" stroke="#333333"/>
+<text x="44.406" y="128.809" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">design</text>
+<polyline fill="none" points="48.406,64.803 53.406,64.803" stroke="#333333"/>
+<text x="44.406" y="64.803" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">survey</text>
+<text x="356.029" y="23.488" font-family="sans-serif" font-size="16" text-anchor="middle" fill="#1a1a1a">Rebuild</text>
+<g clip-path="url(#c1)">
+<path d="M53.406,39.201 L168.691,39.201 L168.691,90.406 L53.406,90.406 Z M168.691,103.207 L341.618,103.207 L341.618,154.412 L168.691,154.412 Z" fill="#0072b2" fill-opacity="0.3"/>
+<path d="M341.618,167.213 L572.188,167.213 L572.188,218.418 L341.618,218.418 Z M572.188,231.219 L658.652,231.219 L658.652,282.424 L572.188,282.424 Z" fill="#d55e00" fill-opacity="0.3"/>
+<path d="M53.406,39.201 L168.691,39.201 L168.691,90.406 L53.406,90.406 Z M168.691,103.207 L272.447,103.207 L272.447,154.412 L168.691,154.412 Z" fill="#0072b2"/>
+<path d="M341.618,167.213 L376.204,167.213 L376.204,218.418 L341.618,218.418 Z" fill="#d55e00"/>
+<path fill="none" d="M168.691,64.803 L178.691,64.803 L178.691,96.806 L158.691,96.806 L158.691,128.809 L168.691,128.809 M341.618,128.809 L351.618,128.809 L351.618,160.812 L331.618,160.812 L331.618,192.816 L341.618,192.816" stroke="#d55e00"/>
+<path d="M168.691,128.809 L161.691,125.309 L161.691,132.309 Z M341.618,192.816 L334.618,189.316 L334.618,196.316 Z" fill="#d55e00"/>
+<path fill="none" d="M572.188,192.816 L582.188,192.816 L582.188,224.819 L668.652,224.819 L668.652,256.822 L658.652,256.822" stroke="#888888"/>
+<path d="M658.652,256.822 L665.652,253.322 L665.652,260.322 Z" fill="#888888"/>
+<use href="#m2" x="341.618" y="128.809"/>
+<polyline fill="none" points="456.903,32.8 456.903,288.825" stroke="#555555" stroke-dasharray="4 3"/>
+</g>
+<path d="M672.652,112.062 L684.652,112.062 L684.652,124.062 L672.652,124.062 Z" fill="#0072b2"/>
+<text x="690.652" y="118.062" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">plan</text>
+<path d="M672.652,129.163 L684.652,129.163 L684.652,141.163 L672.652,141.163 Z" fill="#d55e00"/>
+<text x="690.652" y="135.163" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">make</text>
+<polyline fill="none" points="672.652,152.263 684.652,152.263" stroke="#d55e00" stroke-width="1.75" stroke-linecap="round"/>
+<text x="690.652" y="152.263" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">critical</text>
+<polyline fill="none" points="672.652,169.363 684.652,169.363" stroke="#888888" stroke-width="1.75" stroke-linecap="round"/>
+<text x="690.652" y="169.363" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">slack</text>
+<use href="#m3" x="678.652" y="186.463"/>
+<text x="690.652" y="186.463" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">milestone</text>
+<polyline fill="none" points="672.652,203.563 684.652,203.563" stroke="#555555" stroke-linecap="round" stroke-dasharray="4 3"/>
+<text x="690.652" y="203.563" font-family="sans-serif" font-size="12" dominant-baseline="central" fill="#333333">today</text>
+</svg>
