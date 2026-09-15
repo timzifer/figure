@@ -477,6 +477,12 @@ type Encoding struct {
 	// censored. Vega-Lite has no survival mark, so the name is figure's.
 	Event *Channel `json:"event,omitempty"`
 
+	// Uncertainty is the second reading a bivariate colour scale paints from,
+	// beside the one `color` names. It is named for the value-suppressing
+	// palette it exists for; under a bivariate matrix it is the second
+	// variable of the square.
+	Uncertainty *Channel `json:"uncertainty,omitempty"`
+
 	// Explode is figure's too: the column each mark's break-out is read from,
 	// which is how one slice leaves a donut and the rest stay in it. The
 	// constant form is the mark's own `explode` property.
@@ -593,6 +599,11 @@ type Scale struct {
 	// boundaries it cuts at and the ends its outermost classes reach to.
 	Breaks  []float64 `json:"breaks,omitempty"`
 	Classes int       `json:"classes,omitempty"`
+	// Layers is a value-suppressing palette's number of uncertainty layers.
+	// A bivariate matrix writes its colours in `range`, row by row, with
+	// `classes` the number of rows. Both are figure's; Vega-Lite has no
+	// bivariate colour scale.
+	Layers int `json:"layers,omitempty"`
 
 	// SizeRange is the diameters a size scale's domain maps onto, in device
 	// units, when the chart pinned them rather than leaving them to the theme.

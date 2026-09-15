@@ -85,6 +85,13 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   observations in each. A classed scale's colourbar is drawn in bands and
   labelled at the boundaries, each written as precisely as it is — a limit at
   502.73 reads 502.73 however the bar's axis would round.
+  A colour can carry **two readings**: `scale.VSUP` with `geom.UncertaintyBy`
+  is a value-suppressing uncertainty palette, which gives an estimate fewer
+  distinguishable colours the less certain it is; `scale.BivariateMatrix` is
+  the bivariate square; and a `Hexbin` with `GroupBy` over such a scale colours
+  each cell by which class dominates it and how purely. The guide is a square
+  key with one reading across and the other up
+  ([ADR 0067](adr/0067-a-bivariate-colour-channel.md)).
 - **Paths that change colour** — `Line` and `Step` take `ColorBy` too, and draw
   the path in stretches of one colour. Where a stretch ends follows from the
   scale rather than from an option: a classed scale puts the corner *on* the

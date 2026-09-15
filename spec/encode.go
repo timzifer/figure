@@ -216,6 +216,7 @@ func encodeColorScale(cs scale.ColorScale) (*Scale, error) {
 		}
 	}
 	out.Breaks, out.Classes = d.Breaks, d.Classes
+	out.Layers = d.Layers
 	for _, c := range d.Colors {
 		out.Range = append(out.Range, colorHex(c))
 	}
@@ -726,6 +727,9 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.EventCol != "" {
 			enc.Event = &Channel{Field: d.EventCol, Type: "quantitative"}
+		}
+		if d.UncertaintyCol != "" {
+			enc.Uncertainty = &Channel{Field: d.UncertaintyCol, Type: "quantitative"}
 		}
 		if d.ProgressCol != "" {
 			enc.Progress = &Channel{Field: d.ProgressCol, Type: "quantitative"}

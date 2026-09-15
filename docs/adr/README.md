@@ -76,7 +76,7 @@ depends on.
 | [0064](0064-a-contour-and-its-lattice.md) | A contour is one tracing, and the lattice under it is one resolver | Accepted | — |
 | [0065](0065-horizon-charts.md) | A horizon chart folds its own axis, and the colourbar is the ladder it gives up | Accepted, amended | — |
 | [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Accepted, amended | — |
-| [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Proposed | — |
+| [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Accepted, amended | — |
 | [0068](0068-gantt-charts.md) | A schedule is a rect with a fraction in it and a second table beside it | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
@@ -219,7 +219,11 @@ builds it first, and that is the order the work went in. **0067 is the one that
 is a seam rather than a shape**, and it is written as a set of three customers
 for that reason: a palette that suppresses a value's resolution, a bin that
 says which class it holds, and the bivariate square, none of which would
-justify the interface alone.
+justify the interface alone. **It is built** too, with all three customers in
+`examples/bivariate`; its amendment records that the matrix takes designed
+colours rather than blending two ramps — the record contradicted itself there
+and kept the refusal — and that the key is drawn from cells the scale describes,
+so one drawing function draws a VSUP's tree and a matrix's square.
 
 **0066 is built.** `geom.Raster` draws a field as one image at the panel's own
 resolution, `stat.Step` is the question an image asks that a contour does not —

@@ -224,6 +224,7 @@ type scratch struct {
 	gz    []float64
 	gsz   []float64
 	gc    []float64
+	gc2   []float64
 	grows []int
 	dx    []float32 // mapped columns, which are device columns under Cartesian
 	dy    []float32
@@ -432,6 +433,13 @@ func (sc *scratch) gather(s series, rows []int) series {
 			out.c[i] = s.c[r]
 		}
 		sc.gc = out.c
+		if s.c2 != nil {
+			out.c2 = grow(sc.gc2, n)
+			for i, r := range rows {
+				out.c2[i] = s.c2[r]
+			}
+			sc.gc2 = out.c2
+		}
 	}
 	if sc.wantRows {
 		out.rows = grow(sc.grows, n)

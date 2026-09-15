@@ -211,6 +211,8 @@ type config struct {
 
 	hideDroplines bool
 
+	secondCol string
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 
@@ -930,9 +932,12 @@ func (c config) labelForX() string {
 type series struct {
 	x, y  []float64
 	y2, c []float64
-	sz    []float64
-	off   int
-	rows  []int
+	// c2 is the second reading a bivariate colour scale paints from, parallel
+	// to c, and nil for every layer that named none. See [UncertaintyBy].
+	c2   []float64
+	sz   []float64
+	off  int
+	rows []int
 
 	// origin maps this series' rows onto the rows of the table its source was
 	// cut from, when its source is a cut. Faceting makes one per panel, so
@@ -1002,6 +1007,13 @@ func resolve(src data.Source, c config, x, y scale.Scale) (series, error) {
 		}
 		s.c = v
 	}
+	if c.secondCol != "" {
+		v, err := c.secondColumn(src, len(xs))
+		if err != nil {
+			return series{}, err
+		}
+		s.c2 = v
+	}
 	if c.sizeCol != "" && c.sizeScale != nil {
 		v, err := column(src, c.sizeCol, nil)
 		if err != nil {
@@ -1041,6 +1053,10 @@ func resolveOne(src data.Source, c config, x scale.Scale) (series, error) {
 func (c config) checkPathColor(s series) error {
 	if !c.varying(s) {
 		return nil
+	}
+	if s.c2 != nil {
+		return fmt.Errorf("%w: column %q with the second reading %q; a path changes colour where one reading crosses a boundary, and two readings cross theirs in different places",
+			ErrRampOnPath, c.colorCol, c.secondCol)
 	}
 	if _, classed := scale.Classed(c.colorScale); classed {
 		return nil
@@ -1468,6 +1484,9 @@ func (c config) trainColors(s series) {
 		return
 	}
 	c.colorScale.Train(s.c...)
+	if bv, ok := scale.Bivariate(c.colorScale); ok && s.c2 != nil {
+		bv.TrainSecond(s.c2...)
+	}
 }
 
 // colorsFor resolves the per-mark colours for the rows in idx, or nil if this
@@ -1478,6 +1497,12 @@ func (sc *scratch) colorsFor(c config, s series, idx []int) []ir.Color {
 		return nil
 	}
 	sc.cols = grow(sc.cols, len(idx))
+	if bv, ok := scale.Bivariate(c.colorScale); ok && s.c2 != nil {
+		for i, row := range idx {
+			sc.cols[i] = bv.ColorAt(s.c[row], s.c2[row])
+		}
+		return sc.cols
+	}
 	for i, row := range idx {
 		sc.cols[i] = c.colorScale.Color(s.c[row])
 	}

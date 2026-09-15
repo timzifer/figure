@@ -37,6 +37,12 @@ type Hex struct {
 
 	// Counts holds Cols*Rows cells in row-major order.
 	Counts []uint32
+	// Classes is how many classes [Hex.AddClass] counts separately, zero for
+	// a lattice that counts rows and nothing else. ByClass holds
+	// Cols*Rows*Classes counts: cell by cell in row-major order, and class by
+	// class within a cell.
+	Classes int
+	ByClass []uint32
 	// Max is the busiest cell's count, and N the number of rows binned. Both
 	// count only cells that reach into the rectangle, and those whole.
 	Max uint32
@@ -48,6 +54,30 @@ type Cell struct {
 	Col, Row int
 	X, Y     float64
 	Count    uint32
+	// ByClass is how many of those rows were in each class, for a lattice
+	// counting classes, and nil otherwise. It is a view into the lattice's
+	// own buffer rather than a copy, so it is good until the next Reset.
+	ByClass []uint32
+}
+
+// Dominant reports the class most of a cell's rows are in and how pure the
+// cell is: that class's share of the rows, from 1/Classes for a cell split
+// evenly to 1 for a cell of one class. A tie goes to the lower class, which is
+// the class that appeared first in the caller's table, so the answer never
+// depends on the order anything was counted in.
+//
+// A cell of a lattice that counts no classes is class 0, and pure.
+func (c Cell) Dominant() (class int, purity float64) {
+	if len(c.ByClass) == 0 || c.Count == 0 {
+		return 0, 1
+	}
+	best := uint32(0)
+	for k, n := range c.ByClass {
+		if n > best {
+			class, best = k, n
+		}
+	}
+	return class, float64(best) / float64(c.Count)
 }
 
 // Reset prepares h for cells of the given radius over the rectangle with
@@ -98,12 +128,37 @@ func (h *Hex) ResetAt(radius, ax, ay, x0, y0, x1, y1 float64) {
 	h.Rows = int(math.Ceil((hy-h.Y0)/dy)) + 2
 
 	n := h.Cols * h.Rows
+	h.Classes, h.ByClass = 0, h.ByClass[:0]
 	if cap(h.Counts) < n {
 		h.Counts = make([]uint32, n)
 		return
 	}
 	h.Counts = h.Counts[:n]
 	clear(h.Counts)
+}
+
+// CountClasses makes the lattice count k classes separately as well as in
+// total, from the next [Hex.AddClass] on. It is called after a Reset, which
+// forgets it, and reuses the class buffer when it is large enough.
+//
+// It is what a hexbin of rows in several series needs: every other overplotting
+// answer figure has — a decimated scatter, a density raster, a hexbin of counts
+// — says how many rows are in a place, and none says whose they are. A cell
+// that knows its count per class can say both: which class dominates it, and
+// how purely.
+func (h *Hex) CountClasses(k int) {
+	if k < 1 {
+		h.Classes, h.ByClass = 0, h.ByClass[:0]
+		return
+	}
+	n := h.Cols * h.Rows * k
+	if cap(h.ByClass) < n {
+		h.ByClass = make([]uint32, n)
+	} else {
+		h.ByClass = h.ByClass[:n]
+		clear(h.ByClass)
+	}
+	h.Classes = k
 }
 
 // dx and dy are the lattice spacings: the horizontal distance between two cells
@@ -218,6 +273,24 @@ func (h *Hex) Add(x, y float64) bool {
 	return true
 }
 
+// AddClass counts one position in a class, reporting whether it landed inside
+// the lattice. A class outside [0, Classes) is counted in the total and in no
+// class, so a cell's purity is taken against every row it holds.
+func (h *Hex) AddClass(x, y float64, class int) bool {
+	col, row, ok := h.Cell(x, y)
+	if !ok {
+		return false
+	}
+	i := row*h.Cols + col
+	h.Counts[i]++
+	h.Max = max(h.Max, h.Counts[i])
+	h.N++
+	if class >= 0 && class < h.Classes {
+		h.ByClass[i*h.Classes+class]++
+	}
+	return true
+}
+
 // At returns the count in one cell.
 func (h *Hex) At(col, row int) uint32 {
 	if col < 0 || row < 0 || col >= h.Cols || row >= h.Rows {
@@ -241,7 +314,12 @@ func (h *Hex) Cells(dst []Cell) []Cell {
 				continue
 			}
 			x, y := h.Center(col, row)
-			dst = append(dst, Cell{Col: col, Row: row, X: x, Y: y, Count: n})
+			c := Cell{Col: col, Row: row, X: x, Y: y, Count: n}
+			if h.Classes > 0 {
+				i := (row*h.Cols + col) * h.Classes
+				c.ByClass = h.ByClass[i : i+h.Classes : i+h.Classes]
+			}
+			dst = append(dst, c)
 		}
 	}
 	return dst

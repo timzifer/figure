@@ -78,7 +78,8 @@ func builtinKind(k Kind) bool {
 
 func builtinColorKind(k ColorKind) bool {
 	switch k {
-	case KindSequential, KindDiverging, KindQualitative, KindNamed, KindThreshold, KindQuantize, KindQuantile:
+	case KindSequential, KindDiverging, KindQualitative, KindNamed, KindThreshold, KindQuantize, KindQuantile,
+		KindVSUP, KindBivariate:
 		return true
 	}
 	return false

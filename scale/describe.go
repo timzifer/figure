@@ -392,6 +392,12 @@ type ColorDesc struct {
 	// derived the next time it is drawn over different rows.
 	Breaks  []float64
 	Classes int
+
+	// Layers is a [KindVSUP] scale's count of uncertainty layers; Classes is
+	// its value classes at the certain end. A [KindBivariate] scale carries
+	// its matrix by name in Ramp where it is registered, and otherwise its
+	// colours row-major in Colors with the row count in Classes.
+	Layers int
 }
 
 // ColorDescriber is implemented by a colour scale that can say what it is.
@@ -451,14 +457,6 @@ func ColorFromDesc(d ColorDesc) (ColorScale, error) {
 		return Qualitative(q, opts...), nil
 	}
 
-	ramp := d.Colors
-	if d.Ramp != "" {
-		r, ok := palette.RampByName(d.Ramp)
-		if !ok {
-			return nil, fmt.Errorf("figure/scale: unknown colour ramp %q", d.Ramp)
-		}
-		ramp = r
-	}
 	opts := []ColorOption{ColorUndefined(d.Undefined)}
 	if d.Fixed {
 		opts = append(opts, ColorDomain(d.Min, d.Max))
@@ -475,7 +473,23 @@ func ColorFromDesc(d ColorDesc) (ColorScale, error) {
 	default:
 		return nil, fmt.Errorf("figure/scale: unknown colour transform %q", d.Transform)
 	}
+	// A bivariate matrix names a matrix rather than a ramp, so it is built
+	// before a ramp is looked up.
+	if d.Kind == KindBivariate {
+		return matrixFromDesc(d, opts)
+	}
+
+	ramp := d.Colors
+	if d.Ramp != "" {
+		r, ok := palette.RampByName(d.Ramp)
+		if !ok {
+			return nil, fmt.Errorf("figure/scale: unknown colour ramp %q", d.Ramp)
+		}
+		ramp = r
+	}
 	switch d.Kind {
+	case KindVSUP:
+		return VSUP(ramp, d.Classes, d.Layers, opts...), nil
 	case KindDiverging:
 		return Diverging(ramp, append(opts, ColorCenter(d.Center))...), nil
 	case KindSequential, "":
