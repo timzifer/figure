@@ -75,7 +75,7 @@ depends on.
 | [0063](0063-an-overlay-over-a-scene.md) | A scene is painted over too, and the seam is `three`'s own | Accepted | — |
 | [0064](0064-a-contour-and-its-lattice.md) | A contour is one tracing, and the lattice under it is one resolver | Accepted | — |
 | [0065](0065-horizon-charts.md) | A horizon chart folds its own axis, and the colourbar is the ladder it gives up | Accepted, amended | — |
-| [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Proposed | — |
+| [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Accepted, amended | — |
 | [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Proposed | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
@@ -180,14 +180,27 @@ already exists. That accounting is in
 [chart-types.md](../chart-types.md#the-sweep-of-the-unusual-forms), so that the
 ones declined stay declined for a reason rather than being rediscovered.
 
-They are independent of each other and of 0050 to 0054. **0066 is the one with
+They are independent of each other and of 0050 to 0054. **0066 was the one with
 a dependent**: a raster is what makes a Hovmöller diagram, a spectrogram and a
 recurrence plot ordinary rather than impossible, and it is also the backdrop
 0064's contours are usually drawn over — so a plan that builds one of them
-builds it first. **0067 is the one that is a seam rather than a shape**, and it
-is written as a set of three customers for that reason: a palette that
-suppresses a value's resolution, a bin that says which class it holds, and the
-bivariate square, none of which would justify the interface alone.
+builds it first, and that is the order the work went in. **0067 is the one that
+is a seam rather than a shape**, and it is written as a set of three customers
+for that reason: a palette that suppresses a value's resolution, a bin that
+says which class it holds, and the bivariate square, none of which would
+justify the interface alone.
+
+**0066 is built.** `geom.Raster` draws a field as one image at the panel's own
+resolution, `stat.Step` is the question an image asks that a contour does not —
+are the cells the same size — and `stat.Lattice.Mean` and `Max` are the two
+reductions a lattice finer than the panel needs; `examples/spectrogram` is
+1322 frames by 128 bins in one `<image>`. Its amendment records eight things
+the record left open, chiefly that the fault messages a raster and a contour
+give are now literally one function rather than two that agree, that the axes
+are trained to the outer edges of the outer cells because a cell is centred on
+its reading, and that a row is reported per cell only while a cell is at least
+a pixel across — below that the pixel is a reduction over several cells and no
+single row is behind it.
 
 **0065 was the one that fitted the examples already in the repository** — a
 machine, a status board and a stream — and it is the one of the three that has

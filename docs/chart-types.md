@@ -1,9 +1,10 @@
 # Chart types: what exists, what is missing, and what each one costs
 
-figure draws twenty-one data-bearing marks today — `Line`, `Scatter`, `Bar`,
+figure draws twenty-two data-bearing marks today — `Line`, `Scatter`, `Bar`,
 `Area`, `Step`, `Boxplot`, `Rect`, `Text`, `ErrorBar`, `Histogram`, `Violin`,
-`Ridgeline`, `Hexbin`, `Beeswarm`, `ECDF`, `Trend`, `Horizon`, `Treemap`,
-`Icicle`, `Sankey` and `Arc`, plus the annotations in `geom/annotate.go`. This document is the catalogue of what it does not draw
+`Ridgeline`, `Hexbin`, `Beeswarm`, `ECDF`, `Trend`, `Horizon`, `Raster`,
+`Treemap`, `Icicle`, `Sankey` and `Arc`, plus the annotations in
+`geom/annotate.go`. This document is the catalogue of what it does not draw
 yet, sorted **by the machinery each form needs** rather than by how popular it
 is. Sorted that way the list stops being a wish list and becomes a schedule:
 half of these charts share four pieces of plumbing, and once those exist the
@@ -13,11 +14,10 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so has P.** **J through M, and O and Q,
+**Buckets A through I have shipped, and so have O and P.** **J through M and Q
 are planned and have records but no code** —
 [ADR 0051](adr/0051-barycentric-coord.md) through
-[ADR 0054](adr/0054-statistical-instruments.md),
-[ADR 0066](adr/0066-a-raster-mark.md) and
+[ADR 0054](adr/0054-statistical-instruments.md) and
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
@@ -50,7 +50,7 @@ reading declined.
 | A probability scale (`scale.Probability`) | **planned** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
-| A raster mark (`geom.Raster`) | **planned** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
+| A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
 | A bivariate colour channel (`scale.BivariateColorScale`) | **planned** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
 
@@ -527,7 +527,7 @@ columns), LIDAR-scale point clouds (decimation is off in a projected scene), the
 3D pie, and animated 3D as a chart type — a scene that turns by itself is a
 video, and a reader cannot compare two moments of one.
 
-## O — needs a raster — **planned**, [ADR 0066](adr/0066-a-raster-mark.md)
+## O — needs a raster — **shipped**, [ADR 0066](adr/0066-a-raster-mark.md)
 
 Bucket A calls a heatmap a recipe, and for a few dozen categories by a few
 dozen categories it is one. A *measured field* is the same picture two orders of
@@ -539,12 +539,13 @@ is smaller than a pixel.
 `stat.Grid.Raster` already paints a grid of numbers into a reusable buffer, and
 `stat.Lattice` ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) already turns
 a long `(x, y, v)` table into a product grid. `geom.Raster` is those three
-wired together, reading the channels `geom.Contour` reads so that a field and
-its own isolines cannot disagree.
+wired together, reading the channels `geom.Contour` reads — through the same
+resolver and refused with the same sentence — so that a field and its own
+isolines cannot disagree.
 
 | Chart | Recipe |
 |---|---|
-| **Spectrogram, waterfall** | `Raster` over (time, frequency, level), with `Resample(geom.Max)` so a peak survives the downscale |
+| **Spectrogram, waterfall** | `Raster` over (time, frequency, level), with `Resample(geom.Max)` so a peak survives the downscale — see `examples/spectrogram` |
 | Hovmöller diagram | `Raster` over (time, latitude or position, anomaly) through a diverging ramp |
 | Recurrence plot | `Raster` over a distance matrix — the stat is a reduction, the picture is this mark |
 | Dense heatmap of a measured field | `Raster` where `Rect` stops scaling; the two draw the same chart at different sizes |
@@ -554,10 +555,19 @@ its own isolines cannot disagree.
 **It is the mark that can have a colourbar.** `geom.Hexbin` deliberately has
 none — its counts are not known until the plot rectangle is, and the guide
 column is measured before it. A raster's values are the data's, known in
-`Train`, so the reader gets a labelled bar in the units they measured. Two
-things are refused rather than approximated: an unequally spaced lattice, which
-an image cannot carry and `Rect` draws correctly today, and smooth upscaling,
-which would paint colours between two measurements.
+`Train`, so the reader gets a labelled bar in the units they measured, and it
+gets one without being handed a ramp. Three things are refused rather than
+approximated: an unequally spaced lattice, which an image cannot carry and
+`Rect` draws correctly today; smooth upscaling, which would paint colours
+between two measurements; and a non-Cartesian coord, because a blit is
+axis-aligned and a field in a round panel is a different mark.
+
+**The picture costs the panel, not the field.** The image is built at the
+panel's own resolution by inverting each pixel through the axes, so a lattice
+of a hundred million cells is still a few hundred thousand pixels — and a
+non-linear axis places the cells where it places everything else, which is what
+a log frequency axis is for. `Decimate` on the layer is an error: a raster's
+cell count *is* its resolution, and `Resample` is the reduction it has.
 
 ## P — needs a folded axis — **shipped**, [ADR 0065](adr/0065-horizon-charts.md)
 
@@ -717,17 +727,17 @@ anything else in it.
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.
 
-**Buckets O, P and Q are outside that order and do not join it.** Nothing in
-them waits on a locus, a coord, a scale or a layout, and nothing in J through M
-waits on them — which is the property that lets them be picked up whenever
-there is room rather than scheduled against the five. Among themselves the
-order is the one the records give: the **raster** (O) first, because it is the
-only one with a dependent — it is the backdrop 0064's contours are drawn over,
-and it turns three forms that are currently impossible at size into recipes;
-then the **horizon chart** (P), which is the form this repository's own
-examples keep asking for; then the **bivariate colour channel** (Q), which is a
-seam rather than a shape and should be built when the second of its three
-customers is actually wanted.
+**Buckets O, P and Q were outside that order and never joined it.** Nothing in
+them waited on a locus, a coord, a scale or a layout, and nothing in J through
+M waits on them — which is the property that let them be picked up whenever
+there was room rather than scheduled against the five. Among themselves the
+order was the one the records give, and two of the three have been built: the
+**raster** (O), which was the only one with a dependent — it is the backdrop
+0064's contours are drawn over, and it turns three forms that were impossible
+at size into recipes — and the **horizon chart** (P), which is the form this
+repository's own examples kept asking for. What is left is the **bivariate
+colour channel** (Q), which is a seam rather than a shape and should be built
+when the second of its three customers is actually wanted.
 
 ---
 

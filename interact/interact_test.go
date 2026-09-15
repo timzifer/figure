@@ -402,3 +402,62 @@ func TestADepthIsNotShiftedByAnUnannouncedCall(t *testing.T) {
 		}
 	}
 }
+
+// A pointer on a raster names the cell under it: the field is one image rather
+// than a mark per cell, so the position comes from the image's rectangle and
+// the row comes from what the layer reported about its lattice.
+func TestAHitOnARasterNamesTheCellUnderIt(t *testing.T) {
+	// A four by four field whose value is its row number, on its own axes.
+	xs := make([]float64, 0, 16)
+	ys := make([]float64, 0, 16)
+	vs := make([]float64, 0, 16)
+	for j := range 4 {
+		for i := range 4 {
+			xs, ys = append(xs, float64(i)), append(ys, float64(j))
+			vs = append(vs, float64(4*j+i))
+		}
+	}
+	field := data.Float64Columns(map[string][]float64{"x": xs, "y": ys, "v": vs})
+
+	ix := interact.New().TrackRows(true)
+	rec := irtest.New()
+	c := render.Chart{
+		Width: 400, Height: 300, DPR: 1, Theme: theme.Light,
+		X: scale.Linear(), Y: scale.Linear(), Observer: ix, RowSink: ix,
+		Layers: []geom.Geom{geom.Raster(field, geom.X("x"), geom.Y("y"), geom.Z("v"))},
+	}
+	if err := render.Draw(ix.Watch(rec), c); err != nil {
+		t.Fatalf("Draw: %v", err)
+	}
+	if len(ix.Panels()) != 1 {
+		t.Fatalf("the chart has %d panels", len(ix.Panels()))
+	}
+	p := ix.Panels()[0]
+
+	// The middle of the cell at (3, 0): the bottom right of the field, which
+	// is row 3.
+	at := ir.Point{X: p.X.Map(3), Y: p.Y.Map(0)}
+	h, ok := ix.At(at, 4)
+	if !ok {
+		t.Fatal("the pointer found nothing on the image")
+	}
+	if h.Kind != interact.Area {
+		t.Fatalf("a raster was hit as %v, want an area", h.Kind)
+	}
+	if h.Row != 3 {
+		t.Fatalf("the hit names row %d, want the cell the pointer is on", h.Row)
+	}
+	// The row is the answer rather than the position, which is the shape the
+	// record asks for: an image is one mark, so a hit on it reports a corner
+	// of the rectangle, and what names the reading is the row the layer kept
+	// from its lattice.
+	if got := vs[h.Row]; got != 3 {
+		t.Errorf("row %d holds %v, want the value at the cell the pointer was on", h.Row, got)
+	}
+
+	// And the cell a pixel away in each direction is a different cell.
+	up, ok := ix.At(ir.Point{X: p.X.Map(3), Y: p.Y.Map(1)}, 4)
+	if !ok || up.Row != 7 {
+		t.Errorf("the cell above reports row %d, want 7", up.Row)
+	}
+}

@@ -99,26 +99,8 @@ func (g *contourGeom) resolve(t Training) error {
 		return fmt.Errorf("%w: %q, which has to be a number", ErrNoColumn, g.cfg.zcol)
 	}
 
-	switch f := g.grid.Reset(xs, ys, zs); f {
-	case stat.LatticeOK:
-	case stat.LatticeRagged:
-		return fmt.Errorf("figure/geom: the contour's columns have %d, %d and %d rows",
-			len(xs), len(ys), len(zs))
-	case stat.LatticeTooSmall:
-		return fmt.Errorf("figure/geom: a contour needs at least two distinct values on each axis, got %d and %d",
-			len(g.grid.Xs), len(g.grid.Ys))
-	case stat.LatticeWrongCount:
-		nx, ny := len(g.grid.Xs), len(g.grid.Ys)
-		return fmt.Errorf("figure/geom: a contour needs one row per cell of its grid: "+
-			"%d by %d is %d cells and the table has %d rows", nx, ny, nx*ny, len(zs))
-	case stat.LatticeBadPosition:
-		r := g.grid.At
-		return fmt.Errorf("figure/geom: row %d of the contour is at (%v, %v), which is not a position",
-			r, xs[r], ys[r])
-	default:
-		a, b := g.grid.At, g.grid.With
-		return fmt.Errorf("figure/geom: rows %d and %d are both at (%v, %v); a contour has one value per cell",
-			a, b, xs[b], ys[b])
+	if err := latticeError("contour", g.grid.Reset(xs, ys, zs), &g.grid, xs, ys, zs); err != nil {
+		return err
 	}
 
 	g.ramp = g.cfg.colorScale
@@ -297,4 +279,40 @@ func orElseInt(v, fallback int) int {
 		return fallback
 	}
 	return v
+}
+
+// latticeError turns a [stat.LatticeFault] into the sentence that names the
+// mark and the rows it is about.
+//
+// It is one function rather than one per mark because [Raster] and [Contour]
+// resolve the same table through the same lattice, and ADR 0066 asks that they
+// refuse it with the same words: a caller who fixes the message a contour gave
+// them has fixed the raster drawn over it too.
+//
+// The fault is a code rather than an error because stat knows about numbers and
+// nothing else — the mark and the column are this package's to name. See
+// [stat.LatticeFault].
+func latticeError(mark string, f stat.LatticeFault, l *stat.Lattice, xs, ys, zs []float64) error {
+	switch f {
+	case stat.LatticeOK:
+		return nil
+	case stat.LatticeRagged:
+		return fmt.Errorf("figure/geom: the %s's columns have %d, %d and %d rows",
+			mark, len(xs), len(ys), len(zs))
+	case stat.LatticeTooSmall:
+		return fmt.Errorf("figure/geom: a %s needs at least two distinct values on each axis, got %d and %d",
+			mark, len(l.Xs), len(l.Ys))
+	case stat.LatticeWrongCount:
+		nx, ny := len(l.Xs), len(l.Ys)
+		return fmt.Errorf("figure/geom: a %s needs one row per cell of its grid: "+
+			"%d by %d is %d cells and the table has %d rows", mark, nx, ny, nx*ny, len(zs))
+	case stat.LatticeBadPosition:
+		r := l.At
+		return fmt.Errorf("figure/geom: row %d of the %s is at (%v, %v), which is not a position",
+			r, mark, xs[r], ys[r])
+	default:
+		a, b := l.At, l.With
+		return fmt.Errorf("figure/geom: rows %d and %d are both at (%v, %v); a %s has one value per cell",
+			a, b, xs[b], ys[b], mark)
+	}
 }

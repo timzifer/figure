@@ -37,6 +37,12 @@ const (
 	// docs/adr/0065-horizon-charts.md.
 	MarkHorizon Mark = "horizon"
 
+	// MarkRaster is a value sampled over a regular grid, drawn as one image.
+	// It is beside the contour rather than among the distribution marks for
+	// the contour's own reason: it reduces nothing, and the grid it is handed
+	// is the grid it paints. See docs/adr/0066-a-raster-mark.md.
+	MarkRaster Mark = "raster"
+
 	// The distribution marks. Each of them replaces the rows with a summary of
 	// where they are, so each of them decides one of its own axes: a histogram
 	// and a hexbin count, a violin and a ridgeline estimate a density, an ECDF
@@ -162,6 +168,10 @@ type Desc struct {
 	// 50 kW bands into one pinned to however many of them today needed.
 	Bands      int
 	BandHeight float64
+	// Resample is how a [Raster] combines the cells that land on one pixel.
+	// It is the zero value — [Nearest] — for every other mark, and for a
+	// raster that was told nothing.
+	Resample Resampling
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -371,6 +381,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Hexbin(d.Source, opts...), nil
 	case MarkContour:
 		return Contour(d.Source, opts...), nil
+	case MarkRaster:
+		return Raster(d.Source, opts...), nil
 	case MarkHorizon:
 		return Horizon(d.Source, opts...), nil
 	case MarkBeeswarm:
@@ -430,6 +442,7 @@ func (d Desc) options() []Option {
 		BandHeight(d.BandHeight),
 		Levels(d.Levels...),
 		LevelCount(d.LevelCount),
+		Resample(d.Resample),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -560,6 +573,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		BandHeight: c.bandHeight,
 		Levels:     c.levels,
 		LevelCount: c.levelCount,
+		Resample:   c.resample,
 		Bandwidth:  c.bandwidth,
 		Span:       c.span,
 		Smooth:     c.smooth,

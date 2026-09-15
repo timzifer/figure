@@ -493,6 +493,60 @@ func benchmarkSurface(b *testing.B, n int) {
 func BenchmarkSurface64(b *testing.B)  { benchmarkSurface(b, 64) }
 func BenchmarkSurface256(b *testing.B) { benchmarkSurface(b, 256) }
 
+// --- the measured field --------------------------------------------------
+
+// benchmarkRaster prices a frame of a field drawn as one image.
+//
+// The pair behind it is the drawing half of the mark's claim: the picture is
+// built at the panel's resolution, so a field of four thousand cells and one
+// of a quarter of a million allocate the same frame. The ways to break that
+// are to paint per cell rather than per pixel and to allocate the panel-sized
+// buffer instead of repainting it.
+//
+// The two are not the same *time*, and that is not this gate's business: the
+// larger field resolves a larger lattice in Train, which is what a chart
+// re-trained every frame pays for having a quarter of a million rows in it.
+func benchmarkRaster(b *testing.B, n int) {
+	onOnePGate(b)
+	p := measuredField(n)
+	target := irtest.NullTarget()
+	if err := p.Render(target); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		if err := p.Render(target); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRaster64(b *testing.B)  { benchmarkRaster(b, 64) }
+func BenchmarkRaster512(b *testing.B) { benchmarkRaster(b, 512) }
+
+// measuredField is an n by n field drawn as a raster over a fixed panel.
+func measuredField(n int) *figure.Plot {
+	xs := make([]float64, 0, n*n)
+	ys := make([]float64, 0, n*n)
+	vs := make([]float64, 0, n*n)
+	for j := range n {
+		for i := range n {
+			x := -3 + 6*float64(i)/float64(n-1)
+			y := -3 + 6*float64(j)/float64(n-1)
+			xs, ys = append(xs, x), append(ys, y)
+			vs = append(vs, math.Exp(-(x*x+y*y)/4)*math.Cos(4*math.Hypot(x, y)))
+		}
+	}
+	src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("v", vs)
+	p := figure.New(figure.Size(800, 600), figure.Title("A measured field"))
+	p.X(scale.Linear())
+	p.Y(scale.Linear())
+	p.Add(geom.Raster(src, geom.X("x"), geom.Y("y"), geom.Z("v"),
+		geom.ColorBy("v", scale.Sequential(palette.Viridis))))
+	return p
+}
+
 // nicholsGrid is a chart whose furniture is a formula: two locus layers of
 // sixteen curves between them, over a panel of the given width.
 //

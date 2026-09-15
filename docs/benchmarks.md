@@ -119,6 +119,17 @@ picture: a `Tween` that rebuilt its columns rather than rewriting them, and a
 driver that called `Rebuild` between frames
 ([ADR 0044](adr/0044-transitions.md)).
 
+**A measured field.** `Raster64` and `Raster512` draw the same panel of the
+same chart over a lattice of four thousand cells and one of a quarter of a
+million. The mark builds its image at the *panel's* resolution rather than the
+lattice's, so the pair is gated flat: sixty-four times the cells is the same
+frame's allocations, and the two ways to break that — painting per cell instead
+of per pixel, and allocating the panel-sized buffer every frame instead of
+repainting it — are both invisible in the picture. The times are not flat and
+are not meant to be: the larger field resolves a larger lattice in `Train`,
+which is what a chart re-trained on every frame pays for having a quarter of a
+million rows in it ([ADR 0066](adr/0066-a-raster-mark.md)).
+
 **A formula for furniture.** `Nichols480` and `Nichols1440` draw the same
 chart — two `geom.Locus` layers, sixteen curves between them — on a panel three
 times as wide. A locus is sampled against the device rectangle, so the wider
