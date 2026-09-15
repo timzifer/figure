@@ -138,23 +138,34 @@ func (g *surface) Emit(s *Sink, f Frame) error {
 	base := g.fillFor(f)
 	stroke, width := g.outline()
 
+	cols := nx - 1
+	if g.wraps(f) {
+		cols = nx
+	}
 	for jj := 0; jj < ny-1; jj++ {
 		j := stepFrom(jj, ny-1, fwd.Y)
-		for ii := 0; ii < nx-1; ii++ {
-			i := stepFrom(ii, nx-1, fwd.X)
-			if !g.cellDefined(f, i, j) {
+		for ii := 0; ii < cols; ii++ {
+			i := stepFrom(ii, cols, fwd.X)
+			// The column after the last is the first again when the surface
+			// closes round a sphere's azimuth.
+			i1 := (i + 1) % nx
+			if !g.cellDefined(f, i, i1, j) {
 				continue
 			}
-			c := g.quad(f, i, j)
+			c := g.quad(f, i, i1, j)
 			fill := base
 			if g.ramp != nil {
-				fill = g.ramp.Color(g.mid(i, j))
+				fill = g.ramp.Color(g.mid(i, i1, j))
 			}
 			if track {
 				s.Row(int(g.grid.Row[j*nx+i]))
 			}
+			n := faceNormal(c[0], c[1], c[2])
+			if f.Spherical() {
+				n = awayFromCentre(n, c)
+			}
 			s.Face(c[:], Style{
-				Fill:   shade(f.Theme, fill, faceNormal(c[0], c[1], c[2])),
+				Fill:   shade(f.Theme, fill, n),
 				Stroke: stroke,
 				Width:  width,
 			})
@@ -163,37 +174,77 @@ func (g *surface) Emit(s *Sink, f Frame) error {
 	return nil
 }
 
-// quad is one cell of the lattice, corners in order around it.
-func (g *surface) quad(f Frame, i, j int) [4]Vec3 {
+// quad is one cell of the lattice, corners in order around it, between
+// columns i and i1 — which is i+1 except for the cell that closes a sphere's
+// azimuth, whose far column is the first one a full turn later.
+func (g *surface) quad(f Frame, i, i1, j int) [4]Vec3 {
 	nx := len(g.grid.Xs)
-	x0, x1 := at(f.X, g.grid.Xs[i]), at(f.X, g.grid.Xs[i+1])
-	y0, y1 := at(f.Y, g.grid.Ys[j]), at(f.Y, g.grid.Ys[j+1])
-	return [4]Vec3{
-		{x0, y0, at(f.Z, g.grid.V[j*nx+i])},
-		{x1, y0, at(f.Z, g.grid.V[j*nx+i+1])},
-		{x1, y1, at(f.Z, g.grid.V[(j+1)*nx+i+1])},
-		{x0, y1, at(f.Z, g.grid.V[(j+1)*nx+i])},
+	x0, x1 := g.grid.Xs[i], g.grid.Xs[i1]
+	if i1 < i {
+		lo, hi := f.X.Domain()
+		x1 += hi - lo
 	}
+	y0, y1 := g.grid.Ys[j], g.grid.Ys[j+1]
+	return [4]Vec3{
+		f.Point(x0, y0, g.grid.V[j*nx+i]),
+		f.Point(x1, y0, g.grid.V[j*nx+i1]),
+		f.Point(x1, y1, g.grid.V[(j+1)*nx+i1]),
+		f.Point(x0, y1, g.grid.V[(j+1)*nx+i]),
+	}
+}
+
+// wraps reports whether the surface closes round a spherical scene's azimuth:
+// its columns cover the whole turn but for a gap no wider than about one step
+// of the grid — readings every ten degrees from 0 to 350, which leave the cell
+// from 350 back to 360 to be drawn. A surface covering a sector leaves a gap
+// much wider than its step and stays open, because joining its two edges would
+// draw a cell over directions nobody measured.
+func (g *surface) wraps(f Frame) bool {
+	xs := g.grid.Xs
+	if !f.Spherical() || f.space.smith || len(xs) < 2 {
+		return false
+	}
+	lo, hi := f.X.Domain()
+	step := xs[1] - xs[0]
+	gap := (hi - xs[len(xs)-1]) + (xs[0] - lo)
+	return step > 0 && gap > step/2 && gap <= 1.5*step
+}
+
+// awayFromCentre turns a face's normal to point away from the centre of the
+// sphere.
+//
+// In a box the corners' order fixes the normal, and a surface over x and y
+// faces up. On a sphere the same order faces in or out depending on which way
+// the angles run — an azimuth increasing eastward and a polar angle increasing
+// southward wind a cell inward, an elevation increasing northward winds it
+// outward — and a face shaded by an inward normal is lit from the wrong side.
+// A radiation pattern is seen from outside, so outside is the answer.
+func awayFromCentre(n Vec3, c [4]Vec3) Vec3 {
+	mid := c[0].Add(c[1]).Add(c[2]).Add(c[3]).Mul(0.25)
+	if n.Dot(mid.Sub(centre)) < 0 {
+		return n.Mul(-1)
+	}
+	return n
 }
 
 // mid is the mean height of a cell's four corners, which is what a colour ramp
 // over the surface reads.
-func (g *surface) mid(i, j int) float64 {
+func (g *surface) mid(i, i1, j int) float64 {
 	nx := len(g.grid.Xs)
-	return (g.grid.V[j*nx+i] + g.grid.V[j*nx+i+1] + g.grid.V[(j+1)*nx+i] + g.grid.V[(j+1)*nx+i+1]) / 4
+	return (g.grid.V[j*nx+i] + g.grid.V[j*nx+i1] + g.grid.V[(j+1)*nx+i] + g.grid.V[(j+1)*nx+i1]) / 4
 }
 
 // cellDefined reports whether all four corners of a cell have a position. A
 // hole in the data is a hole in the surface rather than a quad drawn to
 // nowhere.
-func (g *surface) cellDefined(f Frame, i, j int) bool {
+func (g *surface) cellDefined(f Frame, i, i1, j int) bool {
 	nx := len(g.grid.Xs)
-	for _, k := range [4]int{j*nx + i, j*nx + i + 1, (j+1)*nx + i, (j+1)*nx + i + 1} {
+	for _, k := range [4]int{j*nx + i, j*nx + i1, (j+1)*nx + i, (j+1)*nx + i1} {
 		if !defined(f.Z, g.grid.V[k]) {
 			return false
 		}
 	}
-	return defined(f.X, g.grid.Xs[i]) && defined(f.X, g.grid.Xs[i+1]) &&
+	return defined(f.X, g.grid.Xs[i]) && defined(f.X, g.grid.Xs[i1]) &&
 		defined(f.Y, g.grid.Ys[j]) && defined(f.Y, g.grid.Ys[j+1])
 }
 

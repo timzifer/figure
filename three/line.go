@@ -104,7 +104,7 @@ func (g *line3) Emit(s *Sink, f Frame) error {
 }
 
 func (g *line3) point(f Frame, i int) Vec3 {
-	return Vec3{at(f.X, g.xs[i]), at(f.Y, g.ys[i]), at(f.Z, g.zs[i])}
+	return f.Point(g.xs[i], g.ys[i], g.zs[i])
 }
 
 func (g *line3) plottable(f Frame, i int) bool {

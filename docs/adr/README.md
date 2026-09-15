@@ -152,9 +152,14 @@ record that no longer matches the code is worse than no record. **0055 is
 Accepted, amended** too: `coord.Oblique` gives a bar or a rect volume with
 `geom.Extrude`, and its amendment says why the depth is a fraction of the
 panel rather than a theme length and why an extruded row is reported once per
-face. **0058 is still Planned**: it is a catalogue rather than a mechanism, so
-it becomes Accepted when the last form in it does.
-0058's order of work is annotated with what landed.
+face. **0058 is Accepted** as well: it was a catalogue rather than a
+mechanism, so it waited for the last step of its order of work, and that step
+was the Smith sphere — built on the spherical scene that also draws radiation
+patterns and the Bloch sphere, which was the test the record set for whether
+that scene is a coordinate system. Its order of work is annotated with what landed and with
+what the sphere decided. The forms it names without scheduling — a ribbon, a
+ternary prism, a spherical histogram — stay unbuilt, and each is a recipe or a
+small layer over what now exists.
 
 They exist because 3D had been deferred as one
 indivisible thing — `CONCEPT.md` §5 and §14 and

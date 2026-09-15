@@ -508,7 +508,7 @@ three reference lines. The four are written out in
 `examples/survival` draws the first row with its risk table and
 `examples/spc` the second, with its limits frozen on a baseline.
 
-## N — needs a projection — **shipped**, except the scatter
+## N — needs a projection — **shipped**
 
 The forms whose reading the flat chart of the same table cannot give, ranked
 that way rather than by popularity in
@@ -524,9 +524,10 @@ them, and none of them needed the IR to gain anything.
 | Cascade / waterfall | `three.Line3` with `geom.GroupBy`: N traces offset along a floor axis | **shipped** as a recipe — `examples/cascade`, and no code in the library knows what a cascade is |
 | 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
 | Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
-| 3D scatter with droplines | a marker primitive beside the face and the line, and a rule to the floor | **planned** — the one rank-1 form still missing, and it needs no new machinery |
+| 3D scatter with droplines | `three.Scatter3`; a marker primitive beside the face and the line, and a rule to the floor | **shipped** — the droplines are on by default, because they are what makes the heights readable |
 | Contours projected on the floor | `three.Contour` over `stat.Contour` | **shipped** — the same tracing as the flat plot, so the two cannot disagree. The walls are declined: a contour is a statement about z over (x, y), and a wall contains z ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) |
-| Antenna pattern, Poincaré sphere, Bloch sphere, stereonet, 3D Smith | a spherical coord mapped into this scene | **planned** — [ADR 0058](adr/0058-what-3d-is-for.md) rank 3 |
+| Antenna pattern, Poincaré sphere, Bloch sphere, stereonet | `three.Spherical`: the scene's X, Y and Z as azimuth, polar angle and radius | **shipped** — `examples/sphere` draws a radiation pattern and a Bloch sphere |
+| 3D Smith chart | `three.Spherical(three.Smith())`: the Γ-plane on the Riemann sphere, with the flat chart's grid carried onto it | **shipped** — `examples/sphere`; active impedances are the southern hemisphere |
 
 Refused, and each for a reason rather than for a schedule: arbitrary meshes and
 CAD (a painter's order is exact only over a set that can be totally ordered),
@@ -705,9 +706,10 @@ cascade and a field of bars are drawn by every backend the library has
 ([ADR 0056](adr/0056-three-dimensional-charts.md)), turned at a camera the host
 holds ([ADR 0057](adr/0057-orbiting-a-chart.md)), and looked at from as many
 cameras at once as a figure has room for
-([ADR 0062](adr/0062-a-scene-and-its-views.md)). What is left of it is the 3D
-scatter with its droplines, the contours on the floor, and the spherical coord —
-listed in [ADR 0058](adr/0058-what-3d-is-for.md)'s own order of work.
+([ADR 0062](adr/0062-a-scene-and-its-views.md)). The 3D scatter with its
+droplines, the contours on the floor, the spherical scene and the Smith
+sphere have landed since, which is the whole of
+[ADR 0058](adr/0058-what-3d-is-for.md)'s order of work.
 
 **The locus has landed**, which was the first of this list and the only entry
 anything else waited on: bucket J keeps it as the escape hatch for a fourth grid

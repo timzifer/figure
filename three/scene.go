@@ -24,6 +24,9 @@ type Scene struct {
 	x, y, z                scale.Scale
 	xTitle, yTitle, zTitle string
 	layers                 []Layer
+	// sphere is the scene's spherical configuration, or nil for the box every
+	// scene has unless it asked for [Spherical].
+	sphere *sphere
 }
 
 // SceneOption configures a [Scene].
@@ -94,10 +97,21 @@ func orLinear(s scale.Scale) scale.Scale {
 // three views would give a layer three times the weight it has.
 func (s *Scene) train(sc [3]scale.Scale) error {
 	t := geom.Training{X: sc[axisX], Y: sc[axisY], Z: sc[axisZ]}
+	// A spherical scene's angles cover the whole sphere whatever the data
+	// does, so they are pinned before anything trains them; its radius runs
+	// from the centre, so zero is trained in after the data.
+	if s.sphere != nil {
+		if err := s.sphere.pin(sc); err != nil {
+			return err
+		}
+	}
 	for _, l := range s.layers {
 		if err := l.Train(t); err != nil {
 			return err
 		}
+	}
+	if s.sphere != nil {
+		sc[axisZ].Train(0)
 	}
 	// Every scale maps into an edge of the unit cube. Choosing what the
 	// interval means is what this stage does, exactly as coord.Cartesian

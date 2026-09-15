@@ -206,6 +206,8 @@ type config struct {
 	hideGuide bool
 	extrude   bool
 
+	hideDroplines bool
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 
@@ -276,6 +278,18 @@ func Y(col string) Option { return func(c *config) { c.ycol = col } }
 // renderer. The layers that read it are in
 // [github.com/timzifer/figure/three]. ADR 0056 is the record.
 func Z(col string) Option { return func(c *config) { c.zcol = col } }
+
+// Droplines decides whether a projected scatter —
+// [github.com/timzifer/figure/three.Scatter3] — draws a rule from each point
+// down to the floor of its scene. The default is true.
+//
+// They are on by default because they are what makes a 3D scatter readable at
+// all: a point floating in a projected box has no height a reader can judge,
+// and the rule to the floor is what turns its position into an x, a y and a z.
+// Turn them off for a cloud dense enough that the rules become a curtain, and
+// say so, because the heights have then stopped being readable. Nothing in
+// this package reads it; see docs/adr/0058-what-3d-is-for.md.
+func Droplines(show bool) Option { return func(c *config) { c.hideDroplines = !show } }
 
 // Levels pins the contour levels a [Contour] traces.
 //

@@ -72,4 +72,8 @@ type Frame struct {
 	// nil for an ordinary render, and a layer reports rows by naming them on
 	// the sink rather than by calling anything here — see [Sink.Row].
 	Rows geom.Rows
+
+	// space is the scene's spherical configuration, nil for a box. A layer
+	// reads it through [Frame.Place] and [Frame.Spherical].
+	space *sphere
 }

@@ -17,16 +17,20 @@ type Style struct {
 	Stroke ir.Color
 	// Width is the outline's width.
 	Width float32
+	// Shape and Size are a marker's, and zero for every other primitive.
+	Shape ir.Marker
+	Size  float32
 }
 
-// primKind is what a primitive is. Three kinds ship; a marker is the fourth
-// and arrives with the 3D scatter.
+// primKind is what a primitive is: a face, a line, a text run, or a marker —
+// the fourth, which arrived with the 3D scatter.
 type primKind uint8
 
 const (
 	kindFace primKind = iota
 	kindLine
 	kindText
+	kindMarker
 )
 
 // prim is one primitive: a range in the sink's vertex arena, its ink, and the
@@ -126,6 +130,27 @@ func (s *Sink) Line(vs []Vec3, st Style) {
 		return
 	}
 	s.append(kindLine, vs, st, -1)
+}
+
+// Marker appends one marker at a scene point, in st's Shape, Size, Fill and
+// Stroke.
+//
+// Only the position is projected. A marker is a symbol rather than a solid —
+// a circle that shrank with distance would be a size channel nobody asked for,
+// and one that foreshortened would be a disc lying in a plane — so it is drawn
+// the size it was given wherever it stands, which is what a flat scatter does
+// too. It is ordered by its position like any other primitive, so a point
+// behind a surface is drawn behind it.
+func (s *Sink) Marker(at Vec3, st Style) {
+	// One vertex, appended directly rather than through a slice literal: a
+	// scatter emits one of these per row per view per frame, and a literal
+	// handed to append's variadic parameter is an allocation each time.
+	lo := int32(len(s.verts))
+	s.verts = append(s.verts, at)
+	s.prims = append(s.prims, prim{
+		kind: kindMarker, lo: lo, hi: lo + 1, style: st,
+		depth: s.depthOf(lo, lo+1), row: s.row, layer: s.layer, text: -1,
+	})
 }
 
 // Text appends a run anchored at a scene point.

@@ -49,11 +49,12 @@ type Framing struct {
 	// defines.
 	//
 	// It is here because the seam is the one ADR 0056 widened for a third
-	// dimension and this is the field that widening was for. Nothing reads it
-	// yet: [github.com/timzifer/figure/three] projects above this stage and
-	// uses no coord at all, so the coordinate system that will read it is the
-	// spherical one — and when it arrives it finds a field rather than a
-	// release.
+	// dimension and this is the field that widening was for. Nothing in this
+	// module reads it: [github.com/timzifer/figure/three] projects above this
+	// stage and uses no coord at all, and the spherical coordinate system it
+	// was widened for arrived there as a scene option rather than here — see
+	// docs/adr/0058-what-3d-is-for.md. It stays, because a field is free and a
+	// third-party coord with a depth may yet read it.
 	Z scale.Scale
 }
 

@@ -114,6 +114,10 @@ type OverlayView struct {
 
 	// Project is the projection this view was drawn with.
 	Project Projection
+
+	// space is the scene's spherical configuration, nil for a box, so that At
+	// places a value where the scene drew it.
+	space *sphere
 }
 
 // At maps a point in the data through the view's three scales and projects it,
@@ -130,7 +134,7 @@ func (v OverlayView) At(x, y, z float64) (ir.Point, bool) {
 	if !defined(v.X, x) || !defined(v.Y, y) || !defined(v.Z, z) {
 		return ir.Point{}, false
 	}
-	return v.Project.Point(Vec3{at(v.X, x), at(v.Y, y), at(v.Z, z)}), true
+	return v.Project.Point(Frame{X: v.X, Y: v.Y, Z: v.Z, space: v.space}.Point(x, y, z)), true
 }
 
 // OverlayFrame is what an overlay is told about the figure it draws over.

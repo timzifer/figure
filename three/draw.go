@@ -123,6 +123,9 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 			inner = area
 		}
 		pr := project(v.Camera, inner)
+		if sc.sphere != nil {
+			pr.scale *= sphereFit
+		}
 
 		if p.overlay != nil {
 			// Collected here rather than recomputed afterwards: the projector
@@ -135,6 +138,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 				Y:       scales[axisY],
 				Z:       scales[axisZ],
 				Project: Projection{p: pr},
+				space:   sc.sphere,
 			})
 		}
 
@@ -142,7 +146,13 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		clip.Rect(area)
 		b.Push(&clip, ir.Identity)
 
-		newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path, &boxes)
+		var glb globe
+		if sc.sphere != nil {
+			glb = newGlobe(th, pr, v.Camera, sc.sphere)
+			glb.back(b, &path)
+		} else {
+			newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path, &boxes)
+		}
 
 		if p.obs != nil {
 			// X and Y are nil deliberately. A projected scene has no screen
@@ -156,6 +166,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		f := Frame{
 			X: scales[axisX], Y: scales[axisY], Z: scales[axisZ],
 			Theme: th, View: i, Forward: v.Camera.Forward(), Rows: p.rows,
+			space: sc.sphere,
 		}
 		sink.reset()
 		for k, l := range sc.layers {
@@ -168,6 +179,18 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 			}
 		}
 		sink.paint(b, pr, p.obs, i, sc.layerLabels(f), p.rows)
+
+		if sc.sphere != nil {
+			// The near half of the globe goes over the data. The panel is
+			// announced again first, which closes the layer the depth order
+			// happened to end on: a graticule line is furniture, and a pointer
+			// landing on one has not landed on a row of whichever layer was
+			// painted last.
+			if p.obs != nil {
+				p.obs.Panel(render.PanelInfo{Index: i, Area: area, Z: scales[axisZ]})
+			}
+			glb.front(b, &path)
+		}
 
 		b.Pop()
 	}

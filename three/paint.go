@@ -89,6 +89,8 @@ func (s *Sink) paint(b ir.Backend, pr projector, obs render.Observer, panel int,
 			run.At = s.pts[p.lo]
 			b.Text(run)
 			i++
+		case kindMarker:
+			i = s.markers(b, deep, i)
 		case kindLine:
 			s.line = grow(s.line, int(p.hi-p.lo))[:0]
 			s.line = append(s.line, s.pts[p.lo:p.hi]...)
@@ -175,6 +177,43 @@ func (s *Sink) faces(b ir.Backend, deep render.DepthObserver, i int) int {
 	if first.style.Stroke.A != 0 && first.style.Width > 0 {
 		b.StrokePath(&s.path, ir.Stroke{Color: first.style.Stroke, Width: first.style.Width})
 	}
+	return j
+}
+
+// markers draws a marker, or a run of markers adjacent in the depth order that
+// share a layer and a style, as one call, and returns where it got to.
+//
+// Merging adjacent markers changes nothing a reader can see, for a reason
+// faces do not share: a marker call draws its symbols in the order given, so
+// the run keeps its depth order inside the call. Each symbol is still its own
+// point to a hit index.
+func (s *Sink) markers(b ir.Backend, deep render.DepthObserver, i int) int {
+	first := &s.prims[s.order[i].idx]
+	j := i + 1
+	for j < len(s.order) {
+		p := &s.prims[s.order[j].idx]
+		if p.kind != kindMarker || p.layer != first.layer || p.style != first.style {
+			break
+		}
+		j++
+	}
+	s.line = s.line[:0]
+	for k := i; k < j; k++ {
+		p := &s.prims[s.order[k].idx]
+		s.line = append(s.line, s.pts[p.lo])
+		s.noteRow(p)
+	}
+	// One call is one mark to an index, and it is said to be at the depth of
+	// the farthest symbol in it, which is the first.
+	if deep != nil {
+		deep.Depth(float64(first.depth))
+	}
+	st := first.style
+	b.Markers(st.Shape, s.line, ir.MarkerStyle{
+		Size:   st.Size,
+		Fill:   st.Fill,
+		Stroke: ir.Stroke{Color: st.Stroke, Width: st.Width},
+	})
 	return j
 }
 
