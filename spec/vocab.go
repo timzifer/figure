@@ -78,6 +78,8 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "arc-diagram", "", nil
 	case geom.MarkTree:
 		return "tree", "", nil
+	case geom.MarkSurvival:
+		return "survival", "", nil
 	case geom.MarkLocus:
 		// A family of curves given by a formula. Vega-Lite has no mark for it
 		// and no transform that could stand in, so this is figure's own name.
@@ -172,6 +174,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkArc, nil
 	case "tree":
 		return geom.MarkTree, nil
+	case "survival":
+		return geom.MarkSurvival, nil
 	case "rule":
 		switch m.Orient {
 		case "horizontal":
@@ -222,7 +226,7 @@ func hasField(enc *Encoding) bool {
 		return false
 	}
 	for _, ch := range [...]*Channel{enc.X, enc.Y, enc.X2, enc.Y2, enc.Color, enc.Detail, enc.Width, enc.Explode, enc.Size, enc.Text, enc.Mid, enc.Error, enc.ErrorX,
-		enc.From, enc.To, enc.ID, enc.Parent, enc.Value} {
+		enc.From, enc.To, enc.ID, enc.Parent, enc.Value, enc.Event} {
 		if ch != nil && ch.Field != "" {
 			return true
 		}

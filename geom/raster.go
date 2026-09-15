@@ -467,7 +467,7 @@ func spanOf(spans []cellSpan) (lo, hi int) {
 // ColorGuide implements [Guided]: the labelled bar that is the whole argument
 // for this mark having a ramp at all.
 func (g *rasterGeom) ColorGuide() (ColorGuide, bool) {
-	if g.err != nil || g.ramp == nil {
+	if g.err != nil || g.ramp == nil || g.cfg.hideGuide {
 		return ColorGuide{}, false
 	}
 	label := g.cfg.colorCol

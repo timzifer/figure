@@ -594,6 +594,58 @@ See the runnable [diagnostics example](../examples/diagnostics),
 |---|---|
 | ![Ordered observations against normal quantiles](images/qq.png) | ![Nearby labels placed without overlapping one another](images/label-placement.png) |
 
+## Survival curves, control charts and the other instruments
+
+```go
+// One Kaplan–Meier curve per arm, with its band and its censoring ticks.
+// "relapsed" is non-zero for an event and zero for a censored subject.
+p.Add(geom.Survival(src,
+    geom.X("weeks"), geom.Event("relapsed"), geom.GroupBy("arm"),
+    geom.Confidence(0.95), geom.CensorMarks(true)))
+```
+
+The numbers-at-risk table under a published curve is a track, not part of the
+mark: `stat.KaplanMeier` reports the risk set at every step, and a
+`geom.Text` in `p.Track(figure.Bottom, …)` prints it on the shared time axis.
+[`examples/survival`](../examples/survival) does exactly that.
+
+A control chart has no mark, on purpose. Its limits are computed once from a
+baseline and then frozen, so the caller computes them and draws them:
+
+```go
+limits, _ := stat.LimitsIMR(weights[:baseline])
+flags := stat.AppendRunRules(nil, weights[baseline:], limits) // Nelson's eight rules
+p.Add(geom.HLine(limits.Centre), geom.HLine(limits.Upper), geom.HLine(limits.Lower))
+p.Add(geom.Line(src, geom.X("n"), geom.Y("w"),
+    geom.ColorBy("w", scale.Threshold(ramp, []float64{limits.Lower, limits.Upper}))))
+```
+
+The line changes colour on the limit itself rather than at the next sample.
+See [`examples/spc`](../examples/spc).
+
+The rest are numbers in and numbers out, drawn with the marks that exist:
+`stat.ACF` and `stat.PACF` under a `Bar` with `stat.CorrelationBound` as two
+`HLine`s is a correlogram; `stat.ROC` and `stat.PrecisionRecall` under a `Line`
+are the two classifier curves, with their areas beside them; `stat.Lorenz`
+under a `Line` with a `Segment` on the diagonal is a Lorenz curve, with the
+Gini coefficient to put in its title.
+
+**Four charts are recipes rather than reductions**, per
+[ADR 0054](adr/0054-statistical-instruments.md)'s admission test:
+
+- **Forest plot** — one `geom.ErrorBar` per study along an ordinal axis, the
+  study names as that axis's labels or as a `geom.Text` in a `Track`, and a
+  `geom.VLine` at no effect. The pooled estimate is a meta-analysis and is the
+  caller's; it goes in as one more row.
+- **Funnel plot** — a `geom.Scatter` of effect against standard error, with
+  the pseudo-confidence triangle as a `geom.Locus` whose family is the two
+  lines effect = pooled ± 1.96·SE.
+- **Pareto chart** — `geom.Bar` over categories sorted descending, and the
+  cumulative percentage as a `geom.Line` on the secondary axis (`geom.OnY2`).
+- **Bland–Altman plot** — a `geom.Scatter` of the difference between two
+  methods against their mean, and three `geom.HLine`s: the mean difference and
+  the limits of agreement at ±1.96 standard deviations.
+
 ---
 
 **[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Chart-type catalogue](chart-types.md) · [Benchmarks](benchmarks.md) · [How it was built](milestones.md)

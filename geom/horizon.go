@@ -367,7 +367,7 @@ func (g *horizonGeom) reportRows(f Frame, sc *scratch, cd coord.Coord) {
 // out to be, and a fold's boundaries are settled in Train, before anything is
 // measured.
 func (g *horizonGeom) ColorGuide() (ColorGuide, bool) {
-	if g.err != nil || g.ramp == nil {
+	if g.err != nil || g.ramp == nil || g.cfg.hideGuide {
 		return ColorGuide{}, false
 	}
 	label := g.cfg.label

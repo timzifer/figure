@@ -1,6 +1,6 @@
 # 0054 — A domain reduction belongs in `stat` when its output is the chart
 
-**Status:** Proposed · **Date:** 2026-09-08 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implemented:** 2026-09-15
 
 ## Context
 
@@ -170,3 +170,87 @@ late rather than early: nothing else waits on it.
 - The run rules' selection turns out to want to be a first-class channel
   rather than a derived column. That is a question for
   [ADR 0045](0045-linked-views.md)'s machinery, not for `stat`.
+
+## Amendment: what building it sharpened
+
+The five are built, with `geom.Survival`, `geom.Event` and a `"survival"` mark
+in `spec`, and the two examples the record promised: `examples/survival` is
+Freireich's remission trial with its numbers-at-risk table in a track, and
+`examples/spc` an individuals chart whose limits come from a baseline and whose
+drift is caught by the run rules. Eight things came out sharper than the
+record, and none of them moves the admission test.
+
+**`stat.ControlLimits` is a family of functions, not one.** The charts of the
+family do not share an input: an individuals chart reads a column, an X̄–R
+chart a column cut into subgroups of a size, a p or u chart two columns whose
+limits vary per subgroup. One function would have been a switch on a kind
+argument with half its parameters meaningless for each kind. So `stat.Limits`
+is the shared result — centre, lower, upper, and `Sigma` — and `LimitsIMR`,
+`LimitsXbarR`, `LimitsNP` and `LimitsC` return it, while `AppendLimitsP` and
+`AppendLimitsU` return a centre and a limit per subgroup. Attribute limits
+clamp at zero, and a p chart's at one, because a limit nobody can reach is a
+line that says nothing.
+
+**The run rules are `stat.AppendRunRules`, and they flag every point that
+completes a window.** Nelson's eight rules, selectable, ordered by row then
+rule; a long run past a threshold flags each point beyond it rather than only
+the first, which is what lets a derived column colour the whole run. A
+non-finite reading breaks every run, and σ is read from the upper limit —
+`(Upper − Centre)/3` — because the lower one may be clamped.
+
+**`stat.KaplanMeier` returns points, and the band is a method on one.**
+`stat.SurvivalPoint` carries the time, the estimate, the risk set, the events,
+the censored count and the running Greenwood sum, and `Band(z)` turns that into
+the log-log interval — the default in R's survival package and in lifelines,
+chosen because the plain interval runs past 0 and 1 in the tails where a
+survival curve is read hardest. A time at which only censoring happened is
+still a point, with S unchanged: it is where the censoring tick goes. The event
+indicator is a `[]bool` in `stat` and a numeric column in the geom — non-zero
+for an event — because `data` has no boolean column and a 0/1 column is how
+every survival dataset arrives.
+
+**`geom.Survival` starts at time zero, except where zero is not a time.** A
+survival curve is printed from zero with everybody alive, so the layer trains
+its X axis to include it — unless that axis is a time scale, where zero is an
+epoch, or has no position for it, where the curve starts at the first
+observation instead. A layer that names no event column counts every row as an
+event.
+
+**`geom.Confidence` and `geom.CensorMarks` are the opt-ins.** Both are off by
+default, as the record said, and both serialise. The band is painted at a
+fifth of the curve's colour so that two arms' bands overlapping still show both
+curves.
+
+**The ACF is the biased estimator, and a gap poisons it.** Dividing by n rather
+than by n − k keeps the autocorrelation sequence positive semi-definite, which
+Durbin–Levinson needs for the PACF. A non-finite value makes every lag NaN
+rather than being skipped, because skipping it would silently shift every lag
+after it. `stat.CorrelationBound` is the large-sample white-noise band,
+z/√n, without Bartlett's widening. It is the one reduction of the five that
+does not take sorted input, because a time series' order is its content.
+
+**ROC and precision–recall walk tied scores as one step.** A block of equal
+scores moves the ROC curve diagonally, which is what makes the trapezoid area
+equal the Mann–Whitney probability with ties counted half. Precision–recall
+reports step-wise average precision rather than the trapezoid, which
+over-states a PR curve. A curve with no positives — or, for ROC, no negatives —
+is empty with a NaN area, not 0.5, because there is nothing to rank. `stat.Lorenz`
+returns the Gini coefficient beside its curve. All three sit beside `stat.ECDF`
+in `stat/ecdf.go`, as the record placed them.
+
+**The control chart found two things wrong with the colourbar, and both are
+fixed outside `stat`.** Its line colours in classes at the limits, so the
+chart grew a classed colourbar — and the bar labelled its boundaries at the
+precision of its own axis, which steps in whole grams, so a limit at 502.73
+read "503", a boundary the chart does not have. A classed bar now writes each
+boundary with the fewest decimals that write it exactly, or, for a limit
+computed from data that has no short decimal, with enough that the rounding
+is under a two-hundredth of the narrowest class. And the bar was not wanted at
+all: the limits are on the chart as rules with their values beside them. So
+`geom.Guide(false)` lets a layer decline its colourbar and size key, and
+`spec` writes it as `"guide": false` on the mark; another layer on the same
+scale still brings the bar, because guides merge by what they look like.
+
+The recipes the record named — forest, funnel, Pareto, Bland–Altman — are
+written out in `docs/charts.md` rather than as examples: each is a paragraph of
+composition over marks that already have examples of their own.

@@ -223,7 +223,7 @@ func (g *contourGeom) Legend(f Frame) (LegendEntry, bool) {
 // known: a hexbin's counts depend on how large the plot rectangle turned out to
 // be, and a contour's levels are settled in Train, before anything is measured.
 func (g *contourGeom) ColorGuide() (ColorGuide, bool) {
-	if g.ramp == nil {
+	if g.ramp == nil || g.cfg.hideGuide {
 		return ColorGuide{}, false
 	}
 	label := g.cfg.colorCol

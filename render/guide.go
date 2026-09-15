@@ -2,6 +2,8 @@ package render
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/internal/layout"
@@ -357,6 +359,9 @@ func colorbarTicks(cs scale.ColorScale, want int) []scale.Tick {
 	axis.SetRange(0, 1)
 	if c, ok := scale.Classed(cs); ok {
 		breaks := c.Breaks()
+		if scale.ColorTransformOf(cs) == scale.TransformLinear {
+			axis = scale.Linear(scale.NumberFormat(fmt.Sprintf("#.%d", breakDecimals(cs, breaks))))
+		}
 		out := make([]scale.Tick, 0, len(breaks))
 		for _, v := range breaks {
 			out = append(out, scale.Tick{Value: v, Label: scale.LabelOf(axis, v)})
@@ -371,6 +376,48 @@ func colorbarTicks(cs scale.ColorScale, want int) []scale.Tick {
 		}
 	}
 	return out
+}
+
+// breakDecimals is how many decimal places a classed bar's boundaries are
+// written with.
+//
+// Not the axis's own precision. An axis chooses its decimals from its tick
+// step, which is right for round numbers it chose itself and wrong for a
+// boundary somebody else computed: a control chart's limit at 502.73 on a bar
+// whose axis steps in whole grams was labelled "503", which is a boundary the
+// chart does not have. So a boundary is written with the fewest places that
+// write every boundary exactly, and where none does — a limit computed from
+// data rarely has a short decimal — with enough places that the rounding is
+// under a two-hundredth of the narrowest class, which is finer than anyone can
+// read off a band and coarse enough to stay a number rather than a string of
+// digits.
+func breakDecimals(cs scale.ColorScale, breaks []float64) int {
+	const most = 6
+	for d := 0; d <= most; d++ {
+		exact := true
+		for _, v := range breaks {
+			r, _ := strconv.ParseFloat(strconv.FormatFloat(v, 'f', d, 64), 64)
+			if math.Abs(r-v) > 1e-9*math.Max(1, math.Abs(v)) {
+				exact = false
+				break
+			}
+		}
+		if exact {
+			return d
+		}
+	}
+	lo, hi := cs.Domain()
+	edges := append(append([]float64{lo}, breaks...), hi)
+	narrowest := math.Inf(1)
+	for i := 1; i < len(edges); i++ {
+		if w := edges[i] - edges[i-1]; w > 0 {
+			narrowest = math.Min(narrowest, w)
+		}
+	}
+	if math.IsInf(narrowest, 1) {
+		return most
+	}
+	return min(most, max(0, int(math.Ceil(-math.Log10(narrowest/200)))))
 }
 
 // drawClassedBar paints a classed scale's bar: one solid band per class,
