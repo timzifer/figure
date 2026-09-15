@@ -32,40 +32,69 @@ const NoParent = -1
 // hierarchy with a cycle is not a hierarchy, and the caller is the one that can
 // say so in terms of its own data.
 //
-// It sweeps one level at a time rather than recursing, so a hierarchy deep
-// enough to blow a stack does not, and it costs one pass per level. That is a
-// bounded traversal rather than an iteration to convergence: it visits every
-// reachable node exactly once and stops when a level adds nobody, which makes
-// it a pure function of its input in the sense ADR 0012 requires.
+// It walks up from each node rather than recursing, so a hierarchy deep enough
+// to blow a stack does not, and it costs time linear in the number of nodes
+// however deep the hierarchy is: every node is given its depth once and never
+// walked through again. That is a bounded traversal rather than an iteration
+// to convergence, which makes it a pure function of its input in the sense
+// ADR 0012 requires.
 func Depth(parent []int) []int { return AppendDepth(nil, parent) }
+
+// Markers dst holds while [AppendDepth] runs. A settled node holds its depth,
+// or -1 for one on a cycle, and neither is ever overwritten.
+const (
+	depthUnknown = -2
+	depthOnWalk  = -3
+	depthOnCycle = -1
+)
 
 // AppendDepth is [Depth] writing into dst, which it truncates and grows as
 // needed.
+//
+// It needs no memory beyond dst. From each unsettled node it walks up the
+// parent links marking what it passes, until it reaches a node that is
+// settled, a root, or a node it marked on this same walk — which is a cycle.
+// It then walks the same path a second time, now knowing how long it is, and
+// settles every node on it: one more than the node it stopped at, counting
+// back down, or -1 when the walk ended on a cycle. A node that merely hangs
+// off a cycle is as unreachable from a root as one on it, and gets -1 too.
 func AppendDepth(dst []int, parent []int) []int {
 	n := len(parent)
 	dst = dst[:0]
+	for range n {
+		dst = append(dst, depthUnknown)
+	}
 	for i := range n {
-		if isRoot(parent, i, n) {
-			dst = append(dst, 0)
+		if dst[i] != depthUnknown {
 			continue
 		}
-		dst = append(dst, -1)
-	}
-	for d := 0; ; d++ {
-		grew := false
-		for i := range n {
-			if dst[i] >= 0 {
+
+		// First walk: mark the path and find where it ends.
+		steps, v := 0, i
+		for dst[v] == depthUnknown && !isRoot(parent, v, n) {
+			dst[v] = depthOnWalk
+			v = parent[v]
+			steps++
+		}
+		base := depthOnCycle
+		switch {
+		case dst[v] == depthUnknown:
+			// A root nobody had reached yet.
+			dst[v], base = 0, 0
+		case dst[v] >= 0:
+			base = dst[v]
+		}
+
+		// Second walk: settle the path, deepest node first.
+		for k, u := 0, i; k < steps; k, u = k+1, parent[u] {
+			if base == depthOnCycle {
+				dst[u] = depthOnCycle
 				continue
 			}
-			if p := parent[i]; dst[p] == d {
-				dst[i] = d + 1
-				grew = true
-			}
-		}
-		if !grew {
-			return dst
+			dst[u] = base + steps - k
 		}
 	}
+	return dst
 }
 
 // isRoot reports whether i has no parent inside the list. An index out of
