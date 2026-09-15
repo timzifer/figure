@@ -19,6 +19,8 @@ const (
 	KindSymLog  Kind = "symlog"
 	KindTime    Kind = "time"
 	KindOrdinal Kind = "ordinal"
+	// KindProbability is probability paper. See [Probability].
+	KindProbability Kind = "probability"
 )
 
 // Desc is a scale reduced to what configures it.
@@ -59,8 +61,14 @@ type Desc struct {
 	TickValues []float64
 	// Base is the log or symlog base, and Threshold the symlog linear region.
 	Base, Threshold float64
-	// MinorTicks reports the unlabelled subdivisions of a log or symlog axis.
+	// MinorTicks reports the unlabelled subdivisions of a log or symlog axis,
+	// and the unlabelled rungs of a probability one.
 	MinorTicks bool
+
+	// Link is a probability scale's link, by the name [LinkName] reports. It
+	// is empty for a link written in Go, which has no name: [FromDesc] refuses
+	// such a Desc rather than substituting a link the chart did not have.
+	Link string
 
 	// Origin is a time scale's epoch, in Unix nanoseconds: the instant its
 	// domain values are measured from. It is zero for every other kind, and
@@ -180,6 +188,22 @@ func FromDesc(d Desc) (Scale, error) {
 		}
 		opts = append(opts, func(s *symlogScale) { s.numFormat = f; s.loc = localeNamed(d.Locale) })
 		return SymLog(opts...), nil
+
+	case KindProbability:
+		link, ok := LinkNamed(d.Link)
+		if !ok {
+			return nil, fmt.Errorf("%w: a probability scale has no link named %q", ErrUnknownKind, d.Link)
+		}
+		opts := []ProbabilityOption{ProbabilityMinorTicks(d.MinorTicks)}
+		if d.Fixed {
+			opts = append(opts, ProbabilityDomain(d.Min, d.Max))
+		}
+		f, err := parseNumberFormat(d.Format)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, func(s *probScale) { s.numFormat = f; s.loc = localeNamed(d.Locale) })
+		return Probability(link, opts...), nil
 
 	case KindTime:
 		var opts []TimeOption

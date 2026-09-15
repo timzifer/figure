@@ -70,7 +70,7 @@ func registeredColor(k ColorKind) (func(ColorDesc) (ColorScale, error), bool) {
 
 func builtinKind(k Kind) bool {
 	switch k {
-	case KindLinear, KindLog, KindSymLog, KindTime, KindOrdinal:
+	case KindLinear, KindLog, KindSymLog, KindTime, KindOrdinal, KindProbability:
 		return true
 	}
 	return false

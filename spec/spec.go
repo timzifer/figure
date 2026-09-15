@@ -502,6 +502,12 @@ type Scale struct {
 	Range    []string `json:"range,omitempty"`
 	Reverse  bool     `json:"reverse,omitempty"`
 
+	// Link is a probability axis's warp: "probit", "logit", "cloglog" or
+	// "gumbel", and "probit" when absent. Vega-Lite has no probability scale,
+	// so these are figure's names. A link written in Go has no name and
+	// declines to be written down — docs/adr/0052-probability-scales.md.
+	Link string `json:"link,omitempty"`
+
 	// Transform is how a colour scale's ramp runs across its domain: "log",
 	// "symlog", or absent for the linear default. Base and Constant configure
 	// it, the same two fields a positional log or symlog axis reads.

@@ -155,6 +155,11 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 		d.Kind = scale.KindLog
 	case "symlog":
 		d.Kind = scale.KindSymLog
+	case "probability":
+		d.Kind, d.Link = scale.KindProbability, s.Link
+		if d.Link == "" {
+			d.Link = "probit"
+		}
 	case "time", "utc":
 		d.Kind, d.Location = scale.KindTime, s.TimeZone
 		if typ == "utc" && d.Location == "" {

@@ -2,7 +2,8 @@
 
 The feature surface in one list: scales, marks, coordinate systems, layout, output, interaction.
 
-- **Scales** — linear, time, **log**, **symlog** and **ordinal/categorical**.
+- **Scales** — linear, time, **log**, **symlog**, **probability** and
+  **ordinal/categorical**.
   Linear tick placement uses
   [extended Wilkinson](https://rdrr.io/rforge/labeling/man/extended.html)
   (Talbot, Lin & Hanrahan 2010), so axis labels come out round rather than
@@ -12,6 +13,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `scale.TickValues` pins the sequence outright, for an axis whose ticks are a
   convention rather than a reading — the 0.2 / 0.5 / 1 / 2 / 5 of a Smith chart,
   the five points of a Likert item.
+  `scale.Probability` is probability paper: an axis warped by `Probit`, `Logit`,
+  `CLogLog` or `Gumbel` so one distribution's cumulative function is a straight
+  line, labelled on the 0.1 / 1 / 5 … 95 / 99 / 99.9 % ladder. An ECDF on it is
+  a normal probability plot; median ranks (`stat.MedianRank`) on `CLogLog`
+  against a log axis are a Weibull plot.
 - **Geoms** — `Line` (optionally tension-smoothed), `Scatter` (six marker
   shapes), `Bar`, **`Area`** (to a baseline, or a band between two series),
   **`Step`** (pre/mid/post), **`Boxplot`** (Tukey whiskers, type-7 quartiles,

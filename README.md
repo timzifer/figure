@@ -137,9 +137,9 @@ picture cannot drift away from the code that produced it.
 
 ## What it does
 
-- **Scales** — linear, time, log, symlog, ordinal. Extended-Wilkinson tick
-  placement, calendar-unit time steps, minor ticks per decade, pinned tick
-  sequences.
+- **Scales** — linear, time, log, symlog, probability, ordinal.
+  Extended-Wilkinson tick placement, calendar-unit time steps, minor ticks per
+  decade, pinned tick sequences, probability paper.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
   violins, ridgelines, hexbins, beeswarms, ECDFs, trends, contours, horizons,
   rasters, treemaps, icicles, sankeys, arcs, error bars, intervals, text,
