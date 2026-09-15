@@ -282,6 +282,10 @@ type Mark struct {
 	// which is the only one of the three that never shows a number that was
 	// not measured.
 	Resample string `json:"resample,omitempty"`
+	// Branch is how a tree joins a node to its parent: "elbow", the default
+	// and so left out, or "straight". Vega-Lite has no tree mark, so these are
+	// figure's names.
+	Branch string `json:"branch,omitempty"`
 	// Family is the set of curves a locus draws Levels of: "nichols-m",
 	// "nichols-n", "smith-vswr" or "smith-q". Vega-Lite has none of them, so
 	// these are figure's own names.

@@ -1,6 +1,6 @@
 # 0053 — A tidy tree is a bounded deterministic layout, and it is not a force simulation
 
-**Status:** Proposed · **Date:** 2026-09-08 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implemented:** 2026-09-15
 
 ## Context
 
@@ -163,3 +163,73 @@ layout's problem and is why this record can be written and that one cannot.
   would need its own answer to that, not an option here.
 - A force layout arrives with a bounded solver after all. 0039's clause is
   still the live one; this record does not consume it.
+
+## Amendment: what building it sharpened
+
+`geom.Tree` is built, on `stat.Tidy`, with a `"tree"` mark and a `branch` field
+in `spec`, and `examples/dendrogram` draws both charts the record argued for: a
+clustered heatmap — `geom.Rect` over two ordinal axes with a dendrogram in a
+top track — and a radial tree. The stat's tests are the record's three
+published properties plus determinism under buffer reuse and a 200 000-node
+chain and star. Six things came out sharper than the record, and none of them
+changes the decision.
+
+**There are two layouts, and the height column chooses between them.** The
+record says the breadth axis carries the leaf order and the Reingold–Tilford
+tree places it, and those are two different claims. The tidy tree compacts
+subtrees *by depth*, which is right only while depth is where a node is
+drawn. A dendrogram's leaves are all at height zero whatever their depth, so a
+tidy tree can tuck a shallow leaf in above a neighbouring deep subtree whose
+leaves are then drawn on top of it. So `stat.Tidy` has `Reset`, the tidy tree,
+and `ResetLeaves`, one slot per leaf in walk order with every parent centred
+over its children — and `geom.Tree` uses the second exactly when `geom.Value`
+is present. That is the record's own rule ("the channels tell them apart with
+no option") applied to the layout as well as to the height axis. Evenly spaced
+leaves are also what line a dendrogram up with a heatmap's columns.
+
+**`stat.Tidy` is a struct with `Reset`, not `Tidy` and `AppendTidy`.** The
+walk keeps a dozen per-node buffers, which is `stat.Chord`'s and
+`stat.Sankey`'s reason for the same shape. It runs without recursion — a
+virtual root above every root, so a forest lays out as one tree, and an
+explicit stack for the post-order — and it exports `Leaves`, the left-to-right
+leaf order, because a caller drawing a heatmap beside a dendrogram has to
+order its columns by it. Siblings are one slot apart and anything else two,
+the convention the algorithm is usually drawn with. The cost the record called
+fiddly-known was about 200 lines.
+
+**A tree beside a heatmap takes an ordinal breadth axis, and the record's
+refusal of one narrowed to the height axis.** A track shares the panel's axis,
+and a heatmap's axis is ordinal, so refusing an ordinal breadth
+(`ErrNotContinuous`, as the other relational marks do) would have made the
+record's headline chart impossible. Given one, the leaves are placed at their
+own names through `scale.Categorical.Encode`, in walk order, and each parent
+over the span of its children; an axis still discovering its categories learns
+the dendrogram's order. The height axis is still refused. What is not built is
+the dendrogram on the *left* edge: that needs the breadth on Y, and no mark in
+`geom` has an orientation to borrow — a question for the library rather than
+for this mark.
+
+**A tree reports a cycle, where the icicle beside it silently drops the
+nodes.** The record said the mark reuses 0039's cycle validation, and for a
+hierarchy there was none: `stat.Depth` marks a cycle −1 and the treemap and
+icicle skip it. A tree whose branch leads nowhere is a drawing with a hole in
+it that looks like the data, so `geom.Tree` returns `ErrCyclic` naming the
+node.
+
+**`Baseline` turns the height axis over rather than naming the rim.** "The
+root at the rim instead" is what 1 does for a depth tree, and for a dendrogram
+it is the opposite — its root is the highest merge and is at the rim already.
+So `Baseline(1)` mirrors every height within the trained extent, which is one
+rule for both, and is how a radial dendrogram drawn on merge heights puts its
+root at the hub.
+
+**A root at the hub wants `coord.Hole`.** The centre of a polar coord has no
+angle, so a branch ending exactly there is interpolated as a spiral. The
+example draws its radial tree with a small hole and the mark's documentation
+says why; nothing in the coord changed, because a point with no angle is a
+fact about the coord rather than a bug in it.
+
+The legend is one line swatch when the layer is named and none otherwise — a
+swatch per node is a legend as long as the tree — and `ColorBy` colours each
+branch by the row of the node it leads to, stroked a run of one colour at a
+time, which is how a clade is picked out.

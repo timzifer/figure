@@ -14,10 +14,9 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so have K, O and P.** **J, L, M and Q
+**Buckets A through I have shipped, and so have K, L, O and P.** **J, M and Q
 are planned and have records but no code** —
 [ADR 0051](adr/0051-barycentric-coord.md),
-[ADR 0053](adr/0053-tidy-tree-layout.md),
 [ADR 0054](adr/0054-statistical-instruments.md) and
 [ADR 0067](adr/0067-a-bivariate-colour-channel.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
@@ -49,7 +48,7 @@ reading declined.
 | A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
 | A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **shipped** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
-| A deterministic tree layout (`stat.Tidy`) | **planned** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
+| A deterministic tree layout (`stat.Tidy`) | **shipped** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **planned** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
 | A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
@@ -195,8 +194,8 @@ be two: the legend and the hit test were already general enough, which is what
 | Arc diagram | `geom.Arc` | Cartesian |
 | **Chord diagram** | `geom.Arc` | `coord.Polar()` + `geom.Baseline(1)` |
 | Node-link, force-directed | missing | — |
-| Node-link, tree-shaped | `geom.Tree` — planned, [ADR 0053](adr/0053-tidy-tree-layout.md) | Cartesian |
-| **Radial dendrogram** | `geom.Tree` — planned | `coord.Polar()` |
+| Node-link, tree-shaped | `geom.Tree` — [ADR 0053](adr/0053-tidy-tree-layout.md) | Cartesian |
+| **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
 | Venn / UpSet | missing | — |
 
 **Four marks, six charts.** Every layout here fills the unit square — a span
@@ -448,7 +447,7 @@ Weibull analysis is the load-bearing one: the slope is the shape parameter β,
 which says whether failures are infant mortality, random or wear-out. The field
 has dedicated commercial software and no general-purpose library.
 
-## L — needs a deterministic tree layout — **planned**, [ADR 0053](adr/0053-tidy-tree-layout.md)
+## L — needs a deterministic tree layout — **shipped**, [ADR 0053](adr/0053-tidy-tree-layout.md)
 
 Bucket E declined node-link layouts because a force simulation's whole method
 is to run until it settles. A **tidy tree** is not a force simulation:
@@ -464,12 +463,15 @@ predicted a node-link layout would read.
 | Dendrogram, phylogram, cladogram | `geom.Tree` with `Value` as the merge height | Cartesian |
 | Org chart, decision tree, file tree | `geom.Tree` with the depth as the height | Cartesian |
 | **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
-| **Clustered heatmap** | `Rect` plus a `geom.Tree` in a `Plot.Track` on two edges | Cartesian |
+| **Clustered heatmap** | `Rect` plus a `geom.Tree` in a `Plot.Track` — the top edge today; the left edge waits on an orientation | Cartesian |
 
 The last one is the reason to build it. It is the most-published figure shape
 in bioinformatics, it needs a rectangle, a colour ramp, an ordinal axis and a
-band at a panel's edge — all four of which are drawn today — and it has been
-one missing band's worth of content away ever since.
+band at a panel's edge — all four of which are drawn today — and it was one
+missing band's worth of content away until `examples/dendrogram` drew it.
+Given a column of heights the tree gives every leaf its own slot rather than
+compacting by depth, which is what keeps a dendrogram's leaves apart and in
+line with the heatmap's columns.
 
 ## M — needs a domain reduction — **planned**, [ADR 0054](adr/0054-statistical-instruments.md)
 
@@ -712,7 +714,7 @@ lines ADR 0033 left open that no other work would have closed
 
 What is left besides is four records, listed in the order they argue for — a
 dependency order rather than a preference. Nothing in the list now waits on
-anything else in it, and the second of them has been built.
+anything else in it, and the second and third of them have been built.
 
 1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
    widest genuine gap in the general-purpose world with a real user base, on
@@ -722,8 +724,8 @@ anything else in it, and the second of them has been built.
    **Shipped.** The smallest diff in this list and the one with the rarest
    output: five charts and no new mark, because every one of them is an ECDF or
    a scatter of median ranks on a warped axis.
-3. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)). One mark,
-   four charts, and it makes bucket E's "node-link is missing" an honest
+3. **A tree layout** — L ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+   **Shipped.** One mark, four charts, and it makes bucket E's "node-link is missing" an honest
    sentence instead of an over-broad one.
 4. **Domain reductions** — M ([ADR 0054](adr/0054-statistical-instruments.md)).
    Last, and deliberately: it is the widest reach in the catalogue and the least

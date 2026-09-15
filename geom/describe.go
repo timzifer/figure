@@ -70,6 +70,9 @@ const (
 	// because Vega-Lite's arc is a pie wedge — a document naming that would
 	// round-trip into a mark this package cannot rebuild.
 	MarkArc Mark = "arc-diagram"
+	// MarkTree is the node-link tree: a dendrogram, an org chart, and under a
+	// polar coord a radial dendrogram. See docs/adr/0053-tidy-tree-layout.md.
+	MarkTree Mark = "tree"
 
 	// MarkErrorBar is the interval mark: a rule between two bounds, with a cap
 	// at each end and a marker at the measurement.
@@ -172,6 +175,9 @@ type Desc struct {
 	// It is the zero value — [Nearest] — for every other mark, and for a
 	// raster that was told nothing.
 	Resample Resampling
+	// Branch is the shape a [Tree] joins a node to its parent with. It is the
+	// zero value — [Elbow] — for every other mark.
+	Branch Branch
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -403,6 +409,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Sankey(d.Source, opts...), nil
 	case MarkArc:
 		return Arc(d.Source, opts...), nil
+	case MarkTree:
+		return Tree(d.Source, opts...), nil
 	}
 	return nil, fmt.Errorf("%w: %q", ErrUnknownMark, d.Mark)
 }
@@ -443,6 +451,7 @@ func (d Desc) options() []Option {
 		Levels(d.Levels...),
 		LevelCount(d.LevelCount),
 		Resample(d.Resample),
+		Branches(d.Branch),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -574,6 +583,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Levels:     c.levels,
 		LevelCount: c.levelCount,
 		Resample:   c.resample,
+		Branch:     c.branch,
 		Bandwidth:  c.bandwidth,
 		Span:       c.span,
 		Smooth:     c.smooth,

@@ -48,6 +48,12 @@ func TestEveryRelationalMarkSurvivesTheRoundTrip(t *testing.T) {
 		// An unweighted graph names no value column at all, which is the case
 		// that would break if the decoder demanded one.
 		{"unweighted", nil, geom.Arc(src, geom.From("from"), geom.To("to"))},
+		// A tree: on its depth, on a column of heights with straight
+		// branches, and turned over under a polar coord as a radial
+		// dendrogram — the three things the document has to carry for it.
+		{"tree", nil, geom.Tree(src, geom.ID("node"), geom.Parent("under"))},
+		{"dendrogram", nil, geom.Tree(src, geom.ID("node"), geom.Parent("under"), geom.Value("n"), geom.Branches(geom.Straight))},
+		{"radial", coord.Polar(), geom.Tree(src, geom.ID("node"), geom.Parent("under"), geom.Baseline(1))},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

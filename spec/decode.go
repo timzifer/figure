@@ -282,6 +282,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		Family:     family(l.Mark.Family),
 		LevelCount: l.Mark.LevelCount,
 		Resample:   resampling(l.Mark.Resample),
+		Branch:     branch(l.Mark.Branch),
 		Bandwidth:  l.Mark.Bandwidth,
 		Span:       l.Mark.Span,
 		Smooth:     smoothing(l.Mark.Method),
