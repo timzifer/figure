@@ -117,3 +117,146 @@ func TestDepthIsLinearOnAChain(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkRollupPartitionChain20k(b *testing.B) {
+	parent := chainOf(20_000)
+	depth := stat.Depth(parent)
+	value := make([]float64, len(parent))
+	value[len(value)-1] = 1
+	var total, lo, hi []float64
+	for b.Loop() {
+		total = stat.AppendRollup(total, value, parent, depth)
+		lo, hi = stat.AppendPartition(lo, hi, total, parent, depth)
+	}
+}
+
+// sweepRollup and sweepPartition are Rollup and Partition as they were written
+// before they grouped the nodes by level: a scan of the whole table per level.
+// The results must agree bit for bit, because a treemap's golden files are
+// drawn from them and the sums have to be taken in the same order.
+func sweepRollup(value []float64, parent, depth []int) []float64 {
+	n := min(len(value), len(parent), len(depth))
+	dst := append([]float64(nil), value[:n]...)
+	deepest := 0
+	for _, d := range depth[:n] {
+		deepest = max(deepest, d)
+	}
+	for d := deepest; d > 0; d-- {
+		for i := range n {
+			if depth[i] == d {
+				if p := parent[i]; p >= 0 && p < n {
+					dst[p] += dst[i]
+				}
+			}
+		}
+	}
+	for i := range n {
+		if depth[i] < 0 {
+			dst[i] = 0
+		}
+	}
+	return dst
+}
+
+func sweepPartition(total []float64, parent, depth []int) (lo, hi []float64) {
+	n := min(len(total), len(parent), len(depth))
+	lo, hi = make([]float64, n), make([]float64, n)
+	grand := 0.0
+	for i := range n {
+		if depth[i] == 0 {
+			grand += total[i]
+		}
+	}
+	if !(grand > 0) {
+		return lo, hi
+	}
+	cursor := 0.0
+	for i := range n {
+		if depth[i] == 0 {
+			lo[i] = cursor
+			cursor += total[i] / grand
+		}
+	}
+	deepest := 0
+	for _, d := range depth[:n] {
+		deepest = max(deepest, d)
+	}
+	for d := 1; d <= deepest; d++ {
+		for i := range n {
+			if depth[i] == d-1 {
+				hi[i] = lo[i]
+			}
+		}
+		for i := range n {
+			if depth[i] == d {
+				p := parent[i]
+				lo[i] = hi[p]
+				hi[p] += total[i] / grand
+			}
+		}
+	}
+	for i := range n {
+		if depth[i] < 0 {
+			lo[i], hi[i] = 0, 0
+			continue
+		}
+		hi[i] = lo[i] + total[i]/grand
+	}
+	return lo, hi
+}
+
+func TestRollupAndPartitionAgreeWithTheLevelSweepBitForBit(t *testing.T) {
+	state := uint64(0x2545f4914f6cdd1d)
+	next := func(k int) int {
+		state ^= state << 13
+		state ^= state >> 7
+		state ^= state << 17
+		return int(state % uint64(k))
+	}
+	var total, lo, hi []float64
+	for trial := range 2000 {
+		n := 1 + next(40)
+		parent := make([]int, n)
+		value := make([]float64, n)
+		for i := range parent {
+			switch next(10) {
+			case 0:
+				parent[i] = stat.NoParent
+			case 1:
+				parent[i] = n + next(3)
+			default:
+				parent[i] = next(n)
+			}
+			// Values that do not add up exactly, so a change in the order of
+			// the sums would show.
+			value[i] = float64(next(1000)) / 7
+		}
+		depth := stat.Depth(parent)
+
+		total = stat.AppendRollup(total, value, parent, depth)
+		wantTotal := sweepRollup(value, parent, depth)
+		lo, hi = stat.AppendPartition(lo, hi, total, parent, depth)
+		wantLo, wantHi := sweepPartition(wantTotal, parent, depth)
+		for i := range n {
+			if total[i] != wantTotal[i] || lo[i] != wantLo[i] || hi[i] != wantHi[i] {
+				t.Fatalf("trial %d, parent %v, node %d:\ntotal %v lo %v hi %v\nwant  %v lo %v hi %v",
+					trial, parent, i, total[i], lo[i], hi[i], wantTotal[i], wantLo[i], wantHi[i])
+			}
+		}
+	}
+}
+
+func TestRollupAndPartitionAreLinearOnAChain(t *testing.T) {
+	parent := chainOf(200_000)
+	depth := stat.Depth(parent)
+	value := make([]float64, len(parent))
+	value[len(value)-1] = 1
+	total := stat.Rollup(value, parent, depth)
+	if total[0] != 1 {
+		t.Errorf("the root's total is %v, want the one leaf's 1", total[0])
+	}
+	lo, hi := stat.Partition(total, parent, depth)
+	if lo[len(lo)-1] != 0 || hi[len(hi)-1] != 1 {
+		t.Errorf("the leaf spans [%v, %v), want the whole interval", lo[len(lo)-1], hi[len(hi)-1])
+	}
+}

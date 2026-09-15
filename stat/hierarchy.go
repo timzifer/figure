@@ -1,5 +1,7 @@
 package stat
 
+import "sync"
+
 // A hierarchy is a self-referential edge table: every row is a node, and the
 // row names the node that is its parent. That is the shape
 // docs/chart-types.md argues a treemap, an icicle and a sunburst all read, and
@@ -132,11 +134,10 @@ func AppendRollup(dst []float64, value []float64, parent, depth []int) []float64
 	}
 	// Deepest first, so that a node's own subtree is complete before it is
 	// added into its parent's.
-	for d := maxDepth(depth); d > 0; d-- {
-		for i := range n {
-			if depth[i] != d {
-				continue
-			}
+	lv := acquireLevels(depth[:n])
+	defer lv.release()
+	for d := lv.deepest(); d > 0; d-- {
+		for _, i := range lv.at(d) {
 			if p := parent[i]; p >= 0 && p < n {
 				dst[p] += dst[i]
 			}
@@ -200,16 +201,13 @@ func AppendPartition(lo, hi []float64, total []float64, parent, depth []int) ([]
 			cursor += total[i] / grand
 		}
 	}
-	for d := 1; d <= maxDepth(depth); d++ {
-		for i := range n {
-			if depth[i] == d-1 {
-				hi[i] = lo[i]
-			}
+	lv := acquireLevels(depth[:n])
+	defer lv.release()
+	for d := 1; d <= lv.deepest(); d++ {
+		for _, i := range lv.at(d - 1) {
+			hi[i] = lo[i]
 		}
-		for i := range n {
-			if depth[i] != d {
-				continue
-			}
+		for _, i := range lv.at(d) {
 			p := parent[i]
 			lo[i] = hi[p]
 			hi[p] += total[i] / grand
@@ -225,12 +223,75 @@ func AppendPartition(lo, hi []float64, total []float64, parent, depth []int) ([]
 	return lo, hi
 }
 
-func maxDepth(depth []int) int {
-	m := 0
+// levels is a hierarchy's nodes grouped by depth: every node at depth d, in
+// index order, is order[start[d]:start[d+1]].
+//
+// It is what lets [AppendRollup] and [AppendPartition] visit one level at a
+// time without scanning the whole table for each level, which on a hierarchy n
+// levels deep is n scans of n nodes. Grouping is a counting sort — one pass to
+// count, one to place — and it is stable, so a level is still visited in the
+// order its rows appeared and every sum is taken in the order it always was.
+//
+// The two functions return caller-owned slices and have no room in their
+// signatures for a third buffer, so the grouping comes from a pool: a chart
+// redrawn every frame takes the same one back each time rather than
+// allocating it.
+type levels struct {
+	order, start []int
+}
+
+var levelPool = sync.Pool{New: func() any { return new(levels) }}
+
+// acquireLevels groups the nodes of depth by level. A node at depth -1 is on a
+// cycle and belongs to no level.
+func acquireLevels(depth []int) *levels {
+	lv := levelPool.Get().(*levels)
+	deepest := -1
 	for _, d := range depth {
-		if d > m {
-			m = d
+		deepest = max(deepest, d)
+	}
+	lv.start = growInts(lv.start, deepest+2)
+	clear(lv.start)
+	for _, d := range depth {
+		if d >= 0 {
+			lv.start[d+1]++
 		}
 	}
-	return m
+	for d := 1; d < len(lv.start); d++ {
+		lv.start[d] += lv.start[d-1]
+	}
+	lv.order = growInts(lv.order, lv.start[len(lv.start)-1])
+	// start[d] doubles as level d's fill cursor, which leaves it pointing at
+	// the start of level d+1; shifting back afterwards restores it.
+	for i, d := range depth {
+		if d >= 0 {
+			lv.order[lv.start[d]] = i
+			lv.start[d]++
+		}
+	}
+	for d := len(lv.start) - 1; d > 0; d-- {
+		lv.start[d] = lv.start[d-1]
+	}
+	lv.start[0] = 0
+	return lv
+}
+
+func (lv *levels) release() { levelPool.Put(lv) }
+
+// deepest is the deepest level with a node on it, or -1 for no nodes.
+func (lv *levels) deepest() int { return len(lv.start) - 2 }
+
+// at lists the nodes at depth d, in index order.
+func (lv *levels) at(d int) []int {
+	if d < 0 || d > lv.deepest() {
+		return nil
+	}
+	return lv.order[lv.start[d]:lv.start[d+1]]
+}
+
+func growInts(dst []int, n int) []int {
+	if cap(dst) < n {
+		return make([]int, n)
+	}
+	return dst[:n]
 }
