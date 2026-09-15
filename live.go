@@ -634,9 +634,22 @@ func (l *Live) Select(r ir.Rect) []Event {
 		if seenLayer(refs[:i], ref.Panel, ref.Layer) {
 			continue
 		}
+		// The rows are a set. A layer may report one row at several positions
+		// — an extruded bar reports its front, its top and its side, so that a
+		// pointer on any of the three finds it — and a rectangle over two of
+		// them has still selected one row. First appearance keeps the order.
 		rows := make([]int, 0, len(refs)-i)
+		var seen []uint64
 		for _, r2 := range refs[i:] {
-			if r2.Panel == ref.Panel && r2.Layer == ref.Layer {
+			if r2.Panel != ref.Panel || r2.Layer != ref.Layer {
+				continue
+			}
+			w := r2.Row / 64
+			for len(seen) <= w {
+				seen = append(seen, 0)
+			}
+			if bit := uint64(1) << (r2.Row % 64); seen[w]&bit == 0 {
+				seen[w] |= bit
 				rows = append(rows, r2.Row)
 			}
 		}

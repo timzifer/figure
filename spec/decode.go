@@ -310,6 +310,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	}
 	d.Confidence, d.CensorMarks = l.Mark.Confidence, l.Mark.CensorMarks
 	d.HideGuide = l.Mark.Guide != nil && !*l.Mark.Guide
+	d.Extrude = l.Mark.Extrude
 	if l.Mark.Extend != nil {
 		d.Extend = *l.Mark.Extend
 	}

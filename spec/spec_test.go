@@ -35,7 +35,7 @@ func draw(t *testing.T, c spec.Chart) []string {
 	rc := render.Chart{
 		Width: c.Width, Height: c.Height, DPR: c.DPR, Theme: c.Theme,
 		Title: c.Title, XTitle: c.XTitle, YTitle: c.YTitle,
-		X: c.X, Y: c.Y, Layers: c.Layers,
+		X: c.X, Y: c.Y, Layers: c.Layers, Coord: c.Coord,
 	}
 	if rc.X == nil {
 		rc.X = scale.Linear(scale.Nice())

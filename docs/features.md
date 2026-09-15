@@ -96,7 +96,12 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0018](adr/0018-coordinate-systems.md)). A slice's inner and outer
   radius are columns like its share is (`geom.X` and `geom.X2`), and
   `geom.ExplodeBy` breaks one out of the ring without changing what it says
-  ([ADR 0026](adr/0026-breaking-a-mark-out.md)). **`coord.Smith`** is the
+  ([ADR 0026](adr/0026-breaking-a-mark-out.md)). **`coord.Oblique`** is
+  Cartesian seen from a corner: `geom.Extrude(true)` gives a bar or a rect a
+  top and a side face, the front stays unforeshortened so a bar is as tall as
+  its value, and no column can set the depth — volume is decoration here, and a
+  third variable gets an axis in `figure/three` instead
+  ([ADR 0055](adr/0055-depth-without-a-third-axis.md)). **`coord.Smith`** is the
   third one: it reads the pair as a complex impedance and maps it through
   Γ = (z−1)/(z+1) onto the unit disc, which is the chart every RF engineer works
   on and almost no plotting library draws. Its grid is the two axes' own ticks —

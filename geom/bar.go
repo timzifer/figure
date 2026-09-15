@@ -188,6 +188,7 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 		return nil
 	}
 	offs := sc.offsets(brk, rects, rows)
+	ext := g.cfg.extruding(cd)
 	// A bar's row is at the middle of the end it grew to, which is where a
 	// reader points when they mean "this bar" — not at a corner, and not at
 	// the middle of a shape whose height is the value. A stacked segment is
@@ -209,7 +210,19 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 			d := offsetAt(offs, i)
 			sc.pts[i] = ir.Point{X: p.X + d.X, Y: p.Y + d.Y}
 		}
-		f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
+		if ext.on {
+			sc.reportExtruded(f, ext, rects, rows, sc.pts, g.s)
+		} else {
+			f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
+		}
+	}
+
+	// An extruded layer is painted a mark at a time in depth order, whatever
+	// colours it from, because a mark's faces overlap its neighbours' and a
+	// batch by colour would paint them in the wrong order.
+	if ext.on {
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, g.markColors(sc, f, rows, fill))
+		return nil
 	}
 
 	// A grouped layer is painted by series, and every segment is its own
@@ -251,6 +264,33 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 		b.StrokePath(&sc.fill, ir.Stroke{Color: *g.cfg.color, Width: pick(g.cfg.width, 1)})
 	}
 	return nil
+}
+
+// markColors is the colour of each bar in rows, whichever way the layer is
+// coloured: by series, from a column, or all one fill.
+func (g *barGeom) markColors(sc *scratch, f Frame, rows []int, fill ir.Color) []ir.Color {
+	if g.gs.grouped() {
+		cols := grow(sc.cols, len(rows))
+		for k, i := range rows {
+			cols[k] = g.cfg.groupColor(f, &g.gs, g.gs.of[i])
+		}
+		sc.cols = cols
+		return cols
+	}
+	if cols := sc.colorsFor(g.cfg, g.s, rows); cols != nil {
+		return cols
+	}
+	return uniform(sc, len(rows), fill)
+}
+
+// uniform is n copies of one colour, in the scratch's colour buffer.
+func uniform(sc *scratch, n int, c ir.Color) []ir.Color {
+	cols := grow(sc.cols, n)
+	for k := range cols {
+		cols[k] = c
+	}
+	sc.cols = cols
+	return cols
 }
 
 // barTop is the end of a bar that is not the baseline. A bar below the

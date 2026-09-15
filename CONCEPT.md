@@ -655,9 +655,7 @@ The record of how each of those arrived, and the argument that shaped it, is in
 - **The rest of 3D.** The third axis and its camera are built
   ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
   [ADR 0057](docs/adr/0057-orbiting-a-chart.md)); what is left of the four
-  records is the 3D scatter with its droplines, the oblique
-  coord that gives a flat mark volume without giving the chart a dimension
-  ([ADR 0055](docs/adr/0055-depth-without-a-third-axis.md)), and the spherical
+  records is the 3D scatter with its droplines and the spherical
   coord that turns one projection into antenna patterns, Poincaré and Bloch
   spheres and a stereonet
   ([ADR 0058](docs/adr/0058-what-3d-is-for.md)).

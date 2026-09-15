@@ -652,9 +652,10 @@ type RowRef struct {
 // row is not on screen — a decimated line draws the rows that survived, and a
 // row that was reduced away is not somewhere the reader can be pointed at.
 //
-// A row reported at more than one position — which no built-in mark does, but
-// nothing forbids — reports the last, matching [Index.At]'s rule that a later
-// mark was drawn on top.
+// A row reported at more than one position reports the last, matching
+// [Index.At]'s rule that a later mark was drawn on top. An extruded bar is the
+// built-in mark that does it — once per face, and its front last, so that this
+// is where the flat bar would have been.
 func (ix *Index) Locate(panel, layer, row int) (ir.Point, bool) {
 	var at ir.Point
 	found := false

@@ -191,6 +191,9 @@ type Desc struct {
 	// is negative so that a Desc written by hand, which names nothing, keeps
 	// the guides a layer has by default. See [Guide].
 	HideGuide bool
+	// Extrude reports a [Bar] or [Rect] layer drawn with volume under an
+	// oblique coord. See [Extrude].
+	Extrude bool
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -471,6 +474,7 @@ func (d Desc) options() []Option {
 		Confidence(d.Confidence),
 		CensorMarks(d.CensorMarks),
 		Guide(!d.HideGuide),
+		Extrude(d.Extrude),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -607,6 +611,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Confidence:  c.confidence,
 		CensorMarks: c.censorMarks,
 		HideGuide:   c.hideGuide,
+		Extrude:     c.extrude,
 		Bandwidth:   c.bandwidth,
 		Span:        c.span,
 		Smooth:      c.smooth,

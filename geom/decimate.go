@@ -241,6 +241,7 @@ type scratch struct {
 	rows  []int
 	order []int
 	mrows []int // source rows behind the marks, when someone asked
+	faces []int // the row behind each face of an extruded mark
 	irows []int // source rows of an interpolated series
 	pts   []ir.Point
 	offs  []ir.Point // how far each mark is broken out of the middle

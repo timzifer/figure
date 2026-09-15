@@ -15,6 +15,8 @@ const (
 	TypeCartesian Type = "cartesian"
 	TypePolar     Type = "polar"
 	TypeSmith     Type = "smith"
+	// TypeOblique is a Cartesian coord seen from a corner. See [Oblique].
+	TypeOblique Type = "oblique"
 )
 
 // Desc is a coord reduced to what configures it.
@@ -59,6 +61,16 @@ type Desc struct {
 	// so that the pair reads as a conductance and a susceptance. See
 	// [SmithAdmittance].
 	Admittance bool
+
+	// Depth and DepthAngle are an oblique coord's depth vector: how deep, as
+	// a fraction of the panel's shorter side, and in which direction, in
+	// radians in device space. See [Depth] and [DepthAngle].
+	//
+	// Zero is each one's default, for the reason Chord and Arc are two
+	// fields: a Desc that names the type and nothing else must draw what
+	// [Oblique] draws. A depth vector pointing straight to the right is
+	// therefore written as a full turn, 2π, which is the same direction.
+	Depth, DepthAngle float64
 }
 
 // Describe reports c's configuration, or ok == false if c cannot describe
@@ -86,6 +98,13 @@ func FromDesc(d Desc) (Coord, error) {
 			opts = append(opts, Chord())
 		}
 		return Polar(opts...), nil
+
+	case TypeOblique:
+		opts := []ObliqueOption{Depth(d.Depth)}
+		if d.DepthAngle != 0 {
+			opts = append(opts, DepthAngle(d.DepthAngle))
+		}
+		return Oblique(opts...), nil
 
 	case TypeSmith:
 		opts := []SmithOption{SmithRadius(d.Radius), SmithAdmittance(d.Admittance)}

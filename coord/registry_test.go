@@ -39,7 +39,7 @@ func TestAnUnregisteredTypeIsStillUnknown(t *testing.T) {
 }
 
 func TestRegisterRefusesABuiltInType(t *testing.T) {
-	for _, typ := range []coord.Type{coord.TypeCartesian, coord.TypePolar, coord.TypeSmith, ""} {
+	for _, typ := range []coord.Type{coord.TypeCartesian, coord.TypePolar, coord.TypeSmith, coord.TypeOblique, ""} {
 		func() {
 			defer func() {
 				if recover() == nil {
