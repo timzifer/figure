@@ -512,6 +512,14 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	case geom.MarkArc:
 		fill()
 		m.Padding, m.Thickness, m.Origin = d.Padding, d.Thickness, d.Baseline
+	case geom.MarkTree:
+		// A tree is its branches, so it writes a stroke and no fill; where its
+		// root sits, and the branch shape when it is not the elbow.
+		stroke()
+		m.Origin = d.Baseline
+		if d.Branch == geom.Straight {
+			m.Branch = "straight"
+		}
 	case geom.MarkHexbin:
 		fill()
 		m.DensityCells = d.CellSize

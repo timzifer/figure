@@ -197,6 +197,7 @@ type config struct {
 	levels     []float64
 	levelCount int
 	resample   Resampling
+	branch     Branch
 
 	sizeCol   string
 	sizeScale scale.SizeScale

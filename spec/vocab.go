@@ -76,6 +76,8 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "sankey", "", nil
 	case geom.MarkArc:
 		return "arc-diagram", "", nil
+	case geom.MarkTree:
+		return "tree", "", nil
 	case geom.MarkLocus:
 		// A family of curves given by a formula. Vega-Lite has no mark for it
 		// and no transform that could stand in, so this is figure's own name.
@@ -168,6 +170,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkSankey, nil
 	case "arc-diagram":
 		return geom.MarkArc, nil
+	case "tree":
+		return geom.MarkTree, nil
 	case "rule":
 		switch m.Orient {
 		case "horizontal":
@@ -558,4 +562,13 @@ func resampling(name string) geom.Resampling {
 		}
 	}
 	return geom.Nearest
+}
+
+// branch is a tree's branch shape, read back from its name. Anything but
+// "straight" is the elbow, which is the default a document leaves out.
+func branch(name string) geom.Branch {
+	if name == "straight" {
+		return geom.Straight
+	}
+	return geom.Elbow
 }

@@ -32,13 +32,17 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
-  **`Sankey`** and **`Arc`**, which read an edge table rather than a pair of
+  **`Sankey`**, **`Arc`** and **`Tree`**, which read an edge table rather than a pair of
   axes: `geom.From`/`geom.To` for a flow, `geom.ID`/`geom.Parent` for a
   hierarchy, and `geom.Value` for the magnitude of either. Each places its own
   layout in the unit square and hands it to the coordinate stage, so an
   `Icicle` under `coord.Polar` is a **sunburst** and an `Arc` under one is a
   **chord diagram** — four marks, six charts, and no second implementation of
-  anything ([ADR 0039](adr/0039-relational-layouts.md)).
+  anything ([ADR 0039](adr/0039-relational-layouts.md)). `Tree` is a tidy tree
+  on the depth, or a dendrogram with one slot per leaf on a column of heights,
+  with elbow or straight branches; under `coord.Polar` it is a radial tree, and
+  in a track over a heatmap's ordinal axis it is a clustered heatmap
+  ([ADR 0053](adr/0053-tidy-tree-layout.md)).
 - **Series in one layer** — `geom.GroupBy` splits a long table into N series
   drawn by one layer, each with its own colour and its own legend entry.
 - **Position adjustments** — `geom.Stack` (from zero, to 100 %, about a
@@ -222,8 +226,8 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   gives the interval it covers, a continuous ramp the value under the pointer
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
-Deliberately **not** here: geographic projections, node-link and Venn diagrams,
-and any engine that links two charts together — a link is a
+Deliberately **not** here: geographic projections, force-directed node-link
+and Venn diagrams, and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and

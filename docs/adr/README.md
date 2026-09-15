@@ -62,7 +62,7 @@ depends on.
 | [0050](0050-locus-annotations.md) | A locus is an annotation, and the coord draws it | Accepted, amended | — |
 | [0051](0051-barycentric-coord.md) | A ternary chart is a barycentric coord, and its third grid family is not furniture | Proposed | — |
 | [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Accepted, amended | — |
-| [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Proposed | — |
+| [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Accepted, amended | — |
 | [0054](0054-statistical-instruments.md) | A domain reduction belongs in `stat` when its output is the chart | Proposed | — |
 | [0055](0055-depth-without-a-third-axis.md) | A mark gains volume before a chart gains a dimension | Planned | — |
 | [0056](0056-three-dimensional-charts.md) | A third axis widens the seams that count scales, and the IR stays two-dimensional | Accepted, amended | — |
@@ -89,8 +89,9 @@ that opens after v1.0 gets a record here before it gets code.
 
 ## Records not yet implemented
 
-**0051, 0053 and 0054 are proposed, not accepted, and no code implements
-them; 0052 was proposed with them and has since been built.** They were written down because the alternative is worse: each one answers a question
+**0051 and 0054 are proposed, not accepted, and no code implements them;
+0052 and 0053 were proposed with them and have since been built.** They were
+written down because the alternative is worse: each one answers a question
 an earlier record left open — 0033's "Revisit if" for the first two, 0039's for
 the fourth, 0041's serialisation rule for the third — and a question answered in
 a conversation and not in the repository gets answered again, differently, later.
@@ -113,6 +114,12 @@ not an option on the ECDF — and records that the ECDF had been handing a NaN
 to the backend at the bottom of its staircase on any axis without a zero,
 which a probability axis made impossible to miss.
 
+**0053 is the third**: `geom.Tree` on `stat.Tidy`, with a clustered heatmap
+and a radial tree in `examples/dendrogram`. Its amendment records that the
+record's one layout is two — the tidy tree for a tree drawn on its depth, one
+slot per leaf for a tree drawn on a column of heights — and that a dendrogram
+beside a heatmap needs the ordinal breadth axis the record had refused.
+
 They are also deliberately written as a set, because four of the five lean on
 each other. 0050 introduced the mark 0051 keeps as its escape hatch for a
 ternary chart's third grid family and 0053 uses for a funnel plot's contours,
@@ -123,9 +130,9 @@ refused rather than reopening it. Reading any one of them alone will make it
 look more expensive than it is.
 
 A proposed record becomes accepted when it is implemented, or is deleted with a
-sentence saying what it got wrong — 0050 and 0052 are worked examples of the
-first. Neither is urgent for the remaining three: nothing in v1.7 depends on any of
-them, and each is additive by construction.
+sentence saying what it got wrong — 0050, 0052 and 0053 are worked examples of
+the first. Neither is urgent for the remaining two: nothing in v1.7 depends on
+either of them, and each is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built
