@@ -45,6 +45,12 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "hexbin", "", nil
 	case geom.MarkContour:
 		return "contour", "", nil
+	case geom.MarkRaster:
+		// A field drawn as an image. Vega-Lite's "image" mark draws a picture
+		// the data points at, which is a different thing entirely, so
+		// borrowing the word would make a document decode into a mark that
+		// draws something else. This is figure's own.
+		return "raster", "", nil
 	case geom.MarkHorizon:
 		// A folded axis. Vega-Lite draws the form as a layered-area recipe
 		// with a clip per band rather than as a mark, so there is no name to
@@ -138,6 +144,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkHexbin, nil
 	case "contour":
 		return geom.MarkContour, nil
+	case "raster":
+		return geom.MarkRaster, nil
 	case "horizon":
 		return geom.MarkHorizon, nil
 	case "beeswarm":
@@ -522,3 +530,32 @@ func parseColor(s string) (ir.Color, error) {
 // should not have to divide by pi.
 func degrees(radians float64) float64 { return radians * 180 / math.Pi }
 func radians(deg float64) float64     { return deg * math.Pi / 180 }
+
+// How a raster reduces the cells that land on one pixel. "nearest" is the
+// default and is written down only when something else was asked for.
+var resamplings = []struct {
+	how  geom.Resampling
+	name string
+}{
+	{geom.Nearest, "nearest"},
+	{geom.Mean, "mean"},
+	{geom.Max, "max"},
+}
+
+func resampleName(r geom.Resampling) string {
+	for _, x := range resamplings {
+		if x.how == r {
+			return x.name
+		}
+	}
+	return "nearest"
+}
+
+func resampling(name string) geom.Resampling {
+	for _, x := range resamplings {
+		if x.name == name {
+			return x.how
+		}
+	}
+	return geom.Nearest
+}

@@ -196,6 +196,7 @@ type config struct {
 
 	levels     []float64
 	levelCount int
+	resample   Resampling
 
 	sizeCol   string
 	sizeScale scale.SizeScale
@@ -288,6 +289,19 @@ func Levels(vs ...float64) Option {
 // About n, because a round step a reader can do arithmetic with is worth more
 // than an exact count of awkward ones.
 func LevelCount(n int) Option { return func(c *config) { c.levelCount = n } }
+
+// Resample sets how a [Raster] combines the cells that land on one pixel, when
+// its lattice is finer than the panel.
+//
+// The default is [Nearest], because it is the only member of the family that
+// never shows a number that was not measured. It is also the one that aliases,
+// which is why a spectrogram passes [Max]: a tone one bin wide is a peak, and
+// the nearest cell to a pixel centre is as likely to be the silence beside it.
+//
+// It has no effect where the lattice is coarser than the panel. Growing a cell
+// to cover several pixels is not a reduction, and there is no member of this
+// family that smooths — see [Raster] for why.
+func Resample(r Resampling) Option { return func(c *config) { c.resample = r } }
 
 // Color sets the mark colour, overriding the palette.
 func Color(col ir.Color) Option { return func(c *config) { c.color = &col } }

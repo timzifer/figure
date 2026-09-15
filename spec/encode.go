@@ -512,6 +512,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// The levels the layer is actually tracing, so that a document reads
 		// back as the same lines — which is the whole reason to pin them.
 		m.Levels, m.LevelCount = d.Levels, d.LevelCount
+	case geom.MarkRaster:
+		// The reduction and nothing else. A raster has neither a stroke nor a
+		// fill of its own — every pixel takes its colour from the ramp — and
+		// no group, because the table it reads is one value per cell.
+		if d.Resample != geom.Nearest {
+			m.Resample = resampleName(d.Resample)
+		}
 	case geom.MarkHorizon:
 		fill()
 		rows()

@@ -272,6 +272,16 @@ type Mark struct {
 	// "bins": 8 for a contour would be a document claiming the mark bins.
 	Levels     []float64 `json:"levels,omitempty"`
 	LevelCount int       `json:"levelCount,omitempty"`
+	// Resample is how a raster combines the cells that land on one pixel when
+	// its lattice is finer than the panel: "nearest", "mean" or "max". It is
+	// figure's own, because Vega-Lite has no raster mark to carry it.
+	//
+	// It is a name out of a closed family rather than a description of a
+	// filter, which is the rule docs/adr/0041-qq-plots.md set: a named member
+	// serialises and an arbitrary function does not. Omitted is "nearest",
+	// which is the only one of the three that never shows a number that was
+	// not measured.
+	Resample string `json:"resample,omitempty"`
 	// Family is the set of curves a locus draws Levels of: "nichols-m",
 	// "nichols-n", "smith-vswr" or "smith-q". Vega-Lite has none of them, so
 	// these are figure's own names.

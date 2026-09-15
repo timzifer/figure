@@ -210,6 +210,13 @@ END {
 	# resize handle.
 	flat("BenchmarkNichols480", "BenchmarkNichols1440", 8)
 
+	# A field drawn as one image, added with geom.Raster. The image is built at
+	# the panel's resolution rather than the lattice's, so sixty-four times the
+	# cells allocates the same frame — and a raster that painted per cell, or
+	# that allocated its panel-sized buffer every frame instead of repainting
+	# it, would show up here as the only place in the picture it could.
+	flat("BenchmarkRaster64", "BenchmarkRaster512", 8)
+
 	flat("BenchmarkSurface64", "BenchmarkSurface256", 8)
 	flat("BenchmarkTrajectory1k", "BenchmarkTrajectory100k", 8)
 

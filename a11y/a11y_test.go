@@ -202,3 +202,38 @@ func TestAnAnnotationIsListedRatherThanTabulated(t *testing.T) {
 		t.Errorf("a horizontal rule was reported as having an x:\n%s", html)
 	}
 }
+
+// A raster is one image on screen and a table of readings to a reader who
+// cannot see it. The picture is a drawing detail: what the data channel says
+// is the (x, y, v) the field was measured at, one row per cell.
+func TestARasterIsReadAsItsReadingsAndNotAsAnImage(t *testing.T) {
+	field := data.Float64Columns(map[string][]float64{
+		"t":  {0, 1, 0, 1},
+		"hz": {0, 0, 1, 1},
+		"db": {-10, -20, -30, -40},
+	})
+	c := a11y.Chart{
+		Title:  "Spectrum",
+		X:      scale.Linear(),
+		Y:      scale.Linear(),
+		Layers: []geom.Geom{geom.Raster(field, geom.X("t"), geom.Y("hz"), geom.Z("db"))},
+	}
+
+	s := a11y.Describe(c)
+	if !strings.Contains(s.Detail, "raster") {
+		t.Errorf("the description does not name the mark:\n%s", s.Detail)
+	}
+
+	tab, err := a11y.Table(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"t", "hz", "db", "-40"} {
+		if !strings.Contains(tab, want) {
+			t.Errorf("the table does not carry %q:\n%s", want, tab)
+		}
+	}
+	if strings.Contains(tab, "image") {
+		t.Errorf("the table mentions the image the mark happens to draw with:\n%s", tab)
+	}
+}

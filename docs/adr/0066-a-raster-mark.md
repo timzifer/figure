@@ -1,6 +1,6 @@
 # 0066 — A field sampled on a grid is one image, and the lattice already knows its shape
 
-**Status:** Proposed · **Date:** 2026-09-11 · **Implemented:** —
+**Status:** Accepted, amended · **Date:** 2026-09-11 · **Implemented:** 2026-09-15
 
 ## Context
 
@@ -135,6 +135,91 @@ matters is `Resample` above, chosen in data terms rather than in device ones.
 | `interact` | a hit inverts the position through the lattice and reports the cell's value — the hexbin's shape, over data the geom kept |
 | `a11y` | a cell is a `(x, y, v)` reading; the image is a drawing detail and the data channel does not mention it |
 | Charts unlocked | spectrogram and waterfall, Hovmöller diagram, recurrence plot, dense heatmap of a measured field, thermal or line-scan sensor frame, occupancy and correlation matrices at size, and the backdrop a contour is drawn over |
+
+## Amendment — what the implementation settled
+
+`geom.Raster` is in `geom/raster.go`, `stat.Step`, `stat.Block`,
+`stat.Lattice.Mean` and `stat.Lattice.Max` are the arithmetic beside
+`Grid.Raster`, and `examples/spectrogram` is the chart the mark exists for:
+1322 frames by 128 bins, one `<image>` in the SVG where a `Rect` per cell would
+be 169,216 paths. Nine things the record did not settle:
+
+**The same faults with the same message is one function, not a promise.** The
+record asked that a raster and a contour refuse a table identically.
+`geom.latticeError` is the switch over `stat.LatticeFault` that both call, and
+the mark's name is its argument — so a caller who fixed the sentence a contour
+gave them has fixed the raster drawn over it, and a test compares the two
+sentences word for word. The three copies in `three` are left alone: they name
+a *floor* axis, which is a different sentence about a different chart.
+
+**The axes are trained to the cell edges, not to the samples.** A cell is
+centred on its reading, so half of the first one lies below the first x. An
+axis trained on the positions alone clips a half cell off each side of the
+picture, which is the one part of a measured field a reader is most likely to
+be looking at. Where a scale has no position for an edge — a log axis whose
+first cell edge crosses zero — the sample stands.
+
+**Nearest is one cell rather than a reduction, so `stat` gained two of them
+and not three.** What the family chooses is how wide a pixel's block of cells
+is and then what to do with it: `Nearest` narrows the span to the cell the
+pixel's centre falls in and reads `Lattice.Value`, which was already there, and
+only `Mean` and `Max` have arithmetic to do. The two agree at the boundary — a
+block of one cell reduced either way is that cell, NaN included — so the three
+cases are one loop with one branch.
+
+**The pixel-to-cell mapping is inverted through the scale, per pixel.** The
+record says nearest neighbour and one pass over the panel; doing that by
+inverting the axis rather than by interpolating between the lattice's ends
+costs the same and buys a property worth naming: a non-linear axis places the
+cells where it places everything else, so a log frequency axis gives the low
+bins more pixels than the high ones. The spans are resolved once per pixel
+column and once per pixel row, so the cost of the mark is the panel's size and
+not the field's — a recurrence plot of ten thousand samples is a hundred
+million cells and still a few hundred thousand pixels.
+
+**A row is reported per cell only while a cell is at least a pixel across.**
+The record said a hit inverts the position through the lattice and reports the
+cell's value. It does, through `geom.Rows`, one position per cell — but only
+above that threshold. Below it the pixel is a reduction over several cells, and
+under `Mean` its value is not any one of them, so there is no single row behind
+it and naming one would name whichever cell the rounding reached. That is the
+answer a hexbin's cell and the density raster already give, and the hit still
+carries the position read back through the axes, which is the reading a field
+has at a point.
+
+**A non-Cartesian coord is an error rather than a wrong picture.** The record
+files a polar raster under "Revisit if", which leaves open what the mark does
+when it meets one today. It returns `ErrWarpedRaster` from `Build`: a blit is
+axis-aligned in device space, and an image drawn square in a round panel is not
+a degraded chart but a false one.
+
+**A raster with no `ColorBy` still has a ramp and still has a bar.** The
+record's examples all name one. Naming none takes `palette.DefaultRamp` over
+the field's own extent, because a raster painted in one colour is not a
+degraded raster — it is nothing at all — and the mark whose whole argument is
+that it *can* have a labelled colourbar should not need to be asked for one.
+
+**A ramp read per pixel is the mark's whole cost, so it is read into a table
+first.** This is the one thing the record got materially wrong: "one pass over
+the panel" is cheap only if a pixel is cheap, and `palette.Lerp` blends in
+linear light — three transfer functions in and three out — which measured at
+640 ns a colour, or 150 ms for a 600 by 400 panel. Every other mark asks for a
+handful of colours and none of them noticed. `geom.ink` reads the scale once
+per domain: one colour per class for a classed scale, taken at the middle of
+the class exactly as `render`'s classed bar takes it so that the bar and the
+picture cannot disagree, and 1024 samples along the ramp for a continuous one,
+which is `render`'s own `colorbarStops` argument at a finer grain. A classed
+scale is not sampled at all, for the reason `render` draws its bar in bands
+rather than as a gradient: a class boundary is an edge, and an edge is what
+sampling steps over. The panel above costs 3.3 ms and no allocations.
+
+**The guide is the contour's `ColorGuide`, not `config.colorGuide`.** The
+consequences table above says the shared one is reused, and it is not: that
+helper answers only for a layer that resolved a *colour column* through a
+scale, and a raster's quantity is `Z`. It is the same divergence `geom.Contour`
+already has for the same reason, and the same four lines — which is the smaller
+of the two costs. Widening the shared helper to mean "a layer that colours by a
+number it has" would make every mark that does not answer it explain why.
 
 ## Not in scope
 
