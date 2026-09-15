@@ -226,7 +226,7 @@ func hasField(enc *Encoding) bool {
 		return false
 	}
 	for _, ch := range [...]*Channel{enc.X, enc.Y, enc.X2, enc.Y2, enc.Color, enc.Detail, enc.Width, enc.Explode, enc.Size, enc.Text, enc.Mid, enc.Error, enc.ErrorX,
-		enc.From, enc.To, enc.ID, enc.Parent, enc.Value, enc.Event} {
+		enc.From, enc.To, enc.ID, enc.Parent, enc.Value, enc.Event, enc.Uncertainty} {
 		if ch != nil && ch.Field != "" {
 			return true
 		}

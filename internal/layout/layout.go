@@ -61,6 +61,11 @@ const (
 	GuideColorbar
 	// GuideSize is the ladder of sample marks a size channel is read off.
 	GuideSize
+	// GuideBivariate is the square key a bivariate colour scale is read off:
+	// one reading across it and the other up it. Its Labels are the two ends
+	// of the first reading, the two ends of the second, and the second
+	// reading's title, in that order. See docs/adr/0067-a-bivariate-colour-channel.md.
+	GuideBivariate
 )
 
 // Guide is what layout needs to know about one entry of the guide column.
@@ -157,6 +162,8 @@ func measureGuides(th theme.Theme, guides []Guide, m Measurer, plotH float32) []
 			out[i] = measureColorbar(th, g, m, plotH)
 		case GuideSize:
 			out[i] = measureSizeKey(th, g, m)
+		case GuideBivariate:
+			out[i] = measureBivariateKey(th, g, m)
 		default:
 			out[i] = measureLegend(th, g, m)
 		}
@@ -222,6 +229,43 @@ func measureSizeKey(th theme.Theme, g Guide, m Measurer) extent {
 	e := extent{
 		w: widest + th.LegendGap + maxAdvance(m, g.Labels, labelFont) + 2*th.LegendPadding,
 		h: h + float32(n-1)*th.LegendGap + 2*th.LegendPadding,
+	}
+	return withTitle(e, th, g.Title, m)
+}
+
+// BivariateKeySide is the side of a bivariate key's square, in multiples of the
+// theme's colourbar thickness.
+//
+// A square rather than a bar, because the key has two readings and neither is
+// the long one; five thicknesses because that is enough cells across for a
+// tree of three or four layers to be told apart, and no more room than a
+// colourbar of the same chart already asks for.
+const BivariateKeySide = 5
+
+// measureBivariateKey sizes the square key: the square, the first reading's two
+// ends under it, the second reading's two ends beside it, and the second
+// reading's title turned up the far side.
+func measureBivariateKey(th theme.Theme, g Guide, m Measurer) extent {
+	side := BivariateKeySide * th.ColorbarThickness
+	tick := th.Font(th.TickSize)
+	label := th.Font(th.LabelSize)
+	at := func(i int) string {
+		if i < len(g.Labels) {
+			return g.Labels[i]
+		}
+		return ""
+	}
+	tickH := m.Measure(ir.TextRun{Text: "Hg", Font: tick}).Height()
+	across := m.Measure(ir.TextRun{Text: at(0), Font: tick}).Advance +
+		th.TickLabelPad + m.Measure(ir.TextRun{Text: at(1), Font: tick}).Advance
+	beside := maxAdvance(m, []string{at(2), at(3)}, tick)
+	var titleH float32
+	if t := at(4); t != "" {
+		titleH = m.Measure(ir.TextRun{Text: t, Font: label}).Height()
+	}
+	e := extent{
+		w: maxOf(side, across) + th.TickLabelPad + beside + th.TickLabelPad + titleH,
+		h: side + th.TickLabelPad + tickH,
 	}
 	return withTitle(e, th, g.Title, m)
 }

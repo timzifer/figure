@@ -67,7 +67,11 @@ func chartGuides(c Chart, panels []Panel, th theme.Theme, area ir.Rect) []guide 
 		out = append(out, guide{kind: layout.GuideLegend, entries: es, layers: from})
 	}
 	for _, cg := range colorGuides(layersOf(panels)) {
-		out = append(out, guide{kind: layout.GuideColorbar, color: cg})
+		kind := layout.GuideColorbar
+		if _, ok := scale.Bivariate(cg.Scale); ok && cg.Second != "" {
+			kind = layout.GuideBivariate
+		}
+		out = append(out, guide{kind: kind, color: cg})
 	}
 	for _, sg := range sizeGuides(layersOf(panels), th) {
 		out = append(out, guide{
@@ -218,6 +222,12 @@ func layoutGuides(gs []guide, th theme.Theme) []layout.Guide {
 				Title:  g.color.Label,
 				Labels: labelsOf(colorbarTicks(g.color.Scale, th.ColorbarTickCount)),
 			})
+		case layout.GuideBivariate:
+			out = append(out, layout.Guide{
+				Kind:   layout.GuideBivariate,
+				Title:  g.color.Label,
+				Labels: bivariateLabels(g.color),
+			})
 		case layout.GuideSize:
 			lg := layout.Guide{Kind: layout.GuideSize, Title: g.size.Label}
 			for _, s := range g.samples {
@@ -246,6 +256,8 @@ func drawGuide(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer,
 		drawColorbar(b, box, th, g.color, obs)
 	case layout.GuideSize:
 		drawSizeKey(b, box, th, g, obs)
+	case layout.GuideBivariate:
+		drawBivariateKey(b, box, th, g.color)
 	default:
 		drawLegend(b, box, th, g, obs, hidden)
 	}
@@ -554,4 +566,108 @@ func guideTitle(b ir.Backend, box ir.Rect, th theme.Theme, title string) float32
 		Color: th.LabelColor,
 	})
 	return box.Min.Y + mm.Height() + th.TickLabelPad
+}
+
+// bivariateLabels are the texts a bivariate key writes, in the order
+// [layout.GuideBivariate] documents: the first reading's two ends, the second
+// reading's two ends, and the second reading's title.
+//
+// Ends rather than ticks. A key of a handful of cells is read by which cell a
+// colour is in, and the cells are already the resolution the scale gives each
+// reading; a row of round numbers along a square three cells wide would claim
+// more.
+func bivariateLabels(g geom.ColorGuide) []string {
+	bv, _ := scale.Bivariate(g.Scale)
+	vlo, vhi := g.Scale.Domain()
+	ulo, uhi := bv.SecondDomain()
+	first := scale.ColorAxisOf(g.Scale)
+	first.SetRange(0, 1)
+	second := scale.Linear()
+	second.Train(ulo, uhi)
+	second.SetRange(0, 1)
+	return []string{
+		scale.LabelOf(first, vlo), scale.LabelOf(first, vhi),
+		scale.LabelOf(second, ulo), scale.LabelOf(second, uhi),
+		g.Second,
+	}
+}
+
+// drawBivariateKey paints a bivariate colour scale's key: its cells in a
+// square, the first reading across and the second up.
+//
+// The cells come from the scale, in data space, and are placed by where they
+// sit in each reading's domain — so a value-suppressing palette draws as its
+// tree, wide at the bottom where the second reading is small and narrowing to
+// one cell at the top, and a matrix draws as its square. What differs between
+// the two is what the key draws, not how it is measured, which is the division
+// docs/adr/0067-a-bivariate-colour-channel.md makes.
+//
+// It reports nothing to an observer. A position in a key is a pair of values,
+// and a drag across one is a two-dimensional brush, which the record leaves to
+// the host.
+func drawBivariateKey(b ir.Backend, box ir.Rect, th theme.Theme, g geom.ColorGuide) {
+	bv, ok := scale.Bivariate(g.Scale)
+	if !ok {
+		return
+	}
+	top := guideTitle(b, box, th, g.Label)
+	side := layout.BivariateKeySide * th.ColorbarThickness
+	sq := ir.Rect{Min: ir.Point{X: box.Min.X, Y: top}, Max: ir.Point{X: box.Min.X + side, Y: top + side}}
+
+	vlo, vhi := g.Scale.Domain()
+	ulo, uhi := bv.SecondDomain()
+	across := func(v float64) float32 {
+		if vhi == vlo {
+			return sq.Min.X
+		}
+		return sq.Min.X + float32((v-vlo)/(vhi-vlo))*side
+	}
+	up := func(u float64) float32 {
+		if uhi == ulo {
+			return sq.Max.Y
+		}
+		return sq.Max.Y - float32((u-ulo)/(uhi-ulo))*side
+	}
+	var p ir.Path
+	for _, c := range bv.KeyCells() {
+		cell := ir.Rect{
+			Min: ir.Point{X: across(c.VLo), Y: up(c.UHi)},
+			Max: ir.Point{X: across(c.VHi), Y: up(c.ULo)},
+		}
+		if cell.Empty() || c.Color.A == 0 {
+			continue
+		}
+		p.Reset()
+		p.Rect(cell)
+		b.FillPath(&p, ir.Solid(c.Color), ir.NonZero)
+	}
+	if th.ColorbarBorder.A != 0 {
+		p.Reset()
+		p.Rect(sq)
+		b.StrokePath(&p, ir.Stroke{Color: th.ColorbarBorder, Width: th.AxisWidth})
+	}
+
+	labels := bivariateLabels(g)
+	tick := th.Font(th.TickSize)
+	below := sq.Max.Y + th.TickLabelPad
+	b.Text(ir.TextRun{Text: labels[0], Font: tick, At: ir.Point{X: sq.Min.X, Y: below}, V: ir.AlignTop, Color: th.TickColor})
+	b.Text(ir.TextRun{Text: labels[1], Font: tick, At: ir.Point{X: sq.Max.X, Y: below}, H: ir.AlignEnd, V: ir.AlignTop, Color: th.TickColor})
+	right := sq.Max.X + th.TickLabelPad
+	b.Text(ir.TextRun{Text: labels[2], Font: tick, At: ir.Point{X: right, Y: sq.Max.Y}, V: ir.AlignBottom, Color: th.TickColor})
+	b.Text(ir.TextRun{Text: labels[3], Font: tick, At: ir.Point{X: right, Y: sq.Min.Y}, V: ir.AlignTop, Color: th.TickColor})
+	if labels[4] != "" {
+		widest := float32(0)
+		for _, l := range labels[2:4] {
+			widest = max(widest, b.Measure(ir.TextRun{Text: l, Font: tick}).Advance)
+		}
+		b.Text(ir.TextRun{
+			Text:     labels[4],
+			Font:     th.Font(th.LabelSize),
+			At:       ir.Point{X: right + widest + th.TickLabelPad, Y: (sq.Min.Y + sq.Max.Y) / 2},
+			H:        ir.AlignCenter,
+			V:        ir.AlignTop,
+			Rotation: math.Pi / 2,
+			Color:    th.LabelColor,
+		})
+	}
 }

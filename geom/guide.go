@@ -19,6 +19,11 @@ type ColorGuide struct {
 	Label string
 	// Scale is the trained colour scale the bar shows.
 	Scale scale.ColorScale
+	// Second titles the second reading of a bivariate scale — the axis of
+	// the key the first reading does not run along — and is "" for every
+	// other guide. A guide with a bivariate scale and a second title is drawn
+	// as a key rather than as a bar. See [UncertaintyBy].
+	Second string
 }
 
 // Key identifies a guide by what it looks like rather than by which scale
@@ -41,6 +46,15 @@ func (g ColorGuide) Key() string {
 	for i := 0; i <= colorKeySamples; i++ {
 		t := float64(i) / colorKeySamples
 		fmt.Fprintf(&b, "|%v", g.Scale.Color(scale.ColorValueOf(g.Scale, t)))
+	}
+	if bv, ok := scale.Bivariate(g.Scale); ok && g.Second != "" {
+		// A key is two readings, and two keys that agree about the first and
+		// not about the second are two keys.
+		ulo, uhi := bv.SecondDomain()
+		fmt.Fprintf(&b, "|%s|%v|%v", g.Second, ulo, uhi)
+		for _, cell := range bv.KeyCells() {
+			fmt.Fprintf(&b, "|%v", cell)
+		}
 	}
 	if c, ok := scale.Classed(g.Scale); ok {
 		// Two classed bars differ in where their boundaries are, and a
@@ -105,7 +119,11 @@ func (c config) colorGuide(s series, err error) (ColorGuide, bool) {
 	if label == "" {
 		label = c.colorCol
 	}
-	return ColorGuide{Label: label, Scale: c.colorScale}, true
+	g := ColorGuide{Label: label, Scale: c.colorScale}
+	if _, ok := scale.Bivariate(c.colorScale); ok && s.c2 != nil {
+		g.Second = c.secondCol
+	}
+	return g, true
 }
 
 // SizeGuide is the guide a layer needs when its marks take their size from a

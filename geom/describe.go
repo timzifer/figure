@@ -198,6 +198,9 @@ type Desc struct {
 	// the floor. It is negative so that a Desc written by hand keeps them. See
 	// [Droplines].
 	HideDroplines bool
+	// UncertaintyCol is the column a bivariate colour scale reads its second
+	// reading from. See [UncertaintyBy].
+	UncertaintyCol string
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -480,6 +483,7 @@ func (d Desc) options() []Option {
 		Guide(!d.HideGuide),
 		Extrude(d.Extrude),
 		Droplines(!d.HideDroplines),
+		UncertaintyBy(d.UncertaintyCol),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -675,8 +679,9 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Extend:      c.extend,
 		Extra:       c.extra,
 
-		AvoidOverlap:  c.avoidLabels,
-		HideDroplines: c.hideDroplines,
+		AvoidOverlap:   c.avoidLabels,
+		HideDroplines:  c.hideDroplines,
+		UncertaintyCol: c.secondCol,
 	}
 }
 
