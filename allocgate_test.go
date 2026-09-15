@@ -262,6 +262,21 @@ func TestATrajectoryDoesNotAllocatePerSegment(t *testing.T) {
 	}
 }
 
+// A projected scatter emits a marker and a dropline per row, and the markers
+// batch into calls by run — so a hundred times the points must cost the same
+// handful of allocations, which is what the single-vertex append in
+// three.Sink.Marker is for.
+func TestAScatterDoesNotAllocatePerPoint(t *testing.T) {
+	small := allocsPerScene(t, cloud(1_000))
+	large := allocsPerScene(t, cloud(100_000))
+
+	const slack = 8
+	if large > small+slack {
+		t.Errorf("100k points allocate %.0f times per frame against %.0f for 1k: "+
+			"the scatter is allocating per point", large, small)
+	}
+}
+
 // Turning a scene is the case the whole discipline exists for: a camera is two
 // floats and a frame is the same frame from another angle, so an orbit that
 // allocated per frame would be a leak with a chart attached.

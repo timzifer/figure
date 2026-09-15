@@ -172,6 +172,9 @@ func (g *contour3) Emit(s *Sink, f Frame) error {
 	if !g.ok {
 		return nil
 	}
+	if f.Spherical() {
+		return ErrNotSpherical
+	}
 	base := g.colorFor(f)
 	width := g.widthFor(f)
 	z := float32(0)

@@ -659,6 +659,23 @@ func ripple(n int) *three.Plot {
 }
 
 // spiral is a trajectory of the given length through the box.
+// cloud is a projected scatter of rows points with a dropline each, which is
+// two primitives per row.
+func cloud(rows int) *three.Plot {
+	xs := make([]float64, rows)
+	ys := make([]float64, rows)
+	zs := make([]float64, rows)
+	for i := range xs {
+		a := float64(i) * 2.399963
+		r := math.Sqrt(float64(i) / float64(rows))
+		xs[i], ys[i], zs[i] = r*math.Cos(a), r*math.Sin(a), math.Sin(3*a)
+	}
+	src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("z", zs)
+	sc := three.NewScene().
+		Add(three.Scatter3(src, geom.X("x"), geom.Y("y"), geom.Z("z")))
+	return three.New(three.Size(800, 600)).Scene(sc)
+}
+
 func spiral(rows int) *three.Plot {
 	xs := make([]float64, rows)
 	ys := make([]float64, rows)

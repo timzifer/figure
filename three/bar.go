@@ -76,6 +76,9 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 	if !g.ok {
 		return nil
 	}
+	if f.Spherical() {
+		return ErrNotSpherical
+	}
 	track := rowsWanted(f)
 
 	hx, hy := g.halfSlot(f.X), g.halfSlot(f.Y)

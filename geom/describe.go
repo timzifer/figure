@@ -194,6 +194,10 @@ type Desc struct {
 	// Extrude reports a [Bar] or [Rect] layer drawn with volume under an
 	// oblique coord. See [Extrude].
 	Extrude bool
+	// HideDroplines reports a projected scatter drawn without its rules to
+	// the floor. It is negative so that a Desc written by hand keeps them. See
+	// [Droplines].
+	HideDroplines bool
 	// Levels and LevelCount configure a [Contour]: the values it traces, or
 	// about how many of them to choose from the data. Levels wins where both
 	// are set, and each carries what the layer is actually using.
@@ -475,6 +479,7 @@ func (d Desc) options() []Option {
 		CensorMarks(d.CensorMarks),
 		Guide(!d.HideGuide),
 		Extrude(d.Extrude),
+		Droplines(!d.HideDroplines),
 		Bandwidth(d.Bandwidth),
 		Span(d.Span),
 		Smooth(d.Smooth),
@@ -670,7 +675,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Extend:      c.extend,
 		Extra:       c.extra,
 
-		AvoidOverlap: c.avoidLabels,
+		AvoidOverlap:  c.avoidLabels,
+		HideDroplines: c.hideDroplines,
 	}
 }
 

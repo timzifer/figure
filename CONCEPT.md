@@ -654,11 +654,11 @@ The record of how each of those arrived, and the argument that shaped it, is in
   on the evidence of people writing that loop.
 - **The rest of 3D.** The third axis and its camera are built
   ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
-  [ADR 0057](docs/adr/0057-orbiting-a-chart.md)); what is left of the four
-  records is the 3D scatter with its droplines and the spherical
-  coord that turns one projection into antenna patterns, Poincaré and Bloch
-  spheres and a stereonet
-  ([ADR 0058](docs/adr/0058-what-3d-is-for.md)).
+  [ADR 0057](docs/adr/0057-orbiting-a-chart.md)), and so is the spherical
+  scene that turns one projection into antenna patterns, Poincaré and Bloch
+  spheres, a stereonet and the Smith sphere
+  ([ADR 0058](docs/adr/0058-what-3d-is-for.md)). Nothing of the four records
+  is left.
 - **A raster mark.** A heatmap is a recipe over `geom.Rect` and stops being one
   at the size a measured field comes in: a spectrogram is two thousand frames
   by five hundred bins, and one rectangle per cell is a million primitives

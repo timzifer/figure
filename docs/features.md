@@ -126,7 +126,9 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   between its samples, which is exactly what a heatmap of the same grid hides;
   `three.Line3` is a trajectory that crosses itself in every flat projection
   and not in the data, and a family of them under `geom.GroupBy` is the
-  spectrum-analyser cascade; `three.Bar3` is a field of bars over two
+  spectrum-analyser cascade; `three.Scatter3` is three measured columns with a
+  rule from every point to the floor, which is what makes its heights readable;
+  `three.Bar3` is a field of bars over two
   categoricals, and its doc comment says to read the heatmap first, because
   that is usually the right answer. The projection happens **above** the IR —
   there is no `ir.Point3`, no depth on a drawing call and no `Backend3` — so
@@ -139,6 +141,14 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   draws — a quad per cell, a segment per step — almost always allows; where two
   depth ranges genuinely interleave nothing is cut apart to resolve them,
   because that is a BSP tree and a BSP tree is a renderer.
+  **`three.Spherical`** makes a scene's three scales an azimuth, a polar angle
+  and a radius, under a globe rather than a cube: a `Surface` over directions
+  is an antenna radiation pattern, and a `Scatter3` and a `Line3` of unit radii
+  are a state on the Bloch sphere or a polarisation on the Poincaré one.
+  Under `three.Smith` the same scene reads a resistance and a reactance and is
+  the three-dimensional Smith chart, where every active impedance a flat Smith
+  chart cannot show is the southern hemisphere
+  ([ADR 0058](adr/0058-what-3d-is-for.md)).
 - **A camera, and several of them** — `three.Camera` is an immutable value and
   `three.Orbit`, `three.Dolly` and `three.Slerp` are pure functions over it, so
   the host owns the drag: `three` installs no handler, opens no window and runs
