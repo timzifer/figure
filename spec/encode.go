@@ -468,9 +468,11 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		group()
 		m.BarWidth, m.Origin = float64Ptr(d.BarWidth), d.Baseline
 		m.Explode = d.Explode
+		m.Extrude = d.Extrude
 	case geom.MarkRect:
 		stroke()
 		fill()
+		m.Extrude = d.Extrude
 		m.BarWidth = float64Ptr(d.BarWidth)
 		m.Explode = d.Explode
 	case geom.MarkArea:

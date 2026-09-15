@@ -155,6 +155,7 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 		return nil
 	}
 	offs := sc.offsets(brk, rects, rows)
+	ext := g.cfg.extruding(cd)
 	// A cell's row is at its middle: a rect is bounded on both axes, so unlike
 	// a bar there is no end that means more than the other. A broken-out cell
 	// reports the middle it was moved to, because that is where its ink is.
@@ -165,7 +166,20 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 			d := offsetAt(offs, i)
 			sc.pts[i] = ir.Point{X: p.X + d.X, Y: p.Y + d.Y}
 		}
-		f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
+		if ext.on {
+			sc.reportExtruded(f, ext, rects, rows, sc.pts, g.s)
+		} else {
+			f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
+		}
+	}
+	// See [barGeom.Build]: an extruded layer is painted a mark at a time.
+	if ext.on {
+		cols := sc.colorsFor(g.cfg, g.s, rows)
+		if cols == nil {
+			cols = uniform(sc, len(rows), fill)
+		}
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols)
+		return nil
 	}
 
 	stroke := ir.Stroke{Color: g.cfg.colorFor(f), Width: pick(g.cfg.width, 1)}

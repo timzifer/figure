@@ -1,6 +1,6 @@
 # 0055 — A mark gains volume before a chart gains a dimension
 
-**Status:** Planned · **Date:** 2026-09-08 · **Implementation:** not started
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implementation:** `coord.Oblique`, `coord.Extruder`, `geom.Extrude`
 
 ## Context
 
@@ -177,3 +177,58 @@ asking for it there draws a flat pie, which is a pie.
 - **No per-mark depth.** The depth vector is the panel's. A mark that stood
   further back than its neighbour would be encoding something, and this record
   is about the case where nothing is encoded.
+
+## Amendment: what building it sharpened
+
+`coord.Oblique` and `geom.Extrude` are built as the record describes — a
+Cartesian coord with a depth vector behind `coord.Extruder`, a bar or a rect
+drawn as a front, a top and a side face, the IR untouched, `coord.TypeOblique`
+refused by `Register`, and `Depth`, `DepthAngle` and `Extrude` round-tripping
+through `spec`. Five things came out sharper than the record, and none of them
+moves its central clause: no column sets the depth.
+
+**The depth is a fraction of the panel, not a theme length.** The record says
+responsiveness works "because the depth is a theme length", and wants the
+depth given in pixels. But the depth belongs to the coord, and a coord does
+not know what a theme is — `coord.Metrics` exists precisely so that one never
+has to. The one length a coord does know is the rectangle it is framed in, so
+`coord.Depth` is a fraction of the panel's shorter side, 0.04 by default and
+at most a quarter. That scales with the chart for the reason the record
+wanted, without a theme crossing into `coord`.
+
+**"Back to front" means along the depth vector, and ascending.** Every mark
+shares one plane, so nothing is behind anything in depth; what overlaps is the
+faces a mark turns towards its neighbour, and the neighbour lying the way the
+depth vector points is the one that covers them. So a layer paints its marks in
+ascending order of the projection of each mark's middle onto the depth vector,
+ties broken by the row — with the default vector, left to right and bottom to
+top, which is what puts a stacked segment's lid under the segment above it.
+The order is per mark, so an extruded layer gives up batching by colour: three
+fills per mark rather than one per colour, which for the few dozen bars a chart
+of volume ever has costs nothing.
+
+**A row is reported once per face, and its front last.** The record says
+`Frame.Marks` still reports one position per row. It cannot: the hit index
+finds an area's row by looking for a reported position *inside that area*
+([ADR 0015](0015-hit-testing.md)), so a pointer on a top or a side face found
+no row at all. An extruded mark therefore reports the middle of each face it
+shows and then its front, and the front comes last because `interact.Index.Locate`
+answers with a row's last position — so a highlight still points at the value,
+where the flat bar would have been. The record anticipated the consequence it
+named: `Live.Select` now gathers a layer's rows as a set, in order of first
+appearance.
+
+**An angle is reduced to (−π, π], and a zero in a `Desc` is the default.** A
+`Desc` naming the type and nothing else has to draw what `coord.Oblique` draws,
+so zero depth and zero angle are the defaults, and a depth vector pointing
+straight to the right is written as a full turn. Reading that full turn back
+exposed the one real bug the round trip found: `sin 2π` is a rounding error
+rather than zero, and a vertical part of 10⁻¹⁶ gave every mark a top face of no
+height. `DepthAngle` now reduces its argument, so a full turn is the angle zero
+exactly.
+
+**The spec tests now render the coord.** The helper every `spec` round-trip
+test compares drawings with built its chart without the coord, so a sunburst
+and an icicle — and an oblique chart and a flat one — drew the same calls and
+compared equal whether or not the coord survived. It passes the coord now,
+and every existing round trip still holds.

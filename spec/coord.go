@@ -46,6 +46,9 @@ func encodeCoord(c coord.Coord) (*Coord, error) {
 			out.Sweep = &sweep
 		}
 	}
+	if d.Type == coord.TypeOblique {
+		out.Depth, out.DepthAngle = d.Depth, d.DepthAngle
+	}
 	// Each coord's default edge is the absent field, so that a document naming
 	// a type and nothing else draws what that type's constructor draws.
 	switch {
@@ -82,6 +85,7 @@ func decodeCoord(c *Coord) (coord.Coord, error) {
 	default:
 		return nil, fmt.Errorf("figure/spec: unknown coord theta %q", c.Theta)
 	}
+	d.Depth, d.DepthAngle = c.Depth, c.DepthAngle
 	if d.Type == coord.TypePolar {
 		d.Sweep = coord.FullTurn
 		if c.Sweep != nil {

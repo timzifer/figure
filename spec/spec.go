@@ -295,6 +295,9 @@ type Mark struct {
 	// channel's legend to null; figure's guides belong to the layer rather
 	// than to a channel, so the switch is on the mark.
 	Guide *bool `json:"guide,omitempty"`
+	// Extrude draws a bar or a rect with volume under an oblique coord.
+	// Vega-Lite has no such property; the name is figure's.
+	Extrude bool `json:"extrude,omitempty"`
 	// Family is the set of curves a locus draws Levels of: "nichols-m",
 	// "nichols-n", "smith-vswr" or "smith-q". Vega-Lite has none of them, so
 	// these are figure's own names.
@@ -339,7 +342,7 @@ type Mark struct {
 // The field is absent for a Cartesian chart, which is every chart written
 // before there was a coord to write.
 type Coord struct {
-	// Type is "cartesian", "polar" or "smith".
+	// Type is "cartesian", "polar", "smith" or "oblique".
 	Type string `json:"type"`
 	// Theta is the axis a polar coord sweeps around the circle: "x" or "y".
 	Theta string `json:"theta,omitempty"`
@@ -366,6 +369,12 @@ type Coord struct {
 	// locus is. So a document that names a type and nothing else draws what the
 	// constructor of that type draws.
 	Edge string `json:"edge,omitempty"`
+	// Depth is how deep an oblique coord draws a mark's volume, as a fraction
+	// of the panel's shorter side, and DepthAngle the direction of it, in
+	// radians in device space. Absent is the default for both; straight to the
+	// right is written as a full turn, as coord.Desc writes it.
+	Depth      float64 `json:"depth,omitempty"`
+	DepthAngle float64 `json:"depthAngle,omitempty"`
 }
 
 // The coord edge policies.

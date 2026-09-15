@@ -204,6 +204,7 @@ type config struct {
 	censorMarks bool
 
 	hideGuide bool
+	extrude   bool
 
 	sizeCol   string
 	sizeScale scale.SizeScale

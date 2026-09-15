@@ -64,7 +64,7 @@ depends on.
 | [0052](0052-probability-scales.md) | A probability scale warps the axis, where a QQ plot warps the sample | Accepted, amended | — |
 | [0053](0053-tidy-tree-layout.md) | A tidy tree is a bounded deterministic layout, and it is not a force simulation | Accepted, amended | — |
 | [0054](0054-statistical-instruments.md) | A domain reduction belongs in `stat` when its output is the chart | Accepted, amended | — |
-| [0055](0055-depth-without-a-third-axis.md) | A mark gains volume before a chart gains a dimension | Planned | — |
+| [0055](0055-depth-without-a-third-axis.md) | A mark gains volume before a chart gains a dimension | Accepted, amended | — |
 | [0056](0056-three-dimensional-charts.md) | A third axis widens the seams that count scales, and the IR stays two-dimensional | Accepted, amended | — |
 | [0057](0057-orbiting-a-chart.md) | The camera is a value, and turning it is the host's loop | Accepted, amended | — |
 | [0058](0058-what-3d-is-for.md) | What the third dimension is for, and where it stops paying | Planned | — |
@@ -143,14 +143,17 @@ v1.7 depends on it, and it is additive by construction.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built
-rather than argued about first, and two of them now have been. **0056 and 0057
-are Accepted**: `figure/three` draws a surface, a trajectory and a field of
+rather than argued about first, and three of them now have been. **0056 and
+0057 are Accepted**: `figure/three` draws a surface, a trajectory and a field of
 bars, and turns them at a camera the host holds. Each carries an amendment
 saying where the implementation sharpened the record — 0056 on what its single
 depth order actually is, 0057 on the three things it left open — because a
-record that no longer matches the code is worse than no record. **0055 and 0058
-are still Planned**: the oblique coord is unbuilt, and 0058 is a catalogue
-rather than a mechanism, so it becomes Accepted when the last form in it does.
+record that no longer matches the code is worse than no record. **0055 is
+Accepted, amended** too: `coord.Oblique` gives a bar or a rect volume with
+`geom.Extrude`, and its amendment says why the depth is a fraction of the
+panel rather than a theme length and why an extruded row is reported once per
+face. **0058 is still Planned**: it is a catalogue rather than a mechanism, so
+it becomes Accepted when the last form in it does.
 0058's order of work is annotated with what landed.
 
 They exist because 3D had been deferred as one
