@@ -134,6 +134,7 @@ picture cannot drift away from the code that produced it.
 | ![Three series with a legend](docs/images/series.png) | ![Bars by region, coloured by value with a colourbar](docs/images/categories.png) |
 | ![Latency by service as violins, one per region within each service](docs/images/violin.png) | ![A patch antenna's reflection swept across its band, on a Smith chart](docs/images/smith.png) |
 | ![Requests per second through a service, drawn as a sankey diagram](docs/images/sankey.png) | ![A million points drawn as a density raster](docs/images/density.png) |
+| ![A rebuild plan as a gantt chart: part-filled bars, dependency arrows with the critical path in orange, milestone diamonds and a dashed line at today](docs/images/gantt.png) | ![Four subplots on one dark canvas](docs/images/subplots.png) |
 
 ## What it does
 
@@ -146,6 +147,10 @@ picture cannot drift away from the code that produced it.
   bars, intervals, text, annotations — including a **locus**, a family of curves given by a formula
   rather than by data, which is what a Nichols diagram's closed-loop contours
   and a Smith chart's VSWR circles are.
+- **Schedules** — a rect on a time axis is a gantt bar; `geom.ProgressBy` fills
+  it as far as the work has got, and `geom.Depends` draws the constraints
+  between bars in all four linkages, taking its colour from the link table so
+  that a critical path is a column rather than a feature.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is
   a sunburst), and Smith.
 - **Three dimensions** — `figure/three` draws a chart whose x, y and z are all

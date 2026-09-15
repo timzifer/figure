@@ -1081,6 +1081,56 @@ writes in Go **draws but does not serialise**, which is
 [ADR 0041](adr/0041-qq-plots.md)'s rule for a quantile function applied to a
 curve. ✔
 
+### A schedule you can read: progress, constraints and milestones — **shipped**
+
+"Gantt / timeline" had been a row in [chart-types.md](chart-types.md) since
+`geom.Rect` shipped — *a rect on a time X against an ordinal Y* — and that row
+was true and was about a third of the chart. The bars said when each task ran.
+They did not say how far any of them had got, what was waiting on what, or
+where the dates that are not spans were, and a schedule without those is a
+picture of a plan rather than something to work from.
+
+**Two additions, and the rest turned out to already be there.**
+`geom.ProgressBy` is an option on the rect: the mark paints twice over, the
+whole span at the unfinished alpha and the finished part of it at full
+strength, which keeps the colour batching a heatmap depends on and keeps a
+bar's two halves the same colour. `geom.Depends` is a mark, and it is the first
+in this library to read **two** tables — the plan and a list of links over it,
+joined by `geom.KeyBy` — because a dependency is a statement about two rows of
+the task table and has no position of its own. Everything else a schedule needs
+was already a recipe: a milestone is `geom.Scatter` with a diamond, a baseline
+is a second narrower rect, today is `geom.VLine`, a label is `geom.Text`. The
+two that shipped are the two that could not be composed.
+
+**A critical path is a column rather than a feature.** `geom.ColorBy` over the
+link table paints each arrow from its own row, so colouring the links whose
+slack is zero *is* drawing a critical path. A `CriticalPath` option would have
+put a scheduling algorithm in a plotting library and answered a question — what
+counts as critical — that belongs to whoever built the plan.
+
+**One rule was broken on purpose, and it is written down where it happens.**
+Every other geom computes a midpoint, a corner or a staircase step *before* the
+coord, because those are statements about the data. A dependency's elbow is
+not: there is nothing in data space between the finish of one task and the
+start of another, and the path a reader's eye takes between them is a reading
+aid. So the two ends go through `coord.Point` like every other mark and the
+corners between them are device points, with a stub measured in pixels because
+it is there so that the corner can be seen. The direction out of each bar is
+*measured* rather than assumed, which is what makes a reversed axis turn both
+ends together and what makes one routing function serve a gantt drawn down the
+page as well as across it — the same quarter turn ADR 0031 makes between a
+bottom track and a left one.
+
+Not in this milestone. **No summary bars**: a phase drawn as a bracket
+spanning its children is a third shape rather than a third option, and it would
+have to answer whether the rollup is computed or given. **No obstacle-avoiding
+routing**: an arrow goes over a bar rather than round it, because routing round
+one needs to know where every bar in *other* layers is, and no mark has that.
+**A hit on an arrow names the layer and not the constraint**, because the row
+it would report belongs to the link table and `Source` hands out the other one —
+which is the first time in this library a layer has had two tables to be
+ambiguous about, and is ADR 0015's revisit clause rather than this record's. ✔
+
 ---
 
 **[README](../README.md)** · **[CONCEPT](../CONCEPT.md)** · **[ADRs](adr)** · [The gallery](gallery.md) · [Chart forms](charts.md) · [Interaction](interaction.md) · [A million rows](scale-out.md) · [Reading a chart](reading.md) · [JSON and Arrow](spec.md) · [Features](features.md) · [Chart-type catalogue](chart-types.md) · [Benchmarks](benchmarks.md)

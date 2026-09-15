@@ -53,6 +53,9 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Icicle(src, ID("x"), Parent("y"), Value("z"), ColorBy("z", cs)),
 		Sankey(src, From("x"), To("y"), Value("z"), Thickness(0.05), Padding(0.02)),
 		Arc(src, From("x"), To("y"), Value("z"), Baseline(1), Thickness(0.08)),
+		Rect(src, X("x"), X2("z"), Y("y"), ProgressBy("z")),
+		Depends(src, src, X("x"), X2("z"), Y("y"), KeyBy("x"),
+			From("x"), To("y"), LinkBy("y"), Link(StartToFinish)),
 	}
 
 	for _, g := range layers {

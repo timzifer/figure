@@ -70,6 +70,31 @@ hatch is the one [ADR 0041](adr/0041-qq-plots.md) chose for a quantile
 function: materialise the curve as data and draw it with a line
 ([ADR 0050](adr/0050-locus-annotations.md)).
 
+## The one layer with two tables
+
+`geom.Depends` reads a plan and a list of links over it, so its layer carries a
+second data block beside `data`:
+
+```json
+{
+  "mark": {"type": "dependency"},
+  "encoding": {
+    "x": {"field": "start"}, "x2": {"field": "end"}, "y": {"field": "task"},
+    "key": {"field": "id"},
+    "from": {"field": "before"}, "to": {"field": "after"},
+    "link": {"field": "kind"}
+  },
+  "links": {"values": [{"before": "survey", "after": "design", "kind": "fs"}]}
+}
+```
+
+`links` is **never hoisted** the way `data` is. Two dependency layers over one
+plan are two sets of constraints, and a document that shared them between the
+layers would say they were one. The `link` channel is the only one in the
+dialect that names a column of `links` rather than of `data`; the mark's own
+`"link"` property is the linkage every row that names none takes, and an absent
+one is `"fs"` ([ADR 0068](adr/0068-gantt-charts.md)).
+
 ## Plotting Arrow data
 
 ```go

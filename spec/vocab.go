@@ -80,6 +80,11 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "tree", "", nil
 	case geom.MarkSurvival:
 		return "survival", "", nil
+	case geom.MarkDepends:
+		// The dependency arrow between two spans. Vega-Lite has no mark for it
+		// — it has no second data source to hang one on — so this is figure's
+		// own name.
+		return "dependency", "", nil
 	case geom.MarkLocus:
 		// A family of curves given by a formula. Vega-Lite has no mark for it
 		// and no transform that could stand in, so this is figure's own name.
@@ -176,6 +181,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkTree, nil
 	case "survival":
 		return geom.MarkSurvival, nil
+	case "dependency":
+		return geom.MarkDepends, nil
 	case "rule":
 		switch m.Orient {
 		case "horizontal":
@@ -226,7 +233,7 @@ func hasField(enc *Encoding) bool {
 		return false
 	}
 	for _, ch := range [...]*Channel{enc.X, enc.Y, enc.X2, enc.Y2, enc.Color, enc.Detail, enc.Width, enc.Explode, enc.Size, enc.Text, enc.Mid, enc.Error, enc.ErrorX,
-		enc.From, enc.To, enc.ID, enc.Parent, enc.Value, enc.Event} {
+		enc.From, enc.To, enc.ID, enc.Parent, enc.Value, enc.Event, enc.Progress, enc.Link} {
 		if ch != nil && ch.Field != "" {
 			return true
 		}

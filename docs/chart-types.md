@@ -1,9 +1,9 @@
 # Chart types: what exists, what is missing, and what each one costs
 
-figure draws twenty-two data-bearing marks today — `Line`, `Scatter`, `Bar`,
+figure draws twenty-three data-bearing marks today — `Line`, `Scatter`, `Bar`,
 `Area`, `Step`, `Boxplot`, `Rect`, `Text`, `ErrorBar`, `Histogram`, `Violin`,
 `Ridgeline`, `Hexbin`, `Beeswarm`, `ECDF`, `Trend`, `Horizon`, `Raster`,
-`Treemap`, `Icicle`, `Sankey` and `Arc`, plus the annotations in
+`Treemap`, `Icicle`, `Sankey`, `Arc` and `Depends`, plus the annotations in
 `geom/annotate.go`. This document is the catalogue of what it does not draw
 yet, sorted **by the machinery each form needs** rather than by how popular it
 is. Sorted that way the list stops being a wish list and becomes a schedule:
@@ -34,6 +34,7 @@ reading declined.
 | Piece | Status | Unlocks |
 |---|---|---|
 | A data-driven rectangle mark (`geom.Rect`) | **shipped** | heatmap, gantt, candlestick, waterfall, bullet, waffle, calendar |
+| A fraction inside a span (`geom.ProgressBy`) and a mark that joins two of them (`geom.Depends`) | **shipped** — [ADR 0068](adr/0068-gantt-charts.md) | gantt with progress, dependencies and a critical path; bullet; any span that is part done |
 | Groups in one layer (`geom.GroupBy`) + discrete colour (`scale.Qualitative`) | **shipped** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | every multi-series form; prerequisite for stacking |
 | Multi-entry legends (`geom.Legender`) | **shipped** — [ADR 0020](adr/0020-discrete-colour-and-multi-entry-legends.md) | pie, stacks, treemap, waffle, sankey |
 | Position adjustments (stack / dodge / fill / wiggle) | **shipped** — [ADR 0019](adr/0019-position-adjustments.md) | stacked and grouped bars, stacked area, streamgraph, funnel, marimekko, ridgeline, **and pie** |
@@ -68,7 +69,7 @@ and it turns eight charts into recipes.
 | Threshold line | `Line` + `ColorBy` over `scale.Threshold`, plus an `HBand` for the limit — see `examples/status` |
 | Status timeline | `Step` + `ColorBy` over `scale.Named` — see `examples/status` |
 | Calendar heatmap | `Rect` + a date→(week, weekday) helper |
-| Gantt / timeline | `Rect` on a time X against an ordinal Y |
+| Gantt / timeline | `Rect` on a time X against an ordinal Y; `ProgressBy` fills each bar, `Depends` draws the constraints, a `Scatter` of diamonds the milestones and a `VLine` today — see [ADR 0068](adr/0068-gantt-charts.md) and `examples/gantt` |
 | Candlestick / OHLC | `Rect` for open..close, a rule for low..high, colour by sign |
 | Waterfall | `Rect` with per-row `y0`/`y1` from a running total, through `Y` and `Y2` |
 | Bullet | `Rect` bands, a measure bar and a target rule |
