@@ -7,7 +7,9 @@ Watched rather than reported. Retested on 2026-09-14 with
 gg fork `v0.52.6-figure.5`, wgpu v0.32.1, goffi v0.6.3 and Go 1.25.3,
 NVIDIA GeForce RTX 3070 Laptop, driver 546.30, Windows 11. The original
 2026-09-11 observations below used `v0.52.6-figure.4`. The newer native
-stack and counter-experiments are recorded at the end of this note.
+stack and counter-experiments are recorded below. The follow-up completed on
+2026-09-15 reproduces the same failure in pure C, without Go or rendering;
+see "Native isolation completed on 2026-09-15" and its standalone reproducer.
 
 **The follow-up lives on a branch.** `gpu-close-hang-repro` carries the
 2026-09-15 native isolation: `docs/repro/vulkan-thread-close`, a standalone
@@ -45,7 +47,7 @@ run, and that a program offering a GPU on/off switch can hang when it exits.
 
 ## What triggers it
 
-The smallest sequence that hangs:
+The smallest sequence found in the original Go experiments:
 
 1. draw a chart on the GPU tier,
 2. `gpu.Disable()` — which releases the device and the instance,
@@ -53,8 +55,9 @@ The smallest sequence that hangs:
 4. `gpu.Enable()` — the probe draw alone is enough,
 5. `gpu.Close()` — hangs.
 
-The garbage collection is the part that decides, and so is where it falls
-relative to the rest. Each row is four runs of the same sequence:
+In those original runs, the position of garbage collection changed the outcome.
+Each row is four runs of the same sequence. Later controlled-thread and pure-C
+experiments below show that GC is not necessary to trigger the failure:
 
 | Sequence | Result |
 | --- | --- |
@@ -94,10 +97,10 @@ more specific about where the call stops.
 
 ## Where that leaves it
 
-The native DLL teardown path described below is now the first lead. An earlier
-invalid pointer or resource operation in the bindings is still possible:
-finding the native failure site does not establish who first corrupted its
-state. A driver comparison is still outstanding; this machine continues to
+The native DLL teardown path described below is now the first lead. The C
+reproducer added on 2026-09-15 establishes that the Go bindings are not needed
+to trigger this failure. The origin of the invalid native allocation remains
+unknown. A driver comparison is still outstanding; this machine continues to
 use driver 546.30 from late 2023.
 
 The switch keeps its promise on this machine now, by the thread workaround
@@ -205,8 +208,10 @@ useful candidate workaround.
 `backend/gg/gpu` keeps one goroutine locked to an OS thread for the life of the
 program, and runs everything that touches the device on it: the startup probe,
 `Enable`, `Disable` and `Close`. `gpu.Do(func())` is the door, exported because
-the draws have to go through the same thread as the teardown — a program that
-renders on one thread and releases the device on another is the case that hangs.
+the workaround routes draws through the same thread as initialization and
+teardown. Later controlled experiments below show that drawing on another
+thread alone is not sufficient to explain the hang; the broader pump policy
+remains the tested conservative workaround.
 The thread is never unlocked and outlives `Close`, because it is where the
 driver's DLLs are unloaded.
 
@@ -220,8 +225,8 @@ rendering through `gpu.Do`:
 
 The comparable unmodified control is in the table above: three of four attempts
 did not finish. This is a workaround inside one package, not a fix: nothing here
-explains the `RtlFreeHeap` failure in the native stack, and a program that draws
-outside `gpu.Do` can still meet the hang.
+fixes the `RtlFreeHeap` failure in the native stack. The native follow-up below
+narrows its trigger but does not establish a smaller generally safe policy.
 
 The separate DLL experiment called Windows `GetModuleHandleExW` with
 `GET_MODULE_HANDLE_EX_FLAG_PIN` (1) for the already loaded `nvoglv64.dll`, using
@@ -262,5 +267,159 @@ In particular, `FlsFree` appears twice on the same stack, with exception
 unwinding between them. This is evidence of a native teardown/lock problem,
 not merely an opaque call into the Vulkan driver. The snapshot does not prove
 which allocation was invalid, who owned the lock, or whether earlier binding
-code caused the native state to become invalid. A first-chance exception
-capture would be needed to inspect the initial `RtlFreeHeap` failure directly.
+code caused the native state to become invalid. The first-chance exception
+captures in the follow-up below now inspect the initial `RtlFreeHeap` failure
+directly, including in a standalone C program.
+
+## Native isolation completed on 2026-09-15
+
+**The same failure now reproduces in a standalone C Vulkan program.** Go, its
+GC, goffi, wgpu, gg, and figure are not necessary to trigger it. The first-chance
+exception in C matches the earlier Go failure in `NvCameraAllowlisting64` FLS
+cleanup calling `RtlFreeHeap`. This substantially narrows the problem to the
+installed native Vulkan/NVIDIA teardown path, although the original allocation
+or corrupting write has not yet been traced.
+
+The portable [C source and runner](repro/vulkan-thread-close/README.md) are kept
+in this repository. They use official Khronos headers and dynamically load the
+system Vulkan loader. Production Go code and dependency pins were not changed
+by this investigation. The machine still uses NVIDIA 546.30 (`31.0.15.4630`);
+the loader is `C:\Windows\System32\vulkan-1.dll`, version `1.3.300.0`.
+Windows finding no newer driver is not a comparison against another driver
+build; no driver installation or system setting was changed here.
+
+### Removing Go scheduling and GC as confounders
+
+An independent Go executable bypassed figure's new `gpu.Do` wrapper. Two
+workers were each locked to a native thread for their entire lifetime, and
+requests were fully serialized. Initialization/probing always ran on A.
+The table gives two runs for each GC setting; every run was a fresh process.
+
+| Drawing thread | Closing thread | GC off from startup | GC forced after first close, then off |
+| --- | --- | --- | --- |
+| A | A | 2 clean | 2 clean |
+| A | B | 2 hangs | 2 hangs |
+| B | A | 2 clean | 2 clean |
+| B | B | 2 hangs | 1 hang, 1 native heap-corruption exit (`0xC0000374`) |
+
+Thus drawing on B alone did not require closing on B, and disabling GC did not
+prevent the failure when the thread transition was explicit. The original
+GC/drawing matrix remains an observation of its particular Go scheduling, not
+evidence that either GC or drawing is a necessary cause. This also limits the
+earlier claim that every draw must share the teardown thread: keeping all work
+on the pump remains the conservative working arrangement, but that narrower
+requirement was not established by these measurements.
+
+### Pure C: isolate each lifecycle phase
+
+The native program creates an instance and one device with a graphics queue,
+waits idle, destroys the device, and destroys the instance, twice. There are no
+surfaces, submissions, rendering resources, requested extensions/layers, or
+custom allocation callbacks. Two Windows threads A/B remain alive; auto-reset
+events serialize every call. Every sample has a 15-second outer watchdog.
+
+Four letters mean **instance creation / device creation / device destruction /
+instance destruction**. Device creation includes physical-device enumeration
+and queue-family inspection; device destruction includes `vkDeviceWaitIdle`.
+The first split harness produced:
+
+| Threads | Clean exits | Hangs |
+| --- | ---: | ---: |
+| `AAAA` | 3 | 0 |
+| `AAAB` | 0 | 3 |
+| `AABA` | 3 | 0 |
+| `AABB` | 0 | 3 |
+| `ABAA` | 3 | 0 |
+| `ABAB` | 3 | 0 |
+| `ABBA` | 3 | 0 |
+| `ABBB` | 3 | 0 |
+| `BBBA` (reverse-thread control) | 0 | 2 |
+
+All failing samples reached the second `vkDestroyInstance`. The cleaned source
+checked in here was then compiled with GCC 13.2.0 and official Khronos
+Vulkan-Headers v1.2.131, with compiler warnings enabled. Separate verification
+of `AAAA`, `AAAB`, `AABA`, and `ABBA` repeated each outcome twice.
+
+Changing only instance destruction from A to B is sufficient (`AAAA` ->
+`AAAB`). Changing only device destruction is not (`AABA`). Separating instance
+and device creation (`AB..`) also changes the outcome, so the evidence is more
+specific than a universal rule to destroy on the creating thread. It suggests
+thread-local native initialization/cleanup state, but does not identify the
+internal state or prove a remedy for every possible call sequence.
+
+Vulkan's [threading rules](https://docs.vulkan.org/spec/latest/chapters/fundamentals.html#fundamentals-threadingbehavior)
+require external synchronization where specified; the lifecycle calls here do
+not have a creator-thread-affinity requirement. The program serializes access,
+waits idle, destroys the device before its instance, and uses matching null
+allocation callbacks. See the requirements for
+[vkDestroyDevice](https://docs.vulkan.org/refpages/latest/refpages/source/vkDestroyDevice.html)
+and [vkDestroyInstance](https://docs.vulkan.org/refpages/latest/refpages/source/vkDestroyInstance.html).
+No explicit validation layer was available, so this is not a validation-layer
+clean bill of health.
+
+Further reductions and controls:
+
+| Experiment | Observation |
+| --- | --- |
+| Load/unload `nvoglv64.dll` directly, with no Vulkan calls | Same-thread and cross-thread teardown each 2/2 clean |
+| Create/destroy only a Vulkan instance | Same-thread and cross-thread teardown each 2/2 clean in the initial reduced harness; both repeated 2/2 clean with the checked-in source |
+| Also enumerate physical devices, but create no logical device | Same-thread and cross-thread teardown each 2/2 clean in the initial reduced harness; both repeated 2/2 clean with the checked-in source |
+| Create a device, with implicit Vulkan layers disabled | Initial official-header harness: same-thread 2/2 clean, cross-thread 2/2 hangs; checked-in source: same-thread 2/2 clean, cross-thread 2/2 hangs, plus a matching first native exception under CDB |
+
+The loader log confirms `VK_LAYER_NV_optimus` was disabled and both instance and
+device call chains went directly Application -> Loader -> Driver. This rules
+out that implicit layer as a necessary trigger. It does not disable NVIDIA's
+internal camera/capture DLL loading. In the tested reductions, creating a
+logical device is necessary; merely loading the driver or creating an instance
+is insufficient.
+
+### First-chance exception, before the deadlock
+
+CDB was configured to stop on the first access violation rather than attaching
+after the hang. The Go executable, the first C harness, and the cleaned C source
+with implicit layers disabled all fault at `ntdll!RtlFreeHeap+0x7d`, reached via
+`NvCameraAllowlisting64`'s FLS cleanup during driver DLL unload.
+
+The [saved native excerpt](repro/vulkan-thread-close/native-first-fault.txt)
+from the cleaned source shows:
+
+```text
+ExceptionCode: c0000005 (read access violation)
+RtlFreeHeap heap argument RCX = 00000144ea380000
+RtlFreeHeap allocation R8   = 00000144ea340000
+RSI                        = 00000144ea33fff0
+cmp byte ptr [rsi+0Fh],5     ; reads 00000144ea33ffff, inaccessible
+```
+
+The pointer being freed is the base of a committed, writable, private 8 KiB
+region. The heap implementation faults while reading immediately before that
+base; `!heap -x` does not identify a corresponding heap block. This is concrete
+evidence of an invalid free or invalid heap metadata at that point. It does
+not distinguish a bad pointer, an allocator mismatch, an earlier free, or
+prior corruption, and it does not identify who originally allocated the region.
+NVIDIA function names in the stack use nearest exported symbols plus offsets;
+`AnselShimDisableCheck+...` must not be read as an exact internal function name.
+
+The previously captured hang stack contains exception unwinding followed by
+a second `FlsFree` on the same thread and a wait for an exclusive SRW lock.
+Together the captures support the sequence **native cleanup fault -> exception
+unwind -> reentrant FLS cleanup/lock wait**. Lock ownership was not independently
+measured, so the last causal link remains an inference, not a proven lock graph.
+
+### What is still open
+
+The pump workaround is supported by these results and has not been narrowed or
+removed. A fix in Go's GC, drawing code, or final goffi call cannot be required
+for this standalone C failure. The useful next investigations are tracing the
+failing FLS value and its allocation across DLL unload/reload, or comparing this
+same C executable on another NVIDIA driver/camera-component build. That would
+separate the remaining native components and establish whether a vendor change
+actually fixes it. No vendor report has been sent.
+
+Measured matrices are retained in
+[results.json](repro/vulkan-thread-close/results.json). Full local logs and
+intermediate harnesses are in
+`C:\Users\te\AppData\Local\Temp\figure-gpu-close-v2` (temporary evidence, not a
+portable dependency of the reproducer). All watchdog terminations targeted
+only diagnostic processes; no system-wide DLL pinning, driver change, overlay
+setting, or registry change was used in this follow-up.

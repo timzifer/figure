@@ -1,0 +1,677 @@
+{
+  "Completed": "2026-09-15",
+  "TimeoutSeconds": 15,
+  "Note": "Every entry is a fresh process; each native process runs two lifecycle cycles. Split harness and cleaned-source verification are separate samples.",
+  "matrix": [
+    {
+      "Name": "matrix-AAA-off-1",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.2,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-AAA-off-2",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.2,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-AAA-after-1",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.2,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-AAA-after-2",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.17,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-AAB-off-1",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.09,
+      "Success": false,
+      "Last": "begin close2 thread=37672"
+    },
+    {
+      "Name": "matrix-AAB-off-2",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.08,
+      "Success": false,
+      "Last": "begin close2 thread=25144"
+    },
+    {
+      "Name": "matrix-AAB-after-1",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.08,
+      "Success": false,
+      "Last": "begin close2 thread=38248"
+    },
+    {
+      "Name": "matrix-AAB-after-2",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.18,
+      "Success": false,
+      "Last": "begin close2 thread=41604"
+    },
+    {
+      "Name": "matrix-ABA-off-1",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.64,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-ABA-off-2",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.57,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-ABA-after-1",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.52,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-ABA-after-2",
+      "Exit": 0,
+      "Killed": false,
+      "Seconds": 1.42,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "matrix-ABB-off-1",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.07,
+      "Success": false,
+      "Last": "begin close2 thread=56536"
+    },
+    {
+      "Name": "matrix-ABB-off-2",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.09,
+      "Success": false,
+      "Last": "begin close2 thread=11388"
+    },
+    {
+      "Name": "matrix-ABB-after-1",
+      "Exit": -1,
+      "Killed": true,
+      "Seconds": 15.08,
+      "Success": false,
+      "Last": "begin close2 thread=39572"
+    },
+    {
+      "Name": "matrix-ABB-after-2",
+      "Exit": -1073740940,
+      "Killed": false,
+      "Seconds": 1.37,
+      "Success": false,
+      "Last": "begin close2 thread=52932"
+    }
+  ],
+  "c": [
+    {
+      "Name": "c-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-AAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=3936"
+    },
+    {
+      "Name": "c-AAB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=53436"
+    },
+    {
+      "Name": "c-ABA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-ABA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-ABB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=5492"
+    },
+    {
+      "Name": "c-ABB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=28512"
+    }
+  ],
+  "official": [
+    {
+      "Name": "official-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "official-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "official-AAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=29304"
+    },
+    {
+      "Name": "official-AAB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=28692"
+    }
+  ],
+  "dll-only": [
+    {
+      "Name": "dll-only-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "dll-only-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "dll-only-AAB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "dll-only-AAB-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "c-instance": [
+    {
+      "Name": "c-instance-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-instance-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-instance-AAB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-instance-AAB-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "c-enumerate": [
+    {
+      "Name": "c-enumerate-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-enumerate-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-enumerate-AAB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "c-enumerate-AAB-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "no-implicit": [
+    {
+      "Name": "no-implicit-AAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "no-implicit-AAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "no-implicit-AAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=54836"
+    },
+    {
+      "Name": "no-implicit-AAB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroy thread=47904"
+    }
+  ],
+  "split": [
+    {
+      "Name": "split-AAAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-AAAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=43228"
+    },
+    {
+      "Name": "split-AABA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-AABB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=30936"
+    },
+    {
+      "Name": "split-ABAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-ABAB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-ABBA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-ABBB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "split-repeat": [
+    {
+      "Name": "split-repeat-AAAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-AAAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-AAAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=47204"
+    },
+    {
+      "Name": "split-repeat-AAAB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=29440"
+    },
+    {
+      "Name": "split-repeat-AABA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-AABA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-AABB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=44048"
+    },
+    {
+      "Name": "split-repeat-AABB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=46468"
+    },
+    {
+      "Name": "split-repeat-ABAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABAB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABAB-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABBA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABBA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABBB-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-ABBB-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "split-repeat-BBBA-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=45404"
+    },
+    {
+      "Name": "split-repeat-BBBA-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=44540"
+    }
+  ],
+  "final": [
+    {
+      "Name": "final-AAAA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "final-AAAA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "final-AAAB-1",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=46108"
+    },
+    {
+      "Name": "final-AAAB-2",
+      "Exit": -1,
+      "Killed": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=2552"
+    },
+    {
+      "Name": "final-AABA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "final-AABA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "final-ABBA-1",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "final-ABBA-2",
+      "Exit": 0,
+      "Killed": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "final-instance": [
+    {
+      "Name": "instance-AAAA-1",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "instance-AAAA-2",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "instance-AAAB-1",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "instance-AAAB-2",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "final-enumerate": [
+    {
+      "Name": "enumerate-AAAA-1",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "enumerate-AAAA-2",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "enumerate-AAAB-1",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "enumerate-AAAB-2",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    }
+  ],
+  "final-no-implicit": [
+    {
+      "Name": "device-AAAA-1",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "device-AAAA-2",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "Success": true,
+      "Last": "SUCCESS"
+    },
+    {
+      "Name": "device-AAAB-1",
+      "ExitCode": -1,
+      "TimedOut": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=32080"
+    },
+    {
+      "Name": "device-AAAB-2",
+      "ExitCode": -1,
+      "TimedOut": true,
+      "Success": false,
+      "Last": "begin destroyInstance thread=42644"
+    }
+  ]
+}
