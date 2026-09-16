@@ -189,7 +189,12 @@ func rabi(out string) error {
 		Float64("theta", []float64{theta[0], theta[steps/2]}).
 		Float64("r", []float64{1, 1})
 
-	sc := three.NewScene(three.Spherical(three.AxisEnds("|+>", "|->", "|+i>", "|-i>", "|0>", "|1>"))).
+	// The kets are written with the mathematical angle brackets they are
+	// written with in print. This example renders SVG, where the viewer's own
+	// fonts supply the glyph; a PNG of the same chart needs a font that has it,
+	// which is what gg.WithFallbackFont is for — the embedded Go fonts do not
+	// cover U+27E8 and U+27E9. See docs/adr/0038-embedded-fonts.md.
+	sc := three.NewScene(three.Spherical(three.AxisEnds("|+⟩", "|−⟩", "|+i⟩", "|−i⟩", "|0⟩", "|1⟩"))).
 		Z(scale.Linear(scale.Domain(0, 1))).
 		Add(
 			three.Line3(path, geom.X("phi"), geom.Y("theta"), geom.Z("r"),

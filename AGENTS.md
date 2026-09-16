@@ -248,6 +248,19 @@ changing — measuring against Helvetica and drawing in Noto Sans sizes every
 margin from a typeface the document does not contain. Do not "improve" either
 half by measuring with something else.
 
+**The raster backend's embedded fonts do not cover everything, and a rune they
+cannot draw is written as `?`.** The Go fonts cover Latin, Greek, Cyrillic, the
+common punctuation and the mathematical operators; they do not cover CJK, and
+they do not cover the mathematical angle brackets U+27E8 and U+27E9 a Bloch
+sphere's `|0⟩` is written with. So the SVG of a chart and the PNG of the same
+chart can differ in their labels — the vector viewer asks the reader's own
+fonts and a PNG has nobody to ask. `gg.WithFallbackFont` supplies the coverage;
+the substitution is `backend/pdf`'s rule for a rune outside WinAnsi, so a
+missing glyph is visible rather than silent. `TestTheEmbeddedFontHasNoMathematicalAngleBrackets`
+pins the gap, so a font change that closed it would be noticed rather than
+leaving the fallback guarding nothing. See
+[ADR 0038](docs/adr/0038-embedded-fonts.md)'s amendment.
+
 **An embedded font's glyphs are numbered on first use, and that is what makes
 writing a PDF one pass.** A content stream names glyphs by id and a subset's
 ids depend on what the whole document drew, so a writer that waited would have

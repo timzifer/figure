@@ -121,3 +121,27 @@ makes and this one does not.
   byte the test wrote. It is a package rather than a test file because the
   parser and the backend both need it, and two copies would be two fonts that
   drift.
+
+## Amendment: the raster backend has the same gap, and a narrower answer
+
+`backend/gg` embeds Go Regular, Go Bold and Go Italic, and the Go fonts cover
+Latin, Greek, Cyrillic, the common punctuation and the mathematical operators.
+They do not cover any CJK script and they do not cover the mathematical angle
+brackets U+27E8 and U+27E9 — so a Bloch sphere's `|0⟩` came out of a PNG as
+`|0`, while the SVG of the same chart was fine because the viewer supplies the
+glyph from the reader's own fonts. A PNG has no reader to ask.
+
+The answer is this record's, one layer down and smaller. `gg.WithFallbackFont`
+takes fonts consulted, in order, for a rune the chart's own font has no glyph
+for; `gg/text.MultiFace` does the per-rune selection, so there is no parser and
+no subsetting here — a raster embeds nothing. The metrics stay the chart's own
+font's, which is what keeps a row of labels on one baseline whether or not a
+fallback glyph turned up in one of them.
+
+Two things are deliberate. **No font is bundled for it.** Adding a Noto face to
+this module would multiply its size for a glyph almost no chart draws, and the
+module's whole argument is a narrow coupling surface. And **a rune no face can
+draw is written as `?`** rather than dropped, which is what this backend's
+sibling already does for a rune outside WinAnsi: a label that quietly loses a
+character says something the data does not, and unlike a missing glyph a `?` is
+visible to the person checking the chart.

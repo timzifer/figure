@@ -18,7 +18,7 @@ func TestExampleRuns(t *testing.T) {
 	}
 	for path, wants := range map[string][]string{
 		pattern:                         {"<svg", "broadside array", "</svg>"},
-		bloch:                           {"<svg", "Rabi oscillation", "|0&gt;", "</svg>"},
+		bloch:                           {"<svg", "Rabi oscillation", "|0⟩", "</svg>"},
 		filepath.Join(dir, "smith.svg"): {"<svg", "Smith sphere", "match", "open", "</svg>"},
 	} {
 		b, err := os.ReadFile(path)

@@ -27,6 +27,7 @@ type Option func(*options)
 
 type options struct {
 	fonts       *fontSet
+	fallback    []*text.FontSource
 	fontErr     error
 	jpegQuality int
 }
@@ -56,6 +57,37 @@ func WithFont(regular, bold, italic []byte) Option {
 			return
 		}
 		o.fonts = newFontSet(reg, boldSrc, italicSrc)
+	}
+}
+
+// WithFallbackFont adds fonts consulted, in order, for a rune the chart's own
+// font has no glyph for.
+//
+// The embedded Go fonts cover Latin, Greek, Cyrillic and the common
+// punctuation and mathematical operators. They do not cover the mathematical
+// angle brackets U+27E8 and U+27E9 — a Bloch sphere's |0⟩ — nor any CJK
+// script, so a chart whose labels need one of those supplies a font that has
+// it here. A rune no face can draw is written as `?`, which is what
+// backend/pdf writes for a rune outside its encoding: a label that quietly
+// loses a character says something the data does not.
+//
+//	err := p.Render(ggbackend.PNG("bloch.png", ggbackend.WithFallbackFont(notoMath)))
+//
+// It composes with [WithFont] in either order, and the metrics stay the
+// chart's own font's, so a fallback glyph in one label does not move the
+// baseline of the row it is in.
+func WithFallbackFont(ttf ...[]byte) Option {
+	return func(o *options) {
+		for _, b := range ttf {
+			src, err := optionalFont(b, "fallback")
+			if err != nil {
+				o.fontErr = err
+				return
+			}
+			if src != nil {
+				o.fallback = append(o.fallback, src)
+			}
+		}
 	}
 }
 
@@ -96,6 +128,19 @@ func Writer(w io.Writer, format Format, opts ...Option) ir.Target {
 	return &target{w: w, format: format, opts: build(opts)}
 }
 
+// resolve is the font set a target draws with: the supplied one or the
+// embedded one, with any [WithFallbackFont] sources behind it.
+func (o options) resolve() (*fontSet, error) {
+	fonts := o.fonts
+	if fonts == nil {
+		var err error
+		if fonts, err = defaultFonts(); err != nil {
+			return nil, err
+		}
+	}
+	return fonts.withFallback(o.fallback), nil
+}
+
 func build(opts []Option) options {
 	o := options{jpegQuality: 90}
 	for _, fn := range opts {
@@ -121,12 +166,9 @@ func (t *target) Open(s ir.Surface) (ir.Backend, error) {
 	if widthPx <= 0 || heightPx <= 0 {
 		return nil, errors.New("figure/backend/gg: chart size must be positive")
 	}
-	fonts := t.opts.fonts
-	if fonts == nil {
-		var err error
-		if fonts, err = defaultFonts(); err != nil {
-			return nil, err
-		}
+	fonts, err := t.opts.resolve()
+	if err != nil {
+		return nil, err
 	}
 
 	// The context is created at logical size with a device scale, so that

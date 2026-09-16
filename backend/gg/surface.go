@@ -44,12 +44,9 @@ func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
 	if widthPx <= 0 || heightPx <= 0 {
 		return nil, errors.New("figure/backend/gg: chart size must be positive")
 	}
-	fonts := s.opts.fonts
-	if fonts == nil {
-		var err error
-		if fonts, err = defaultFonts(); err != nil {
-			return nil, err
-		}
+	fonts, err := s.opts.resolve()
+	if err != nil {
+		return nil, err
 	}
 	if dpr <= 0 {
 		dpr = 1

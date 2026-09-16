@@ -215,18 +215,22 @@ func (b *backend) Text(run ir.TextRun) {
 		return
 	}
 	face := b.fonts.apply(b.ctx, run.Font.Size, run.Font.Weight, run.Font.Italic)
-	x, y := anchor(face, run)
+	// A rune no face has a glyph for is written as `?` rather than dropped —
+	// see [drawable]. The substitution happens before the anchor is measured,
+	// so the run is centred on what is actually drawn.
+	txt := drawable(face, run.Text)
+	x, y := anchor(face, run, txt)
 
 	b.ctx.SetColor(run.Color)
 	b.drew = true
 	if run.Rotation != 0 {
 		b.ctx.Push()
 		b.ctx.RotateAbout(run.Rotation, float64(run.At.X), float64(run.At.Y))
-		b.ctx.DrawString(run.Text, x, y)
+		b.ctx.DrawString(txt, x, y)
 		b.ctx.Pop()
 		return
 	}
-	b.ctx.DrawString(run.Text, x, y)
+	b.ctx.DrawString(txt, x, y)
 }
 
 // anchor converts figure's two-axis alignment into the baseline-start
@@ -236,13 +240,13 @@ func (b *backend) Text(run ir.TextRun) {
 // DrawStringAnchored anchors on the run's bounding box, which shifts with the
 // particular glyphs in the string, so a column of numbers would not line up.
 // Anchoring on the font box keeps every run in a font on the same baseline.
-func anchor(face text.Face, run ir.TextRun) (x, y float64) {
+func anchor(face text.Face, run ir.TextRun, txt string) (x, y float64) {
 	x, y = float64(run.At.X), float64(run.At.Y)
 	switch run.H {
 	case ir.AlignCenter:
-		x -= face.Advance(run.Text) / 2
+		x -= face.Advance(txt) / 2
 	case ir.AlignEnd:
-		x -= face.Advance(run.Text)
+		x -= face.Advance(txt)
 	}
 	m := face.Metrics()
 	switch run.V {
@@ -360,7 +364,9 @@ func matrixOf(a ir.Affine) gogg.Matrix {
 func (b *backend) Measure(run ir.TextRun) ir.TextMetrics {
 	face := b.fonts.face(run.Font.Size, run.Font.Weight, run.Font.Italic)
 	m := face.Metrics()
-	adv := face.Advance(run.Text)
+	// Measured on what will be drawn, substitutions included, so that a label
+	// with a rune this font cannot draw is laid out at the width it takes up.
+	adv := face.Advance(drawable(face, run.Text))
 	return ir.TextMetrics{
 		Advance: float32(adv),
 		Ascent:  float32(m.Ascent),
