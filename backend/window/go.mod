@@ -17,7 +17,7 @@ go 1.25.0
 // the new wgpu. Dependabot is told to hold at it in .github/dependabot.yml.
 require (
 	github.com/gogpu/gogpu v0.53.1
-	github.com/timzifer/figure v0.8.0
+	github.com/timzifer/figure v0.10.0
 	github.com/timzifer/figure/backend/gg v0.8.0
 )
 
