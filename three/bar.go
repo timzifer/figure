@@ -79,6 +79,12 @@ func (g *bar3) Emit(s *Sink, f Frame) error {
 	if f.Spherical() {
 		return ErrNotSpherical
 	}
+	if f.Prismatic() {
+		// A prism's floor is a triangle and its two floor axes are components
+		// of one composition, so a cell of a rectangular lattice is not a
+		// region of it.
+		return ErrNotPrismatic
+	}
 	track := rowsWanted(f)
 
 	hx, hy := g.halfSlot(f.X), g.halfSlot(f.Y)

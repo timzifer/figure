@@ -127,7 +127,11 @@ three reasons that matter more than its audience size:
 Beside it, at the same distance from the mainstream and reachable by the same
 machinery: the **ternary prism** (a ternary diagram extruded by a fourth
 variable — metallurgy, petrology) and the **spherical histogram** over a
-direction column.
+direction column. The prism shipped as `three.Prism` once
+[ADR 0051](0051-barycentric-coord.md) had built the barycentric map, and it
+needed exactly what this line said it would: a scene option that places a
+layer's values through a different map, and a triangular solid of furniture
+round them.
 
 ### What 3D does not enable
 

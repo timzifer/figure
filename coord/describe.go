@@ -17,6 +17,9 @@ const (
 	TypeSmith     Type = "smith"
 	// TypeOblique is a Cartesian coord seen from a corner. See [Oblique].
 	TypeOblique Type = "oblique"
+	// TypeTernary is the barycentric coord: two components of a composition
+	// on the axes and the third derived. See [Ternary].
+	TypeTernary Type = "ternary"
 )
 
 // Desc is a coord reduced to what configures it.
@@ -61,6 +64,11 @@ type Desc struct {
 	// so that the pair reads as a conductance and a susceptance. See
 	// [SmithAdmittance].
 	Admittance bool
+
+	// Sum is what a ternary coord's three components add up to: 1 for
+	// fractions, 100 for percentages. Zero is the default, which is 1, so a
+	// Desc that names the type and nothing else draws what [Ternary] draws.
+	Sum float64
 
 	// Depth and DepthAngle are an oblique coord's depth vector: how deep, as
 	// a fraction of the panel's shorter side, and in which direction, in
@@ -112,6 +120,9 @@ func FromDesc(d Desc) (Coord, error) {
 			opts = append(opts, SmithArc())
 		}
 		return Smith(opts...), nil
+
+	case TypeTernary:
+		return Ternary(TernarySum(d.Sum)), nil
 	}
 	if build, ok := registered(d.Type); ok {
 		return build(d)

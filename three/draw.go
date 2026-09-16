@@ -147,10 +147,13 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		b.Push(&clip, ir.Identity)
 
 		var glb globe
-		if sc.sphere != nil {
+		switch {
+		case sc.sphere != nil:
 			glb = newGlobe(th, pr, v.Camera, sc.sphere)
 			glb.back(b, &path)
-		} else {
+		case sc.prism != nil:
+			newPrism(th, pr, v.Camera, sc.prism, ticks[sc], titles).draw(b, &path, &boxes)
+		default:
 			newCube(th, pr, v.Camera, ticks[sc], titles).draw(b, &path, &boxes)
 		}
 
@@ -166,7 +169,7 @@ func (p *Plot) draw(b ir.Backend) (areas []ir.Rect, err error) {
 		f := Frame{
 			X: scales[axisX], Y: scales[axisY], Z: scales[axisZ],
 			Theme: th, View: i, Forward: v.Camera.Forward(), Rows: p.rows,
-			space: sc.sphere,
+			space: sc.sphere, floor: sc.prism,
 		}
 		sink.reset()
 		for k, l := range sc.layers {

@@ -242,8 +242,9 @@ func (sp *sphere) place(u, v, w float32) Vec3 {
 // frame's scales and the scene's space.
 //
 // In an ordinary scene each value is mapped by its scale onto an edge of the
-// unit cube. In a [Spherical] one they are an azimuth, a polar angle and a
-// radius, and the point is on or inside the ball. Under [Smith] the first two
+// unit cube. In a [Prism] the first two are two components of a composition
+// and the point is over the floor triangle. In a [Spherical] one they are an
+// azimuth, a polar angle and a radius, and the point is on or inside the ball. Under [Smith] the first two
 // are a normalised resistance and reactance, placed where their reflection
 // coefficient lies on the Riemann sphere — which is why this takes the values
 // rather than positions a scale already mapped: a reactance runs to infinity
@@ -253,6 +254,8 @@ func (sp *sphere) place(u, v, w float32) Vec3 {
 // the whole of what a layer needs to know about which space it is in.
 func (f Frame) Point(x, y, z float64) Vec3 {
 	switch {
+	case f.floor != nil:
+		return f.floor.place(at(f.X, x), at(f.Y, y), at(f.Z, z))
 	case f.space == nil:
 		return Vec3{at(f.X, x), at(f.Y, y), at(f.Z, z)}
 	case f.space.smith:

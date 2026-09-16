@@ -27,6 +27,10 @@ type Scene struct {
 	// sphere is the scene's spherical configuration, or nil for the box every
 	// scene has unless it asked for [Spherical].
 	sphere *sphere
+	// prism is the scene's ternary-prism configuration, or nil for the box.
+	// A scene is one space or the other; asking for both is the last one
+	// asked for, as two calls to [Scene.X] are.
+	prism *prism
 }
 
 // SceneOption configures a [Scene].
@@ -102,6 +106,14 @@ func (s *Scene) train(sc [3]scale.Scale) error {
 	// from the centre, so zero is trained in after the data.
 	if s.sphere != nil {
 		if err := s.sphere.pin(sc); err != nil {
+			return err
+		}
+	}
+	// A prism's two components cover the whole simplex for the same reason a
+	// sphere's angles cover the whole sphere: the extent is a fact about the
+	// coordinate system rather than about the rows.
+	if s.prism != nil {
+		if err := s.prism.pin(sc); err != nil {
 			return err
 		}
 	}

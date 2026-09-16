@@ -14,8 +14,7 @@ The milestone column follows [CONCEPT §14](../CONCEPT.md). Nothing here is a
 commitment to draw every form as a named constructor; several are recipes over a
 mark that does not exist yet, and the catalogue says which.
 
-**Buckets A through I have shipped, and so have K, L, M, O, P and Q.** **J is
-planned and has a record but no code** —
+**Buckets A through Q have shipped, J included** —
 [ADR 0051](adr/0051-barycentric-coord.md). They are written down early
 because three of them answer a question an earlier record explicitly left open,
 and a question answered in a conversation rather than in the repository gets
@@ -45,7 +44,7 @@ reading declined.
 | Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
 | A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
 | A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
-| A barycentric coord (`coord.Ternary`) | **planned** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
+| A barycentric coord (`coord.Ternary`) | **shipped** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **shipped** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **shipped** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
 | Domain reductions in `stat` | **shipped** — [ADR 0054](adr/0054-statistical-instruments.md) | survival curves, the SPC family, correlograms, ROC and PR curves, Lorenz |
@@ -390,7 +389,7 @@ The four rows still marked unwritten are each a `Family` and nothing else: a few
 dozen lines of arithmetic in `stat`, no seam, no coord and no mark. That is the
 point of the bucket.
 
-## J — needs a barycentric coord — **planned**, [ADR 0051](adr/0051-barycentric-coord.md)
+## J — needs a barycentric coord — **shipped**, [ADR 0051](adr/0051-barycentric-coord.md)
 
 Three components that sum to a constant, read as one point in a triangle. It is
 the second-most-common coordinate system in the physical sciences after polar
@@ -523,6 +522,7 @@ them, and none of them needed the IR to gain anything.
 | Trajectory / phase space | `three.Line3`; one primitive per segment | **shipped** — `testdata/golden/trajectory.svg` |
 | Cascade / waterfall | `three.Line3` with `geom.GroupBy`: N traces offset along a floor axis | **shipped** as a recipe — `examples/cascade`, and no code in the library knows what a cascade is |
 | Ribbon — a 3D line with width | `three.Ribbon`; one quad per segment over `Line3`'s machinery | **shipped** — and its doc comment says a flat line with a band usually wins, because there width means an interval |
+| Ternary prism | `three.Prism`: the floor placed through the barycentric map, the fourth variable up | **shipped** — the floor is `coord.Ternary`'s triangle in a scene, and every layer that draws in a box draws in it unchanged |
 | 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
 | Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
 | 3D scatter with droplines | `three.Scatter3`; a marker primitive beside the face and the line, and a rule to the floor | **shipped** — the droplines are on by default, because they are what makes the heights readable |
@@ -727,7 +727,9 @@ What is left besides is four records, listed in the order they argue for — a
 dependency order rather than a preference. Nothing in the list now waits on
 anything else in it, and all but the first of them have been built.
 
-1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)). The
+1. **A barycentric coord** — J ([ADR 0051](adr/0051-barycentric-coord.md)).
+   **Shipped**, as `coord.Ternary`, and with it `three.Prism` — the ternary
+   prism ADR 0058 ranked fourth and never scheduled. The
    widest genuine gap in the general-purpose world with a real user base, on
    the seam the coordinate stage already cut, and the cheapest coord in the
    package because the map is affine.

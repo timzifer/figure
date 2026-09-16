@@ -120,7 +120,14 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   on and almost no plotting library draws. Its grid is the two axes' own ticks —
   constant-resistance circles from X, constant-reactance arcs from Y — so
   `render` was not touched for it
-  ([ADR 0033](adr/0033-smith-charts.md)).
+  ([ADR 0033](adr/0033-smith-charts.md)). **`coord.Ternary`** is the fourth and
+  the cheapest, because the barycentric map is affine: X and Y are two
+  components of a composition and the third is what is left, so `Straight()` is
+  true and every mark draws what it drew under Cartesian. Its third grid family
+  has no third tick list to hang on and needs none — the constant-c line rides
+  as a second subpath inside the X tick's own grid shape — and the corner
+  labels a ternary chart is printed with are `geom.Note`
+  ([ADR 0051](adr/0051-barycentric-coord.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and
@@ -161,7 +168,12 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   Under `three.Smith` the same scene reads a resistance and a reactance and is
   the three-dimensional Smith chart, where every active impedance a flat Smith
   chart cannot show is the southern hemisphere
-  ([ADR 0058](adr/0058-what-3d-is-for.md)).
+  ([ADR 0058](adr/0058-what-3d-is-for.md)). **`three.Prism`** is the third
+  space: a ternary floor and a fourth variable up, which is what metallurgy and
+  petrology draw when a composition's reading depends on a temperature or a
+  pressure. All three are the same bargain — a layer places its geometry
+  through `Frame.Point` and that is the whole of what it has to know about
+  which space it is in.
 - **A camera, and several of them** — `three.Camera` is an immutable value and
   `three.Orbit`, `three.Dolly` and `three.Slerp` are pure functions over it, so
   the host owns the drag: `three` installs no handler, opens no window and runs

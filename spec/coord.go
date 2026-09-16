@@ -49,6 +49,11 @@ func encodeCoord(c coord.Coord) (*Coord, error) {
 	if d.Type == coord.TypeOblique {
 		out.Depth, out.DepthAngle = d.Depth, d.DepthAngle
 	}
+	// A sum of one is a ternary coord's default, so a chart that never asked
+	// for percentages writes no field.
+	if d.Type == coord.TypeTernary && d.Sum != 1 {
+		out.Sum = d.Sum
+	}
 	// Each coord's default edge is the absent field, so that a document naming
 	// a type and nothing else draws what that type's constructor draws.
 	switch {
@@ -86,6 +91,7 @@ func decodeCoord(c *Coord) (coord.Coord, error) {
 		return nil, fmt.Errorf("figure/spec: unknown coord theta %q", c.Theta)
 	}
 	d.Depth, d.DepthAngle = c.Depth, c.DepthAngle
+	d.Sum = c.Sum
 	if d.Type == coord.TypePolar {
 		d.Sweep = coord.FullTurn
 		if c.Sweep != nil {

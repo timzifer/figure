@@ -1,6 +1,6 @@
 # 0051 — A ternary chart is a barycentric coord, and its third grid family is not furniture
 
-**Status:** Proposed · **Date:** 2026-09-08 · **Implemented:** —
+**Status:** Accepted · **Date:** 2026-09-08 · **Implemented:** `coord.Ternary`, `coord.TernarySum`, and the spec's `"ternary"` coord with its `sum` field; the third grid family rides on the X ticks as this record describes, and its labels are still unspent. `three.Prism` is the same map in a projected scene — see [ADR 0058](0058-what-3d-is-for.md).
 
 ## Context
 

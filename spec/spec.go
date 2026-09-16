@@ -359,7 +359,7 @@ type Mark struct {
 // The field is absent for a Cartesian chart, which is every chart written
 // before there was a coord to write.
 type Coord struct {
-	// Type is "cartesian", "polar", "smith" or "oblique".
+	// Type is "cartesian", "polar", "smith", "oblique" or "ternary".
 	Type string `json:"type"`
 	// Theta is the axis a polar coord sweeps around the circle: "x" or "y".
 	Theta string `json:"theta,omitempty"`
@@ -386,6 +386,9 @@ type Coord struct {
 	// locus is. So a document that names a type and nothing else draws what the
 	// constructor of that type draws.
 	Edge string `json:"edge,omitempty"`
+	// Sum is what a ternary coord's three components add up to: absent is 1,
+	// and 100 is the percentage spelling.
+	Sum float64 `json:"sum,omitempty"`
 	// Depth is how deep an oblique coord draws a mark's volume, as a fraction
 	// of the panel's shorter side, and DepthAngle the direction of it, in
 	// radians in device space. Absent is the default for both; straight to the
