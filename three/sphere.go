@@ -266,6 +266,26 @@ func (f Frame) Point(x, y, z float64) Vec3 {
 	return f.space.place(f.X.Map(x), at(f.Y, y), at(f.Z, z))
 }
 
+// Place turns three positions already in [0, 1] into a point in the scene: the
+// identity in a box, a point over the floor triangle in a [Prism], and a
+// direction and a radius on the ball in a [Spherical] scene.
+//
+// It is [Frame.Point]'s counterpart for a layer whose geometry is not a row.
+// A histogram's cell edge, a graticule's corner and a wall's midpoint are
+// positions the layer worked out itself rather than values a scale has to map,
+// and putting them through Point would mean inverting the scale first. Under
+// [Smith] the two angles are still angles here, because a position is one —
+// the impedance reading belongs to Point, which takes values.
+func (f Frame) Place(u, v, w float32) Vec3 {
+	switch {
+	case f.floor != nil:
+		return f.floor.place(u, v, w)
+	case f.space == nil:
+		return Vec3{u, v, w}
+	}
+	return f.space.place(u, v, w)
+}
+
 // Spherical reports whether the frame is of a [Spherical] scene, for a layer
 // that has no meaning in one to say so with [ErrNotSpherical].
 func (f Frame) Spherical() bool { return f.space != nil }

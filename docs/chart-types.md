@@ -529,6 +529,7 @@ them, and none of them needed the IR to gain anything.
 | Contours projected on the floor | `three.Contour` over `stat.Contour` | **shipped** — the same tracing as the flat plot, so the two cannot disagree. The walls are declined: a contour is a statement about z over (x, y), and a wall contains z ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)) |
 | Antenna pattern, Poincaré sphere, Bloch sphere, stereonet | `three.Spherical`: the scene's X, Y and Z as azimuth, polar angle and radius | **shipped** — `examples/sphere` draws a radiation pattern and a Bloch sphere |
 | 3D Smith chart | `three.Spherical(three.Smith())`: the Γ-plane on the Riemann sphere, with the flat chart's grid carried onto it | **shipped** — `examples/sphere`; active impedances are the southern hemisphere |
+| Spherical histogram over a direction column | `three.Histogram3`: bands of equal cos θ, the same number of azimuth sectors round each | **shipped** — the binning is equal-area, which is the whole of it; a lat/long grid piles a uniform sample up at the poles |
 
 Refused, and each for a reason rather than for a schedule: arbitrary meshes and
 CAD (a painter's order is exact only over a set that can be totally ordered),
