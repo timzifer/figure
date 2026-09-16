@@ -17,7 +17,7 @@ require github.com/gogpu/gg v0.52.5
 // carries the same ceiling, and .github/dependabot.yml.
 require (
 	github.com/gogpu/wgpu v0.32.1
-	github.com/timzifer/figure v0.9.0
+	github.com/timzifer/figure v0.10.0
 	github.com/timzifer/figure/backend/gg v0.8.0
 )
 
