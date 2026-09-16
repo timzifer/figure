@@ -27,7 +27,10 @@ import (
 // the mark's colour mixed toward the theme's [theme.Theme.DepthTop] and
 // [theme.Theme.DepthSide] — two fixed shades and nothing more, no light model.
 // All three are separate shapes that a pointer can land on, and all three
-// answer with the mark's row.
+// answer with the mark's row. A layer that names both a [Fill] and a [Color]
+// outlines its marks here as it does flat, each mark's faces stroked with the
+// mark rather than all the fronts at the end — a back mark's outline over a
+// front mark's faces would be worse than none.
 func Extrude(on bool) Option { return func(c *config) { c.extrude = on } }
 
 // How far a face turned up and a face turned aside are mixed toward the
@@ -104,9 +107,17 @@ func (e extrusion) side(r ir.Rect) [4]ir.Point {
 // here and cannot be one under a vector IR (docs/adr/0056-three-dimensional-charts.md),
 // and for marks that share one plane none is needed.
 //
+// The outline is stroked per mark too, and that is the same argument a second
+// time. A layer that names both a fill and a colour outlines its marks, and an
+// extruded one used to lose the outline altogether — the flat path that
+// carried it was never built. Stroking every front afterwards would put a back
+// mark's outline over a front mark's faces, so each mark's three faces are
+// stroked with the mark, before the neighbour that stands over it is drawn.
+//
 // rects are the marks in device space, rows the source row behind each and
 // cols the colour of each. A mark whose colour is transparent draws nothing.
-func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects []ir.Rect, rows []int, cols []ir.Color) {
+// stroke is the outline, and is invisible for a layer that asked for none.
+func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects []ir.Rect, rows []int, cols []ir.Color, stroke ir.Stroke) {
 	order := grow(sc.order, len(rects))
 	for i := range order {
 		order[i] = i
@@ -127,11 +138,22 @@ func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects
 	})
 	sc.order = order
 
+	outlined := stroke.Visible()
+	// The outline of one mark, collected as the faces are filled and stroked
+	// once the mark is whole. It is the scratch's own buffer, so a chart
+	// redrawn every frame does not allocate one per mark.
+	edge := &sc.line
+	quad := func(p *ir.Path, pts [4]ir.Point) {
+		p.MoveTo(pts[0].X, pts[0].Y).LineTo(pts[1].X, pts[1].Y).
+			LineTo(pts[2].X, pts[2].Y).LineTo(pts[3].X, pts[3].Y).Close()
+	}
 	face := func(pts [4]ir.Point, c ir.Color) {
 		sc.fill.Reset()
-		sc.fill.MoveTo(pts[0].X, pts[0].Y).LineTo(pts[1].X, pts[1].Y).
-			LineTo(pts[2].X, pts[2].Y).LineTo(pts[3].X, pts[3].Y).Close()
+		quad(&sc.fill, pts)
 		b.FillPath(&sc.fill, ir.Solid(c), ir.NonZero)
+		if outlined {
+			quad(edge, pts)
+		}
 	}
 	for _, i := range order {
 		col := cols[i]
@@ -139,6 +161,7 @@ func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects
 			continue
 		}
 		r := rects[i]
+		edge.Reset()
 		if e.dx != 0 {
 			face(e.side(r), palette.Lerp(col, th.DepthSide, extrudeSideMix))
 		}
@@ -148,6 +171,10 @@ func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects
 		sc.fill.Reset()
 		sc.fill.Rect(r)
 		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		if outlined {
+			edge.Rect(r)
+			b.StrokePath(edge, stroke)
+		}
 	}
 }
 

@@ -221,7 +221,14 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 	// colours it from, because a mark's faces overlap its neighbours' and a
 	// batch by colour would paint them in the wrong order.
 	if ext.on {
-		sc.drawExtruded(b, f.Theme, ext, rects, rows, g.markColors(sc, f, rows, fill))
+		// With the outline the flat path draws, stroked per mark: stroking
+		// every front at the end would put a back mark's outline over a front
+		// mark's faces.
+		edge := ir.Stroke{}
+		if g.cfg.fill != nil && g.cfg.color != nil {
+			edge = ir.Stroke{Color: *g.cfg.color, Width: pick(g.cfg.width, 1)}
+		}
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, g.markColors(sc, f, rows, fill), edge)
 		return nil
 	}
 

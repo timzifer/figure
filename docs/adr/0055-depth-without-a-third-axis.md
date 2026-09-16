@@ -184,7 +184,7 @@ asking for it there draws a flat pie, which is a pie.
 Cartesian coord with a depth vector behind `coord.Extruder`, a bar or a rect
 drawn as a front, a top and a side face, the IR untouched, `coord.TypeOblique`
 refused by `Register`, and `Depth`, `DepthAngle` and `Extrude` round-tripping
-through `spec`. Five things came out sharper than the record, and none of them
+through `spec`. Six things came out sharper than the record, and none of them
 moves its central clause: no column sets the depth.
 
 **The depth is a fraction of the panel, not a theme length.** The record says
@@ -226,6 +226,14 @@ exposed the one real bug the round trip found: `sin 2π` is a rounding error
 rather than zero, and a vertical part of 10⁻¹⁶ gave every mark a top face of no
 height. `DepthAngle` now reduces its argument, so a full turn is the angle zero
 exactly.
+
+**The outline is stroked per mark, and it was missing altogether.** A layer
+that names both a fill and a colour outlines its marks, and the flat paths
+that carried the outline are the ones the per-mark path replaced — so an
+extruded bar or rect silently lost it. Each mark's three faces are stroked
+with the mark, before the neighbour that stands over it is painted: stroking
+every front at the end would put a back mark's outline over a front mark's
+faces, which is the same argument the paint order itself rests on.
 
 **The spec tests now render the coord.** The helper every `spec` round-trip
 test compares drawings with built its chart without the coord, so a sunburst

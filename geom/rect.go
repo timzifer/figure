@@ -190,18 +190,24 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 			f.Marks(MarkRows{At: sc.pts, Rows: sc.sourceRows(g.s, rows)})
 		}
 	}
-	// See [barGeom.Build]: an extruded layer is painted a mark at a time.
+	stroke := ir.Stroke{Color: g.cfg.colorFor(f), Width: pick(g.cfg.width, 1)}
+	outline := g.cfg.fill != nil && g.cfg.color != nil
+
+	// See [barGeom.Build]: an extruded layer is painted a mark at a time. It
+	// carries the outline the flat path would have drawn, stroked with each
+	// mark rather than over all of them at the end.
 	if ext.on {
 		cols := sc.colorsFor(g.cfg, g.s, rows)
 		if cols == nil {
 			cols = uniform(sc, len(rows), fill)
 		}
-		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols)
+		edge := ir.Stroke{}
+		if outline {
+			edge = stroke
+		}
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols, edge)
 		return nil
 	}
-
-	stroke := ir.Stroke{Color: g.cfg.colorFor(f), Width: pick(g.cfg.width, 1)}
-	outline := g.cfg.fill != nil && g.cfg.color != nil
 
 	// One subpath per cell, whether they are batched by colour or drawn in one
 	// call, so that a pointer lands on the cell rather than on the sheet — see
