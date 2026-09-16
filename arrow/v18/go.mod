@@ -7,7 +7,7 @@ go 1.25.0
 // it adapts, and says which.
 require (
 	github.com/apache/arrow-go/v18 v18.8.0
-	github.com/timzifer/figure v0.8.0
+	github.com/timzifer/figure v0.10.0
 )
 
 require (
