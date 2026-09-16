@@ -1,0 +1,4 @@
+sxe -c ".echo FIRST_ACCESS_VIOLATION; .exr -1; r; kb 50; !address @r8; !heap -x @r8; lm; q" av
+sxe -c ".echo FIRST_HEAP_CORRUPTION; .exr -1; r; kb 50; lm; q" 0xc0000374
+sxe -c "q" epr
+g
