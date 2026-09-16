@@ -9,6 +9,17 @@ NVIDIA GeForce RTX 3070 Laptop, driver 546.30, Windows 11. The original
 2026-09-11 observations below used `v0.52.6-figure.4`. The newer native
 stack and counter-experiments are recorded at the end of this note.
 
+**The follow-up lives on a branch.** `gpu-close-hang-repro` carries the
+2026-09-15 native isolation: `docs/repro/vulkan-thread-close`, a standalone
+Windows x64 C diagnostic that reproduces the same teardown failure with no Go,
+no renderer, no window, no surface and no submission — instance and device
+created and destroyed across two native worker threads, over two cycles, with
+a watchdog runner and the run's `results.json`. It settles that the Go bindings
+are not needed to trigger the failure and that garbage collection is not
+either, and it does not identify the invalid allocation. It is unmerged
+because it is a diagnostic rather than a change to the library; this note's
+amendments travel with it.
+
 ## What happens
 
 `gpu.Close()` never returns. It blocks in the Vulkan driver, in
