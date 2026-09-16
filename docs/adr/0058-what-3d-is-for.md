@@ -62,7 +62,7 @@ is a reader who was not told.
 | Form | Recipe | The 2D chart that usually wins |
 |---|---|---|
 | **Terrain / DEM** | surface + a sequential ramp on z | a hillshaded heatmap, until the reader has to judge slope |
-| **Ribbon** | a 3D line with width | a line with a band, which is what an interval means |
+| **Ribbon** | a 3D line with width — `three.Ribbon` | a line with a band, which is what an interval means |
 | **Stem / dropline 3D** | scatter + a rule to the floor | nothing: it is what makes a 3D scatter's heights readable, so it ships *with* the scatter |
 | **Projected contours on the walls** | `stat.Contour` evaluated on the same grid, drawn on the floor and back walls | the contour plot itself — see below |
 | **3D bars** over two categoricals | `geom.Bar` in a projected box | **almost always the heatmap.** Bars occlude each other, the back row is unreadable, and the height of a bar behind another cannot be compared to it. It ships because refusing it invites a worse reimplementation by every caller, and its doc comment says this |

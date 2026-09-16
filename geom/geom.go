@@ -534,9 +534,11 @@ func Value(col string) Option { return func(c *config) { c.valCol = col } }
 func Padding(f float64) Option { return func(c *config) { c.padding = f } }
 
 // Thickness is how much of its slot a node fills, in (0, 1]: the width of a
-// sankey's columns and the depth of a chord diagram's ring of arcs. Zero — the
+// sankey's columns, the depth of a chord diagram's ring of arcs, and the width
+// of a [github.com/timzifer/figure/three.Ribbon] in scene units. Zero — the
 // default — means the mark's own, which differs between them because a sankey's
-// node is a landmark and a chord's is a rim.
+// node is a landmark, a chord's is a rim, and a ribbon's width is only there so
+// the path can be seen.
 //
 // It is not [BarWidth], although it means something close, because BarWidth's
 // default is 0.8 rather than zero: a mark could not tell a caller who asked for

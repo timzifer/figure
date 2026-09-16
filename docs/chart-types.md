@@ -522,6 +522,7 @@ them, and none of them needed the IR to gain anything.
 | Terrain / DEM | the same surface with `geom.ColorBy` over the height | **shipped** — the depth axis is the key, so there is no colourbar |
 | Trajectory / phase space | `three.Line3`; one primitive per segment | **shipped** — `testdata/golden/trajectory.svg` |
 | Cascade / waterfall | `three.Line3` with `geom.GroupBy`: N traces offset along a floor axis | **shipped** as a recipe — `examples/cascade`, and no code in the library knows what a cascade is |
+| Ribbon — a 3D line with width | `three.Ribbon`; one quad per segment over `Line3`'s machinery | **shipped** — and its doc comment says a flat line with a band usually wins, because there width means an interval |
 | 3D bars over two categoricals | `three.Bar3` | **shipped**, and its doc comment says to read the heatmap first |
 | Plan and elevations of one scene | several `three.View`s of one `three.Scene` | **shipped** — `examples/views` |
 | 3D scatter with droplines | `three.Scatter3`; a marker primitive beside the face and the line, and a rule to the floor | **shipped** — the droplines are on by default, because they are what makes the heights readable |
