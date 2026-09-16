@@ -3,9 +3,11 @@
 // Like the other examples it is executed by a test, so it cannot silently stop
 // compiling or stop producing a chart. The first chart is the clustered
 // heatmap — the most-published figure shape in bioinformatics — and it is a
-// geom.Rect over two ordinal axes with a geom.Tree in a track above it: a
-// rectangle mark, a colour ramp, an ordinal axis and a band at a panel's edge,
-// which figure has had since v0.10, and the tree that the band was missing.
+// geom.Rect over two ordinal axes with a geom.Tree in a track on two of its
+// edges: a rectangle mark, a colour ramp, an ordinal axis and a band at a
+// panel's edge, which figure has had since v0.10, and the tree that the band
+// was missing. The left one is geom.Orient(geom.Horizontal), which is what
+// reads the breadth up the Y axis so the leaves line up with the rows.
 // The second is a radial tree, which is the same mark under a polar coord.
 // See docs/adr/0053-tidy-tree-layout.md.
 //
@@ -65,7 +67,19 @@ func expression(s, g int) float64 {
 }
 
 func heatmap(out string) error {
-	node, under, height, leaves := cluster()
+	// Two clusterings of one matrix: the samples by their genes, and the genes
+	// by their samples. They are the same function read the other way round,
+	// which is also what the two dendrograms are.
+	sNode, sUnder, sHeight, sLeaves := cluster(samples, func(a, b int) float64 {
+		return distance(len(genes), func(g int) (float64, float64) {
+			return expression(a, g), expression(b, g)
+		})
+	})
+	gNode, gUnder, gHeight, gLeaves := cluster(genes, func(a, b int) float64 {
+		return distance(len(samples), func(s int) (float64, float64) {
+			return expression(s, a), expression(s, b)
+		})
+	})
 
 	var sample, gene []string
 	var value []float64
@@ -84,8 +98,8 @@ func heatmap(out string) error {
 	// The sample axis is pinned to the tree's leaf order, so the heatmap's
 	// columns stand under the leaves that name them. An axis left to discover
 	// its categories would learn them from whichever layer trained first.
-	p.X(scale.Ordinal(scale.Categories(leaves...), scale.OrdinalPadding(0)))
-	p.Y(scale.Ordinal(scale.Categories(genes...), scale.OrdinalPadding(0)))
+	p.X(scale.Ordinal(scale.Categories(sLeaves...), scale.OrdinalPadding(0)))
+	p.Y(scale.Ordinal(scale.Categories(gLeaves...), scale.OrdinalPadding(0)))
 	p.Add(geom.Rect(figure.NewTable().
 		String("sample", sample).String("gene", gene).Float64("expr", value),
 		geom.X("sample"), geom.Y("gene"),
@@ -93,31 +107,44 @@ func heatmap(out string) error {
 	))
 	p.Track(figure.Top, figure.TrackSize(110), figure.TrackScale(scale.Linear())).
 		Add(geom.Tree(figure.NewTable().
-			String("node", node).String("under", under).Float64("height", height),
+			String("node", sNode).String("under", sUnder).Float64("height", sHeight),
 			geom.ID("node"), geom.Parent("under"), geom.Value("height"),
+			geom.Color(palette.Gray)))
+	// The gene tree stands in a left track. A left track shares the panel's Y,
+	// so the breadth has to be on Y — geom.Horizontal — and geom.Baseline(1)
+	// turns the height over so the leaves meet the heatmap and the root is at
+	// the outside, which is how a clustered heatmap is printed.
+	p.Track(figure.Left, figure.TrackSize(110), figure.TrackScale(scale.Linear())).
+		Add(geom.Tree(figure.NewTable().
+			String("node", gNode).String("under", gUnder).Float64("height", gHeight),
+			geom.ID("node"), geom.Parent("under"), geom.Value("height"),
+			geom.Orient(geom.Horizontal), geom.Baseline(1),
 			geom.Color(palette.Gray)))
 	return p.Render(figure.SVG(out))
 }
 
-// cluster is average-linkage agglomerative clustering of the samples by
-// Euclidean distance: the (node, parent, height) table a dendrogram reads,
-// and the leaves in the order the tree lays them out.
-func cluster() (node, under []string, height []float64, leaves []string) {
+// distance is the Euclidean distance between two rows of the matrix, given a
+// function that hands out one pair of readings per column.
+func distance(n int, pair func(i int) (float64, float64)) float64 {
+	d := 0.0
+	for i := 0; i < n; i++ {
+		a, b := pair(i)
+		d += (a - b) * (a - b)
+	}
+	return math.Sqrt(d)
+}
+
+// cluster is average-linkage agglomerative clustering of a set of items under
+// a distance: the (node, parent, height) table a dendrogram reads, and the
+// leaves in the order the tree lays them out.
+func cluster(names []string, dist func(a, b int) float64) (node, under []string, height []float64, leaves []string) {
 	type group struct {
 		name    string
 		members []int
 	}
-	dist := func(a, b int) float64 {
-		d := 0.0
-		for g := range genes {
-			e := expression(a, g) - expression(b, g)
-			d += e * e
-		}
-		return math.Sqrt(d)
-	}
 
 	var groups []group
-	for s, name := range samples {
+	for s, name := range names {
 		groups = append(groups, group{name, []int{s}})
 		node, height = append(node, name), append(height, 0)
 	}

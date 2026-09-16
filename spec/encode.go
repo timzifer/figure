@@ -544,6 +544,9 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Branch == geom.Straight {
 			m.Branch = "straight"
 		}
+		if d.Orient == geom.Horizontal {
+			m.Orientation = "horizontal"
+		}
 	case geom.MarkHexbin:
 		fill()
 		m.DensityCells = d.CellSize

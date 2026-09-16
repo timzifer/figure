@@ -201,6 +201,7 @@ type config struct {
 	levelCount int
 	resample   Resampling
 	branch     Branch
+	orient     Orientation
 
 	eventCol    string
 	confidence  float64
@@ -545,6 +546,31 @@ func Padding(f float64) Option { return func(c *config) { c.padding = f } }
 // 0.8 from one who asked for nothing, and a default that cannot be told from a
 // choice is the trap [Dash] and [Stack] each carry a companion flag to avoid.
 func Thickness(f float64) Option { return func(c *config) { c.thickness = f } }
+
+// Orientation is which way round a mark reads its two axes: which one carries
+// the thing being measured, and which one carries what it is measured against.
+//
+// It is the library-wide question [Tree] asked first — ADR 0053's amendment —
+// and the answer lands here rather than in one mark's own option, so that the
+// second mark to want it says it the same way. Today [Tree] is the only mark
+// that reads it; [Orient] on any other is accepted and ignored, which is what
+// [Decimate] on a projected surface already is.
+type Orientation uint8
+
+const (
+	// Vertical is the default: the measurement runs up the Y axis and what it
+	// is measured against runs across the X one. A dendrogram drawn this way
+	// lines up with a heatmap's columns in a top track.
+	Vertical Orientation = iota
+	// Horizontal turns the pair over: the measurement runs across the X axis
+	// and what it is measured against runs up the Y one. A dendrogram drawn
+	// this way lines up with a heatmap's rows in a left track.
+	Horizontal
+)
+
+// Orient sets which way round a mark reads its two axes. The default is
+// [Vertical]. See [Orientation] for which marks read it.
+func Orient(o Orientation) Option { return func(c *config) { c.orient = o } }
 
 // Opacity scales the fill alpha, in [0, 1]. The default is 1 for an explicit
 // [Fill] colour and 0.25 for an area that takes its colour from the palette —

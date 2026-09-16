@@ -461,7 +461,7 @@ predicted a node-link layout would read.
 | Dendrogram, phylogram, cladogram | `geom.Tree` with `Value` as the merge height | Cartesian |
 | Org chart, decision tree, file tree | `geom.Tree` with the depth as the height | Cartesian |
 | **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
-| **Clustered heatmap** | `Rect` plus a `geom.Tree` in a `Plot.Track` — the top edge today; the left edge waits on an orientation | Cartesian |
+| **Clustered heatmap** | `Rect` plus a `geom.Tree` in a `Plot.Track` on both edges — `geom.Orient(geom.Horizontal)` reads the breadth up Y for the left one | Cartesian |
 
 The last one is the reason to build it. It is the most-published figure shape
 in bioinformatics, it needs a rectangle, a colour ramp, an ordinal axis and a

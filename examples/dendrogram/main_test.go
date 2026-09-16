@@ -38,7 +38,11 @@ func TestExampleRuns(t *testing.T) {
 // the chart makes is that the tree found it: the leaves come out with each
 // condition's samples next to each other, although the table interleaves them.
 func TestTheLeavesGroupTheConditions(t *testing.T) {
-	_, _, _, leaves := cluster()
+	_, _, _, leaves := cluster(samples, func(a, b int) float64 {
+		return distance(len(genes), func(g int) (float64, float64) {
+			return expression(a, g), expression(b, g)
+		})
+	})
 	if len(leaves) != len(samples) {
 		t.Fatalf("%d leaves, want %d", len(leaves), len(samples))
 	}

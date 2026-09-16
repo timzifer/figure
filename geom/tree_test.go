@@ -209,3 +209,79 @@ func TestATreeSurvivesItsDesc(t *testing.T) {
 		t.Error("the branch shape did not survive")
 	}
 }
+
+// A horizontal tree reads its breadth up the Y axis and its height across the
+// X one, which is what a dendrogram in a left track needs: a band down the
+// left side shares the panel's Y, so a tree whose leaves are on X cannot line
+// up with a heatmap's rows.
+func TestAHorizontalTreeHangsTheSameLayoutOnTheOtherPairOfAxes(t *testing.T) {
+	opts := []geom.Option{geom.ID("node"), geom.Parent("under"), geom.Value("height")}
+	up := geom.Tree(clustering(), opts...)
+	across := geom.Tree(clustering(), append(append([]geom.Option{}, opts...), geom.Orient(geom.Horizontal))...)
+
+	recUp, fUp := treeFrame(t, up, scale.Linear(), nil)
+	atUp := reported(t, up, recUp, fUp)
+	recAcross, fAcross := treeFrame(t, across, scale.Linear(), nil)
+	atAcross := reported(t, across, recAcross, fAcross)
+
+	if len(atUp) != len(atAcross) {
+		t.Fatalf("%d nodes up and %d across", len(atUp), len(atAcross))
+	}
+	// The layout is computed once and hung on the other pair of axes, so the
+	// two pictures are each other with the roles of the axes exchanged. The
+	// panel is 400 by 300 and Y is flipped, so the comparison is made in the
+	// unit square each scale maps into.
+	for i, p := range atUp {
+		q, ok := atAcross[i]
+		if !ok {
+			t.Fatalf("node %d is missing from the horizontal tree", i)
+		}
+		bu, hu := (p.X-fUp.Area.Min.X)/fUp.Area.Dx(), (fUp.Area.Max.Y-p.Y)/fUp.Area.Dy()
+		ha, ba := (q.X-fAcross.Area.Min.X)/fAcross.Area.Dx(), (fAcross.Area.Max.Y-q.Y)/fAcross.Area.Dy()
+		if math.Abs(float64(bu-ba)) > 1e-4 || math.Abs(float64(hu-ha)) > 1e-4 {
+			t.Errorf("node %d: (breadth %v, height %v) up and (breadth %v, height %v) across",
+				i, bu, hu, ba, ha)
+		}
+	}
+}
+
+// The height axis is the one the orientation says it is, so a horizontal tree
+// refuses an ordinal X rather than an ordinal Y.
+func TestAHorizontalTreeRefusesAnOrdinalHeightAxis(t *testing.T) {
+	g := geom.Tree(clustering(), geom.ID("node"), geom.Parent("under"), geom.Value("height"),
+		geom.Orient(geom.Horizontal))
+	err := g.Train(geom.Training{X: scale.Ordinal(), Y: scale.Linear()})
+	if !errors.Is(err, geom.ErrNotContinuous) {
+		t.Errorf("an ordinal height axis: err = %v, want ErrNotContinuous", err)
+	}
+	// And it takes an ordinal breadth, which is what lines its leaves up with
+	// a heatmap's rows.
+	ok := geom.Tree(clustering(), geom.ID("node"), geom.Parent("under"), geom.Value("height"),
+		geom.Orient(geom.Horizontal))
+	if err := ok.Train(geom.Training{X: scale.Linear(), Y: scale.Ordinal()}); err != nil {
+		t.Errorf("an ordinal breadth axis: %v", err)
+	}
+}
+
+// The orientation survives the round trip through a Desc, which is what a
+// written-down chart needs.
+func TestATreesOrientationIsWrittenDown(t *testing.T) {
+	g := geom.Tree(clustering(), geom.ID("node"), geom.Parent("under"),
+		geom.Orient(geom.Horizontal))
+	d, ok := g.(geom.Describer)
+	if !ok {
+		t.Fatal("a tree cannot describe itself")
+	}
+	desc := d.Describe()
+	if desc.Orient != geom.Horizontal {
+		t.Fatalf("Describe reports orientation %v, want horizontal", desc.Orient)
+	}
+	back, err := geom.FromDesc(desc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := back.(geom.Describer).Describe()
+	if again.Orient != geom.Horizontal {
+		t.Errorf("the rebuilt tree reports orientation %v, want horizontal", again.Orient)
+	}
+}

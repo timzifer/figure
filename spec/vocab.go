@@ -576,6 +576,15 @@ func resampling(name string) geom.Resampling {
 	return geom.Nearest
 }
 
+// orientation is a mark's orientation, read back from its name. Anything but
+// "horizontal" is vertical, which is the default a document leaves out.
+func orientation(name string) geom.Orientation {
+	if name == "horizontal" {
+		return geom.Horizontal
+	}
+	return geom.Vertical
+}
+
 // branch is a tree's branch shape, read back from its name. Anything but
 // "straight" is the elbow, which is the default a document leaves out.
 func branch(name string) geom.Branch {

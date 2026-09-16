@@ -187,6 +187,10 @@ type Desc struct {
 	// Branch is the shape a [Tree] joins a node to its parent with. It is the
 	// zero value — [Elbow] — for every other mark.
 	Branch Branch
+	// Orient is which way round a mark reads its two axes. It is the zero
+	// value — [Vertical] — for a mark that was told nothing and for every
+	// mark that does not read it. See [Orientation].
+	Orient Orientation
 	// EventCol, Confidence and CensorMarks configure a [Survival] layer: the
 	// column its event indicator is read from, the level of its confidence
 	// band (zero for none), and whether it ticks its censored times.
@@ -501,6 +505,7 @@ func (d Desc) options() []Option {
 		LevelCount(d.LevelCount),
 		Resample(d.Resample),
 		Branches(d.Branch),
+		Orient(d.Orient),
 		Event(d.EventCol),
 		Confidence(d.Confidence),
 		CensorMarks(d.CensorMarks),
@@ -647,6 +652,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		LevelCount:  c.levelCount,
 		Resample:    c.resample,
 		Branch:      c.branch,
+		Orient:      c.orient,
 		EventCol:    c.eventCol,
 		Confidence:  c.confidence,
 		CensorMarks: c.censorMarks,

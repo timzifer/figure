@@ -47,8 +47,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   anything ([ADR 0039](adr/0039-relational-layouts.md)). `Tree` is a tidy tree
   on the depth, or a dendrogram with one slot per leaf on a column of heights,
   with elbow or straight branches; under `coord.Polar` it is a radial tree, and
-  in a track over a heatmap's ordinal axis it is a clustered heatmap
-  ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+  in a track over a heatmap's ordinal axis it is a clustered heatmap —
+  `geom.Orient(geom.Horizontal)` reads the breadth up Y, which is what a
+  dendrogram in a *left* track needs, so one heatmap carries a tree on both
+  edges ([ADR 0053](adr/0053-tidy-tree-layout.md)).
 - **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
   series, with an opt-in log-log confidence band and censoring ticks, from a
   time column and a `geom.Event` indicator. `stat` holds the arithmetic of the

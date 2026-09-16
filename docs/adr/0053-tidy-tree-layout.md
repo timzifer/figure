@@ -171,7 +171,7 @@ in `spec`, and `examples/dendrogram` draws both charts the record argued for: a
 clustered heatmap — `geom.Rect` over two ordinal axes with a dendrogram in a
 top track — and a radial tree. The stat's tests are the record's three
 published properties plus determinism under buffer reuse and a 200 000-node
-chain and star. Six things came out sharper than the record, and none of them
+chain and star. Seven things came out sharper than the record, and none of them
 changes the decision.
 
 **There are two layouts, and the height column chooses between them.** The
@@ -204,10 +204,24 @@ and a heatmap's axis is ordinal, so refusing an ordinal breadth
 record's headline chart impossible. Given one, the leaves are placed at their
 own names through `scale.Categorical.Encode`, in walk order, and each parent
 over the span of its children; an axis still discovering its categories learns
-the dendrogram's order. The height axis is still refused. What is not built is
-the dendrogram on the *left* edge: that needs the breadth on Y, and no mark in
-`geom` has an orientation to borrow — a question for the library rather than
-for this mark.
+the dendrogram's order. The height axis is still refused.
+
+**The dendrogram on the *left* edge needed an orientation, and the answer is
+the library's rather than this mark's.** A left track shares the panel's Y, so
+the breadth has to be on Y and the height on X, and when this record was
+written no mark in `geom` had an orientation to borrow. `geom.Orient` is that
+option, with `geom.Vertical` and `geom.Horizontal`, and it is named for the
+library rather than for the tree so that the second mark to want it says it the
+same way — bars and boxplots still have none, and this is where that answer
+will land. `geom.Tree` reads it by laying the tree out once and hanging it on
+the other pair of axes: `Value`, `Baseline` and `Branches` all mean what they
+meant, and the ordinal breadth and the continuous height swap which axis they
+are checked on. `examples/dendrogram` now draws the record's headline chart
+whole, with a dendrogram on two edges of one heatmap; the left one takes
+`Baseline(1)` so its leaves meet the panel and its root is at the outside,
+which is how a clustered heatmap is printed. A mark that does not read the
+option is drawn as it always was, which is what `geom.Decimate` on a projected
+surface already is.
 
 **A tree reports a cycle, where the icicle beside it silently drops the
 nodes.** The record said the mark reuses 0039's cycle validation, and for a

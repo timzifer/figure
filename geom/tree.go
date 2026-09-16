@@ -55,14 +55,30 @@ import (
 // round to go and is drawn as a spiral; a small hole gives the root a ring to
 // stand on, and the root's own cross-piece is drawn round it.
 //
+// # Which way round it stands
+//
+// [Orient] of [Horizontal] reads the breadth up the Y axis and the height
+// across the X one, which is what a dendrogram in a *left* track needs: a
+// track shares the panel's axis for the edge it runs along, so a band down the
+// left side shares Y, and a tree whose leaves are on X cannot line up with a
+// heatmap's rows. Everything else is unchanged — the layout is computed once
+// and hung on the other pair of axes — so [Value], [Baseline] and [Branches]
+// all mean what they meant, and under a polar coord the two swap which of the
+// angle and the radius they are.
+//
+// It is the library-wide question this mark asked first, and the option is
+// [geom.Orient] rather than a tree's own so that the second mark to want it
+// says it the same way. See [Orientation].
+//
 // # Beside a heatmap
 //
-// Given an ordinal X axis, the leaves are placed at their own names on it
-// rather than at slots of their own, and each parent over the span of its
+// Given an ordinal breadth axis, the leaves are placed at their own names on
+// it rather than at slots of their own, and each parent over the span of its
 // children. A dendrogram in a [github.com/timzifer/figure.Track] above a
-// heatmap therefore lines up with the heatmap's columns; an axis that is still
-// discovering its categories learns them from the tree, in the tree's order. The height axis is never
-// ordinal, and is refused with [ErrNotContinuous].
+// heatmap therefore lines up with the heatmap's columns, and one in a left
+// track with [Horizontal] lines up with its rows; an axis that is still
+// discovering its categories learns them from the tree, in the tree's order.
+// The height axis is never ordinal, and is refused with [ErrNotContinuous].
 //
 // A node is reported to a hit test at its own position. [Branches] chooses the
 // shape of a branch; [ColorBy] colours each branch by the row of the node it
@@ -98,8 +114,18 @@ type treeGeom struct {
 	err   error
 }
 
+// axes splits the two scales into the one the breadth is read along and the
+// one the height is: X and Y as the mark has always drawn them, and the other
+// way round under [Horizontal].
+func (g *treeGeom) axes(x, y scale.Scale) (breadth, height scale.Scale) {
+	if g.cfg.orient == Horizontal {
+		return y, x
+	}
+	return x, y
+}
+
 func (g *treeGeom) Train(t Training) error {
-	x, y := t.X, t.Y
+	x, y := g.axes(t.X, t.Y)
 	if g.err = g.t.reset(g.src, g.cfg); g.err != nil {
 		return g.err
 	}
@@ -206,7 +232,14 @@ func (g *treeGeom) Build(b ir.Backend, f Frame) error {
 	sc := acquire(f)
 	defer sc.release()
 	cd := f.Coords()
+	// The breadth and the height reach the coord in the order the axes are in
+	// rather than in the order the layout computed them, which is the whole of
+	// what [Horizontal] changes: the tree is laid out once and hung on the
+	// other pair of axes.
 	at := func(v, h float64) ir.Point { return cd.Point(f.X.Map(v), f.Y.Map(h)) }
+	if g.cfg.orient == Horizontal {
+		at = func(v, h float64) ir.Point { return cd.Point(f.X.Map(h), f.Y.Map(v)) }
+	}
 
 	op := 1.0
 	if g.cfg.opacity >= 0 {
