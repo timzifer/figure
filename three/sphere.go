@@ -43,8 +43,11 @@ type SphereOption func(*sphere)
 // data before it was projected flat. See docs/adr/0058-what-3d-is-for.md.
 //
 // The furniture is a globe rather than a cube: a graticule every thirty
-// degrees, the silhouette, the three axes through the centre and the labels
-// [AxisEnds] puts on them. The far half is drawn before the data and the near
+// degrees with its angles written on the half of the ball facing the reader,
+// the silhouette, the three axes through the centre and the labels [AxisEnds]
+// puts on them. The angles are in the scene's own units, so a latitude sphere
+// writes latitudes; a direction [AxisEnds] has named is read by that name
+// rather than given a number as well. The far half is drawn before the data and the near
 // half after it, which is exact rather than approximate for the reason the
 // cube's back walls are: every datum is inside the ball, and a point inside a
 // ball is in front of the far hemisphere and behind the near one along every
@@ -334,9 +337,141 @@ func (g globe) front(b ir.Backend, path *ir.Path) {
 	g.lines(b, path, false)
 	if g.sp.smith {
 		g.smithLabels(b)
+	} else {
+		g.angleLabels(b)
 	}
 	g.labels(b)
 }
+
+// angleLabels writes values on the graticule: the azimuths round the equator
+// and the second angle up one meridian, on the half of the ball facing the
+// reader.
+//
+// It is [globe.smithLabels]'s rule for the other sphere. A Smith sphere named
+// its resistance and reactance circles from the start and the angular one
+// named nothing, so a reader who wanted to say which way a lobe pointed had to
+// count graticule lines out from an axis.
+//
+// It needs nothing from the seam ADR 0033 is holding open for a labelled
+// family with no tick behind it. That seam is about a *panel's* furniture,
+// which carries one label per tick per side; a globe is this package's own
+// furniture and has no tick lists at all — the graticule is a fixed thirty
+// degrees rather than a scale's choice, which is also why these labels do not
+// move when a domain does.
+func (g globe) angleLabels(b ir.Backend) {
+	font := g.th.Font(g.th.TickSize)
+	mid := g.proj.point(centre)
+	pad := g.th.TickLabelPad
+	put := func(at Vec3, deg float64, toScene func(float64) float64) {
+		if g.depth(at) > 0 {
+			return
+		}
+		p := g.proj.point(at)
+		dx, dy := p.X-mid.X, p.Y-mid.Y
+		if l := float32(math.Hypot(float64(dx), float64(dy))); l > 0 {
+			dx, dy = dx/l, dy/l
+		}
+		h, v := alignFor(ir.Point{X: dx, Y: dy})
+		b.Text(ir.TextRun{
+			Text:  strconv.FormatFloat(toScene(deg), 'g', 4, 64),
+			Font:  font,
+			At:    ir.Point{X: p.X + dx*pad, Y: p.Y + dy*pad},
+			H:     h,
+			V:     v,
+			Color: g.th.TickColor,
+		})
+	}
+
+	// The azimuths, round the equator. The four at the axis ends are skipped
+	// where [AxisEnds] has already named them: a direction that has a name is
+	// better read by it than by its angle.
+	for d := 0; d < 360; d += graticuleStep {
+		if end, ok := equatorEnd(d); ok && g.sp.ends[end] != "" {
+			continue
+		}
+		put(onSphere(float64(d)*math.Pi/180, math.Pi/2), float64(d), g.azimuthOf)
+	}
+
+	// The second angle, up one meridian. The equator is skipped because the
+	// azimuths are already written along it, and the poles because they are
+	// the two axis ends [AxisEnds] names.
+	az := g.labelMeridian()
+	for d := graticuleStep; d < 180; d += graticuleStep {
+		if d == 90 {
+			continue
+		}
+		put(onSphere(az, float64(d)*math.Pi/180), float64(d), g.polarOf)
+	}
+}
+
+// azimuthOf and polarOf turn a graticule line's angle in degrees into the
+// number the scene's own scales are read in: radians where [Radians] says so,
+// and the angle up from the equator where [Latitude] does.
+func (g globe) azimuthOf(deg float64) float64 {
+	if g.sp.radians {
+		return deg * math.Pi / 180
+	}
+	return deg
+}
+
+func (g globe) polarOf(deg float64) float64 {
+	if g.sp.elevation {
+		deg = 90 - deg
+	}
+	if g.sp.radians {
+		return deg * math.Pi / 180
+	}
+	return deg
+}
+
+// equatorEnd is which of [AxisEnds]'s six labels names the point of the
+// equator at an azimuth, for the four azimuths that have one.
+func equatorEnd(deg int) (int, bool) {
+	switch deg {
+	case 0:
+		return 0, true // +x
+	case 90:
+		return 2, true // +y
+	case 180:
+		return 1, true // −x
+	case 270:
+		return 3, true // −y
+	}
+	return 0, false
+}
+
+// labelMeridian picks which meridian the second angle is written up: the one
+// furthest to the left among those comfortably on the near side of the ball.
+//
+// Left is [cube.edgeOf]'s rule for the depth axis, and for the same reason —
+// the numbers end up outside the picture rather than across it. "Comfortably"
+// is the other half: a meridian exactly on the silhouette has half its length
+// on the far side, so the labels above the equator would drop out and the
+// ladder would be half a ladder.
+func (g globe) labelMeridian() float64 {
+	best, bestX := 0.0, float32(math.Inf(1))
+	found := false
+	for d := 0; d < 360; d += graticuleStep {
+		az := float64(d) * math.Pi / 180
+		at := onSphere(az, math.Pi/2)
+		if g.depth(at) > -radius*nearEnough {
+			continue
+		}
+		if x := g.proj.point(at).X; x < bestX {
+			best, bestX, found = az, x, true
+		}
+	}
+	if !found {
+		// Every meridian is edge-on, which a camera looking straight down the
+		// pole does. The first one will do: they are all alike from there.
+		return 0
+	}
+	return best
+}
+
+// nearEnough is how far in front of the centre a meridian's equator crossing
+// has to be before the whole meridian is worth writing numbers up.
+const nearEnough = 0.3
 
 // silhouette appends the outline of the ball as seen from the camera: the
 // circle of radius 0.5 in the plane square to the view.

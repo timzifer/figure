@@ -164,7 +164,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   **`three.Spherical`** makes a scene's three scales an azimuth, a polar angle
   and a radius, under a globe rather than a cube: a `Surface` over directions
   is an antenna radiation pattern, and a `Scatter3` and a `Line3` of unit radii
-  are a state on the Bloch sphere or a polarisation on the Poincaré one.
+  are a state on the Bloch sphere or a polarisation on the Poincaré one, joined
+  along the great circle between two readings rather than by the chord through
+  the inside of the ball. Its graticule carries its own angles, on the half of
+  the ball facing the reader.
   Under `three.Smith` the same scene reads a resistance and a reactance and is
   the three-dimensional Smith chart, where every active impedance a flat Smith
   chart cannot show is the southern hemisphere

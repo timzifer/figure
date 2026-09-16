@@ -214,3 +214,94 @@ func TestAnOverlayFindsAValueWhereTheSphereDrewIt(t *testing.T) {
 		t.Errorf("At(90°, 90°, 1) = %v, want +y on the equator at %v", got, want)
 	}
 }
+
+// The angular sphere writes values on its graticule: the azimuths round the
+// equator and the second angle up one meridian. Without them a reader who
+// wanted to name a direction had to count graticule lines out from an axis.
+func TestASphereLabelsItsGraticule(t *testing.T) {
+	texts := sphereTexts(t, Spherical())
+	// Only the half facing the reader is written on, which is the rule the
+	// Smith sphere's labels already follow — a number on the far side reads
+	// backwards through the ball.
+	azimuths := 0
+	for _, v := range []string{"30", "60", "120", "150", "210", "240", "300", "330"} {
+		if texts[v] {
+			azimuths++
+		}
+	}
+	if azimuths < 3 {
+		t.Errorf("the graticule writes %d azimuths, want the near half of them", azimuths)
+	}
+	// And the polar angles, up whichever meridian faces the reader. At least
+	// two of them, because one number is not a ladder.
+	kept := 0
+	for _, v := range []string{"30", "60", "120", "150"} {
+		if texts[v] {
+			kept++
+		}
+	}
+	if kept < 2 {
+		t.Errorf("the graticule writes %d polar angles, want a ladder", kept)
+	}
+}
+
+// A direction that already has a name is read by it rather than by its angle,
+// so an axis end [AxisEnds] labelled is not also given a number.
+func TestASphereDoesNotNumberADirectionItHasNamed(t *testing.T) {
+	texts := sphereTexts(t, Spherical(AxisEnds("east", "west", "north", "south", "up", "down")))
+	if texts["0"] || texts["90"] || texts["180"] || texts["270"] {
+		t.Error("the graticule numbers an azimuth the axis ends already name")
+	}
+	for _, want := range []string{"east", "west", "north", "south"} {
+		if !texts[want] {
+			t.Errorf("the axis end %q is missing", want)
+		}
+	}
+}
+
+// The values are in the units the scene's own scales are read in, so a
+// latitude sphere writes latitudes and a radian one writes radians.
+func TestASpheresGraticuleIsWrittenInTheScenesOwnUnits(t *testing.T) {
+	lat := sphereTexts(t, Spherical(Latitude()))
+	// A polar angle of 30° from the north pole is a latitude of 60°, and one
+	// of 150° is −60°. At least one of the negative ones proves the
+	// conversion, since only the near half of the ball is written on.
+	signed := false
+	for _, v := range []string{"-30", "-60"} {
+		if lat[v] {
+			signed = true
+		}
+	}
+	if !signed {
+		t.Error("a latitude sphere writes no southern latitude on its graticule")
+	}
+
+	rad := sphereTexts(t, Spherical(Radians()))
+	if rad["30"] || rad["60"] {
+		t.Error("a radian sphere writes its graticule in degrees")
+	}
+	if !rad["0.5236"] {
+		t.Error("a radian sphere does not write 30° as 0.5236 radians")
+	}
+}
+
+// sphereTexts draws a spherical scene and collects every string in it.
+func sphereTexts(t *testing.T, opt SceneOption) map[string]bool {
+	t.Helper()
+	src := figure.NewTable().
+		Float64("az", []float64{0, 90}).
+		Float64("pol", []float64{45, 60}).
+		Float64("r", []float64{1, 1})
+	sc := NewScene(opt).
+		X(scale.Linear()).Y(scale.Linear()).Z(scale.Linear(scale.Domain(0, 1))).
+		Add(Scatter3(src, geom.X("az"), geom.Y("pol"), geom.Z("r")))
+	rec := irtest.New()
+	if err := New(Size(420, 380)).Scene(sc).Render(rec.Target()); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]bool{}
+	for _, s := range rec.Texts() {
+		out[s] = true
+	}
+	return out
+}
