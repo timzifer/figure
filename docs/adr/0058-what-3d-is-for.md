@@ -266,13 +266,26 @@ library:
    runs through the southern one a flat Smith chart has no page for, and
    comes back. That is the chart this record ranked fourth and kept anyway.
 
-The forms this record names and never scheduled are tracked rather than
-forgotten: the ribbon ([#18](https://github.com/timzifer/figure/issues/18)),
-the ternary prism ([#19](https://github.com/timzifer/figure/issues/19)) and the
-spherical histogram ([#20](https://github.com/timzifer/figure/issues/20)), with
-great-circle interpolation for a trajectory on the sphere
-([#21](https://github.com/timzifer/figure/issues/21)) and angle labels on its
-graticule ([#22](https://github.com/timzifer/figure/issues/22)).
+6. **The forms this record named and never scheduled.** — **Shipped**, and
+   each of them needed what the line above it said it would and nothing more:
+   the ribbon as `three.Ribbon`, the ternary prism as `three.Prism` once
+   [ADR 0051](0051-barycentric-coord.md) had built the barycentric map, and the
+   spherical histogram as `three.Histogram3`.
+
+   With them, two things a sphere had been drawing approximately. A trajectory
+   on the ball is joined along the **great circle** between two readings rather
+   than by the chord between them — a dense sweep looked right either way and a
+   coarse one cut through the inside of the ball, so two states a quarter turn
+   apart on a Bloch sphere were joined by a line through the middle of it. On a
+   Smith sphere the same segment follows the image of the straight line between
+   the two impedances, which is still a circle on the ball. It is
+   `three.Frame.Arc`, and the reason is `coord.Polar`'s for drawing a
+   two-dimensional edge as an arc. And the angular sphere **labels its
+   graticule**, as the Smith sphere already labelled its two families: the
+   azimuths round the equator and the polar angles up one meridian, on the half
+   of the ball facing the reader. Neither needed the `Furniture` seam
+   [ADR 0033](0033-smith-charts.md) is still holding open, because a globe's
+   furniture is not a panel's.
 
 3D bars land wherever they land. They are four lines over the surface's
 machinery and they are the one form in this document whose main purpose is to

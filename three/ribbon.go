@@ -37,7 +37,9 @@ import (
 // them.
 //
 // [github.com/timzifer/figure/geom.GroupBy] draws one ribbon per series, and a
-// pointer on a quad reports the row its far end is.
+// pointer on a quad reports the row its far end is. The band follows the same
+// path [Line3] does, so on a ball it runs along the great circle rather than
+// cutting through the inside of it — see [Arc].
 func Ribbon(src data.Source, opts ...geom.Option) Layer {
 	return &ribbon3{base: newBase(src, "ribbon3", opts)}
 }
@@ -108,25 +110,43 @@ func (g *ribbon3) Emit(s *Sink, f Frame) error {
 		if !g.linked(f, i) {
 			continue
 		}
-		a, b := g.point(f, i-1), g.point(f, i)
-		wa, wb := g.widthAt(f, i-1).Mul(half), g.widthAt(f, i).Mul(half)
+		wa, wb := g.widthAt(f, i-1), g.widthAt(f, i)
 		if wa == (Vec3{}) || wb == (Vec3{}) {
 			continue
 		}
-		quad[0], quad[1] = a.Sub(wa), b.Sub(wb)
-		quad[2], quad[3] = b.Add(wb), a.Add(wa)
 		if track {
 			// A quad stands for the row it ends at, which is the row the
 			// reader is pointing at when they point at its far end — Line3's
 			// rule, for the same reason.
 			s.Row(i)
 		}
-		n := faceNormal(quad[0], quad[1], quad[2])
-		s.Face(quad[:], Style{
-			Fill:   shade(f.Theme, fill, n),
-			Stroke: stroke,
-			Width:  width,
-		})
+		// The band follows the same path [Line3] does: the straight line in a
+		// box, the great circle on a ball. Its width at a step between two
+		// rows is square to the path there rather than interpolated between
+		// the two mitres, so a band round the ball keeps its width all the way
+		// along.
+		arc := f.Arc(g.xs[i-1], g.ys[i-1], g.zs[i-1], g.xs[i], g.ys[i], g.zs[i])
+		n := arc.Steps()
+		p, w := arc.At(0), wa.Mul(half)
+		for k := 1; k <= n; k++ {
+			q := arc.At(float32(k) / float32(n))
+			nw := wb
+			if k < n {
+				nw = acrossOf(f, arc.At(float32(k-1)/float32(n)), arc.At(float32(k+1)/float32(n)), q)
+				if nw == (Vec3{}) {
+					nw = wb
+				}
+			}
+			nw = nw.Mul(half)
+			quad[0], quad[1] = p.Sub(w), q.Sub(nw)
+			quad[2], quad[3] = q.Add(nw), p.Add(w)
+			s.Face(quad[:], Style{
+				Fill:   shade(f.Theme, fill, faceNormal(quad[0], quad[1], quad[2])),
+				Stroke: stroke,
+				Width:  width,
+			})
+			p, w = q, nw
+		}
 	}
 	return nil
 }
@@ -165,9 +185,14 @@ func (g *ribbon3) widthAt(f Frame, i int) Vec3 {
 // to the scene's up at its middle.
 func (g *ribbon3) across(f Frame, a, b int) Vec3 {
 	p, q := g.point(f, a), g.point(f, b)
+	return acrossOf(f, p, q, p.Add(q).Mul(0.5))
+}
+
+// acrossOf is the unit direction square to the run from p to q and to the
+// scene's up at the point the band is being measured at.
+func acrossOf(f Frame, p, q, at Vec3) Vec3 {
 	d := q.Sub(p)
-	up := upAt(f, p.Add(q).Mul(0.5))
-	w := d.Cross(up).Unit()
+	w := d.Cross(upAt(f, at)).Unit()
 	if w == (Vec3{}) {
 		// The segment runs along the up direction, which leaves the band's
 		// facing undecided; any direction square to it will do, and the

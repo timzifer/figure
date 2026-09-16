@@ -21,6 +21,15 @@ import (
 // a recipe rather than a mark of its own, which is why there is no Cascade
 // here — see examples/cascade.
 //
+// In a [Spherical] scene consecutive rows are joined along the great circle
+// between their directions rather than by the chord between them, and in a
+// [Smith] one along the image of the straight line between their impedances,
+// which is still a circle on the ball. A dense sweep looks right either way; a
+// coarse one joined by chords cuts through the inside of the ball, so two
+// states a quarter turn apart on a Bloch sphere would be joined by a line
+// through the middle of it rather than by the arc the state travelled. See
+// [Arc].
+//
 // A path is emitted one segment at a time rather than whole. A whole path is
 // one primitive with one depth, and a curve that spans the scene has no single
 // depth, so a trajectory crossing a surface would be drawn wholly in front of
@@ -91,14 +100,22 @@ func (g *line3) Emit(s *Sink, f Frame) error {
 		if !g.plottable(f, i-1) || !g.plottable(f, i) {
 			continue
 		}
-		seg[0] = g.point(f, i-1)
-		seg[1] = g.point(f, i)
 		if track {
 			// A segment stands for the row it ends at, which is the row the
 			// reader is pointing at when they point at the far end of it.
 			s.Row(i)
 		}
-		s.Line(seg[:], st)
+		// One line per step of the path rather than one per pair of rows. In
+		// a box that is the same thing; on a ball it is the arc the reading
+		// travelled rather than the chord through the inside of it.
+		a := f.Arc(g.xs[i-1], g.ys[i-1], g.zs[i-1], g.xs[i], g.ys[i], g.zs[i])
+		n := a.Steps()
+		seg[0] = a.At(0)
+		for k := 1; k <= n; k++ {
+			seg[1] = a.At(float32(k) / float32(n))
+			s.Line(seg[:], st)
+			seg[0] = seg[1]
+		}
 	}
 	return nil
 }
