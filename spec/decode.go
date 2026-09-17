@@ -339,6 +339,18 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.StrokeDash != nil {
 		d.Dash, d.DashSet = l.Mark.StrokeDash, true
 	}
+	if l.Mark.Hatch != "" {
+		d.Hatch, d.HatchSet = hatchOf(l.Mark.Hatch), true
+	}
+	d.HatchDensity = l.Mark.HatchDensity
+	if l.Mark.Gradient != "" {
+		c, err := parseColor(l.Mark.Gradient)
+		if err != nil {
+			return nil, err
+		}
+		d.Gradient = &c
+	}
+	d.Corner, d.Inset = l.Mark.Corner, l.Mark.Inset
 	// A linkage this reader does not have is the layer's default rather than
 	// an error, exactly as an unknown one in the column is: a document from a
 	// later version then draws a chart that is wrong in a place the reader can

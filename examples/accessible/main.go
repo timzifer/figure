@@ -14,6 +14,10 @@
 // The labels are set as notation: the y axis is a fraction with a radical in
 // it, which is what a standard error actually looks like.
 //
+// This chart is lines, so redundant encoding reaches it as dashes and marker
+// shapes. A filled mark has neither, and is told apart by a hatch instead:
+// examples/hatch is the same idea for a stacked bar chart.
+//
 //	go run ./examples/accessible
 package main
 

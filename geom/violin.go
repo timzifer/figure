@@ -226,7 +226,11 @@ func (g *violinGeom) Build(b ir.Backend, f Frame) error {
 		if g.gs.grouped() {
 			x0, x1 = dodgeSpan(x0, x1, g.gs.rank[cell.group], g.gs.count(), g.cfg.dodgePad)
 		}
-		g.outline(b, f, sc, cd, cell, x0, x1, col)
+		rung := 0
+		if g.gs.grouped() {
+			rung = cell.group
+		}
+		g.outline(b, f, sc, cd, cell, x0, x1, col, rung)
 	}
 	return nil
 }
@@ -237,7 +241,7 @@ func (g *violinGeom) Build(b ir.Backend, f Frame) error {
 // The two flanks are one subpath rather than two, because a violin is one mark:
 // a pointer inside it has landed on this distribution, and two half outlines
 // would be two shapes with nothing between them.
-func (g *violinGeom) outline(b ir.Backend, f Frame, sc *scratch, cd coord.Coord, cell violinCell, x0, x1 float32, col ir.Color) {
+func (g *violinGeom) outline(b ir.Backend, f Frame, sc *scratch, cd coord.Coord, cell violinCell, x0, x1 float32, col ir.Color, rung int) {
 	n := len(cell.curve)
 	if n < 2 {
 		return
@@ -266,7 +270,7 @@ func (g *violinGeom) outline(b ir.Backend, f Frame, sc *scratch, cd coord.Coord,
 	sc.fill.Close()
 
 	if fill := g.cfg.fillOf(col, violinFillOpacity); fill.A != 0 {
-		b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
+		g.cfg.fillMark(b, &sc.fill, f, rung, fill)
 	}
 	stroke := ir.Stroke{Color: col, Width: pick(g.cfg.width, 1), Join: ir.JoinRound}
 	if stroke.Visible() {
@@ -290,7 +294,7 @@ func (g *violinGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{Label: g.cfg.labelFor(), Color: g.cfg.colorFor(f), Kind: SwatchBox}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelFor(), g.cfg.colorFor(f)), true
 }
 
 func (g *violinGeom) Source() data.Source { return g.src }
@@ -496,7 +500,7 @@ func (g *ridgeGeom) outline(b ir.Backend, f Frame, sc *scratch, cd coord.Coord, 
 	appendEdges(&sc.fill, cd, pts, true)
 	sc.fill.Close()
 	if fill := g.cfg.fillOf(col, ridgeFillOpacity); fill.A != 0 {
-		b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
+		g.cfg.fillMark(b, &sc.fill, f, 0, fill)
 	}
 
 	// The crest is stroked on its own, without the baseline the fill closed
@@ -518,7 +522,7 @@ func (g *ridgeGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{Label: g.cfg.labelForX(), Color: g.cfg.colorFor(f), Kind: SwatchBox}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelForX(), g.cfg.colorFor(f)), true
 }
 
 func (g *ridgeGeom) Source() data.Source { return g.src }

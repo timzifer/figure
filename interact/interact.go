@@ -893,6 +893,23 @@ type probe struct {
 	// n counts the marks this drawing call has produced, which is how a mark
 	// is matched to the depth announced for it. See [Index.Depth].
 	n int
+	// ornament is how deep inside a decoration the probe is. The calls a
+	// [ir.Decoration] brackets draw ink that belongs to a mark already
+	// indexed — the hatch lines inside a bar — and indexing them would put a
+	// target on every one of them, so that pointing at the bar reported
+	// whichever line was nearest. See docs/adr/0069.
+	ornament int
+}
+
+// BeginDecoration implements [ir.Decoration]: the calls until the matching
+// EndDecoration are ornament and are drawn but not indexed.
+func (p *probe) BeginDecoration() { p.ornament++ }
+
+// EndDecoration closes the most recent BeginDecoration.
+func (p *probe) EndDecoration() {
+	if p.ornament > 0 {
+		p.ornament--
+	}
 }
 
 // add records one mark, in device space.
@@ -904,7 +921,7 @@ type probe struct {
 // system pushes a transform of its own.
 func (p *probe) add(kind Kind, pts []ir.Point, pad float32) {
 	ix := p.ix
-	if !ix.open || len(pts) == 0 {
+	if !ix.open || p.ornament > 0 || len(pts) == 0 {
 		return
 	}
 	lo := len(ix.pts)
@@ -953,6 +970,12 @@ func (p *probe) FillPath(path *ir.Path, fill ir.Fill, rule ir.FillRule) {
 // for the mark before it — which is not a wrong number in an obvious place but
 // a right number in the wrong one.
 func (p *probe) endCall() {
+	if p.ornament > 0 {
+		// A decoration is part of the call that drew the mark it decorates,
+		// not a call of its own: closing here would spend a depth the mark
+		// under it was announced with.
+		return
+	}
 	p.n = 0
 	p.ix.spent = true
 }
@@ -1047,8 +1070,9 @@ func bounds(pts []ir.Point, pad float32) ir.Rect {
 }
 
 var (
-	_ ir.Backend   = (*probe)(nil)
-	_ ir.Semantics = (*probe)(nil)
+	_ ir.Backend    = (*probe)(nil)
+	_ ir.Semantics  = (*probe)(nil)
+	_ ir.Decoration = (*probe)(nil)
 )
 
 // clamp01 confines a ramp position to the bar, so that a pointer on the border

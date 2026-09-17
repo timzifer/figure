@@ -1316,6 +1316,7 @@ func drawLegend(b ir.Backend, box ir.Rect, th theme.Theme, g guide, obs Observer
 		swatch, label := e, th.LegendColor
 		if off {
 			swatch.Color = dim(swatch.Color)
+			swatch.Hatching.Line.Color = dim(swatch.Hatching.Line.Color)
 			label = dim(label)
 		}
 		drawSwatch(b, swatch, th, x, cy)
@@ -1351,6 +1352,22 @@ func dim(c ir.Color) ir.Color {
 	return c
 }
 
+// swatchHatching fits a mark's hatch into a swatch.
+//
+// A swatch is a fraction of the size of the bar it stands for, and a pattern
+// at the same period would show one line in the swatch and eight in the bar —
+// which a reader does not recognise as the same pattern. What has to match is
+// the number of repeats, not the spacing, so the period is capped at a third
+// of the swatch. It is the same argument [drawSizeKey] makes about drawing a
+// size key's samples as the marks rather than as symbols for them.
+func swatchHatching(h ir.Hatching, w float32) ir.Hatching {
+	if !h.Visible() {
+		return ir.Hatching{}
+	}
+	h.Spacing = min(h.Spacing, w/3)
+	return h
+}
+
 func drawSwatch(b ir.Backend, e geom.LegendEntry, th theme.Theme, x, cy float32) {
 	w := th.LegendSwatch
 	switch e.Kind {
@@ -1361,8 +1378,8 @@ func drawSwatch(b ir.Backend, e geom.LegendEntry, th theme.Theme, x, cy float32)
 		})
 	case geom.SwatchBox:
 		var p ir.Path
-		p.Rect(ir.R(x, cy-w/2, x+w, cy+w/2))
-		b.FillPath(&p, ir.Solid(e.Color), ir.NonZero)
+		p.RoundRect(ir.R(x, cy-w/2, x+w, cy+w/2), min(e.Corner, w/2))
+		ir.FillHatched(b, &p, ir.Solid(e.Color), ir.NonZero, swatchHatching(e.Hatching, w))
 	default: // geom.SwatchLine
 		width := e.Width
 		if width <= 0 {

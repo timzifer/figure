@@ -152,7 +152,7 @@ func (g *arcGeom) ribbons(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, in
 		}
 		sc.fill.Reset()
 		chord(&sc.fill, cd, x, y, r, inner, hub, reach)
-		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		g.cfg.fillMark(b, &sc.fill, f, 0, col)
 
 		if sc.wantRows {
 			pts = append(pts, cd.Point(x((r.Src.Lo+r.Dst.Hi)/2), y((inner+hub)/2)))

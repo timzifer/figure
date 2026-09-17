@@ -124,6 +124,32 @@ type Theme struct {
 	SeriesDashes  [][]float32
 	SeriesMarkers []ir.Marker
 
+	// SeriesHatches is the third one, and the one a filled mark can use.
+	//
+	// A dash needs a stroke and a marker needs a point, so neither says
+	// anything about a stacked bar, a pie or a stacked area — the marks whose
+	// only channel is the colour of a filled shape, and the ones that fail
+	// hardest in greyscale. A hatch is what those are told apart by. Empty by
+	// default, filled in by [Redundant], replaced by [Hatches].
+	// See docs/adr/0069.
+	SeriesHatches []HatchStep
+
+	// HatchSpacing and HatchWidth are what a hatch is drawn at: the period of
+	// the pattern at density 1, and the width of its lines. Both are device
+	// units and both are scaled by [Scaled], for the reason a dash is.
+	HatchSpacing float32
+	HatchWidth   float32
+
+	// HatchColor is what a hatch is drawn in, mixed with the colour of the
+	// mark it lies over.
+	//
+	// Mixed rather than used outright: a hatch in the mark's own colour would
+	// be invisible on a solid bar, and a hatch in one fixed colour would lose
+	// the series the mark belongs to. Mixing keeps the hue and guarantees the
+	// contrast — and because this is the ink of the theme, a dark theme mixes
+	// its hatches lighter without anything here saying so.
+	HatchColor ir.Color
+
 	// A projected scene. A flat chart needs none of this; a three-dimensional
 	// one needs to know which way the light falls and what a face turned
 	// toward it and away from it are mixed toward. There is one directional
@@ -260,30 +286,40 @@ func FontSize(size float64) Option {
 	}
 }
 
-// Redundant turns redundant encoding on: every layer gets a dash pattern and
-// a marker shape of its own alongside its colour, so that a chart survives
-// being printed in greyscale, photocopied, or read by the eight percent of men
-// who cannot separate its first two palette entries.
+// Redundant turns redundant encoding on: every layer gets a dash pattern, a
+// marker shape and a hatch of its own alongside its colour, so that a chart
+// survives being printed in greyscale, photocopied, or read by the eight
+// percent of men who cannot separate its first two palette entries.
 //
-// It changes nothing about a layer that named its own [Dash] or [Shape]: an
-// explicit choice is a choice, and this is a default.
+// It changes nothing about a layer that named its own [Dash], [Shape] or
+// [Hatch]: an explicit choice is a choice, and this is a default.
 //
-// The dash ladder runs solid, dashed, dotted, dash-dot, long-dash, and the
-// marker ladder circle, square, triangle, diamond, plus, cross. Both start
-// with what a chart already draws, so the first layer is unchanged and only
-// the second one onwards picks up a difference — which is the right shape for
-// a default, and the reason the ladders are not alphabetical.
+// Three ladders, because a chart has three kinds of mark and each one has a
+// different thing to spare. The dash ladder runs solid, dashed, dotted,
+// dash-dot, long-dash and reaches a line; the marker ladder circle, square,
+// triangle, diamond, plus, cross and reaches a point; the hatch ladder reaches
+// the filled shapes — a bar, a slice, an area — which have neither a stroke to
+// dash nor a shape to swap and were, until it existed, the marks this option
+// did nothing for. All three start with what a chart already draws, so the
+// first layer is unchanged and only the second one onwards picks up a
+// difference — which is the right shape for a default, and the reason the
+// ladders are not alphabetical.
+//
+// The hatch ladder it installs is [DefaultSeriesHatches], which is nominal.
+// [Hatches] replaces it with [DensitySeriesHatches] where the layers are
+// ordered rather than merely different.
 //
 // Pass false to turn it back off, which is what a theme built from tokens
 // already is.
 func Redundant(on bool) Option {
 	return func(t *Theme) {
 		if !on {
-			t.SeriesDashes, t.SeriesMarkers = nil, nil
+			t.SeriesDashes, t.SeriesMarkers, t.SeriesHatches = nil, nil, nil
 			return
 		}
 		t.SeriesDashes = DefaultSeriesDashes
 		t.SeriesMarkers = DefaultSeriesMarkers
+		t.SeriesHatches = DefaultSeriesHatches
 	}
 }
 
@@ -330,6 +366,114 @@ func (t Theme) SeriesMarker(i int) (ir.Marker, bool) {
 		return 0, false
 	}
 	return t.SeriesMarkers[i%len(t.SeriesMarkers)], true
+}
+
+// HatchStep is one rung of the hatch ladder: a pattern, and how dense it is.
+//
+// Two fields rather than one because the channel has two readings and they are
+// not the same reading. Changing the Hatch says *different* — a category is
+// not more than another category. Halving the Density says *more*, because it
+// halves the period and so doubles the ink, which is what a stack of
+// severities or of size classes actually means and what a ladder of shapes
+// cannot say. A theme picks the ladder that matches what its layers are.
+type HatchStep struct {
+	// Hatch is the pattern. The zero value, [ir.HatchNone], draws nothing,
+	// which is what the first rung of both shipped ladders is.
+	Hatch ir.Hatch
+
+	// Density scales [Theme.HatchSpacing]: 2 is half the ink, 0.5 twice it.
+	// Zero means 1, so a ladder written as bare patterns still works.
+	Density float32
+}
+
+// DefaultSeriesHatches is the ladder [Redundant] installs, and it is nominal:
+// every rung a different pattern, no rung heavier than another.
+//
+// Nominal because the layers of a chart are categories, and a redundant
+// encoding must not invent an order the data does not have — a reader who sees
+// one series hatched twice as densely as another will read it as twice
+// something. [DensitySeriesHatches] is for the case where that reading is the
+// right one.
+//
+// The first rung is [ir.HatchNone], the same rule the dash ladder follows, so
+// a single-layer chart is unchanged and the difference appears from the second
+// layer onwards. The order after it runs coarse to fine: the patterns that
+// survive a small mark come first.
+var DefaultSeriesHatches = []HatchStep{
+	{Hatch: ir.HatchNone},
+	{Hatch: ir.HatchDiagonal},
+	{Hatch: ir.HatchBackDiagonal},
+	{Hatch: ir.HatchCross},
+	{Hatch: ir.HatchDots},
+	{Hatch: ir.HatchHorizontal},
+	{Hatch: ir.HatchVertical},
+	{Hatch: ir.HatchGrid},
+	{Hatch: ir.HatchZigzag},
+	{Hatch: ir.HatchDotsStaggered},
+}
+
+// DensitySeriesHatches is the ordinal ladder: one pattern, getting denser.
+//
+// A stack painted from it reads as an order in greyscale — which is what a
+// stack of severities, of age bands, of size classes is, and what
+// [DefaultSeriesHatches] deliberately refuses to claim. Install it with
+// [Hatches].
+var DensitySeriesHatches = []HatchStep{
+	{Hatch: ir.HatchNone},
+	{Hatch: ir.HatchDiagonal, Density: 2},
+	{Hatch: ir.HatchDiagonal, Density: 1.4},
+	{Hatch: ir.HatchDiagonal, Density: 1},
+	{Hatch: ir.HatchDiagonal, Density: 0.7},
+	{Hatch: ir.HatchDiagonal, Density: 0.5},
+}
+
+// SeriesHatch returns the hatch rung for the layer at index i, and ok false
+// when the theme carries no hatch ladder — which leaves the layer's own
+// pattern in place rather than clearing it, the rule [Theme.SeriesMarker]
+// follows.
+func (t Theme) SeriesHatch(i int) (HatchStep, bool) {
+	if len(t.SeriesHatches) == 0 || i < 0 {
+		return HatchStep{}, false
+	}
+	h := t.SeriesHatches[i%len(t.SeriesHatches)]
+	if h.Density <= 0 {
+		h.Density = 1
+	}
+	return h, true
+}
+
+// Hatches sets the ladder a layer takes its hatch from, replacing whatever
+// [Redundant] installed.
+//
+// It is how a theme asks for the ordinal reading —
+// theme.Hatches(theme.DensitySeriesHatches...) — or names its own house
+// patterns. Passing nothing clears the ladder, which turns hatching off
+// without turning off the dashes and markers beside it.
+func Hatches(steps ...HatchStep) Option {
+	return func(t *Theme) { t.SeriesHatches = steps }
+}
+
+// HatchSize sets how a hatch is drawn: the period of the pattern at density 1,
+// and the width of its lines, both in device units.
+//
+// It is the knob [Hatches] is not. The ladder decides which pattern a layer
+// gets; this decides how coarse every pattern on the chart is, which is a
+// property of the chart rather than of a series — a poster read across a room
+// wants a coarser hatch than a figure in a paper, and both want the same
+// ladder. A value of zero or less leaves that half alone, so either can be set
+// without naming the other.
+//
+// Both are scaled by [Scaled], and the spacing alone by [Density], for the
+// reasons a dash is.
+func HatchSize(spacing, width float32) Option {
+	return func(t *Theme) {
+		if spacing > 0 {
+			t.HatchSpacing = spacing
+		}
+		if width > 0 {
+			t.HatchWidth = width
+		}
+	}
 }
 
 // Palette sets the qualitative sequence layers take their colours from.
@@ -398,6 +542,10 @@ func Density(f float64) Option {
 		t.PanelGap *= s
 		t.StripPad *= s
 		t.Margin *= s
+		// A hatch period is a spacing like any other: a chart packed tighter
+		// wants its patterns packed tighter, or the same hatch reads as denser
+		// on the smaller mark it now sits on.
+		t.HatchSpacing *= s
 	}
 }
 
@@ -456,6 +604,8 @@ func Scaled(f float64) Option {
 		t.BubbleSize *= s
 
 		t.SeriesDashes = scaleDashes(t.SeriesDashes, s)
+		t.HatchSpacing *= s
+		t.HatchWidth *= s
 	}
 }
 

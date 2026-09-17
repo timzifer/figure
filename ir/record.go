@@ -58,6 +58,8 @@ const (
 	recImage
 	recPush
 	recPop
+	recBeginDecoration
+	recEndDecoration
 )
 
 type recorded struct {
@@ -156,6 +158,22 @@ func (r *Recorder) FillPath(p *Path, fill Fill, rule FillRule) {
 	})
 }
 
+// BeginDecoration records the opening of an ornament. See [Decoration].
+//
+// A recording is replayed into a backend that may itself read the IR back — a
+// faceted chart records its panels in parallel and replays them into whatever
+// the caller handed it, hit-test probe included — so the bracket has to survive
+// the round trip or the suppression would hold for a serial render and not for
+// a parallel one.
+func (r *Recorder) BeginDecoration() {
+	r.calls = append(r.calls, recorded{kind: recBeginDecoration})
+}
+
+// EndDecoration records the close of an ornament. See [Decoration].
+func (r *Recorder) EndDecoration() {
+	r.calls = append(r.calls, recorded{kind: recEndDecoration})
+}
+
 // Text records a text run. See [Backend.Text].
 func (r *Recorder) Text(run TextRun) {
 	r.calls = append(r.calls, recorded{kind: recText, text: run})
@@ -245,12 +263,21 @@ func (r *Recorder) Replay(b Backend) {
 			}
 		case recPop:
 			b.Pop()
+		case recBeginDecoration:
+			if d, ok := b.(Decoration); ok {
+				d.BeginDecoration()
+			}
+		case recEndDecoration:
+			if d, ok := b.(Decoration); ok {
+				d.EndDecoration()
+			}
 		}
 	}
 }
 
 var (
-	_ Backend   = (*Recorder)(nil)
-	_ Measurer  = (*Recorder)(nil)
-	_ Semantics = (*Recorder)(nil)
+	_ Backend    = (*Recorder)(nil)
+	_ Measurer   = (*Recorder)(nil)
+	_ Semantics  = (*Recorder)(nil)
+	_ Decoration = (*Recorder)(nil)
 )

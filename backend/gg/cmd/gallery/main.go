@@ -209,7 +209,7 @@ func (f plate) render() (svg, png []byte, err error) {
 }
 
 func figures() []plate {
-	return []plate{
+	return append([]plate{
 		qqFigure(),
 		nicholsFigure(),
 		labelsFigure(),
@@ -459,6 +459,33 @@ func figures() []plate {
 				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
 				// One layer over a long table: the series column makes the
 				// stack, and the discrete scale names and colours it.
+				p.Add(geom.Bar(src,
+					geom.X("quarter"), geom.Y("revenue"),
+					geom.GroupBy("product"),
+					geom.ColorBy("product", scale.Qualitative(palette.OkabeIto)),
+				))
+			},
+		},
+		{
+			// The same stack as the plate above, under a theme that asked for
+			// redundant encoding. A dash needs a stroke and a marker needs a
+			// point, so until a filled mark could be hatched this option did
+			// nothing here at all — and a stacked bar chart photocopied, or
+			// read by someone who cannot separate two palette entries, was
+			// four grey blocks and a legend that could not be used. The
+			// patterns are nominal: a different one per product, none heavier
+			// than another, because four products are four categories.
+			// See docs/adr/0069-hatching-as-the-third-redundant-channel.md.
+			name: "hatched", width: 700, high: 420, title: "Revenue by product, in greyscale too",
+			theme: theme.Light.With(theme.Redundant(true)),
+			build: func(p *figure.Plot) {
+				quarters, products, revenue := ledger()
+				src := figure.NewTable().
+					String("quarter", quarters).
+					String("product", products).
+					Float64("revenue", revenue)
+				p.X(scale.Ordinal())
+				p.Y(scale.Linear(scale.Nice(), scale.Zero()))
 				p.Add(geom.Bar(src,
 					geom.X("quarter"), geom.Y("revenue"),
 					geom.GroupBy("product"),
@@ -955,7 +982,7 @@ func figures() []plate {
 				add("saturation", func(x float64) float64 { return 0.45 + 0.3*math.Sin(x/3) }, 3)
 			},
 		},
-	}
+	}, hatchFigures()...)
 }
 
 // budgets is five teams: what each spent as a share of the total, where its

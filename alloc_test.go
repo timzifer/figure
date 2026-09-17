@@ -53,6 +53,20 @@ func colouredCloud(n int) *figure.Plot {
 	return p
 }
 
+// hatchedStack is [stackedSeries] under a theme that asked for redundant
+// encoding, so that every series wears a pattern.
+//
+// A hatch is drawn rather than declared — the lines are generated per batch and
+// stroked through a clip — which is exactly the shape that could start
+// allocating per frame if the generator stopped reusing its buffer. The pattern
+// is sized in device units and the plot is a fixed size, so what it emits does
+// not grow with the rows: that is the claim the gate below checks.
+func hatchedStack(n int) *figure.Plot {
+	p := stackedSeries(n)
+	figure.Theme(theme.Light.With(theme.Redundant(true)))(p)
+	return p
+}
+
 // stackedSeries is a long table of n rows split into four series and stacked,
 // which is the v0.7 data path: the groups are indexed and the adjustment is
 // derived on every Train, and neither may cost anything per row.

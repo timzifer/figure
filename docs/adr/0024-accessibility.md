@@ -78,6 +78,13 @@ It is a theme decision rather than a document one because it is about how the
 chart looks, and because "our house style is dashed" is a theme in the same
 sense that "our house colours are these" is.
 
+**The patterns half of CONCEPT §14's promise is
+[ADR 0069](0069-hatching-as-the-third-redundant-channel.md).** A dash needs a
+stroke and a marker needs a point, so this decision reached a line and a point
+cloud and did nothing at all for a bar, a pie or a stacked area — the marks
+that fail hardest in greyscale. `theme.SeriesHatches` is the third ladder, and
+it is installed by the same `Redundant(true)`.
+
 ## Consequences
 
 - Every chart with a title gained an accessible name, which changed every golden

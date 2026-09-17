@@ -389,6 +389,16 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Opacity >= 0 {
 			m.Opacity = float64Ptr(d.Opacity)
 		}
+		if d.HatchSet {
+			m.Hatch = hatchName(d.Hatch)
+		}
+		if d.HatchDensity > 0 {
+			m.HatchDensity = d.HatchDensity
+		}
+		if d.Gradient != nil {
+			m.Gradient = colorHex(*d.Gradient)
+		}
+		m.Corner, m.Inset = d.Corner, d.Inset
 	}
 	// The default policy and the default reduction are written only when they
 	// are not the default: a document should say what was chosen, not repeat

@@ -347,6 +347,55 @@ var shapes = []struct {
 	{ir.MarkerPlus, "plus"},
 }
 
+// Hatch patterns. There is no Vega-Lite vocabulary to borrow — Vega-Lite has
+// no pattern fill — so these are figure's own names, spelled the way the
+// [ir.Hatch] constants are.
+//
+// "none" is written explicitly rather than left off, because an absent hatch
+// and a hatch of none are different: the second says "stay plain whatever the
+// theme's ladder says", and a document that dropped it would lose that.
+var hatches = []struct {
+	hatch ir.Hatch
+	name  string
+}{
+	{ir.HatchNone, "none"},
+	{ir.HatchDiagonal, "diagonal"},
+	{ir.HatchBackDiagonal, "backDiagonal"},
+	{ir.HatchCross, "cross"},
+	{ir.HatchHorizontal, "horizontal"},
+	{ir.HatchVertical, "vertical"},
+	{ir.HatchGrid, "grid"},
+	{ir.HatchDots, "dots"},
+	{ir.HatchDotsStaggered, "dotsStaggered"},
+	{ir.HatchZigzag, "zigzag"},
+	{ir.HatchWave, "wave"},
+	{ir.HatchBrick, "brick"},
+	{ir.HatchTriangles, "triangles"},
+	{ir.HatchScales, "scales"},
+}
+
+func hatchName(h ir.Hatch) string {
+	for _, x := range hatches {
+		if x.hatch == h {
+			return x.name
+		}
+	}
+	return "none"
+}
+
+// hatchOf reads a pattern name. One this reader does not know is the plain
+// fill rather than an error, which is the rule every other vocabulary here
+// follows: a document from a later version draws a chart that is wrong where
+// the reader can see it rather than one that does not draw.
+func hatchOf(name string) ir.Hatch {
+	for _, x := range hatches {
+		if x.name == name {
+			return x.hatch
+		}
+	}
+	return ir.HatchNone
+}
+
 func shapeName(m ir.Marker) string {
 	for _, s := range shapes {
 		if s.marker == m {

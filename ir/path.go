@@ -72,6 +72,33 @@ func (p *Path) Rect(r Rect) *Path {
 		Close()
 }
 
+// RoundRect appends a closed rectangular subpath with its corners rounded to
+// radius rad, clamped to half the shorter side.
+//
+// It is [Path.Rect]'s sibling, and a radius of zero or less is exactly
+// [Path.Rect] — including the four-point shape [Path.AsRect] recognises, so a
+// clip built from an unrounded RoundRect still takes the rectangle fast path.
+//
+// The corners are quarter circles, drawn with the same kappa [Path.Circle]
+// uses, because the IR has no arc and every curve in it is a cubic.
+func (p *Path) RoundRect(r Rect, rad float32) *Path {
+	if rad <= 0 || r.Empty() {
+		return p.Rect(r)
+	}
+	rad = min(rad, min(r.Dx(), r.Dy())/2)
+	k := rad * kappa
+	return p.MoveTo(r.Min.X+rad, r.Min.Y).
+		LineTo(r.Max.X-rad, r.Min.Y).
+		CubicTo(r.Max.X-rad+k, r.Min.Y, r.Max.X, r.Min.Y+rad-k, r.Max.X, r.Min.Y+rad).
+		LineTo(r.Max.X, r.Max.Y-rad).
+		CubicTo(r.Max.X, r.Max.Y-rad+k, r.Max.X-rad+k, r.Max.Y, r.Max.X-rad, r.Max.Y).
+		LineTo(r.Min.X+rad, r.Max.Y).
+		CubicTo(r.Min.X+rad-k, r.Max.Y, r.Min.X, r.Max.Y-rad+k, r.Min.X, r.Max.Y-rad).
+		LineTo(r.Min.X, r.Min.Y+rad).
+		CubicTo(r.Min.X, r.Min.Y+rad-k, r.Min.X+rad-k, r.Min.Y, r.Min.X+rad, r.Min.Y).
+		Close()
+}
+
 // Circle appends a closed circular subpath centred on c.
 //
 // Four cubics, because [OpCubicTo] is the only curve the IR has and ADR 0002

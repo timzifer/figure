@@ -296,7 +296,7 @@ func (g *survivalGeom) band(b ir.Backend, f Frame, sc *scratch, cd coord.Coord, 
 	sc.fill.Reset()
 	appendEdges(&sc.fill, cd, pts, true)
 	closeLoop(&sc.fill, cd, pts)
-	b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+	g.cfg.fillMark(b, &sc.fill, f, 0, col)
 }
 
 // ticks marks every time at which a subject was censored, on the curve.

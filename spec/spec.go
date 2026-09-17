@@ -187,6 +187,17 @@ type Mark struct {
 	FontSize    float64   `json:"fontSize,omitempty"`
 	Angle       float64   `json:"angle,omitempty"`
 
+	// The finishes a filled mark can wear beyond its colour. Hatch is the
+	// pattern over it, HatchDensity how dense that pattern is, Gradient the
+	// colour its fill ramps to, Corner its corner radius and Inset the inner
+	// border just inside its edge. None of them has a Vega-Lite spelling to
+	// borrow. See docs/adr/0069.
+	Hatch        string  `json:"hatch,omitempty"`
+	HatchDensity float64 `json:"hatchDensity,omitempty"`
+	Gradient     string  `json:"gradient,omitempty"`
+	Corner       float32 `json:"corner,omitempty"`
+	Inset        float32 `json:"inset,omitempty"`
+
 	// Link is which edges of two spans a dependency layer joins, for every row
 	// that does not name its own: "fs", "ss", "ff" or "sf". An absent field is
 	// "fs", which is what a dependency means when nobody said otherwise.

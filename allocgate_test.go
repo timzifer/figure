@@ -106,6 +106,20 @@ func TestAStackedLayerDoesNotAllocatePerPoint(t *testing.T) {
 	}
 }
 
+// A hatched stack is the stacked path wearing a pattern. The hatch costs a
+// clip and a stroke per series per frame, and must cost nothing per row: the
+// geometry is generated into a pooled path and the pattern is measured in
+// device units, so a long table and a short one emit the same lines.
+func TestAHatchedLayerDoesNotAllocatePerPoint(t *testing.T) {
+	small := allocsPerFrame(t, hatchedStack(1_000))
+	large := allocsPerFrame(t, hatchedStack(200_000))
+	const slack = 8
+	if large > small+slack {
+		t.Errorf("200k hatched rows allocate %.0f times per frame against %.0f for 1k: "+
+			"the hatch is allocating per row", large, small)
+	}
+}
+
 // A polar layer is the fourth data path, and the one v0.8 added: every mark
 // goes through the coord on its way to a device point.
 //

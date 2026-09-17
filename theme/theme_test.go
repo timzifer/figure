@@ -226,3 +226,90 @@ func TestTicksTurnAnAxisOffAndTheDefaultLeavesItOn(t *testing.T) {
 		t.Errorf("ticks = %v/%v, want false/true", got.ShowTicksX, got.ShowTicksY)
 	}
 }
+
+func TestRedundantInstallsAHatchLadder(t *testing.T) {
+	plain := theme.Light
+	if len(plain.SeriesHatches) != 0 {
+		t.Fatal("a theme carries a hatch ladder before anyone asked for one")
+	}
+	if _, ok := plain.SeriesHatch(0); ok {
+		t.Error("SeriesHatch answered for a theme with no ladder")
+	}
+
+	th := theme.Light.With(theme.Redundant(true))
+	if len(th.SeriesHatches) == 0 {
+		t.Fatal("Redundant installed no hatch ladder")
+	}
+	// The first rung draws nothing, so a single-layer chart is unchanged —
+	// the rule the dash and marker ladders follow.
+	if step, ok := th.SeriesHatch(0); !ok || step.Hatch != ir.HatchNone {
+		t.Errorf("the first rung is %v, want none", step.Hatch)
+	}
+	if step, ok := th.SeriesHatch(1); !ok || step.Hatch == ir.HatchNone {
+		t.Error("the second rung draws nothing, so two layers look alike")
+	}
+	// A rung that named no density means the theme's own spacing.
+	for i := range len(th.SeriesHatches) {
+		if step, _ := th.SeriesHatch(i); step.Density <= 0 {
+			t.Errorf("rung %d reports density %v", i, step.Density)
+		}
+	}
+	// It wraps rather than running out.
+	first, _ := th.SeriesHatch(0)
+	wrapped, _ := th.SeriesHatch(len(th.SeriesHatches))
+	if first != wrapped {
+		t.Errorf("the ladder did not wrap: %v then %v", first, wrapped)
+	}
+
+	if off := th.With(theme.Redundant(false)); len(off.SeriesHatches) != 0 {
+		t.Error("turning redundant encoding off left the hatch ladder installed")
+	}
+}
+
+func TestTheDensityLadderIsOrdinal(t *testing.T) {
+	th := theme.Light.With(theme.Hatches(theme.DensitySeriesHatches...))
+	var last float32
+	for i := 1; i < len(theme.DensitySeriesHatches); i++ {
+		step, ok := th.SeriesHatch(i)
+		if !ok {
+			t.Fatalf("rung %d is missing", i)
+		}
+		if i > 1 && step.Density >= last {
+			t.Errorf("rung %d is at density %v, not denser than %v before it", i, step.Density, last)
+		}
+		last = step.Density
+	}
+}
+
+func TestAHatchScalesWithTheTheme(t *testing.T) {
+	base := theme.Light.With(theme.Redundant(true))
+	half := base.With(theme.Scaled(0.5))
+	if got, want := half.HatchSpacing, base.HatchSpacing/2; got != want {
+		t.Errorf("HatchSpacing = %v at half size, want %v", got, want)
+	}
+	if got, want := half.HatchWidth, base.HatchWidth/2; got != want {
+		t.Errorf("HatchWidth = %v at half size, want %v", got, want)
+	}
+	// Density moves the spacings and leaves the weights alone, which is the
+	// distinction it already draws for everything else.
+	dense := base.With(theme.Density(0.5))
+	if got, want := dense.HatchSpacing, base.HatchSpacing/2; got != want {
+		t.Errorf("HatchSpacing = %v at half density, want %v", got, want)
+	}
+	if dense.HatchWidth != base.HatchWidth {
+		t.Errorf("Density changed the hatch line width to %v", dense.HatchWidth)
+	}
+}
+
+func TestHatchSizeSetsEitherHalfAlone(t *testing.T) {
+	base := theme.Light
+	if got := base.With(theme.HatchSize(9, 0)); got.HatchSpacing != 9 || got.HatchWidth != base.HatchWidth {
+		t.Errorf("spacing only: got %v and %v, want 9 and %v", got.HatchSpacing, got.HatchWidth, base.HatchWidth)
+	}
+	if got := base.With(theme.HatchSize(0, 2)); got.HatchWidth != 2 || got.HatchSpacing != base.HatchSpacing {
+		t.Errorf("width only: got %v and %v, want 2 and %v", got.HatchWidth, got.HatchSpacing, base.HatchSpacing)
+	}
+	if got := base.With(theme.HatchSize(-1, -1)); got.HatchSpacing != base.HatchSpacing || got.HatchWidth != base.HatchWidth {
+		t.Error("a negative size overwrote the theme's own")
+	}
+}

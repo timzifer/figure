@@ -78,6 +78,7 @@ depends on.
 | [0066](0066-a-raster-mark.md) | A field sampled on a grid is one image, and the lattice already knows its shape | Accepted, amended | — |
 | [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Accepted, amended | — |
 | [0068](0068-gantt-charts.md) | A schedule is a rect with a fraction in it and a second table beside it | Accepted | — |
+| [0069](0069-hatching-as-the-third-redundant-channel.md) | A filled mark is told apart by a hatch, drawn rather than declared | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the

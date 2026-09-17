@@ -148,8 +148,8 @@ func (g *bandGeom) Build(b ir.Backend, f Frame) error {
 		return nil
 	}
 	var p ir.Path
-	area(&p, cd, r)
-	b.FillPath(&p, ir.Solid(fill), ir.NonZero)
+	areaRound(&p, cd, r, ir.Point{}, g.cfg.corner)
+	ir.FillHatched(b, &p, ir.Solid(fill), ir.NonZero, g.cfg.annotationHatching(f))
 	return nil
 }
 
@@ -242,9 +242,9 @@ func (g *regionGeom) Build(b ir.Backend, f Frame) error {
 		return nil
 	}
 	var p ir.Path
-	area(&p, f.Coords(), r)
+	areaRound(&p, f.Coords(), r, ir.Point{}, g.cfg.corner)
 	if fill := g.cfg.annotationFill(f); fill.A != 0 {
-		b.FillPath(&p, ir.Solid(fill), ir.NonZero)
+		ir.FillHatched(b, &p, ir.Solid(fill), ir.NonZero, g.cfg.annotationHatching(f))
 	}
 	// A region gets an outline as well as a fill when the caller asked for a
 	// colour explicitly: the fill alone is faint by design, and a named colour
@@ -375,13 +375,33 @@ func (c config) annotationLegend(f Frame, kind SwatchKind) (LegendEntry, bool) {
 	if c.label == "" {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{
+	e := LegendEntry{
 		Label: c.label,
 		Color: c.annotationColor(f),
 		Kind:  kind,
 		Dash:  c.annotationStroke(f).Dash,
 		Width: c.annotationStroke(f).Width,
-	}, true
+	}
+	if kind == SwatchBox {
+		e.Hatching, e.Corner = c.annotationHatching(f), c.corner
+	}
+	return e, true
+}
+
+// annotationHatching is the hatch an annotation wears, which is only ever one
+// it was asked for.
+//
+// An annotation is not a series: it takes the theme's annotation colour rather
+// than a palette entry, and it walks no ladder, so a theme's redundant
+// encoding has nothing to say about it. A hatched band — "out of spec", "no
+// data", "forecast" — is a statement the caller makes on purpose, and it would
+// be a strange default for the one layer on a chart that is deliberately
+// quiet.
+func (c config) annotationHatching(f Frame) ir.Hatching {
+	if !c.hatchSet {
+		return ir.Hatching{}
+	}
+	return c.hatchingOf(f, f.Index, c.annotationColor(f))
 }
 
 // Locus draws a family of curves given by a formula rather than by a tick: the

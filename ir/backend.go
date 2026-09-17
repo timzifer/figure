@@ -161,3 +161,25 @@ type Semantics interface {
 	// Describe attaches a description to the frame about to be drawn.
 	Describe(d Description)
 }
+
+// Decoration is an optional [Backend] interface: a backend that reads IR back
+// rather than drawing it implements it to be told which calls are ornament.
+//
+// A hatch is drawn as lines clipped to the mark it fills, and those lines are
+// not marks. Without this, a hit-test index would put a target on every one of
+// them and pointing at a bar would report whichever hatch line was nearest —
+// twenty phantom shapes inside one real one. A backend that draws pixels has
+// no use for the distinction and does not implement it.
+//
+// The calls between BeginDecoration and EndDecoration draw exactly what they
+// say; only their meaning differs. The bracket nests with Push and Pop rather
+// than replacing either, and it always closes: [FillHatched] is the only
+// caller and it opens and closes around one clipped pass.
+type Decoration interface {
+	// BeginDecoration opens an ornament: the drawing calls until the matching
+	// EndDecoration are not marks.
+	BeginDecoration()
+
+	// EndDecoration closes the most recent BeginDecoration.
+	EndDecoration()
+}

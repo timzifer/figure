@@ -114,9 +114,9 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 		}
 
 		box.Reset()
-		cd.Area(&box, x0, q3, x1, q1)
+		areaRound(&box, cd, ir.R(x0, q3, x1, q1), ir.Point{}, g.cfg.corner)
 		if fill.A != 0 {
-			b.FillPath(&box, ir.Solid(fill), ir.NonZero)
+			g.cfg.fillMark(b, &box, f, 0, fill)
 		}
 		if !stroke.Visible() {
 			continue
@@ -175,11 +175,7 @@ func (g *boxGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{
-		Label: g.cfg.labelFor(),
-		Color: g.cfg.colorFor(f),
-		Kind:  SwatchBox,
-	}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelFor(), g.cfg.colorFor(f)), true
 }
 
 // summarise groups the rows by X value and reduces each group to its

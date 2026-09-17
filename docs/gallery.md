@@ -28,7 +28,9 @@ picture here cannot drift away from the code that produced it.
 | ![Requests per second through a service, drawn as a sankey diagram](images/sankey.png) | ![The same traffic as an arc diagram, each service a segment of the rail and each route a band arcing over it](images/arc.png) |
 | ![The same traffic again as a chord diagram, each service an arc and each route a ribbon crossing the disc](images/chord.png) | ![A response surface drawn from three cameras at once: a three-quarter view, a plan and a front elevation of one scene](images/surface.png) |
 | ![Thirty sweeps of a spectrum offset by sweep number, with a carrier drifting upward and a harmonic growing behind it](images/cascade.png) | ![An open loop at two gains on a Nichols diagram, drawn over the contours of constant closed-loop gain and phase](images/nichols.png) |
-| ![A rebuild plan as a gantt chart: bars part filled by how far each task has got, arrows between them with the critical path in orange, milestone diamonds and a dashed line at today](images/gantt.png) | |
+| ![A rebuild plan as a gantt chart: bars part filled by how far each task has got, arrows between them with the critical path in orange, milestone diamonds and a dashed line at today](images/gantt.png) | ![The same stacked revenue chart under redundant encoding: a different hatch pattern over each product, so the stack reads without colour](images/hatched.png) |
+| ![The same stacked revenue chart with the colour taken out: three products as three greys, two of them almost the same one](images/greyscale-plain.png) | ![The same greyscale chart with redundant encoding on: the greys are unchanged and each product carries a pattern, so the stack reads again](images/greyscale-hatched.png) |
+| ![Traffic by channel as stacked areas, each band hatched and its crest marked with points](images/hatched-area.png) | ![The fourteen hatch patterns as fourteen labelled samples: lines, dots, wavering lines and tilings](images/hatch-kinds.png) |
 
 ---
 

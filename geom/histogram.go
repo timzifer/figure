@@ -117,12 +117,12 @@ func (g *histGeom) Build(b ir.Backend, f Frame) error {
 		if y1 < y0 {
 			y0, y1 = y1, y0
 		}
-		area(&sc.fill, cd, ir.R(x0, y0, x1, y1))
+		areaRound(&sc.fill, cd, ir.R(x0, y0, x1, y1), ir.Point{}, g.cfg.corner)
 	}
 	if sc.fill.Empty() {
 		return nil
 	}
-	b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
+	g.cfg.fillMark(b, &sc.fill, f, 0, fill)
 
 	// The outline is drawn when the caller named both a fill and a stroke,
 	// which is the same rule [Bar] follows — and it is what separates two
@@ -141,7 +141,7 @@ func (g *histGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.cfg.fill != nil {
 		col = *g.cfg.fill
 	}
-	return LegendEntry{Label: g.cfg.labelForX(), Color: col, Kind: SwatchBox}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelForX(), col), true
 }
 
 func (g *histGeom) Source() data.Source { return g.src }

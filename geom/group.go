@@ -745,6 +745,13 @@ func (c config) groupDash(f Frame, g int) []float32 {
 	return f.Theme.SeriesDash(f.Index + g)
 }
 
+// groupHatching walks the theme's hatch ladder per group, so that a redundant
+// encoding tells the series of one stacked bar apart the way it tells two
+// layers apart. It is [config.groupDash] for a filled mark.
+func (c config) groupHatching(f Frame, g int, base ir.Color) ir.Hatching {
+	return c.hatchingOf(f, f.Index+g, base)
+}
+
 func (c config) groupMarker(f Frame, g int) ir.Marker {
 	if c.markerSet {
 		return c.marker
@@ -761,20 +768,27 @@ func (c config) groupMarker(f Frame, g int) ir.Marker {
 // It returns nil where there is nothing to say beyond the layer's own single
 // entry, which is what tells [Legends] to fall back to [Geom.Legend].
 func (c config) legends(f Frame, gs *groups, s series, kind SwatchKind) []LegendEntry {
-	entry := func(label string, col ir.Color, g int) LegendEntry {
+	// rung is which step of a theme's ladders an entry walks: its own, for a
+	// grouped layer whose series are drawn a step apart, and the layer's for
+	// one painted per row from a colour scale — those marks are batched by
+	// colour and wear one hatch between them, so a swatch claiming a hatch per
+	// category would promise a distinction the marks do not make.
+	entry := func(label string, col ir.Color, g, rung int) LegendEntry {
 		e := LegendEntry{Label: label, Color: col, Kind: kind}
 		switch kind {
 		case SwatchLine:
 			e.Dash, e.Width = c.groupDash(f, g), pick(c.width, f.Theme.LineWidth)
 		case SwatchMarker:
 			e.Marker = c.groupMarker(f, g)
+		case SwatchBox:
+			e.Hatching, e.Corner = c.hatchingOf(f, f.Index+rung, col), c.corner
 		}
 		return e
 	}
 	if gs.grouped() {
 		out := make([]LegendEntry, 0, len(gs.keys))
 		for _, g := range gs.order {
-			out = append(out, entry(gs.keys[g], c.groupColor(f, gs, g), g))
+			out = append(out, entry(gs.keys[g], c.groupColor(f, gs, g), g, g))
 		}
 		return out
 	}
@@ -785,7 +799,7 @@ func (c config) legends(f Frame, gs *groups, s series, kind SwatchKind) []Legend
 		labels := d.Labels()
 		out := make([]LegendEntry, 0, len(labels))
 		for i, l := range labels {
-			out = append(out, entry(l, d.ColorOf(l), i))
+			out = append(out, entry(l, d.ColorOf(l), i, 0))
 		}
 		return out
 	}

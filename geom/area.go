@@ -80,7 +80,7 @@ func (g *areaGeom) Build(b ir.Backend, f Frame) error {
 	if g.gs.grouped() {
 		return g.buildGroups(b, f, sc)
 	}
-	return g.build(b, f, sc, g.s, g.cfg.fillFor(f, areaFillOpacity), g.cfg.colorFor(f), g.cfg.dashFor(f))
+	return g.build(b, f, sc, g.s, 0, g.cfg.fillFor(f, areaFillOpacity), g.cfg.colorFor(f), g.cfg.dashFor(f))
 }
 
 // buildGroups draws one band per series.
@@ -95,13 +95,13 @@ func (g *areaGeom) buildGroups(b ir.Backend, f Frame, sc *scratch) error {
 	}
 	return eachGroup(sc, &g.gs, g.s, func(seg series, grp int) error {
 		col := g.cfg.groupColor(f, &g.gs, grp)
-		return g.build(b, f, sc, seg, g.cfg.fillOf(col, op), col, g.cfg.groupDash(f, grp))
+		return g.build(b, f, sc, seg, grp, g.cfg.fillOf(col, op), col, g.cfg.groupDash(f, grp))
 	})
 }
 
 // build draws one band: the shared body of an ungrouped area and of one series
 // of a grouped one.
-func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, fill, line ir.Color, dash []float32) error {
+func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, rung int, fill, line ir.Color, dash []float32) error {
 	stroke := ir.Stroke{
 		Color: line,
 		Width: pick(g.cfg.width, f.Theme.LineWidth),
@@ -151,7 +151,7 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, fill, lin
 				appendFloor(&sc.fill, cd, x, keep, base)
 			}
 			sc.fill.Close()
-			b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
+			g.cfg.fillMark(b, &sc.fill, f, rung, fill)
 		}
 		if !stroke.Visible() {
 			continue
@@ -210,9 +210,5 @@ func (g *areaGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{
-		Label: g.cfg.labelFor(),
-		Color: g.cfg.colorFor(f),
-		Kind:  SwatchBox,
-	}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelFor(), g.cfg.colorFor(f)), true
 }
