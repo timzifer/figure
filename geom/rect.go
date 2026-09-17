@@ -205,7 +205,9 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 		if outline {
 			edge = stroke
 		}
-		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols, edge)
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols, edge, func(i int) ir.Hatching {
+			return g.cfg.hatchingOf(f, f.Index, cols[i])
+		})
 		return nil
 	}
 
@@ -231,9 +233,9 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 					if skipEmpty && (r.Min.X == r.Max.X || r.Min.Y == r.Max.Y) {
 						continue
 					}
-					areaAt(&sc.fill, cd, r, offsetAt(run.offs, j))
+					areaRound(&sc.fill, cd, r, offsetAt(run.offs, j), g.cfg.corner)
 				}
-				b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+				g.cfg.fillMark(b, &sc.fill, f, 0, col)
 			}
 			return
 		}
@@ -246,9 +248,9 @@ func (g *rectGeom) Build(b ir.Backend, f Frame) error {
 			if skipEmpty && (r.Min.X == r.Max.X || r.Min.Y == r.Max.Y) {
 				continue
 			}
-			areaAt(&sc.fill, cd, r, offsetAt(offs, i))
+			areaRound(&sc.fill, cd, r, offsetAt(offs, i), g.cfg.corner)
 		}
-		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		g.cfg.fillMark(b, &sc.fill, f, 0, col)
 		if outlined && outline && stroke.Visible() {
 			b.StrokePath(&sc.fill, stroke)
 		}
@@ -320,7 +322,7 @@ func (g *rectGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.cfg.fill != nil {
 		col = *g.cfg.fill
 	}
-	return LegendEntry{Label: g.cfg.labelFor(), Color: col, Kind: SwatchBox}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelFor(), col), true
 }
 
 func (g *rectGeom) Source() data.Source { return g.src }

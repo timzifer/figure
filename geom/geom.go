@@ -15,6 +15,7 @@ import (
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
@@ -106,6 +107,13 @@ type LegendEntry struct {
 	Marker ir.Marker
 	Dash   []float32
 	Width  float32
+
+	// Hatching and Corner are what a box swatch needs to be the mark it
+	// stands for. A legend whose swatch is a plain square beside a hatched bar
+	// has to be translated before it can be used, which is the one thing a
+	// legend exists not to require.
+	Hatching ir.Hatching
+	Corner   float32
 }
 
 // Training is what [Geom.Train] is handed: the scales a layer feeds its data
@@ -217,17 +225,26 @@ type config struct {
 	sizeCol   string
 	sizeScale scale.SizeScale
 
-	color      *ir.Color
-	width      float32
-	dash       []float32
-	tension    float64
-	missing    Missing
-	marker     ir.Marker
-	size       float32
-	barWidth   float64
-	baseline   float64
-	fill       *ir.Color
-	opacity    float64
+	color    *ir.Color
+	width    float32
+	dash     []float32
+	tension  float64
+	missing  Missing
+	marker   ir.Marker
+	size     float32
+	barWidth float64
+	baseline float64
+	fill     *ir.Color
+	opacity  float64
+
+	// The finishes a filled mark can take beyond its colour. See [Hatch],
+	// [HatchDensity], [Gradient], [Corner] and [Inset].
+	hatch      ir.Hatch
+	hatchSet   bool
+	density    float64
+	gradient   *ir.Color
+	corner     float32
+	inset      float32
 	steps      StepPos
 	colorCol   string
 	colorScale scale.ColorScale
@@ -396,6 +413,70 @@ func KeyBy(col string) Option { return func(c *config) { c.keyCol = col } }
 func Shape(m ir.Marker) Option {
 	return func(c *config) { c.marker, c.markerSet = m, true }
 }
+
+// Hatch sets the pattern laid over this layer's filled marks.
+//
+// It is the filled mark's [Dash]: the channel a bar, a slice, an area or a
+// band is told apart by when colour is not available, which is in greyscale,
+// on a photocopy, and to a reader who cannot separate two palette entries.
+// Setting it explicitly opts the layer out of a theme's redundant-encoding
+// ladder — see [github.com/timzifer/figure/theme.Redundant].
+//
+// The pattern is drawn in the layer's own colour, clipped to the mark, and
+// phased on the origin so that neighbouring marks continue one rhythm. It has
+// no effect on a mark with no interior: a line takes a [Dash] instead.
+//
+//	geom.Bar(src, geom.GroupBy("region"), geom.Hatch(ir.HatchDiagonal))
+func Hatch(h ir.Hatch) Option {
+	return func(c *config) { c.hatch, c.hatchSet = h, true }
+}
+
+// HatchDensity scales the period of this layer's hatch: 2 is half the ink,
+// 0.5 is twice it, and the default 1 is the theme's own spacing.
+//
+// It is the ordinal half of the hatch channel, and it is a separate option
+// from [Hatch] because the two readings are separate. Changing the pattern
+// says *different*; changing the density says *more*. A layer that wants the
+// second reading over a whole chart asks its theme for
+// [github.com/timzifer/figure/theme.DensitySeriesHatches] instead.
+func HatchDensity(f float64) Option {
+	return func(c *config) { c.density = f }
+}
+
+// Gradient makes this layer's fill a linear ramp from its own colour to col.
+//
+// The ramp runs along the marks' own extent — up a bar, up an area — so a bar
+// chart fades toward its tips and an area chart fades toward its baseline,
+// which is the second-commonest thing a fill is asked to do after being one
+// colour. A transparent col is how an area is faded out rather than tinted.
+//
+// It is one fill rather than one per mark: a layer draws its marks into a
+// single path, and the ramp spans that path. Two bars of different heights
+// therefore share one ramp and are shaded consistently, rather than each
+// running the whole ramp over its own height and so all ending the same
+// colour — which would be a gradient that says nothing.
+func Gradient(col ir.Color) Option {
+	return func(c *config) { c.gradient = &col }
+}
+
+// Corner rounds the corners of this layer's rectangular marks to radius r in
+// device units, clamped to half the shorter side.
+//
+// It reaches the marks that are rectangles — a bar, a histogram bin, a tile, a
+// gantt task, a box — and nothing else. Under a polar coordinate system a
+// "rectangle" is an annular sector whose corners are arcs, so there is nothing
+// to round and the option is ignored: a pie slice with rounded corners would
+// have to be a different mark, not the same one drawn differently.
+func Corner(r float32) Option { return func(c *config) { c.corner = r } }
+
+// Inset draws an inner border of width w just inside each filled mark, in the
+// layer's own colour.
+//
+// It is what separates marks that touch — the segments of a stack, the boxes
+// of a treemap, the bands of a sankey — without thickening the silhouette of
+// the layer as a whole, which is what an ordinary outline does. The border is
+// drawn inside the shape, so a mark keeps exactly the area the data gave it.
+func Inset(w float32) Option { return func(c *config) { c.inset = w } }
 
 // Size sets the marker diameter in device units.
 func Size(s float32) Option { return func(c *config) { c.size = s } }
@@ -929,6 +1010,148 @@ func (c config) markerFor(f Frame) ir.Marker {
 		return m
 	}
 	return c.marker
+}
+
+// hatchFor resolves the hatch and its density for a layer: the layer's own if
+// it named one, otherwise the theme's ladder at the layer's index — which is
+// empty unless the theme asked for redundant encoding, so this is HatchNone
+// for every ordinary chart. It is [config.dashFor] for a filled mark.
+func (c config) hatchFor(f Frame) (ir.Hatch, float64) {
+	return c.hatchAt(f, f.Index)
+}
+
+// hatchAt is hatchFor at an explicit rung of the ladder, which is what a
+// grouped layer needs: its series walk the ladder from the layer's own index.
+func (c config) hatchAt(f Frame, i int) (ir.Hatch, float64) {
+	h, density := c.hatch, c.density
+	if !c.hatchSet {
+		step, ok := f.Theme.SeriesHatch(i)
+		if !ok {
+			return ir.HatchNone, 1
+		}
+		h = step.Hatch
+		if density <= 0 {
+			density = float64(step.Density)
+		}
+	}
+	if density <= 0 {
+		density = 1
+	}
+	return h, density
+}
+
+// hatchingOf assembles the hatching a mark is drawn with, in the colour the
+// caller resolved for that mark.
+//
+// The ink is the mark's own colour rather than a darker relative of it,
+// because the hatch is the mark saying which series it is — the same thing its
+// outline says, and drawn in the same colour so that the two do not read as
+// two different statements.
+func (c config) hatchingOf(f Frame, i int, base ir.Color) ir.Hatching {
+	h, density := c.hatchAt(f, i)
+	if h == ir.HatchNone || base.A == 0 {
+		return ir.Hatching{}
+	}
+	spacing, width := f.Theme.HatchSpacing, f.Theme.HatchWidth
+	if spacing <= 0 {
+		spacing = theme.Light.HatchSpacing
+	}
+	if width <= 0 {
+		width = theme.Light.HatchWidth
+	}
+	ink := f.Theme.HatchColor
+	if ink.A == 0 {
+		ink = theme.Light.HatchColor
+	}
+	return ir.Hatching{
+		Hatch: h,
+		Line: ir.Stroke{
+			Color: palette.Lerp(opaque(base), ink, hatchMix),
+			Width: width,
+			Cap:   ir.CapButt,
+		},
+		Spacing: spacing * float32(density),
+	}
+}
+
+// hatchMix is how far a hatch's ink is mixed from the mark's own colour toward
+// the theme's.
+//
+// Far enough to contrast with a solid fill of that colour, which is what the
+// hatch has to be legible against — and that is the harder of the two
+// constraints, because the pattern is thin and a thin line needs more contrast
+// than a filled shape does to read at all. Two thirds of the way keeps enough
+// of the hue that the pattern still belongs to its series.
+const hatchMix = 0.7
+
+// opaque is c with its alpha discarded.
+//
+// A hatch lies over a fill that may be faded — an area is drawn at a fifth of
+// its colour — and a pattern drawn at the same fifth would be a pattern nobody
+// can see. It takes the hue and leaves the transparency to the fill.
+func opaque(c ir.Color) ir.Color { return ir.Color{R: c.R, G: c.G, B: c.B, A: 255} }
+
+// paint turns a resolved colour into the fill a mark is painted with: the
+// colour itself, or the ramp [Gradient] asked for.
+//
+// The ramp runs along the value axis of the path being filled, from the colour
+// at the baseline end to the named colour at the far end. The path is the
+// layer's whole batch of marks, which is deliberate — see [Gradient].
+func (c config) paint(col ir.Color, p *ir.Path) ir.Fill {
+	if c.gradient == nil || p == nil || p.Empty() {
+		return ir.Solid(col)
+	}
+	b := p.Bounds()
+	if b.Empty() {
+		return ir.Solid(col)
+	}
+	f := ir.Fill{Stops: []ir.GradientStop{{Offset: 0, Color: col}, {Offset: 1, Color: *c.gradient}}}
+	if c.orient == Horizontal {
+		// Measured across X: the baseline is on the left, the far end right.
+		f.Start = ir.Point{X: b.Min.X, Y: b.Min.Y}
+		f.End = ir.Point{X: b.Max.X, Y: b.Min.Y}
+		return f
+	}
+	// Measured up Y, and Y grows downward on a canvas: the baseline is at the
+	// bottom of the box and the tips are at the top.
+	f.Start = ir.Point{X: b.Min.X, Y: b.Max.Y}
+	f.End = ir.Point{X: b.Min.X, Y: b.Min.Y}
+	return f
+}
+
+// insetOf is the inner border a filled mark is drawn with, or the zero stroke
+// where the layer asked for none.
+func (c config) insetOf(base ir.Color) ir.Stroke {
+	if c.inset <= 0 || base.A == 0 {
+		return ir.Stroke{}
+	}
+	return ir.Stroke{Color: opaque(base), Width: c.inset, Join: ir.JoinMiter}
+}
+
+// fillMark is the one call a filled geom makes: it paints p in col, lays the
+// layer's hatch over it, and draws its inner border.
+//
+// It exists so that a layer gains every finish at one call site rather than
+// three, and so that the order they are drawn in — fill, then hatch, then
+// border — is decided once. The border goes last because it is the mark's edge
+// and a hatch line running into it should stop at it.
+func (c config) fillMark(b ir.Backend, p *ir.Path, f Frame, rung int, col ir.Color) {
+	ir.FillHatched(b, p, c.paint(col, p), ir.NonZero, c.hatchingOf(f, f.Index+rung, col))
+	if edge := c.insetOf(col); edge.Visible() {
+		ir.FillInset(b, p, ir.Fill{}, ir.NonZero, edge)
+	}
+}
+
+// boxSwatch is the single legend entry of a filled layer: the box, in the
+// layer's colour, wearing the same finish its marks wear.
+func (c config) boxSwatch(f Frame, label string, col ir.Color) LegendEntry {
+	return LegendEntry{
+		Label:    label,
+		Color:    col,
+		Kind:     SwatchBox,
+		Hatching: c.hatchingOf(f, f.Index, col),
+		Corner:   c.corner,
+	}
 }
 
 func (c config) labelFor() string {

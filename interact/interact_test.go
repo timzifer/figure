@@ -461,3 +461,32 @@ func TestAHitOnARasterNamesTheCellUnderIt(t *testing.T) {
 		t.Errorf("the cell above reports row %d, want 7", up.Row)
 	}
 }
+
+// TestAHatchIsNotAMark is the reason ir.Decoration exists. A hatched bar draws
+// a line per stripe inside itself; indexing those would put dozens of targets
+// inside one shape, and pointing at the bar would report whichever stripe was
+// nearest instead of the bar.
+func TestAHatchIsNotAMark(t *testing.T) {
+	plain, plainRec := indexed(t, geom.Bar(src(), geom.X("x"), geom.Y("y")))
+	hatched, hatchRec := indexed(t, geom.Bar(src(), geom.X("x"), geom.Y("y"), geom.Hatch(ir.HatchCross)))
+
+	// The hatch was drawn — otherwise the count below would pass for the wrong
+	// reason.
+	if len(hatchRec.Calls) <= len(plainRec.Calls) {
+		t.Fatalf("the hatched chart drew %d calls and the plain one %d; no hatch was drawn",
+			len(hatchRec.Calls), len(plainRec.Calls))
+	}
+	if got, want := hatched.MarkCount(), plain.MarkCount(); got != want {
+		t.Errorf("a hatched layer indexed %d marks, a plain one %d", got, want)
+	}
+
+	// And the bar is still what a pointer inside it finds.
+	p := hatched.Panels()[0]
+	hit, ok := hatched.At(ir.Point{X: p.X.Map(3), Y: p.Y.Map(4)}, 1)
+	if !ok {
+		t.Fatal("no hit inside a hatched bar")
+	}
+	if hit.Kind != interact.Area {
+		t.Errorf("kind = %v, want Area — a hatch line would report Vertex", hit.Kind)
+	}
+}

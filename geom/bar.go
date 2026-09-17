@@ -228,7 +228,14 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 		if g.cfg.fill != nil && g.cfg.color != nil {
 			edge = ir.Stroke{Color: *g.cfg.color, Width: pick(g.cfg.width, 1)}
 		}
-		sc.drawExtruded(b, f.Theme, ext, rects, rows, g.markColors(sc, f, rows, fill), edge)
+		cols := g.markColors(sc, f, rows, fill)
+		sc.drawExtruded(b, f.Theme, ext, rects, rows, cols, edge, func(i int) ir.Hatching {
+			rung := 0
+			if g.gs.grouped() {
+				rung = g.gs.of[rows[i]]
+			}
+			return g.cfg.hatchingOf(f, f.Index+rung, cols[i])
+		})
 		return nil
 	}
 
@@ -242,9 +249,12 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 			}
 			sc.fill.Reset()
 			for j, r := range run.rects {
-				areaAt(&sc.fill, cd, r, offsetAt(run.offs, j))
+				areaRound(&sc.fill, cd, r, offsetAt(run.offs, j), g.cfg.corner)
 			}
-			b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+			// The series' own rung of the theme's ladder, so that a stack is
+			// told apart segment by segment rather than only by colour — which
+			// is the whole of what a stacked bar had before.
+			g.cfg.fillMark(b, &sc.fill, f, run.group, col)
 		}
 		return nil
 	}
@@ -255,17 +265,17 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 				continue
 			}
 			sc.fill.Reset()
-			areaAt(&sc.fill, cd, r, offsetAt(offs, i))
-			b.FillPath(&sc.fill, ir.Solid(cols[i]), ir.NonZero)
+			areaRound(&sc.fill, cd, r, offsetAt(offs, i), g.cfg.corner)
+			g.cfg.fillMark(b, &sc.fill, f, 0, cols[i])
 		}
 		return nil
 	}
 
 	sc.fill.Reset()
 	for i, r := range rects {
-		areaAt(&sc.fill, cd, r, offsetAt(offs, i))
+		areaRound(&sc.fill, cd, r, offsetAt(offs, i), g.cfg.corner)
 	}
-	b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)
+	g.cfg.fillMark(b, &sc.fill, f, 0, fill)
 
 	if g.cfg.fill != nil && g.cfg.color != nil {
 		b.StrokePath(&sc.fill, ir.Stroke{Color: *g.cfg.color, Width: pick(g.cfg.width, 1)})
@@ -328,5 +338,5 @@ func (g *barGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.cfg.fill != nil {
 		col = *g.cfg.fill
 	}
-	return LegendEntry{Label: g.cfg.labelFor(), Color: col, Kind: SwatchBox}, true
+	return g.cfg.boxSwatch(f, g.cfg.labelFor(), col), true
 }

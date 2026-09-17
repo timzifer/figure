@@ -219,7 +219,12 @@ and the margins, which is most of the canvas.
   reads the data and writes the `<desc>` a screen reader announces after it;
   `Plot.DataTable` writes the rows as an HTML table, which is the fallback a
   picture cannot be; and `theme.Redundant` gives every layer a dash pattern and
-  a marker shape of its own, so that colour is not the only channel.
+  a marker shape of its own, so that colour is not the only channel. The
+  patterns half of that promise landed later, as
+  [ADR 0069](adr/0069-hatching-as-the-third-redundant-channel.md): a dash needs
+  a stroke and a marker needs a point, so until a filled mark could be hatched
+  this reached a line and a point cloud and left a stacked bar chart exactly as
+  unreadable as it was.
 - *DoD:* a chart opens in a native window on the desktop and pans, zooms and
   resizes there; the same chart renders with the GPU tier switched on by one
   import and without it; a label can be written as notation and is measured as

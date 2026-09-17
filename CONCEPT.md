@@ -608,6 +608,13 @@ as the work has got, the constraints between spans drawn in all four linkages
 from a link table of their own, and a critical path that is a column of that
 table rather than a feature of the library
 ([ADR 0068](docs/adr/0068-gantt-charts.md)).
+And a filled mark that is told apart by more than its colour: a hatch is what a
+bar, a slice or a band has instead of the dash a line has and the shape a point
+has, so `theme.Redundant` finally reaches the marks that fail hardest in
+greyscale — with a ladder of patterns where the series are categories and a
+ladder of densities where they are an order, drawn as clipped strokes rather
+than declared to a backend, so that every backend and the GPU tier draw the
+same thing ([ADR 0069](docs/adr/0069-hatching-as-the-third-redundant-channel.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).

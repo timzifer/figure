@@ -302,7 +302,7 @@ func (c config) nodeLegends(f Frame, keys []string) []LegendEntry {
 	}
 	out := make([]LegendEntry, 0, len(keys))
 	for i, k := range keys {
-		out = append(out, LegendEntry{Label: k, Color: c.nodeColor(f, keys, i), Kind: SwatchBox})
+		out = append(out, c.boxSwatch(f, k, c.nodeColor(f, keys, i)))
 	}
 	return out
 }
@@ -397,9 +397,9 @@ func fillBoxes(b ir.Backend, sc *scratch, cd coord.Coord, c config, f Frame, s s
 		}
 		sc.fill.Reset()
 		for _, r := range run.rects {
-			area(&sc.fill, cd, r)
+			areaRound(&sc.fill, cd, r, ir.Point{}, c.corner)
 		}
-		b.FillPath(&sc.fill, ir.Solid(run.color), ir.NonZero)
+		c.fillMark(b, &sc.fill, f, 0, run.color)
 	}
 	return nil
 }
@@ -427,7 +427,7 @@ func oneNodeLegend(c config, f Frame, err error) (LegendEntry, bool) {
 	if err != nil || (c.color == nil && c.fill == nil) {
 		return LegendEntry{}, false
 	}
-	return LegendEntry{Label: c.labelForNodes(), Color: c.fillOf(c.colorFor(f), 1), Kind: SwatchBox}, true
+	return c.boxSwatch(f, c.labelForNodes(), c.fillOf(c.colorFor(f), 1)), true
 }
 
 // labelForNodes names a relational layer after what it measures, since it has

@@ -166,7 +166,7 @@ func (g *sankeyGeom) bands(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, w
 		}
 		sc.fill.Reset()
 		ribbon(&sc.fill, cd, f, x0, x1, fl.SrcLo, fl.SrcHi, fl.DstLo, fl.DstHi)
-		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		g.cfg.fillMark(b, &sc.fill, f, 0, col)
 
 		if sc.wantRows {
 			pts = append(pts, cd.Point(f.X.Map((x0+x1)/2), f.Y.Map((fl.SrcLo+fl.SrcHi+fl.DstLo+fl.DstHi)/4)))

@@ -137,3 +137,80 @@ type MarkerStyle struct {
 	Fill   Color
 	Stroke Stroke
 }
+
+// Hatch is a pattern laid over a fill, drawn inside the shape it decorates.
+//
+// It is the third redundant channel. A dash tells two lines apart and a
+// [Marker] tells two point clouds apart; neither does anything for a stacked
+// bar, a pie or a stacked area, which have no stroke to dash and no shape to
+// swap. A hatch is what those marks are told apart by when colour is not
+// available — in greyscale, on a photocopy, or to a reader who cannot separate
+// the first two palette entries. See docs/adr/0069.
+//
+// The set grows at the end, and a backend never sees a Hatch at all: figure
+// lowers one into ordinary stroke and fill calls through [FillHatched], so a
+// value added in a later release draws correctly on a backend written before
+// it. [HatchPath] appends nothing for a Hatch it does not know, which leaves
+// the mark with its plain fill rather than with the wrong pattern.
+type Hatch uint8
+
+// The hatch patterns.
+//
+// They fall into four families, and the family is what decides where one is
+// worth using: lines are cheap and read at any size, dots carry no direction,
+// wavering lines extend the ladder past the four slopes a straight line has,
+// and the tilings are rich but want an area to be read in.
+const (
+	HatchNone Hatch = iota
+
+	// Lines. Two points per stroke.
+	HatchDiagonal     // ///
+	HatchBackDiagonal // \\
+	HatchCross        // both diagonals
+	HatchHorizontal   // ===
+	HatchVertical     // |||
+	HatchGrid         // horizontal and vertical
+
+	// Dots. Filled rather than stroked, and readable on a smaller mark than a
+	// line hatch because they point nowhere.
+	HatchDots          // on a square grid
+	HatchDotsStaggered // every other row offset by half a step
+
+	// Wavering lines. Told apart from the straight ones by shape rather than
+	// by slope, which is what lets the ladder grow without reusing an angle.
+	HatchZigzag
+	HatchWave
+
+	// Tilings. Expensive in path points — a brick course is four segments per
+	// cell — and meant for a large area: a treemap box, a sankey band, a
+	// region spanning the panel. On a four-pixel bar they read as noise.
+	HatchBrick
+	HatchTriangles
+	HatchScales
+)
+
+// Hatching is the paint of one hatch pass: what pattern, in what ink, how
+// dense.
+//
+// Spacing is the period of the pattern in device units, and it is the ordinal
+// half of the channel. Changing Hatch says *different*; halving Spacing says
+// *more*, because it doubles the ink — which is the reading a ladder of shapes
+// cannot give and a stack of severities needs. A theme owns the base value so
+// that [Hatching] scales with everything else on a chart drawn at half size.
+type Hatching struct {
+	// Hatch is the pattern. HatchNone draws nothing.
+	Hatch Hatch
+
+	// Line is the ink: its Color and Width are used, and for a filled pattern
+	// — dots, triangles, scales — Width is the size of one element rather than
+	// a stroke width.
+	Line Stroke
+
+	// Spacing is the period in device units. Zero or less draws nothing.
+	Spacing float32
+}
+
+// Visible reports whether hatching with h would put any ink on the canvas.
+func (h Hatching) Visible() bool {
+	return h.Hatch != HatchNone && h.Spacing > 0 && h.Line.Color.A != 0 && h.Line.Width > 0
+}

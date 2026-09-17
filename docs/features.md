@@ -248,8 +248,16 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `role="img"`, a PDF document title and a canvas `aria-label`; `Plot.Describe`
   writes the `<desc>` a screen reader announces after it; `Plot.DataTable`
   writes the rows as an HTML table; and `theme.Redundant` tells layers apart by
-  dash and shape as well as by colour
-  ([ADR 0024](adr/0024-accessibility.md)).
+  dash, shape and hatch as well as by colour
+  ([ADR 0024](adr/0024-accessibility.md),
+  [ADR 0069](adr/0069-hatching-as-the-third-redundant-channel.md)).
+- **Hatched fills** — a pattern over a filled mark, in fourteen kinds and at any
+  density: what a bar, a slice, a band or a treemap box is told apart by when
+  colour is not available. `geom.Hatch` names one, `theme.Redundant` hands them
+  out per layer, and `geom.Corner`, `geom.Inset` and `geom.Gradient` are the
+  finishes beside it. Every one of them is lowered into ordinary drawing calls,
+  so no backend needs to know
+  ([ADR 0069](adr/0069-hatching-as-the-third-redundant-channel.md)).
 - **Notation in labels** — optional and pluggable, with a TeX subset built in.
   A label is measured as it will be drawn, in every place a chart writes one
   ([ADR 0023](adr/0023-math-typesetting.md)).

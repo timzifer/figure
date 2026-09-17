@@ -117,7 +117,7 @@ func (e extrusion) side(r ir.Rect) [4]ir.Point {
 // rects are the marks in device space, rows the source row behind each and
 // cols the colour of each. A mark whose colour is transparent draws nothing.
 // stroke is the outline, and is invisible for a layer that asked for none.
-func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects []ir.Rect, rows []int, cols []ir.Color, stroke ir.Stroke) {
+func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects []ir.Rect, rows []int, cols []ir.Color, stroke ir.Stroke, hatchOf func(i int) ir.Hatching) {
 	order := grow(sc.order, len(rects))
 	for i := range order {
 		order[i] = i
@@ -170,7 +170,15 @@ func (sc *scratch) drawExtruded(b ir.Backend, th theme.Theme, e extrusion, rects
 		}
 		sc.fill.Reset()
 		sc.fill.Rect(r)
-		b.FillPath(&sc.fill, ir.Solid(col), ir.NonZero)
+		// Only the front face is hatched. A pattern on the top and the sides
+		// would run at a different apparent angle on each of them — they are
+		// the same plane seen sheared — and would fight the shading that is
+		// already telling the reader which face is which.
+		var h ir.Hatching
+		if hatchOf != nil {
+			h = hatchOf(i)
+		}
+		ir.FillHatched(b, &sc.fill, ir.Solid(col), ir.NonZero, h)
 		if outlined {
 			edge.Rect(r)
 			b.StrokePath(edge, stroke)

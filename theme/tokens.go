@@ -174,6 +174,13 @@ func Build(t Tokens) Theme {
 
 		LineWidth:  1.75,
 		MarkerSize: 6,
+
+		// A hatch fine enough that a small bar still shows several lines, and
+		// coarse enough that they do not merge into a wash at print sizes.
+		// Five device units is about four lines across a legend swatch.
+		HatchSpacing: 5,
+		HatchWidth:   1,
+		HatchColor:   t.Ink,
 	}
 }
 

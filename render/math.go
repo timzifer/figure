@@ -35,6 +35,25 @@ func withMath(b ir.Backend, ts mathtext.Typesetter) ir.Backend {
 	return mathBackend{Backend: b, ts: ts}
 }
 
+// BeginDecoration and EndDecoration forward the ornament bracket.
+//
+// An embedded interface promotes only its own methods, so a wrapper that said
+// nothing here would hide an [ir.Decoration] underneath it — and the hit-test
+// index below a typesetter would start indexing hatch lines the moment a chart
+// gained notation in a label. Forwarding to a backend that keeps no bracket is
+// a pair of no-ops.
+func (m mathBackend) BeginDecoration() {
+	if d, ok := m.Backend.(ir.Decoration); ok {
+		d.BeginDecoration()
+	}
+}
+
+func (m mathBackend) EndDecoration() {
+	if d, ok := m.Backend.(ir.Decoration); ok {
+		d.EndDecoration()
+	}
+}
+
 func (m mathBackend) Measure(run ir.TextRun) ir.TextMetrics {
 	if l, ok := m.ts.Typeset(mathtext.Request{Src: run.Text, Font: run.Font, Measurer: m.Backend}); ok {
 		return l.Metrics()

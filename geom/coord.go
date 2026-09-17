@@ -74,6 +74,33 @@ func area(p *ir.Path, cd coord.Coord, r ir.Rect) {
 	cd.Area(p, r.Min.X, r.Min.Y, r.Max.X, r.Max.Y)
 }
 
+// areaRound is [areaAt] with the mark's corners rounded to rad.
+//
+// Whether there are corners to round is asked of the shape rather than of the
+// coordinate system: a coord that draws a rectangle for a rectangle has four
+// of them, and one that bends it into an annular sector has arcs instead and
+// nothing to do here. Asking the shape keeps the test in one place and keeps
+// it right for a coordinate system this package has not met — including one
+// written outside it.
+//
+// A displaced mark — a broken-out pie slice — is never a rectangle by the time
+// this sees it, so the question answers itself there too.
+func areaRound(p *ir.Path, cd coord.Coord, r ir.Rect, d ir.Point, rad float32) {
+	if rad <= 0 {
+		areaAt(p, cd, r, d)
+		return
+	}
+	ops, pts := len(p.Ops), len(p.Pts)
+	areaAt(p, cd, r, d)
+	shape := ir.Path{Ops: p.Ops[ops:], Pts: p.Pts[pts:]}
+	box, ok := shape.AsRect()
+	if !ok {
+		return
+	}
+	p.Ops, p.Pts = p.Ops[:ops], p.Pts[:pts]
+	p.RoundRect(box, rad)
+}
+
 // ordered puts the two ends of an axis interval in ascending order.
 //
 // [coord.Coord.Extent] reports the interval each scale maps into, and a
