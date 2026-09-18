@@ -111,11 +111,29 @@ func (g *trendGeom) fit(x, y scale.Scale) {
 }
 
 // fitOne runs the layer's chosen fit over the gathered columns.
+//
+// The two window fits read [Span] as a width rather than as a neighbourhood
+// weight, so it is turned into a count of rows here: the fraction is the
+// layer's, and how many rows it comes to is a fact about this series.
 func (g *trendGeom) fitOne(dst []stat.Point) []stat.Point {
-	if g.cfg.smooth == LinearFit {
+	switch g.cfg.smooth {
+	case LinearFit:
 		return appendLinearFit(dst, g.xs, g.ys)
+	case MovingAverage:
+		return stat.AppendMovingAverage(dst, g.xs, g.ys, g.window())
+	case SavitzkyGolay:
+		return stat.AppendSavitzkyGolay(dst, g.xs, g.ys, g.window(), 0)
 	}
 	return stat.AppendLoess(dst, g.xs, g.ys, g.cfg.span, 0)
+}
+
+// window is [Span] as a count of the rows this series has. Zero asks the stat
+// function for its own default, which is what an unset span means.
+func (g *trendGeom) window() int {
+	if g.cfg.span <= 0 {
+		return 0
+	}
+	return int(g.cfg.span * float64(len(g.xs)))
 }
 
 // appendLinearFit is ordinary least squares, as two points.
@@ -174,7 +192,7 @@ func (g *trendGeom) Build(b ir.Backend, f Frame) error {
 	defer sc.release()
 
 	cd := f.Coords()
-	tension := float32(clamp01(g.cfg.tension))
+	cv := g.cfg.curveFit()
 	for i, curve := range g.fits {
 		col, dash := g.cfg.colorFor(f), g.cfg.dashFor(f)
 		if g.gs.grouped() {
@@ -197,9 +215,9 @@ func (g *trendGeom) Build(b ir.Backend, f Frame) error {
 		}
 		pts := cd.Points(grow(sc.pts, len(curve))[:0], sc.kx, sc.ky)
 		sc.pts = pts
-		if tension > 0 {
+		if cv.kind.Smoothed() {
 			sc.line.Reset()
-			appendCurve(&sc.line, cd, pts, tension, true)
+			sc.appendCurve(&sc.line, cd, pts, cv, true)
 			b.StrokePath(&sc.line, stroke)
 			continue
 		}

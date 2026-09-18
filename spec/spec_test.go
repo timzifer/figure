@@ -84,6 +84,17 @@ func TestEveryMarkSurvivesTheRoundTrip(t *testing.T) {
 		{"bar", geom.Bar(src, geom.X("x"), geom.Y("y"), geom.BarWidth(0.5), geom.Baseline(1))},
 		{"area", geom.Area(src, geom.X("x"), geom.Y("y"), geom.Y2("z"), geom.Opacity(0.4))},
 		{"step", geom.Step(src, geom.X("x"), geom.Y("y"), geom.Steps(geom.StepPre))},
+		{"line-monotone", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(geom.CurveMonotone))},
+		{"line-natural", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(geom.CurveNatural))},
+		{"line-basis", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(geom.CurveBasisClosed))},
+		{"line-bundle", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(geom.CurveBundle), geom.Tension(0.6))},
+		// A straight line that also carries a tension: the family and the
+		// parameter are two fields, and dropping either one smooths a line
+		// that asked not to be smoothed.
+		{"line-linear", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(geom.CurveLinear), geom.Tension(0.7))},
+		{"area-curved", geom.Area(src, geom.X("x"), geom.Y("y"), geom.Y2("z"), geom.Curve(geom.CurveCardinal))},
+		{"trend-movavg", geom.Trend(src, geom.X("x"), geom.Y("y"), geom.Smooth(geom.MovingAverage), geom.Span(0.4))},
+		{"trend-savgol", geom.Trend(src, geom.X("x"), geom.Y("y"), geom.Smooth(geom.SavitzkyGolay), geom.Span(0.5))},
 		// A path coloured from a column draws several strokes rather than
 		// one, so a round trip that lost the scale would show up as a
 		// different picture rather than as a different Desc.
@@ -638,5 +649,69 @@ func TestQuotedNumbersAndUnixNanosecondsRead(t *testing.T) {
 	}
 	if ts[1].UTC() != time.Unix(0, 2000000000).UTC() {
 		t.Errorf("the numeric timestamp read as %v", ts[1])
+	}
+}
+
+// The dialect's own word for each family, checked against the JSON rather than
+// against a decoded chart: the point of borrowing Vega-Lite's names is that
+// something other than figure can read them.
+func TestCurveFamiliesAreWrittenByName(t *testing.T) {
+	src := table()
+	cases := []struct {
+		curve geom.CurveKind
+		name  string
+	}{
+		{geom.CurveCardinal, "cardinal"},
+		{geom.CurveCardinalOpen, "cardinal-open"},
+		{geom.CurveCardinalClosed, "cardinal-closed"},
+		{geom.CurveMonotone, "monotone"},
+		{geom.CurveNatural, "natural"},
+		{geom.CurveBasis, "basis"},
+		{geom.CurveBasisOpen, "basis-open"},
+		{geom.CurveBasisClosed, "basis-closed"},
+		{geom.CurveBundle, "bundle"},
+		{geom.CurveLinear, "linear"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := spec.Chart{
+				Width: 400, Height: 300, DPR: 1, Theme: theme.Light,
+				X: scale.Linear(), Y: scale.Linear(),
+				Layers: []geom.Geom{geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(tc.curve))},
+			}
+			s, err := spec.Of(c)
+			if err != nil {
+				t.Fatalf("Of: %v", err)
+			}
+			b, err := s.Marshal()
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			want := `"interpolate": "` + tc.name + `"`
+			if !strings.Contains(string(b), want) {
+				t.Fatalf("the document does not carry %s:\n%s", want, b)
+			}
+			// And it must still be a line: geomMark tells a staircase from a
+			// line by a "step" prefix, so a family spelled that way would come
+			// back as a different mark.
+			back, err := spec.Parse(b)
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			out, err := back.Chart()
+			if err != nil {
+				t.Fatalf("Chart: %v", err)
+			}
+			d, ok := geom.Describe(out.Layers[0])
+			if !ok {
+				t.Fatal("the decoded layer does not describe itself")
+			}
+			if d.Mark != geom.MarkLine {
+				t.Fatalf("a %s curve decoded as mark %v, want a line", tc.name, d.Mark)
+			}
+			if d.Curve != tc.curve {
+				t.Fatalf("a %s curve decoded as family %v", tc.name, d.Curve)
+			}
+		})
 	}
 }

@@ -50,8 +50,9 @@ Concretely:
   ever worth.
 - Where the concept is close but not identical, the nearest true statement is
   made rather than a new word invented: a step is a `line` with
-  `interpolate: step-after`, a smoothed line is `interpolate: cardinal` with a
-  `tension`, a threshold is a `rule` with an `orient`, a shaded window is a
+  `interpolate: step-after`, a smoothed line is `interpolate` naming one of the
+  ten curve families — `cardinal` with a `tension`, `monotone`, `basis` and the
+  rest, see [0071](0071-curve-families.md), a threshold is a `rule` with an `orient`, a shaded window is a
   `rect` with one, a note is a `text` mark. These are Vega-Lite spellings for
   Vega-Lite-ish things.
 - Where figure has something Vega-Lite does not, the property is figure's and

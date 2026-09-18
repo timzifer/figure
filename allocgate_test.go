@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/timzifer/figure"
+	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/internal/irtest"
 	"github.com/timzifer/figure/three"
 )
@@ -76,6 +77,21 @@ func TestAFrameStaysWithinItsAllocationBudget(t *testing.T) {
 	const budget = 128
 	if got := allocsPerFrame(t, signal(250_000)); got > budget {
 		t.Errorf("a steady-state frame allocates %.0f times, budget %d", got, budget)
+	}
+}
+
+// A curve family that solves for its tangents is the one reduction with a
+// workspace of its own, so it gets its own gate: the slopes and the two swept
+// tridiagonal rows have to come out of the scratch pool like everything else.
+func TestACurvedLineDoesNotAllocatePerPoint(t *testing.T) {
+	for _, k := range []geom.CurveKind{geom.CurveNatural, geom.CurveMonotone, geom.CurveBasis} {
+		small := allocsPerFrame(t, curvedSignal(1_000, k))
+		large := allocsPerFrame(t, curvedSignal(200_000, k))
+		const slack = 8
+		if large > small+slack {
+			t.Errorf("curve %v: 200k rows allocate %.0f times per frame against %.0f for 1k: "+
+				"the fit is allocating per row", k, large, small)
+		}
 	}
 }
 
