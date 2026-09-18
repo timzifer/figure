@@ -238,8 +238,16 @@ thing left in this bucket.
 apart: an UpSet plot lays nothing out — it counts a membership list by which
 sets each element is in, and the rest is a bar chart over a dot matrix in a
 track sharing its X scale — and the Venn diagram people draw is three circles in
-a fixed arrangement rather than the circle-packing optimiser 0039 declined,
-which is still declined along with any fourth set.
+a fixed arrangement rather than the circle-packing optimiser 0039 declined.
+
+**Both of 0074's refusals stand and both are recorded for a different reason
+than that record first gave**, which its
+[amendment](adr/0074-sets-are-counted.md#amendment-two-refusals-restated) sets
+out: the area-proportional diagram is refused **from three sets on**, because
+two circles are an exactly determined construction and three are an
+over-determined one; a fourth set is refused because this mark writes each
+count *into* its region and a four-set diagram has regions too thin to hold a
+number — not because no fixed arrangement of four exists, which it does.
 
 **That sentence has been narrowed twice.** [ADR 0053](adr/0053-tidy-tree-layout.md)
 took tree layouts out of it and [ADR 0072](adr/0072-layered-graph-layout.md)
@@ -700,7 +708,8 @@ marimekko, rose, slope — and what follows is what the reading turned up
 | **Bump chart** | `Line` over ordinal ranks with `geom.AvoidOverlap` on the labels ([ADR 0040](adr/0040-label-collision-avoidance.md)); a recipe |
 | **Calendar heatmap** | already listed in bucket A; what is missing is a date→(week, weekday) helper, not machinery |
 | **Voronoi** | the one layout the node-link refusal does not cover — Fortune's algorithm is O(n log n), deterministic and bounded, which is `stat.Squarify`'s shape. It would also sharpen hit-testing ([ADR 0015](adr/0015-hit-testing.md)). Not written up: nobody has asked for the chart, and the hit-test is a performance question rather than a form |
-| Word cloud, Demers cartogram, Venn | declined for [ADR 0039](adr/0039-relational-layouts.md)'s reason: each is a packing optimiser with its own failure modes, and a layout that runs until it settles is not a pure function of its input |
+| Word cloud, Demers cartogram | declined for [ADR 0039](adr/0039-relational-layouts.md)'s reason: each is a packing optimiser with its own failure modes, and a layout that runs until it settles is not a pure function of its input |
+| **Venn** | **drawn** since [ADR 0074](adr/0074-sets-are-counted.md), and this verdict was wrong about which diagram was in question: the one people draw is two or three circles in a fixed arrangement and was never a packing optimiser. The optimiser is the *area-proportional* diagram, still declined from three sets on — bucket E has the row |
 | Isotype, tally, pictorial bar | a `Text` mark repeated on a grid; drawable today, and a chart type only in the sense that a font is |
 | Kagi, point-and-figure, Renko | a domain reduction of a price series — bucket M's admission rule decides them, and the reduction is the chart |
 

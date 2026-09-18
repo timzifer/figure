@@ -645,8 +645,10 @@ The record of how each of those arrived, and the argument that shaped it, is in
 - **Sets are counted rather than laid out.** The other half of that sentence has
   been answered: an UpSet plot is a matrix chart, so it needed a count in `stat`
   and two ordinary marks, and a Venn diagram of two or three sets is a fixed
-  arrangement rather than the optimiser 0039 declined — which is still declined,
-  along with the fourth set
+  arrangement rather than the optimiser 0039 declined — which is still declined
+  from three sets on, where it has more region areas to hit than free numbers to
+  hit them with, and a fourth set with it, because a region too thin to hold its
+  count cannot do what that mark promises
   ([ADR 0074](docs/adr/0074-sets-are-counted.md)).
 - **A bucket of domain reductions** — the
   Kaplan–Meier estimator, the SPC control-limit family, ACF and PACF, ROC and

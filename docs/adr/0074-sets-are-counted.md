@@ -1,6 +1,6 @@
 # 0074 — Sets are counted rather than laid out, and the composition is the caller's
 
-**Status:** Accepted · **Date:** 2026-09-18 · **Implemented:** 2026-09-18
+**Status:** Accepted, amended · **Date:** 2026-09-18 · **Implemented:** 2026-09-18 · see [Amendment](#amendment-two-refusals-restated)
 
 ## Context
 
@@ -122,6 +122,9 @@ What 0039 objected to is still refused by name:
   `ErrTooManySets` says so, and `geom.Intersections` is the chart that keeps
   working.
 
+Both refusals stand as written. Neither *reason* survived being read again, and
+the amendment below replaces both.
+
 The circles are sampled into points and taken through the coord like every other
 mark, and both axes describe the unit square — the relational convention,
 unchanged.
@@ -162,7 +165,9 @@ options: the categories are encoded into the axis in ranking order.
 
 - **Force-directed node-link.** 0039's refusal stands verbatim for the third
   time. It is now the only thing bucket E is missing.
-- **Area-proportional Venn, Euler diagrams, four sets.** Per claim 4.
+- **Area-proportional Venn, Euler diagrams, four sets.** Per claim 4 — for the
+  reasons in the [amendment](#amendment-two-refusals-restated) rather than the
+  ones claim 4 gave.
 - **Set-size bars as an option on the matrix mark.** They are a third panel, and
   a mark cannot make one. `figure.Grid` is the answer and the example shows it.
 - **A degree filter, or dropping sets.** `Top` ranks; anything else about which
@@ -185,3 +190,89 @@ options: the categories are encoded into the axis in ranking order.
   monotone function of the distance between the centres, so a bisection settles
   it — and three do not. A two-set-only proportional diagram is a separate
   record and would have to say why stopping there is honest.
+
+## Amendment: two refusals restated
+
+**Date:** 2026-09-18
+
+Both refusals above stand: `geom.Venn` draws no area-proportional diagram and
+no fourth set, and neither `MaxVennSets` nor `ErrTooManySets` changes. What
+does not stand is either *reason*, and in this repository the reason is the
+record — a refusal argued from something that is not so gets reread later by
+somebody who checks, and then the whole record is in question rather than the
+sentence.
+
+### The area-proportional diagram is refused from three sets on
+
+The list refuses it flat, and the **Revisit if** at the foot of this record
+already said otherwise in the same document:
+
+> Two circles have one — the overlap area is a monotone function of the
+> distance between the centres, so a bisection settles it — and three do not.
+
+A bisection over a monotone function is bounded and deterministic, which is
+this repository's admission test — the one
+[ADR 0072](0072-layered-graph-layout.md) applied to a heuristic sort and
+[ADR 0053](0053-tidy-tree-layout.md) to a tree layout. The two-set case passes
+it, so it is not refused by anything here. It is **not built**, which is a
+different sentence with a different remedy.
+
+Count the freedoms and the line falls where the arithmetic puts it. Two circles
+have three numbers after the rigid motions are taken out — two radii and the
+distance between the centres — and three region areas to hit: exactly
+determined, and the bisection is the construction. Three circles have nine —
+three radii and three centres — less the three a rigid motion takes out, so
+six, against seven region areas. Over-determined, so no exact solution exists
+for most tables, so a solver has to minimise an error it cannot drive to zero,
+and its failure mode is a picture that is subtly wrong rather than one that is
+obviously missing. **That** is the refusal, and it begins at three.
+
+So the entry reads "from three sets on", and the two-set diagram keeps the
+clause it already had: it would need a record saying why stopping at two is
+honest, because a mark whose areas mean something at two sets and quietly stop
+meaning it at three is the worse answer.
+
+### A fourth set is refused because a region has to hold its number
+
+Claim 4 and `MaxVennSets`'s comment gave a geometric reason:
+
+> Four circles have no arrangement whose sixteen regions all appear; the
+> four-set diagram that gets drawn uses ellipses, which is a different picture,
+> and the five-set one is a packing problem.
+
+The first clause is true. The rest is not. Four **ellipses** do have an
+arrangement showing all fifteen regions inside the curves — the classical
+four-set diagram, drawn that way since Venn himself — and a five-ellipse
+diagram showing all thirty-one is known too (Grünbaum, 1975). Neither is
+searched for. Both are tables of coefficients exactly as `vennLayout` is a
+table of circles, so claim 4's own admission test — "a table of circles, not a
+solver" — admits them. Read literally, the reason given here says this mark
+should draw four sets.
+
+It does not, and the reason it does not was already written one clause earlier
+in the same comment:
+
+> seven regions all exist and are **all big enough to write a number in**
+
+That is the mark's contract. `Venn` writes each region's count *into* the
+region; a region too thin to carry a number is a region where the mark cannot
+do the one thing it promises, and the four-ellipse diagram's slivers are
+exactly that. It is why the four-set picture that gets printed is labelled from
+a key beside it — a different mark, reading a different way, and the honest
+place for a fourth set to arrive if it ever does.
+
+The limit is therefore **legibility**, and it is a property of what this mark
+undertakes rather than a claim about what geometry allows. `ErrTooManySets`
+says the same thing it always said, `geom.Intersections` is still the chart
+that keeps working past three, and it is still the better reading well before
+three.
+
+### Revisit if
+
+- **A four- or five-set diagram is wanted with its counts in a key rather than
+  in the regions.** That is a different contract and therefore a different
+  mark, and the fixed ellipse constructions above are what it would draw. This
+  record's limit does not bind it.
+- **A two-set area-proportional diagram is asked for.** The construction is
+  settled and bounded; what it needs is the record naming the stop at two,
+  which the clause above already describes.

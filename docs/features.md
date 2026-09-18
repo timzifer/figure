@@ -64,8 +64,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `Plot.Track` sharing the bars' X scale object, and the set-size bars beside it
   are a third panel and therefore a `figure.Grid`. **`Venn`** draws the two- or
   three-set diagram of the same counts, in a fixed arrangement rather than a
-  packing solution — an area-proportional diagram and a fourth set are both
-  refused ([ADR 0074](adr/0074-sets-are-counted.md)).
+  packing solution. An area-proportional diagram is refused **from three sets
+  on**, where it stops being a construction and becomes an optimiser, and a
+  fourth set is refused because every region has to be big enough to hold the
+  count written in it ([ADR 0074](adr/0074-sets-are-counted.md)).
 - **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
   series, with an opt-in log-log confidence band and censoring ticks, from a
   time column and a `geom.Event` indicator. `stat` holds the arithmetic of the
