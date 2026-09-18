@@ -557,6 +557,17 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Orient == geom.Horizontal {
 			m.Orientation = "horizontal"
 		}
+	case geom.MarkGraph:
+		// A graph is boxes and arrows, so it writes both a fill and a stroke,
+		// where rank zero sits, the edge shape when it is not the elbow, and
+		// the head's length as the mark's size.
+		fill()
+		stroke()
+		m.Origin = d.Baseline
+		m.Size = d.Size
+		if d.Branch == geom.Straight {
+			m.Branch = "straight"
+		}
 	case geom.MarkHexbin:
 		fill()
 		m.DensityCells = d.CellSize

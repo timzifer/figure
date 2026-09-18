@@ -80,6 +80,7 @@ depends on.
 | [0068](0068-gantt-charts.md) | A schedule is a rect with a fraction in it and a second table beside it | Accepted | — |
 | [0069](0069-hatching-as-the-third-redundant-channel.md) | A filled mark is told apart by a hatch, drawn rather than declared | Accepted | — |
 | [0070](0070-a-third-labelled-family.md) | A coord raises a labelled family of its own, and `Furniture` carries families beside its two sides | Accepted | — |
+| [0072](0072-layered-graph-layout.md) | A layered graph is bounded and deterministic once the sort is stable, and the node's box is decoration rather than layout | Accepted, amended | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the

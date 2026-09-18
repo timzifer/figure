@@ -69,3 +69,28 @@ func TestAppendLevelsDoesNotAllocateIntoRoom(t *testing.T) {
 		t.Errorf("AppendLevels allocated %.0f times into a slice with room", got)
 	}
 }
+
+// The sweeps sort every rank, several times over. A stable sort out of the
+// standard library would allocate a closure and a swapper on each call, which
+// is why Layered carries its own merge buffer — see
+// docs/adr/0072-layered-graph-layout.md.
+func TestLayeringAgainDoesNotAllocate(t *testing.T) {
+	const layers, width = 12, 16
+	const n = layers * width
+
+	var from, to []int
+	for r := range layers - 1 {
+		for i := range width {
+			v := r*width + i
+			from = append(from, v, v)
+			to = append(to, (r+1)*width+i, (r+1)*width+(i+5)%width)
+		}
+	}
+	from, to = append(from, n-1), append(to, 0)
+
+	var l stat.Layered
+	l.Reset(from, to, n)
+	if got := testing.AllocsPerRun(10, func() { l.Reset(from, to, n) }); got != 0 {
+		t.Errorf("layering again allocated %.0f times, want none", got)
+	}
+}
