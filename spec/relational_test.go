@@ -172,3 +172,29 @@ func TestAHandWrittenRelationalSpecReads(t *testing.T) {
 		t.Error("the layer read back with no data source")
 	}
 }
+
+// The node-link mark through the document. There is nothing to configure but
+// the drawing — the layout is the whole of the mark — so what has to survive is
+// the mark's own name and the two channels.
+// See docs/adr/0077-a-node-link-layout.md.
+func TestNodeLinkSurvivesTheRoundTrip(t *testing.T) {
+	src := data.NewTable().
+		String("who", []string{"ana", "bo", "cy", "dag"}).
+		String("with", []string{"bo", "cy", "ana", "bo"})
+	c := spec.Chart{
+		Width: 400, Height: 400, DPR: 1, Theme: theme.Light,
+		X: scale.Linear(), Y: scale.Linear(),
+		Layers: []geom.Geom{geom.NodeLink(src, geom.From("who"), geom.To("with"))},
+	}
+	want, got := draw(t, c), draw(t, roundTrip(t, c))
+	if strings.Join(want, "\n") != strings.Join(got, "\n") {
+		t.Error("a node-link layer did not survive the round trip")
+	}
+	s, err := spec.Of(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Layer[0].Mark.Type != "node-link" {
+		t.Errorf("mark type %q, want %q", s.Layer[0].Mark.Type, "node-link")
+	}
+}

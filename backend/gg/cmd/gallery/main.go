@@ -214,6 +214,7 @@ func figures() []plate {
 		nicholsFigure(),
 		upsetFigure(),
 		vennFigure(),
+		networkFigure(),
 		labelsFigure(),
 		surfaceFigure(),
 		cascadeFigure(),

@@ -78,6 +78,9 @@ const (
 	// edge table rather than refusing it. See
 	// docs/adr/0072-layered-graph-layout.md.
 	MarkGraph Mark = "graph"
+	// MarkNodeLink is the graph drawn as dots joined by lines, placed by
+	// distance rather than by rank. See docs/adr/0077-a-node-link-layout.md.
+	MarkNodeLink Mark = "node-link"
 	// MarkIntersections is the bar per combination of sets that is the top half
 	// of an UpSet plot, and MarkSetMatrix the dot matrix under it. Both read a
 	// membership table — see docs/adr/0074-sets-are-counted.md.
@@ -519,6 +522,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Tree(d.Source, opts...), nil
 	case MarkGraph:
 		return Graph(d.Source, opts...), nil
+	case MarkNodeLink:
+		return NodeLink(d.Source, opts...), nil
 	case MarkIntersections:
 		return Intersections(d.Source, opts...), nil
 	case MarkSetMatrix:

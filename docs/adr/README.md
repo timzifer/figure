@@ -86,6 +86,7 @@ depends on.
 | [0074](0074-sets-are-counted.md) | Sets are counted rather than laid out, and the composition is the caller's | Accepted, amended | — |
 | [0075](0075-an-axis-has-a-direction.md) | An axis has a direction, and it belongs to the scale rather than to its domain | Accepted | — |
 | [0076](0076-the-other-half-of-the-count.md) | The other half of the count is a mark, and the panel is still the caller's | Accepted | — |
+| [0077](0077-a-node-link-layout.md) | A node-link layout is a minimisation with a closed-form step, and the refusal was of a method | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the

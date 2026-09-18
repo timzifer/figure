@@ -636,12 +636,14 @@ The record of how each of those arrived, and the argument that shaped it, is in
   channels the relational family already defines
   ([ADR 0053](docs/adr/0053-tidy-tree-layout.md)). The clustered heatmap falls
   out of it.
-- **Node-link diagrams** are what is left of the relational family
-  ([ADR 0039](docs/adr/0039-relational-layouts.md)). A force layout's whole
-  method is to run until it settles, so it cannot be a pure function of its
-  input at a bounded sweep count that also looks good, and
-  [ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own
-  terms before it lands.
+- **Node-link diagrams** were the last of the relational family, and they are
+  drawn ([ADR 0077](docs/adr/0077-a-node-link-layout.md)). What 0039 refused was
+  a *force simulation*, whose method is to run until it settles; what draws this
+  is stress majorization, which replaces the number it minimises with a
+  quadratic that touches it from above and solves that in closed form. There is
+  no tolerance to stop on, so a fixed count of sweeps costs quality and cannot
+  cost correctness, and [ADR 0012](docs/adr/0012-parallel-panels.md) is answered
+  the way `stat.Squarify` answers it.
 - **Sets are counted rather than laid out.** The other half of that sentence has
   been answered: an UpSet plot is a matrix chart, so it needed a count in `stat`
   and two ordinary marks, and a Venn diagram of two or three sets is a fixed

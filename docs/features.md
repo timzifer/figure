@@ -45,7 +45,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
-  **`Sankey`**, **`Arc`** and **`Tree`**, which read an edge table rather than a pair of
+  **`Sankey`**, **`Arc`**, **`Tree`** and **`NodeLink`**, which read an edge table rather than a pair of
   axes: `geom.From`/`geom.To` for a flow, `geom.ID`/`geom.Parent` for a
   hierarchy, and `geom.Value` for the magnitude of either. Each places its own
   layout in the unit square and hands it to the coordinate stage, so an
@@ -57,7 +57,13 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   in a track over a heatmap's ordinal axis it is a clustered heatmap —
   `geom.Orient(geom.Horizontal)` reads the breadth up Y, which is what a
   dendrogram in a *left* track needs, so one heatmap carries a tree on both
-  edges ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+  edges ([ADR 0053](adr/0053-tidy-tree-layout.md)). **`NodeLink`** draws a graph
+  that has neither a hierarchy nor a direction: dots joined by lines, placed so
+  that two dots near each other are two things with a short path between them.
+  What places them is `stat.Stress` — classical scaling for a start and a fixed
+  number of majorization sweeps after it, so the picture is a pure function of
+  the table rather than of when a simulation was stopped
+  ([ADR 0077](adr/0077-a-node-link-layout.md)).
 - **Set charts** — **`Intersections`** and **`SetMatrix`** are the two halves of
   an **UpSet plot**: a bar per combination of sets over a matrix saying which
   combination that is, read off a membership table — one row per (element, set)
@@ -328,8 +334,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   gives the interval it covers, a continuous ramp the value under the pointer
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
-Deliberately **not** here: geographic projections, force-directed node-link
-and Venn diagrams, and any engine that links two charts together — a link is a
+Deliberately **not** here: geographic projections, force *simulations* — the
+node-link diagram they were refused for is `geom.NodeLink`, placed by a
+closed-form minimisation rather than by one
+([ADR 0077](adr/0077-a-node-link-layout.md)) — area-proportional Venn diagrams,
+and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and

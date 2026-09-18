@@ -1232,11 +1232,14 @@ and what is next, in the order it is being done. Adding a stub for something on
 that list is not progress towards it: the seams exist, that is enough. The
 release order is in [CONTRIBUTING](CONTRIBUTING.md#releasing).
 
-Deliberately not done. There is **no node-link layout**: a force
-simulation's whole method is to run until it settles, so it cannot be a pure
-function of its input at a bounded sweep count that also looks good, and
-[ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own terms
-first. There is **no area-proportional Venn and no Venn of four sets** — the
+Deliberately not done. There is **no force simulation** — its method is to run
+until it settles, so where it stops is a tolerance. The chart it was refused for
+is drawn: `geom.NodeLink` places nodes by stress majorization, which is a
+closed-form step repeated a constant number of times, so
+[ADR 0012](docs/adr/0012-parallel-panels.md) is satisfied the way every other
+layout here satisfies it
+([ADR 0077](docs/adr/0077-a-node-link-layout.md)). It refuses a graph of more
+than `stat.MaxStressNodes` nodes rather than drawing a hairball. There is **no area-proportional Venn and no Venn of four sets** — the
 first is a construction at two sets and an optimiser from three on, where seven
 region areas have six free numbers to hit them with; the second is refused
 because this mark writes each count *into* its region and a four-set diagram has

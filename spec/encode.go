@@ -578,6 +578,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Orient == geom.Horizontal {
 			m.Orientation = "horizontal"
 		}
+	case geom.MarkNodeLink:
+		// Dots and lines: a fill for the discs, a stroke for the edges, and the
+		// mark's size is a disc's diameter. There is no ranking, no direction
+		// and no edge shape to write — the layout is the whole of it.
+		fill()
+		stroke()
+		m.Size = d.Size
 	case geom.MarkGraph:
 		// A graph is boxes and arrows, so it writes both a fill and a stroke,
 		// where rank zero sits, the edge shape when it is not the elbow, and
