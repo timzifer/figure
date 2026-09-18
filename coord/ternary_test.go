@@ -149,9 +149,9 @@ func TestATernaryClipsToItsTriangle(t *testing.T) {
 }
 
 // A ternary chart has three grid families and a panel has two tick lists. The
-// third is drawn as a second subpath inside the X tick's own shape, which is
-// what keeps Furniture from gaining a field.
-func TestATernarysThirdGridFamilyRidesOnTheFirstsTicks(t *testing.T) {
+// third is a family of the coord's own, which is the field ADR 0070 added so
+// that a ladder with no tick behind it can carry its own labels.
+func TestATernarysThirdGridFamilyIsItsOwnAndIsLabelled(t *testing.T) {
 	c := simplex(t)
 	var fur Furniture
 	ticks := []scale.Tick{{Pos: 0.25, Label: "0.25"}, {Pos: 0.5, Label: "0.5"}}
@@ -163,18 +163,61 @@ func TestATernarysThirdGridFamilyRidesOnTheFirstsTicks(t *testing.T) {
 	if len(fur.GridX) != 2 || len(fur.GridY) != 2 {
 		t.Fatalf("%d X and %d Y grid shapes, want one per tick", len(fur.GridX), len(fur.GridY))
 	}
-	// Two subpaths on X — the constant-a line and the derived constant-c one —
-	// and one on Y.
-	if got := moves(&fur.GridX[0].Path); got != 2 {
-		t.Errorf("the first X tick's grid has %d subpaths, want the constant-a line and the third family", got)
+	// One line per tick on each axis, and nothing smuggled in beside it.
+	if got := moves(&fur.GridX[0].Path); got != 1 {
+		t.Errorf("the first X tick's grid has %d subpaths, want the constant-a line alone", got)
 	}
 	if got := moves(&fur.GridY[0].Path); got != 1 {
 		t.Errorf("the first Y tick's grid has %d subpaths, want one", got)
 	}
-	// Between them the two axis lines stroke all three sides of the triangle.
-	if len(fur.AxisX.Pts) != 2 || len(fur.AxisY.Pts) != 3 {
-		t.Errorf("axis runs of %d and %d points, want the triangle's three sides",
-			len(fur.AxisX.Pts), len(fur.AxisY.Pts))
+	if len(fur.Families) != 1 {
+		t.Fatalf("%d families, want the derived component's", len(fur.Families))
+	}
+	fam := fur.Families[0]
+	if len(fam.Lines) != 2 || len(fam.Labels) != 2 || len(fam.Text) != 2 {
+		t.Fatalf("family has %d lines, %d labels and %d strings, want one of each per level",
+			len(fam.Lines), len(fam.Labels), len(fam.Text))
+	}
+	// It reads the same sequence the first component's ticks do, which is what
+	// makes all three ladders one chart rather than three.
+	if fam.Text[0] != "0.25" || fam.Text[1] != "0.5" {
+		t.Errorf("family labelled %q, want the X ticks' own strings", fam.Text)
+	}
+	// The level at v is the diagonal a + b = k - v: it meets the b = 0 edge at
+	// a = k - v, which is where it is read.
+	if got, want := fam.Labels[0].At, c.Point(0.75, 0); !near(got, want, 12) {
+		t.Errorf("the first level is labelled at %v, want it beyond %v on the b = 0 edge", got, want)
+	}
+}
+
+// Each component is read along its own edge, cyclically, which is the
+// arrangement every printed ternary chart uses and the one the third family
+// needs: the two edges it crosses are the two the other ladders label.
+func TestATernaryReadsEachComponentAlongItsOwnEdge(t *testing.T) {
+	c := simplex(t)
+	var fur Furniture
+	ticks := []scale.Tick{{Pos: 0.5, Label: "0.5"}}
+	c.Furniture(&fur, FurnitureRequest{
+		Area:    ir.R(0, 0, 100, 100),
+		Metrics: Metrics{TickLen: 4, LabelPad: 2},
+		XTicks:  ticks, YTicks: ticks,
+	})
+	// The first component is read along the base, between the corner where it
+	// is everything and the one where the second is.
+	if got, want := fur.LabelX[0].At, c.Point(0.5, 0.5); !near(got, want, 12) {
+		t.Errorf("the first component is labelled at %v, want it beyond %v on the base", got, want)
+	}
+	// The second along the edge where the first is nothing.
+	if got, want := fur.LabelY[0].At, c.Point(0, 0.5); !near(got, want, 12) {
+		t.Errorf("the second component is labelled at %v, want it beyond %v on the a = 0 edge", got, want)
+	}
+	// And the three anchors are three different edges, so no two ladders share
+	// one and the numbers do not pile up.
+	third := fur.Families[0].Labels[0].At
+	for _, p := range []ir.Point{fur.LabelY[0].At, third} {
+		if near(fur.LabelX[0].At, p, 1) {
+			t.Errorf("two ladders are labelled at the same point %v", p)
+		}
 	}
 }
 
@@ -218,6 +261,12 @@ func TestATernaryRoundTripsThroughItsDesc(t *testing.T) {
 // samePoint compares two device points at the slack a float32 map leaves.
 func samePoint(a, b ir.Point) bool {
 	return math.Abs(float64(a.X-b.X)) < 1e-3 && math.Abs(float64(a.Y-b.Y)) < 1e-3
+}
+
+// near reports whether a is within d of b, which is how a test says "just
+// outside this edge" without restating the label gap.
+func near(a, b ir.Point, d float64) bool {
+	return math.Hypot(float64(a.X-b.X), float64(a.Y-b.Y)) <= d
 }
 
 // moves counts the subpaths of a path, which is how many separate runs of ink

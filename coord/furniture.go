@@ -40,6 +40,52 @@ type Label struct {
 	Rotation float64
 }
 
+// Family is a grid family that belongs to the coord rather than to either
+// axis: its own levels, its own label positions, and — this is the whole of
+// why it exists — its own label text.
+//
+// A panel has two tick lists, and until this type there was no way for a coord
+// to draw a third labelled ladder: geometry it could always smuggle into a
+// tick's own shape as a second subpath, but label text reached render only
+// from [github.com/timzifer/figure/scale.Tick.Label], so a family with no tick
+// behind it had nothing to be labelled by. A ternary chart's third component
+// is the first customer; a projection's graticule and a Smith chart drawn on Γ
+// are the next two. See docs/adr/0070-a-third-labelled-family.md.
+//
+// The three slices are parallel: level i is Lines[i], labelled Text[i] at
+// Labels[i]. Labels and Text may both be empty, which draws the family
+// unlabelled.
+type Family struct {
+	// Name says what the ladder reads, for a test and for a coord that
+	// describes itself. Nothing is drawn from it.
+	Name string
+	// Lines is one shape per level.
+	Lines []Shape
+	// Labels is where each level's label sits, and Text is what it says.
+	Labels []Label
+	Text   []string
+}
+
+// next lengthens the family by one level and hands back that level's shape,
+// with whatever buffer the last frame left it, and empty.
+func (f *Family) next() *Shape {
+	f.Lines = growShapes(f.Lines)
+	return &f.Lines[len(f.Lines)-1]
+}
+
+// label records where the level just added is labelled and what it says.
+func (f *Family) label(l Label, text string) {
+	f.Labels = append(f.Labels, l)
+	f.Text = append(f.Text, text)
+}
+
+// reset empties the family without giving up its memory.
+func (f *Family) reset() {
+	f.Name = ""
+	f.Lines = resetShapes(f.Lines)
+	f.Labels, f.Text = f.Labels[:0], f.Text[:0]
+}
+
 // Furniture is the geometry of one panel's grid lines, axis lines, tick marks
 // and tick labels. A coord fills it; render strokes it.
 //
@@ -66,6 +112,12 @@ type Furniture struct {
 
 	// LabelX and LabelY are where the tick labels go, in tick order.
 	LabelX, LabelY []Label
+
+	// Families are the grid families that belong to the coord rather than to
+	// either axis, each with its own labels. It is empty for every coord that
+	// draws its ladders from the panel's own ticks, which is all but the
+	// barycentric one. See [Family].
+	Families []Family
 
 	// InX and InY report, per tick, whether the tick falls inside the panel at
 	// all. A Cartesian coord culls a tick that a float32 mapping put a hair
@@ -106,6 +158,7 @@ func (f *Furniture) Reset() {
 	f.TickX, f.TickY = resetShapes(f.TickX), resetShapes(f.TickY)
 	f.LabelX, f.LabelY = f.LabelX[:0], f.LabelY[:0]
 	f.InX, f.InY = f.InX[:0], f.InY[:0]
+	f.Families = resetFamilies(f.Families)
 	f.XLabelsShareARow = false
 	f.AxesOverData = false
 	f.LabelsYFirst = false
@@ -121,6 +174,29 @@ func resetShapes(s []Shape) []Shape {
 		full[i].reset()
 	}
 	return s[:0]
+}
+
+// resetFamilies empties every family the slice has ever held — past its
+// current length as well, for [resetShapes]'s reason — and truncates it.
+func resetFamilies(f []Family) []Family {
+	full := f[:cap(f)]
+	for i := range full {
+		full[i].reset()
+	}
+	return f[:0]
+}
+
+// family lengthens the furniture by one family, named, and hands it back to
+// fill in. It comes back with whatever buffers the last frame left it.
+func (f *Furniture) family(name string) *Family {
+	if len(f.Families) < cap(f.Families) {
+		f.Families = f.Families[:len(f.Families)+1]
+	} else {
+		f.Families = append(f.Families, Family{})
+	}
+	fam := &f.Families[len(f.Families)-1]
+	fam.Name = name
+	return fam
 }
 
 // side is one axis's worth of furniture. A coord fills X and Y with the same

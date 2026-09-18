@@ -1,6 +1,6 @@
 # 0051 — A ternary chart is a barycentric coord, and its third grid family is not furniture
 
-**Status:** Accepted · **Date:** 2026-09-08 · **Implemented:** `coord.Ternary`, `coord.TernarySum`, and the spec's `"ternary"` coord with its `sum` field; the third grid family rides on the X ticks as this record describes, and its labels are still unspent. `three.Prism` is the same map in a projected scene — see [ADR 0058](0058-what-3d-is-for.md).
+**Status:** Accepted, amended · **Date:** 2026-09-08 · **Implemented:** `coord.Ternary`, `coord.TernarySum`, and the spec's `"ternary"` coord with its `sum` field; the third grid family rides on the X ticks' levels as this record describes, and **its labels have since been spent** — see [ADR 0070](0070-a-third-labelled-family.md) and the amendment below. `three.Prism` is the same map in a projected scene — see [ADR 0058](0058-what-3d-is-for.md).
 
 ## Context
 
@@ -164,11 +164,36 @@ second form in this record that no general-purpose library draws.
   dimensions, which is the 3D question and not this one.
 - **Labelling the third family**, per the argument above.
 
+## Amendment — the third family is labelled
+
+[ADR 0070](0070-a-third-labelled-family.md) spent the seam this record declined
+to spend, on the general problem rather than on this chart: `coord.Furniture`
+carries families that belong to the coord rather than to either axis, each with
+its own levels, its own label positions and its own text. Two things about this
+record changed with it.
+
+**The third family is a family rather than a subpath.** The constant-c lines
+left `GridX`'s second subpath for one of their own, which is what let them be
+labelled. They still take the theme's grid ink and still ride on the levels the
+X ticks name, so "the same ladder on all three edges" is still what is drawn.
+
+**Each component is now read along its own edge**, cyclically: the first along
+the base, the second along the a = 0 edge, the third along the b = 0 edge.
+Before, the first two ladders both ran out of the corner where the third
+component is everything, which left the third nowhere to be read — the two
+edges it crosses were the two already carrying numbers. This is the arrangement
+every printed ternary chart uses, and `examples/ternary` — a soil texture
+triangle and a QFL diagram — is what it looks like.
+
+What did not change: the corner labels naming the components are still
+`geom.Note`, because a corner label is the component's *name* and no ladder
+carries that.
+
 ## Revisit if
 
-- The third family's labels are asked for by name. That is the moment to spend
-  the `Furniture` seam, and it should be spent together with a projection's
-  graticule and 0033's Γ-as-input, exactly as 0033 said.
+- ~~The third family's labels are asked for by name.~~ Spent, by
+  [ADR 0070](0070-a-third-labelled-family.md), together with the graticule and
+  Γ-as-input cases 0033 asked for it to be spent with.
 - A ternary chart turns out to be a big-data chart — geochemical surveys are
   large — which would reopen `Decimates`. The honest fix there is a reduction
   defined over the coord's own axis rather than over pixel columns, which is a

@@ -79,6 +79,7 @@ depends on.
 | [0067](0067-a-bivariate-colour-channel.md) | A colour channel may carry two readings, and the second one takes resolution away | Accepted, amended | — |
 | [0068](0068-gantt-charts.md) | A schedule is a rect with a fraction in it and a second table beside it | Accepted | — |
 | [0069](0069-hatching-as-the-third-redundant-channel.md) | A filled mark is told apart by a hatch, drawn rather than declared | Accepted | — |
+| [0070](0070-a-third-labelled-family.md) | A coord raises a labelled family of its own, and `Furniture` carries families beside its two sides | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -91,15 +92,14 @@ that opens after v1.0 gets a record here before it gets code.
 
 ## Records not yet implemented
 
-**0051 is proposed, not accepted, and no code implements it; 0052, 0053 and
-0054 were proposed with it and have since been built.** They were
+**0051 to 0054 were proposed as a set, and all four have since been built.**
+They were
 written down because the alternative is worse: each one answers a question
 an earlier record left open — 0033's "Revisit if" for the first two, 0039's for
 the fourth, 0041's serialisation rule for the third — and a question answered in
 a conversation and not in the repository gets answered again, differently, later.
 
-**0050 is the one of the five that has been built**, and it is *Accepted,
-amended*: `geom.Locus` draws a family of curves given by a formula, `stat` names
+**0050 is the first of the five**, and it is *Accepted, amended*: `geom.Locus` draws a family of curves given by a formula, `stat` names
 four of them, and a Nichols diagram and a Smith chart's VSWR circles and
 constant-Q arcs are the charts that came with it. Its amendment says where the
 implementation sharpened it — chiefly that `Family` is `stat`'s type that `geom`
@@ -139,9 +139,9 @@ refused rather than reopening it. Reading any one of them alone will make it
 look more expensive than it is.
 
 A proposed record becomes accepted when it is implemented, or is deleted with a
-sentence saying what it got wrong — 0050, 0052, 0053 and 0054 are worked
-examples of the first. Neither is urgent for the one that remains: nothing in
-v1.7 depends on it, and it is additive by construction.
+sentence saying what it got wrong — all five are worked examples of the first,
+and 0051 was the last of them: `coord.Ternary` shipped with two of its three
+ladders labelled, and **0070** spent the seam the third one was waiting for.
 
 **0055 to 0058 are the same rule applied to 3D**, under the status *Planned*
 rather than *Proposed*: the difference is that these four are meant to be built
@@ -237,6 +237,19 @@ are trained to the outer edges of the outer cells because a cell is centred on
 its reading, and that a row is reported per cell only while a cell is at least
 a pixel across — below that the pixel is a reduction over several cells and no
 single row is behind it.
+
+**0070 is the seam three earlier records each declined to spend alone.** 0033
+refused Γ as a Smith chart's input and refused the VSWR circles as furniture,
+both because a grid family with no tick behind it has nothing to be labelled
+by; 0051 drew a ternary chart's third family and could not number it, for the
+same reason; 0050 built `geom.Locus`, which is the escape hatch for a family
+that is an annotation and deliberately not the answer for one that is furniture.
+0033 asked for the three to be reopened together, and this is that: a coord
+raises a `coord.Family` carrying its own levels, its own label positions and
+its own text, `render` strokes it with the grid and labels it with the ticks
+after both axes have had their pick, and `coord.Ternary` reads each component
+along its own edge. A projection's graticule and a Smith chart drawn on Γ are
+now each a coord's own arithmetic and no further seam.
 
 **0065 was the one that fitted the examples already in the repository** — a
 machine, a status board and a stream — and it is the one of the three that has
