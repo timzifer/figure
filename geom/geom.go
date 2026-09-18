@@ -205,11 +205,13 @@ type config struct {
 	dodgePad   float64
 	order      Ordering
 
-	levels     []float64
-	levelCount int
-	resample   Resampling
-	branch     Branch
-	orient     Orientation
+	levels      []float64
+	levelCount  int
+	labelLevels bool
+	levelFormat func(float64) string
+	resample    Resampling
+	branch      Branch
+	orient      Orientation
 
 	eventCol    string
 	confidence  float64
@@ -336,6 +338,32 @@ func Levels(vs ...float64) Option {
 // About n, because a round step a reader can do arithmetic with is worth more
 // than an exact count of awkward ones.
 func LevelCount(n int) Option { return func(c *config) { c.levelCount = n } }
+
+// LabelLevels writes each level's own value along the curve it is drawn at, for
+// a [Contour] and for a [Locus]. The curve is gapped to make room and the text
+// is turned to it, so a contour map reads without a colourbar beside it.
+//
+// The placement is the curve's: the label sits at the flattest stretch of the
+// run that has room for it, and a run with no such stretch carries no label.
+// Labels ask the panel for their space in drawing order and are never moved off
+// their own curve — a label nudged onto a neighbour would name a level it is
+// not on. See docs/adr/0073-labels-on-a-curve.md.
+//
+// One label per run: a level that crosses the panel three times is written
+// three times, and a run that snakes the whole way across is written once.
+func LabelLevels(on bool) Option { return func(c *config) { c.labelLevels = on } }
+
+// LevelFormat is how [LabelLevels] writes a level. The default is the shortest
+// decimal that reads back as the same number.
+//
+// A Go function does not survive a document, which is the rule
+// docs/adr/0041-qq-plots.md set for a quantile function and
+// [github.com/timzifer/figure/scale.Format]'s for a tick label: a chart written
+// down carries that it labels its levels, and reads back labelling them the
+// standard way.
+func LevelFormat(fn func(v float64) string) Option {
+	return func(c *config) { c.levelFormat = fn }
+}
 
 // Resample sets how a [Raster] combines the cells that land on one pixel, when
 // its lattice is finer than the panel.

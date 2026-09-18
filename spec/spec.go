@@ -300,6 +300,13 @@ type Mark struct {
 	// "bins": 8 for a contour would be a document claiming the mark bins.
 	Levels     []float64 `json:"levels,omitempty"`
 	LevelCount int       `json:"levelCount,omitempty"`
+	// LabelLevels writes each level's value along the curve a contour or a
+	// locus draws it at. Vega-Lite has neither mark, so the name is figure's.
+	//
+	// It is a switch and not a format: how a level is written is a Go function
+	// and does not survive a document, which is the rule
+	// docs/adr/0041-qq-plots.md set for a quantile function.
+	LabelLevels bool `json:"labelLevels,omitempty"`
 	// Resample is how a raster combines the cells that land on one pixel when
 	// its lattice is finer than the panel: "nearest", "mean" or "max". It is
 	// figure's own, because Vega-Lite has no raster mark to carry it.

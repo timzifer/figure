@@ -88,6 +88,11 @@ func flatContour(out string, ramp scale.ColorScale, levels []float64) error {
 		geom.Levels(levels...),
 		geom.ColorBy("gain", ramp),
 		geom.Width(1.5),
+		// Each line says which level it is, along itself, with the line gapped
+		// for the text: the colourbar beside the chart is then a second way of
+		// reading it rather than the only one.
+		// See docs/adr/0073-labels-on-a-curve.md.
+		geom.LabelLevels(true),
 	))
 	return p.Render(figure.SVG(out))
 }

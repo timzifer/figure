@@ -39,6 +39,8 @@ func TestAContourSurvivesTheRoundTrip(t *testing.T) {
 			geom.Levels(-4, -2, 0, 2, 4))},
 		{"count", geom.Contour(src, geom.X("x"), geom.Y("y"), geom.Z("z"),
 			geom.LevelCount(9))},
+		{"labelled", geom.Contour(src, geom.X("x"), geom.Y("y"), geom.Z("z"),
+			geom.Levels(-4, -2, 0, 2, 4), geom.LabelLevels(true))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := spec.Chart{

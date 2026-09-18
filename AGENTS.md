@@ -129,18 +129,28 @@ per panel, twice: once before the furniture pass and once before the data pass.
 Dropping the second call leaves every panel but the last drawing its data where
 the last panel's axis is. There is a test.
 
-**A dependency arrow is routed in device space, and it is the only geom that
-may be.** Everywhere else a geom computes a midpoint, a corner or a staircase
-step *before* the coord, because those are statements about the data —
-`geom.stepColumns` is the canonical case. `geom.Depends` puts its two *ends*
-through `coord.Point` like every other mark and then joins them with an elbow
-whose corners are device points and whose stub is in pixels, because there is
+**A dependency arrow is routed in device space, and a curve label is placed
+there; those two are the whole list.** Everywhere else a geom computes a
+midpoint, a corner or a staircase step *before* the coord, because those are
+statements about the data — `geom.stepColumns` is the canonical case.
+`geom.Depends` puts its two *ends* through `coord.Point` like every other mark
+and then joins them with an elbow whose corners are device points and whose stub is in pixels, because there is
 nothing in data space between the finish of one task and the start of another:
 the route is a reading aid rather than a claim about any value in between. The
 direction out of each bar is **measured** from its own two edges rather than
 assumed, which is what makes a reversed axis turn both ends together and what
 makes one routing function serve a gantt drawn down the page as well as across
 it. See [ADR 0068](docs/adr/0068-gantt-charts.md).
+
+The second exception is `geom.LabelLevels`, whose argument is sharper. A label
+on a contour is turned to the curve's **tangent**, and a tangent in data space
+is not the tangent on screen: under `coord.Polar` and `coord.Smith` a curve that
+is straight in the scaled pair is bent on the panel, so an angle chosen before
+the coord would write the label across its own line on exactly the two coords
+the feature exists for. `geom.curveLabeller` therefore reads the device points
+the mark is about to stroke and nothing else — which is also why one helper
+serves a traced lattice and a formula. See
+[ADR 0073](docs/adr/0073-labels-on-a-curve.md).
 
 **A progress layer paints twice over, and that is what keeps the batching.**
 `geom.ProgressBy` draws every cell at the unfinished alpha and the finished
@@ -213,8 +223,12 @@ second tick list.
 A `Shape` may also hold more than one subpath, which is how a ternary chart's
 third grid family is drawn without a third tick list
 ([ADR 0051](docs/adr/0051-barycentric-coord.md)). What genuinely still needs the
-wider seam is a *labelled* family with no tick behind it — a projection's
-graticule, a ternary's third ladder — and that is one decision for all of them.
+wider seam is a labelled *furniture* family with no tick behind it — a
+projection's graticule, a ternary's third ladder — and that is one decision for
+all of them. [ADR 0073](docs/adr/0073-labels-on-a-curve.md) narrowed it to that
+much: a family drawn as a **mark** writes its own levels along its curves now,
+with the curve gapped for the text, and `render`'s one tick list per axis is
+untouched.
 
 **A locus is sampled against the panel, and the Nichols families are refined
 rather than walked.** `stat.Extent.Steps` is a tolerance rather than a count for

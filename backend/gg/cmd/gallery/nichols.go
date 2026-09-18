@@ -44,9 +44,14 @@ func nicholsFigure() plate {
 			// a chart is printed and the only thing telling two families of
 			// thin grey curves apart. Both draw in the theme's annotation ink:
 			// furniture in a series colour would read as something measured.
+			// The magnitudes write their own decibels along themselves, which
+			// is what makes the reading below checkable off the picture rather
+			// than off the caption: the 3 dB contour says 3 where the response
+			// touches it. See docs/adr/0073-labels-on-a-curve.md.
 			p.Add(geom.Locus(stat.NicholsM,
 				[]float64{-12, -6, -3, -1, 0, 1, 3, 6, 12},
-				geom.Dash(), geom.Label("closed-loop gain")))
+				geom.Dash(), geom.LabelLevels(true),
+				geom.Label("closed-loop gain")))
 			p.Add(geom.Locus(stat.NicholsN,
 				[]float64{-1, -5, -10, -20, -45, -90, -150, -210, -270},
 				geom.Dash(2, 3), geom.Label("closed-loop phase")))

@@ -44,6 +44,7 @@ reading declined.
 | Relational layouts (squarify, sankey, chord) | **shipped** — [ADR 0039](adr/0039-relational-layouts.md) | treemap, icicle, sunburst, flame graph, sankey, alluvial, chord, arc diagram |
 | A projection and a depth order (`figure/three`) | **shipped** — [ADR 0056](adr/0056-three-dimensional-charts.md), [ADR 0057](adr/0057-orbiting-a-chart.md) | surface, terrain, trajectory / phase space, cascade / waterfall, 3D bars |
 | A locus: a family of curves given by a formula (`geom.Locus`) | **shipped** — [ADR 0050](adr/0050-locus-annotations.md) | Nichols, VSWR circles, constant-Q arcs, the ZY overlay, Hall chart, funnel-plot contours |
+| A label written along a curve (`geom.LabelLevels`) | **shipped** — [ADR 0073](adr/0073-labels-on-a-curve.md) | a contour map read without a colourbar, a numbered Nichols chart, numbered VSWR circles |
 | A barycentric coord (`coord.Ternary`) | **shipped** — [ADR 0051](adr/0051-barycentric-coord.md) | ternary plots, QFL and QAP diagrams, the soil texture triangle, phase and flammability diagrams, Piper |
 | A probability scale (`scale.Probability`) | **shipped** — [ADR 0052](adr/0052-probability-scales.md) | Weibull, normal and Gumbel probability paper, hazard plots, a log-odds axis |
 | A deterministic tree layout (`stat.Tidy`) | **shipped** — [ADR 0053](adr/0053-tidy-tree-layout.md) | dendrogram, phylogram, radial dendrogram, org and decision trees, clustered heatmap |
@@ -261,7 +262,7 @@ form and a determinism test, per CONTRIBUTING's rule for reductions.
 | ECDF | `stat.ECDF` | `geom.ECDF` |
 | Trend line | `stat.Loess` | `geom.Trend` |
 | QQ | `stat.QQ` with a theoretical quantile function | `geom.QQ` for normal quantiles; unreleased |
-| Contour | `stat.Contour` | `geom.Contour` |
+| Contour | `stat.Contour` | `geom.Contour`, with `geom.LabelLevels` writing each level along its own line — [ADR 0073](adr/0073-labels-on-a-curve.md) |
 | Raincloud | the violin's own KDE, unchanged | `Violin` + `Boxplot` + `Beeswarm` in one slot — see below |
 
 **A raincloud is three of these in one slot, and it needs an option rather
@@ -398,6 +399,12 @@ chart is that plane in log-polar view.
 The four rows still marked unwritten are each a `Family` and nothing else: a few
 dozen lines of arithmetic in `stat`, no seam, no coord and no mark. That is the
 point of the bucket.
+
+**And the families now write their own levels.** `geom.LabelLevels(true)` puts
+"3 dB" along the M contour it belongs to, turned to the curve and with the curve
+gapped for it — which is what a Nichols chart and a Smith chart are printed like
+on paper, and what ADR 0050 deferred to a record of its own. See
+[ADR 0073](adr/0073-labels-on-a-curve.md).
 
 ## J — needs a barycentric coord — **shipped**, [ADR 0051](adr/0051-barycentric-coord.md)
 

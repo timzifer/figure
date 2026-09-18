@@ -221,6 +221,10 @@ type Desc struct {
 	// are set, and each carries what the layer is actually using.
 	Levels     []float64
 	LevelCount int
+	// LabelLevels is whether a [Contour] or a [Locus] writes each level's value
+	// along the curve it draws it at. See [LabelLevels]; the format a Go caller
+	// gave is not here, because a function does not survive a document.
+	LabelLevels bool
 	// Bandwidth is the kernel width a [Violin] or a [Ridgeline] estimates with,
 	// Span the fraction of the rows one local fit of a [Trend] sees, Smooth how
 	// it fits, and Overlap how far a ridge rises. Each carries the value the
@@ -533,6 +537,7 @@ func (d Desc) options() []Option {
 		BandHeight(d.BandHeight),
 		Levels(d.Levels...),
 		LevelCount(d.LevelCount),
+		LabelLevels(d.LabelLevels),
 		Resample(d.Resample),
 		Branches(d.Branch),
 		Orient(d.Orient),
@@ -698,6 +703,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		BandHeight:   c.bandHeight,
 		Levels:       c.levels,
 		LevelCount:   c.levelCount,
+		LabelLevels:  c.labelLevels,
 		Resample:     c.resample,
 		Branch:       c.branch,
 		Orient:       c.orient,
