@@ -969,6 +969,21 @@ one each for the same reason. The buffer lives on the layer rather than in the
 frame's pool because `Train` runs outside a `Build`, where there is no scratch
 to take; that is the same argument the group index already makes.
 
+**A stress layout's row order decides which minimum it reaches, and that is a
+bigger number than it sounds.** `stat.Stress` descends a non-convex objective,
+and both the arrangement it starts from and the order a sweep visits the nodes
+in come from the order the caller's rows interned them. So relabelling the same
+edges is not a relabelling of the same picture: the collaboration graph in
+`docs/images/network.png` settles at a stress of 3.47 in the order its rows
+arrive in and at 2.30 under one relabelling — a third lower, from the same code
+at the same budget. Picking the start rows more cleverly does not fix it; that
+was measured and only moves which numbering is the unlucky one
+([ADR 0077](docs/adr/0077-a-node-link-layout.md)'s second amendment has the
+table). `stat.StressSweeps` is a *budget* and not a convergence point — about
+four percent of stress is still on the table at fifty sweeps for a 127-node
+tree — and a monotone descent on the stress is not a monotone improvement in
+legibility, because nothing here counts an overlap or a crossing.
+
 **A stat evaluated on a grid pins the grid's ends, and never truncates a
 kernel.** Both halves of that are the same bug, and it shipped for exactly one
 CI run — green on amd64, red on macOS. `lo + float64(i)*step` is a multiply and

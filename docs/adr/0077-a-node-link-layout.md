@@ -1,6 +1,6 @@
 # 0077 — A node-link layout is a monotone descent on a named objective
 
-**Status:** Accepted, amended · **Date:** 2026-09-18 · **Implemented:** 2026-09-18 · see [Amendment](#amendment-three-corrections-from-review)
+**Status:** Accepted, amended · **Date:** 2026-09-18 · **Implemented:** 2026-09-18 · see the amendments on [three corrections](#amendment-three-corrections-from-review) and [the sweep budget](#amendment-what-the-sweep-budget-is-and-what-it-is-not)
 
 ## Context
 
@@ -290,3 +290,65 @@ code treated a missing second direction as a failure, and the fallback put the
 chain on a circle. Keeping the first direction brings the same chain under one
 percent. A record that explains a defect is worse than one that omits it, which
 is the reason this paragraph exists.
+
+## Amendment: what the sweep budget is, and what it is not
+
+**Date:** 2026-09-18
+
+The first version justified `stat.StressSweeps = 50` with "where the
+arrangement stops visibly improving on the graphs this was tested against". The
+graphs it was tested against were a lattice, a ring, a path, two triangles and a
+graph with no edges — all small, all easy, and chosen while the sweep was still
+the simultaneous one that does not descend. A reviewer ran the budget properly.
+The numbers below are the stress left over at a budget, against the same run
+carried on to 400 sweeps, and they reproduce in Go exactly as they were reported
+in an independent C++ port:
+
+| Graph | 20 | 50 | 100 | 200 |
+|---|---|---|---|---|
+| 4×5 lattice | <0.01 % | <0.01 % | <0.01 % | <0.01 % |
+| the gallery's collaboration graph | 18.60 % | 0.07 % | <0.01 % | <0.01 % |
+| binary tree, 31 nodes | 50.58 % | 0.02 % | <0.01 % | <0.01 % |
+| binary tree, 127 nodes | 11.63 % | 3.92 % | 1.22 % | 0.07 % |
+| the same collaboration graph, relabelled | 408.04 % | 88.83 % | 49.95 % | <0.01 % |
+
+**Fifty stays**, because nothing here says it is too big — the 127-node tree is
+still four percent short of its own limit at fifty, and the relabelled graph is
+not short of anything a bigger budget fixes. What goes is the justification: the
+constant is a budget, and the comment on it now says so and carries these
+numbers. Two further things it does not claim. A monotone descent on the stress
+is not a monotone improvement in *legibility* — nothing here counts an overlap
+or a crossing. And "no visible change past fifty" is false on a 127-node tree
+and on some relabellings.
+
+**The last row is the finding, and it is not about the budget at all.** Both the
+start and the order a sweep visits the nodes in come from the order the caller's
+rows named them, so relabelling the edges moves the descent to a different
+basin. Taken to 400 sweeps, where every row above has converged, the same
+collaboration graph settles at a stress of **3.47** in the order its rows arrive
+in and at **2.30** under one relabelling — a third lower, from the same code at
+the same budget; a 127-node tree has two minima about ten percent apart. The
+picture in `docs/images/network.png` is therefore a drawing of this graph *in
+this row order*, and a better arrangement of the same edges exists.
+
+Choosing the start more carefully does not fix it. Picking the two most
+peripheral nodes' rows to start the refinement from — a deterministic choice
+made from the distances rather than from the index, which is what the pivot
+selection in PivotMDS is for — was measured and moves the problem rather than
+solving it: the worst relabelling improved from 88.83 % to 5.66 % at fifty
+sweeps, and the gallery's own order went from 0.07 % to 96.59 %. The worst case
+across numberings was unchanged. So the sweep order matters on its own, not
+only through where the start lands, and that is not a better heuristic away.
+
+**What would address it is spending the budget differently rather than
+enlarging it**: run the descent from several deterministic starts and keep the
+arrangement with the lowest stress. This record's own argument is that the
+objective is named, which is exactly what makes "keep the better one" a
+measurement rather than a preference. It is not done here — it multiplies the
+cost of a layout that is already the most expensive in `stat`, and it deserves
+the record it would need rather than a paragraph in this one.
+
+**The cost is not where it looks either.** On the 127-node tree, `Reset` is
+8.7 ms: the start (three runs of `StressPowerIterations`) is 1.9 ms of it, the
+two distance passes 0.4 ms, and the fifty sweeps 6.7 ms. Cutting the budget from
+fifty to twenty therefore saves about 47 % of a layout, not 60 %.

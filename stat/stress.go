@@ -10,11 +10,19 @@ import "math"
 // separate goroutines has to be byte-identical to one built serially
 // (docs/adr/0012-parallel-panels.md).
 //
-// Fifty is where the arrangement stops visibly improving on the graphs this was
-// tested against — a grid, a ring, a tree, two clusters joined by one edge, and
-// a graph with no edges at all. Majorization is monotone, so a sweep never
-// makes the drawing worse; what a bound costs is the last fraction of a percent
-// of a quantity no reader can see.
+// **Fifty is a budget rather than a convergence point**, and the difference is
+// worth the sentence. Measured against the same run carried on to 400 sweeps,
+// the stress left over at fifty is under a hundredth of a percent on a 4×5
+// lattice and on a 31-node binary tree, under a tenth of a percent on the
+// collaboration graph in docs/images/network.png, and about **four percent** on
+// a 127-node binary tree. A sweep never raises the stress, so that leftover is
+// the whole of what the bound costs — and on a big tree it is not nothing.
+//
+// Two things it does not mean. Stress is a sum over every pair and not what a
+// reader sees: nothing here measures overlapping labels or crossing edges, and
+// a drawing can be harder to read at the lower number. And the budget is not
+// the biggest lever on how good the arrangement is — see [Stress] on what the
+// order of the caller's rows decides.
 const StressSweeps = 50
 
 // MaxStressNodes is the largest graph a [Stress] lays out.
@@ -77,6 +85,25 @@ type StressEdge struct {
 //   - The sweep count is [StressSweeps] and the refinement count is
 //     [StressPowerIterations]; the distances are whole numbers of edges. Nothing
 //     here reads a clock, and nothing stops on a tolerance.
+//
+// # The row order decides which minimum, not just which tie-break
+//
+// Stress is not convex, and a descent reaches the minimum whose basin it starts
+// in. Both the start and the order a sweep visits the nodes in come from the
+// order the caller's rows named them, so relabelling the same edges is not a
+// relabelling of the same picture: the collaboration graph in
+// docs/images/network.png settles at a stress of 3.47 in the order its rows
+// arrive in, and at 2.30 under a relabelling of the same edges — a third lower,
+// from the same code at the same budget. A 127-node binary tree has two minima
+// this reaches, about ten percent apart.
+//
+// That is a property to know rather than a defect to route around here. It is
+// the same sentence every layout in this package carries — the row order is the
+// input — with a larger number attached than the others have.
+// [github.com/timzifer/figure/geom.Order] is how a caller asks for a different
+// one. Running several orders and keeping the arrangement with the lowest
+// stress is a thing this could do and does not; it would be its own record,
+// because it spends the budget differently rather than more.
 //
 // It is a struct with a [Stress.Reset] rather than a pair of functions for the
 // reason [Sankey], [Tidy] and [Layered] are: the layout keeps several buffers
