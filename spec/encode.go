@@ -144,7 +144,13 @@ func encodeScale(d scale.Desc) *Scale {
 	out := &Scale{Nice: d.Nice, Zero: d.Zero, Format: d.Format, Locale: d.Locale}
 	switch d.Kind {
 	case scale.KindLinear:
-		out.Type, out.TickValues = "linear", d.TickValues
+		// Reverse is written only for the kind that reads it back. On a
+		// positional scale the word means the axis runs the other way and on a
+		// colour scale it means the ramp does, which is one word for two ideas
+		// — tolerable because the channel a scale hangs off says which of them
+		// is in question, and misleading the moment a kind that ignores it
+		// writes it down anyway.
+		out.Type, out.TickValues, out.Reverse = "linear", d.TickValues, d.Reverse
 	case scale.KindLog:
 		out.Type, out.Base = "log", d.Base
 		out.MinorTicks = boolPtr(d.MinorTicks)

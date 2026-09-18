@@ -29,6 +29,7 @@ func SymLogThreshold(t float64) SymLogOption {
 
 // SymLogDomain pins the data domain explicitly, disabling training.
 func SymLogDomain(min, max float64) SymLogOption {
+	min, max = order(min, max)
 	return func(s *symlogScale) {
 		s.fixed = true
 		s.dmin, s.dmax, s.trained = min, max, true

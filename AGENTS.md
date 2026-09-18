@@ -96,6 +96,16 @@ The CPU rasterizer is the supported path —
 **gg is pinned exactly.** Upgrading it is a deliberate change with its own
 commit, not a side effect of `go get -u`.
 
+**A domain is ordered, and an axis's direction is `scale.Reverse`.** `Domain`,
+`LogDomain`, `SymLogDomain` and `Zoomer.SetDomain` all order the bounds they are
+given. Writing them backwards to flip an axis half-works, which is why it is not
+allowed to: `Map` and `Invert` mirror, and then `Zero` and `Nice` reorder the
+pair, the containment test in `Ticks` drops every tick there is, and the first
+pan turns the axis back round. What reverses is the device range — see
+[ADR 0075](docs/adr/0075-an-axis-has-a-direction.md). Anything that walks ticks
+across a panel walks them in **screen** order for the same reason: a tick
+sequence is ascending by value, and on a reversed axis that is right to left.
+
 **Scales place a value with one explicit rounding, and it is not redundant.**
 `scale.place` writes `rlo + float32(float32(t)*(rhi-rlo))`. The inner
 conversion looks like a no-op — `t` is already being converted — and it is not:

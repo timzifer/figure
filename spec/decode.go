@@ -191,6 +191,11 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 		d.Kind = scale.Kind(typ)
 	}
 
+	if typ == "linear" {
+		// See encodeScale: only a linear scale reads this word positionally,
+		// and an absent type is already "linear" by the time it gets here.
+		d.Reverse = s.Reverse
+	}
 	if len(s.Domain) == 2 {
 		lo, err := domainValue(s.Domain[0], d.Origin)
 		if err != nil {

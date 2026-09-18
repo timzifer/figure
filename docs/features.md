@@ -13,6 +13,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `scale.TickValues` pins the sequence outright, for an axis whose ticks are a
   convention rather than a reading — the 0.2 / 0.5 / 1 / 2 / 5 of a Smith chart,
   the five points of a Likert item.
+  `scale.Reverse` draws a linear axis the other way round, for a reading whose
+  small numbers belong at the far end: an UpSet plot's set-size bars growing
+  away from the matrix they label, a depth below a surface, a rank where first
+  is best ([ADR 0075](adr/0075-an-axis-has-a-direction.md)).
   `scale.Probability` is probability paper: an axis warped by `Probit`, `Logit`,
   `CLogLog` or `Gumbel` so one distribution's cumulative function is a straight
   line, labelled on the 0.1 / 1 / 5 … 95 / 99 / 99.9 % ladder. An ECDF on it is

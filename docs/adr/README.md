@@ -84,6 +84,7 @@ depends on.
 | [0072](0072-layered-graph-layout.md) | A layered graph is bounded and deterministic once the sort is stable, and the node's box is decoration rather than layout | Accepted, amended | — |
 | [0073](0073-labels-on-a-curve.md) | A label on a curve is placed by the curve, gapped out of it, and seated at the table ADR 0040 set | Accepted | — |
 | [0074](0074-sets-are-counted.md) | Sets are counted rather than laid out, and the composition is the caller's | Accepted, amended | — |
+| [0075](0075-an-axis-has-a-direction.md) | An axis has a direction, and it belongs to the scale rather than to its domain | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
