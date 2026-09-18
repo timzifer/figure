@@ -849,6 +849,16 @@ func drawGrid(b ir.Backend, th theme.Theme, c Panel, fur *coord.Furniture, xTick
 			strokeShape(b, shapeAt(fur.GridY, i), stroke)
 		}
 	}
+	// A family belongs to the coord rather than to either axis, so it is
+	// governed by the two questions above — the panel's grid and the theme's
+	// grid ink — and not by ShowGridX or ShowGridY. Taking a ternary chart's
+	// third ladder down with the horizontal grid would make the answer depend
+	// on which component the caller put on X. See ADR 0070.
+	for i := range fur.Families {
+		for j := range fur.Families[i].Lines {
+			strokeShape(b, &fur.Families[i].Lines[j], stroke)
+		}
+	}
 }
 
 // strokeShape draws one piece of furniture: as a polyline where the coord
@@ -914,13 +924,25 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 	//
 	// Labels that share no line — round a ring, along its spoke — are thinned
 	// against each other by their boxes instead, across both axes at once.
+	showX, showY := th.ShowTicksX && p.ShowX, th.ShowTicksY && p.ShowY
 	var keep, keepY []bool
+	var kept []ir.Rect
 	if fur.XLabelsShareARow {
 		keep = selectXLabels(b, fur, xTicks, tickFont, th.TickLabelPad)
+		// The boxes are measured only when something is going to be thinned
+		// against them: a Cartesian panel has no families and must not pay a
+		// measurement, let alone an allocation, for a field it never fills.
+		if len(fur.Families) > 0 {
+			kept = labelBoxes(b, fur, xTicks, yTicks, keep, nil, tickFont, showX, showY)
+		}
 	} else {
-		keep, keepY = selectScatteredLabels(b, fur, xTicks, yTicks, tickFont, th.TickLabelPad,
-			th.ShowTicksX && p.ShowX, th.ShowTicksY && p.ShowY)
+		keep, keepY, kept = selectScatteredLabels(b, fur, xTicks, yTicks, tickFont, th.TickLabelPad,
+			showX, showY)
 	}
+	// A family's labels are thinned after both axes, so where a family's
+	// number would land on an axis's the axis keeps it: a family is the third
+	// reading of a chart and the axes are the first two. See ADR 0070.
+	keepFamily := selectFamilyLabels(b, fur, tickFont, th.TickLabelPad, kept, showX || showY)
 	for i, t := range xTicks {
 		if !inFurniture(fur.InX, i) || !th.ShowTicksX {
 			continue
@@ -949,6 +971,79 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 		}
 		b.Text(labelRun(t.Label, tickFont, fur.LabelY[i], th.TickColor))
 	}
+
+	// The coord's own families. They take the tick font and the tick ink,
+	// because a family is a ladder and a ladder's numbers are tick labels
+	// wherever else they appear.
+	for i := range fur.Families {
+		fam := &fur.Families[i]
+		for j := range fam.Labels {
+			if j >= len(fam.Text) || fam.Text[j] == "" || !keepFamily[i][j] {
+				continue
+			}
+			b.Text(labelRun(fam.Text[j], tickFont, fam.Labels[j], th.TickColor))
+		}
+	}
+}
+
+// labelBoxes is the boxes of the labels a panel has decided to keep, which is
+// what a later pass has to clear. keepY nil means every Y label is kept, which
+// is what the shared-row branch means by leaving it nil.
+func labelBoxes(m layout.Measurer, fur *coord.Furniture, xTicks, yTicks []scale.Tick,
+	keepX, keepY []bool, font ir.FontRef, showX, showY bool,
+) []ir.Rect {
+	var kept []ir.Rect
+	add := func(ticks []scale.Tick, labels []coord.Label, in, keep []bool, show bool) {
+		if !show {
+			return
+		}
+		for i, t := range ticks {
+			if t.Label == "" || !inFurniture(in, i) || i >= len(labels) {
+				continue
+			}
+			if keep != nil && !keep[i] {
+				continue
+			}
+			run := labelRun(t.Label, font, labels[i], ir.Color{})
+			kept = append(kept, layout.LabelBounds(run, m.Measure(run)))
+		}
+	}
+	add(xTicks, fur.LabelX, fur.InX, keepX, showX)
+	add(yTicks, fur.LabelY, fur.InY, keepY, showY)
+	return kept
+}
+
+// selectFamilyLabels thins the labels of the coord's own grid families against
+// the axis labels already kept and against each other, greedily in family
+// order. The result is one slice of decisions per family, parallel to its
+// labels, and it is never nil for a family that has any.
+func selectFamilyLabels(m layout.Measurer, fur *coord.Furniture, font ir.FontRef, pad float32,
+	kept []ir.Rect, show bool,
+) [][]bool {
+	if len(fur.Families) == 0 {
+		return nil
+	}
+	keep := make([][]bool, len(fur.Families))
+	for i := range fur.Families {
+		fam := &fur.Families[i]
+		keep[i] = make([]bool, len(fam.Labels))
+		if !show {
+			continue
+		}
+		for j := range fam.Labels {
+			if j >= len(fam.Text) || fam.Text[j] == "" {
+				continue
+			}
+			run := labelRun(fam.Text[j], font, fam.Labels[j], ir.Color{})
+			box := layout.LabelBounds(run, m.Measure(run))
+			if overlapsAny(box, kept, pad) {
+				continue
+			}
+			keep[i][j] = true
+			kept = append(kept, box)
+		}
+	}
+	return keep
 }
 
 // selectScatteredLabels thins the tick labels of a panel whose labels do not
@@ -961,11 +1056,12 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 // into one round the rim, and the axis [coord.Furniture.LabelsYFirst] names
 // goes first so that the angle's labels are the ones that stay. A label that
 // will not be drawn takes no room.
+// It hands back the boxes it kept as well, because the coord's own families
+// are thinned against them afterwards.
 func selectScatteredLabels(m layout.Measurer, fur *coord.Furniture, xTicks, yTicks []scale.Tick,
 	font ir.FontRef, pad float32, showX, showY bool,
-) (keepX, keepY []bool) {
+) (keepX, keepY []bool, kept []ir.Rect) {
 	keepX, keepY = make([]bool, len(xTicks)), make([]bool, len(yTicks))
-	var kept []ir.Rect
 	thin := func(ticks []scale.Tick, labels []coord.Label, in, keep []bool, show bool) {
 		if !show {
 			return
@@ -990,7 +1086,7 @@ func selectScatteredLabels(m layout.Measurer, fur *coord.Furniture, xTicks, yTic
 		thin(xTicks, fur.LabelX, fur.InX, keepX, showX)
 		thin(yTicks, fur.LabelY, fur.InY, keepY, showY)
 	}
-	return keepX, keepY
+	return keepX, keepY, kept
 }
 
 // overlapsAny reports whether box comes within pad of any of kept.

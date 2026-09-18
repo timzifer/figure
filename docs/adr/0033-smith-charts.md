@@ -177,10 +177,15 @@ the chord it is.
 
 ## Revisit if
 
-- A second chart wants a grid family its axes have no tick for. That is the
-  moment to argue a `Furniture` that carries families rather than sides — and
-  it would reopen Γ-as-input, VSWR circles and a projection's graticule
-  together, which is the right way to spend that seam.
+- ~~A second chart wants a grid family its axes have no tick for.~~ It did —
+  a ternary chart's third component, [ADR 0051](0051-barycentric-coord.md) —
+  and [ADR 0070](0070-a-third-labelled-family.md) is the `Furniture` that
+  carries families rather than sides. **The three things this clause said would
+  be reopened together are now each a coord's own arithmetic and no further
+  seam**: the VSWR circles and constant-Q arcs as furniture rather than as the
+  `geom.Locus` annotations `examples/smith` draws them with, Γ-as-input with
+  the impedance grid raised as families, and a projection's graticule. None is
+  built; none needs anything from this record any more.
 - A Smith chart turns out to be a big-data chart, which would reopen
   `Decimates` — though the reduction, not the answer, is what would have to
   change.

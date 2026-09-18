@@ -56,21 +56,22 @@ import (
 //
 // The constant-a and constant-b families are the images of the two axes' own
 // ticks, exactly as a Smith chart's two families are, and they are labelled
-// from the ticks' own labels. The constant-c family needs no new field to be
-// drawn: it is the diagonal a + b = Sum − v, it pairs with the X tick at v,
-// and the coord emits it as a second subpath inside that tick's grid shape. So
-// it takes the theme's grid ink like its neighbours and [Furniture] gained
-// nothing.
+// from the ticks' own labels. The constant-c family has no third tick list to
+// hang on, so the coord raises it as a [Family]: its own lines, its own label
+// positions, and its own text, which is the field ADR 0070 added and the thing
+// a ladder with no tick behind it was missing. It rides on the levels the X
+// ticks name, because all three ladders of a ternary chart read the same
+// sequence, and it takes the theme's grid ink like its neighbours.
 //
-// What is genuinely missing is that family's labels, because a panel carries
-// one label per tick per side and there is no third side. That is the seam
-// [ADR 0033] named for the VSWR circles, and it is not spent on two thirds of
-// the problem — see docs/adr/0051-barycentric-coord.md. Until it is, the third
-// edge is labelled the way ternary charts are usually labelled anyway:
-// [github.com/timzifer/figure/geom.Note] at the corner, naming the component.
-// The numeric ladder there is redundant with the other two, which is why the
-// omission is survivable and why an unlabelled third family is not a broken
-// chart.
+// Each component is therefore read along its own edge, cyclically: the first
+// along the base, the second along the edge where the first is nothing, the
+// third along the edge where the second is. That is how every printed ternary
+// chart is arranged, and it is what the third ladder needs — the two edges it
+// crosses are the two the other ladders label.
+//
+// The corner labels naming the components are still the caller's, and still
+// [github.com/timzifer/figure/geom.Note] at the corner: a corner label is a
+// component's name, and no ladder carries that.
 //
 // # The domains are pinned
 //
@@ -238,34 +239,41 @@ func (t *ternary) Fixed() bool { return true }
 
 func (t *ternary) Describe() Desc { return Desc{Type: TypeTernary, Sum: t.sum} }
 
-// Furniture places the three ladders.
+// Furniture places the three ladders, one along each edge.
 //
-// The X axis line is the edge where the second component is nothing — the one
-// the first component's ladder is read along — and the Y axis line is the
-// other two edges in one run: a panel has two axis lines, a triangle has three
-// sides, and a ternary chart with one side unstroked is not a triangle.
+// Each component is read along its own edge, cyclically: the first along the
+// base, the second along the edge where the first is nothing, the third along
+// the edge where the second is. The first two are the panel's own tick lists;
+// the third is a [Family], which is the field ADR 0070 added so that a ladder
+// with no tick behind it has something to be labelled by.
+//
+// The X axis line is the base — the edge the first component is read along —
+// and the Y axis line is the other two edges in one run: a panel has two axis
+// lines, a triangle has three sides, and a ternary chart with one side
+// unstroked is not a triangle.
 func (t *ternary) Furniture(dst *Furniture, req FurnitureRequest) {
 	m := req.Metrics
-	// The X labels run up a slanted edge rather than along one horizontal
-	// line, so two of them that share an x are still a finger apart.
+	// The three ladders run along three different edges, so no two of them
+	// share a row and render thins them all against each other by their boxes
+	// — which is the pass a family's labels join.
 	dst.XLabelsShareARow = false
 
-	dst.AxisX.line(t.a, t.c)
-	dst.AxisY.Pts = append(dst.AxisY.Pts[:0], t.c, t.b, t.a)
+	dst.AxisX.line(t.a, t.b)
+	dst.AxisY.Pts = append(dst.AxisY.Pts[:0], t.b, t.c, t.a)
 
 	t.ladder(dst.x(), req.XTicks, m, true)
 	t.ladder(dst.y(), req.YTicks, m, false)
+	t.third(dst, req.XTicks, m)
 }
 
 // ladder fills one axis's worth of furniture: a grid line per tick, a mark on
-// the edge that axis is read along, and the label beyond it.
-//
-// The first component's ladder carries the derived third family as a second
-// subpath, which is the whole of how a chart with three grid families is drawn
-// by a panel with two tick lists.
+// the edge that component is read along, and the label beyond it.
 func (t *ternary) ladder(s side, ticks []scale.Tick, m Metrics, first bool) {
 	k := float32(t.sum)
-	out := t.outward(first)
+	out := t.outward(t.a, t.b, t.c)
+	if !first {
+		out = t.outward(t.b, t.c, t.a)
+	}
 	for _, tk := range ticks {
 		grid, mark := s.next()
 		v := tk.Pos
@@ -275,13 +283,11 @@ func (t *ternary) ladder(s side, ticks []scale.Tick, m Metrics, first bool) {
 		}
 		var at ir.Point
 		if first {
-			// Constant a: from the b = 0 edge across to the c = 0 edge.
-			at = t.Point(v, 0)
+			// Constant a: from the b = 0 edge across to the c = 0 edge, and
+			// read where it meets the base.
+			at = t.Point(v, k-v)
 			if !tk.Minor {
-				run(grid, at, t.Point(v, k-v))
-				// And the derived family at the same level: constant c, which
-				// is the diagonal a + b = k − v.
-				run(grid, t.Point(k-v, 0), t.Point(0, k-v))
+				run(grid, t.Point(v, 0), at)
 			}
 		} else {
 			// Constant b: from the a = 0 edge across to the c = 0 edge.
@@ -293,29 +299,58 @@ func (t *ternary) ladder(s side, ticks []scale.Tick, m Metrics, first bool) {
 		if l := m.tickLen(tk); l > 0 {
 			mark.line(at, ir.Point{X: at.X + out.X*l, Y: at.Y + out.Y*l})
 		}
-		gap := m.labelGap()
-		h, va := radialAlign(math.Atan2(float64(out.X), float64(-out.Y)))
-		s.mark(true, Label{
-			At: ir.Point{X: at.X + out.X*gap, Y: at.Y + out.Y*gap},
-			H:  h,
-			V:  va,
-		})
+		s.mark(true, t.place(at, out, m))
+	}
+}
+
+// third raises the derived component's ladder as a family of its own: the
+// diagonal a + b = k − v at every level the first component's ticks name,
+// labelled with those ticks' own strings on the edge where the second
+// component is nothing.
+//
+// It rides on the X ticks rather than raising levels of its own because all
+// three ladders of a ternary chart read the same sequence — that is what makes
+// the chart legible — and because the sequence the caller chose for one of
+// them is the sequence they chose.
+func (t *ternary) third(dst *Furniture, ticks []scale.Tick, m Metrics) {
+	k := float32(t.sum)
+	out := t.outward(t.a, t.c, t.b)
+	var fam *Family
+	for _, tk := range ticks {
+		v := tk.Pos
+		if tk.Minor || v < 0 || v > k || math.IsNaN(float64(v)) {
+			continue
+		}
+		if fam == nil {
+			fam = dst.family("third component")
+		}
+		at := t.Point(k-v, 0)
+		run(fam.next(), at, t.Point(0, k-v))
+		fam.label(t.place(at, out, m), tk.Label)
+	}
+}
+
+// place is where a label sits once its tick mark has been drawn: past a
+// full-length mark, aligned about that point by the direction it went out in.
+func (t *ternary) place(at, out ir.Point, m Metrics) Label {
+	gap := m.labelGap()
+	h, v := radialAlign(math.Atan2(float64(out.X), float64(-out.Y)))
+	return Label{
+		At: ir.Point{X: at.X + out.X*gap, Y: at.Y + out.Y*gap},
+		H:  h,
+		V:  v,
 	}
 }
 
 // run appends one straight grid line as a subpath, which is what lets a single
-// tick's shape hold two of them.
+// shape hold more than one of them.
 func run(s *Shape, from, to ir.Point) {
 	s.Path.MoveTo(from.X, from.Y).LineTo(to.X, to.Y)
 }
 
-// outward is the unit direction out of the edge one ladder is read along, away
-// from the corner opposite it.
-func (t *ternary) outward(first bool) ir.Point {
-	from, to, away := t.a, t.c, t.b
-	if !first {
-		from, to, away = t.b, t.c, t.a
-	}
+// outward is the unit direction out of the edge from → to, away from the third
+// corner.
+func (t *ternary) outward(from, to, away ir.Point) ir.Point {
 	// The normal of the edge, turned to point away from the third corner.
 	nx, ny := -(to.Y - from.Y), to.X-from.X
 	if nx*(away.X-from.X)+ny*(away.Y-from.Y) > 0 {

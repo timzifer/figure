@@ -126,10 +126,12 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the cheapest, because the barycentric map is affine: X and Y are two
   components of a composition and the third is what is left, so `Straight()` is
   true and every mark draws what it drew under Cartesian. Its third grid family
-  has no third tick list to hang on and needs none — the constant-c line rides
-  as a second subpath inside the X tick's own grid shape — and the corner
-  labels a ternary chart is printed with are `geom.Note`
-  ([ADR 0051](adr/0051-barycentric-coord.md)).
+  has no third tick list to hang on and does not need one: a coord may raise a
+  `coord.Family` of its own — its own levels, its own labels, its own text —
+  so each component is read along its own edge and all three ladders carry
+  numbers ([ADR 0051](adr/0051-barycentric-coord.md),
+  [ADR 0070](adr/0070-a-third-labelled-family.md)). The corner labels naming
+  the components are still `geom.Note`.
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and

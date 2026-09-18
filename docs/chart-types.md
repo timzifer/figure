@@ -414,10 +414,14 @@ true, an edge is a `LineTo`, `Area` is four transformed corners, `Invert` is a
 | Durov diagram | the same two ternaries, projected into a central rectangle rather than Piper's diamond |
 
 **The third grid family is the interesting part.** Three labelled ladders, two
-tick lists. The constant-c lines are drawn as a second subpath inside the X
-ticks' own shapes, so they cost `Furniture` nothing; their *labels* are what is
-missing, and that is deliberately left as the case that would reopen ADR 0033's
-seam — once, together with a projection's graticule, rather than twice.
+tick lists. The constant-c lines cost `Furniture` nothing to draw — they rode
+as a second subpath inside the X ticks' own shapes — but their *labels* had
+nowhere to come from, and that was the case held open to reopen ADR 0033's seam
+once rather than twice. It is now spent: a coord raises a `coord.Family` of its
+own, with its own levels, its own label positions and its own text, so each
+component is read along its own edge and `examples/ternary` is a soil triangle
+and a QFL diagram with all three ladders numbered
+([ADR 0070](adr/0070-a-third-labelled-family.md)).
 
 ## K — needs a probability scale — **shipped**, [ADR 0052](adr/0052-probability-scales.md)
 
