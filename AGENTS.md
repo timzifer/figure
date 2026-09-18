@@ -979,7 +979,10 @@ arrive in and at 2.30 under one relabelling — a third lower, from the same cod
 at the same budget. Picking the start rows more cleverly does not fix it; that
 was measured and only moves which numbering is the unlucky one
 ([ADR 0077](docs/adr/0077-a-node-link-layout.md)'s second amendment has the
-table). `stat.StressSweeps` is a *budget* and not a convergence point — about
+table). And **`geom.Order` is not the way to ask for another one**: it reaches
+the grouped marks and the set charts, `geom/relational.go`'s edge reader never
+looks at it, and a `NodeLink` given one draws exactly what it drew. A caller
+who wants a different node order re-orders the rows of the table. `stat.StressSweeps` is a *budget* and not a convergence point — about
 four percent of stress is still on the table at fifty sweeps for a 127-node
 tree — and a monotone descent on the stress is not a monotone improvement in
 legibility, because nothing here counts an overlap or a crossing.

@@ -237,6 +237,9 @@ for a sankey's nodes, unchanged.
 - **A graph turns up whose picture this gets wrong.** The shape probes behind
   claim 2 are where a new case goes; multi-level is the answer that also moves
   `MaxStressNodes`.
+- **Several starts are worth their cost.** The second amendment has the
+  measurements, the three things already settled about how it would have to be
+  built, and the comparison that would decide it.
 - **Someone wants the edge weights to be distances.** That is a different
   distance table — a weighted shortest path — and everything above it is
   unchanged. What it needs is an argument about what the number on an edge
@@ -344,9 +347,45 @@ only through where the start lands, and that is not a better heuristic away.
 enlarging it**: run the descent from several deterministic starts and keep the
 arrangement with the lowest stress. This record's own argument is that the
 objective is named, which is exactly what makes "keep the better one" a
-measurement rather than a preference. It is not done here — it multiplies the
-cost of a layout that is already the most expensive in `stat`, and it deserves
-the record it would need rather than a paragraph in this one.
+measurement rather than a preference. It is not done here, and the reason is
+that it was tried and the result is mixed. Classical scaling taken to a hundred
+sweeps, against the better of classical scaling and a circle at fifty each:
+
+| Graph | one start, 100 sweeps | better of two, 50 each |
+|---|---|---|
+| the gallery's collaboration graph | 3.4711 | **2.3008** |
+| binary tree, 127 nodes | 635.1561 | **628.0061** |
+| the same collaboration graph, relabelled | **2.6583** | 2.8681 |
+
+Raw stress, lower better. The gallery's own order gains a third; the relabelled
+one loses. Several starts reach other minima, and shorter runs can still be
+mid-descent — those are two different effects and this table does not separate
+them. A default changes on better evidence than that.
+
+**Four things are settled for whoever writes it**, so that they are not
+discovered twice:
+
+- **A mirrored start is not a second start.** Mirroring the whole arrangement,
+  scatter included, leaves every distance unchanged, and the Guttman step
+  commutes with an isometry — so the trajectory is the mirror image of the first
+  one and its stress is identical, as trying it confirms. Mirroring *before* an
+  index-based scatter varies the scatter rather than the start. A circle is
+  geometrically different; a reflection is not.
+- **The cost need not double.** The distance table and the weights are shared,
+  and a circle start needs no eigen pass at all. `Stress.Reset` already computes
+  the distances twice — `gram` consumes the first copy — so half of that sharing
+  is built. Against one run of a hundred sweeps, two runs of fifty are the same
+  number of sweeps plus one extra start and one evaluation; against today's one
+  run of fifty they are simply more. What has to be measured is the whole of
+  `Reset`.
+- **The choice is made before `emit`.** Both candidates are scored against the
+  same graph distances and the same weights, and an exact tie keeps the first.
+  That guarantees the lowest stress *among the candidates tried* — not the
+  global minimum, and not independence from the row order, because the
+  candidates themselves are built from it.
+- **The comparison to run** is one start at a hundred sweeps, two starts at
+  fifty, and two short starts with the winner refined; against stress, against
+  a count of what overlaps, and against the running time of `Reset`.
 
 **The cost is not where it looks either.** On the 127-node tree, `Reset` is
 8.7 ms: the start (three runs of `StressPowerIterations`) is 1.9 ms of it, the

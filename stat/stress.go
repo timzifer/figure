@@ -100,10 +100,15 @@ type StressEdge struct {
 // That is a property to know rather than a defect to route around here. It is
 // the same sentence every layout in this package carries — the row order is the
 // input — with a larger number attached than the others have.
-// [github.com/timzifer/figure/geom.Order] is how a caller asks for a different
-// one. Running several orders and keeping the arrangement with the lowest
-// stress is a thing this could do and does not; it would be its own record,
-// because it spends the budget differently rather than more.
+//
+// **Asking for a different order means handing in a different table.** The
+// relational marks intern a name the first time a row mentions it, and nothing
+// between the caller and here reads an ordering option: `geom.Order` reaches
+// the grouped marks and the set charts and is accepted and ignored by a
+// relational one. A caller who wants another arrangement re-orders the rows
+// themselves. Running several orders and keeping the arrangement with the
+// lowest stress is a thing this could do and does not; it would be its own
+// record, because it spends the budget differently rather than more.
 //
 // It is a struct with a [Stress.Reset] rather than a pair of functions for the
 // reason [Sankey], [Tidy] and [Layered] are: the layout keeps several buffers
