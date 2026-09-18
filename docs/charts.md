@@ -418,8 +418,8 @@ p.Add(geom.NodeLink(src, geom.From("who"), geom.To("with")))
 Nothing in that table says there are three teams. The layout is what shows it,
 and it is a pure function of the table like every other layout here:
 `stat.Stress` starts from classical scaling of the graph's own distances and
-then runs a fixed number of majorization sweeps, each of which is one arithmetic
-expression per node rather than a step of a simulation
+then runs a fixed number of majorization sweeps, each of which lowers how far
+the drawn distances are from the graph's own and never raises it
 ([ADR 0077](adr/0077-a-node-link-layout.md)). It refuses a graph of more than
 `stat.MaxStressNodes` nodes rather than drawing a hairball, and
 [`examples/network`](../examples/network) draws the chart above.

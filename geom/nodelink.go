@@ -33,9 +33,9 @@ const NodeLinkRadius = 0.012
 //
 // This is the mark [ADR 0039](docs/adr/0039-relational-layouts.md) refused and
 // [ADR 0077](docs/adr/0077-a-node-link-layout.md) admitted. What it runs is
-// [stat.Stress], which is a minimisation with a closed-form step rather than a
-// simulation with a stopping rule: the same table gives the same picture, on
-// one goroutine or on eight.
+// [stat.Stress]: a named quantity minimised by a descent that never goes
+// uphill, stopped after a fixed number of sweeps rather than when a tolerance
+// is met. The same table gives the same picture, on one goroutine or on eight.
 //
 // # What it is for, and what it is not
 //

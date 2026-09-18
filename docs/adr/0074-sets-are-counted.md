@@ -258,14 +258,20 @@ in the same comment:
 > seven regions all exist and are **all big enough to write a number in**
 
 That is the mark's contract. `Venn` writes each region's count *into* the
-region; a region too thin to carry a number is a region where the mark cannot
-do the one thing it promises, and the four-ellipse diagram's slivers are
-exactly that. It is why the four-set picture that gets printed is labelled from
-a key beside it — a different mark, reading a different way, and the honest
-place for a fourth set to arrive if it ever does.
+region, at one type size, in an arrangement fixed in advance and at whatever
+size the panel happens to be; the four-ellipse diagram's slivers do not hold a
+number under those conditions. It is why the four-set picture that gets printed
+is labelled from a key beside it — a different mark, reading a different way,
+and the honest place for a fourth set to arrive if it ever does.
 
-The limit is therefore **legibility**, and it is a property of what this mark
-undertakes rather than a claim about what geometry allows. `ErrTooManySets`
+**This is a decision about this mark rather than a fact about four sets.**
+Whether a region holds a number depends on the arrangement, the size the chart
+is drawn at and how many digits the count has, and none of those is fixed by
+geometry: a large enough figure with short enough counts and a layout chosen for
+the labels could carry four. What is fixed is what this mark undertakes — one
+arrangement, the count inside the region, no measuring — and under that
+undertaking three is where it stops. The limit is therefore **legibility under
+a contract**, and both halves of that matter. `ErrTooManySets`
 says the same thing it always said, `geom.Intersections` is still the chart
 that keeps working past three, and it is still the better reading well before
 three.
@@ -273,9 +279,10 @@ three.
 ### Revisit if
 
 - **A four- or five-set diagram is wanted with its counts in a key rather than
-  in the regions.** That is a different contract and therefore a different
-  mark, and the fixed ellipse constructions above are what it would draw. This
-  record's limit does not bind it.
+  in the regions, or measured into them rather than set at one size.** Either is
+  a different contract and therefore a different mark, and the fixed ellipse
+  constructions above are what it would draw. This record's limit is a property
+  of this mark's promise and does not bind it.
 - **A two-set area-proportional diagram is asked for.** The construction is
   settled and bounded; what it needs is the record naming the stop at two,
   which the clause above already describes.

@@ -1,6 +1,6 @@
-# 0077 — A node-link layout is a minimisation with a closed-form step, and the refusal was of a method
+# 0077 — A node-link layout is a monotone descent on a named objective
 
-**Status:** Accepted · **Date:** 2026-09-18 · **Implemented:** 2026-09-18
+**Status:** Accepted, amended · **Date:** 2026-09-18 · **Implemented:** 2026-09-18 · see [Amendment](#amendment-three-corrections-from-review)
 
 ## Context
 
@@ -22,70 +22,122 @@ and called it the only thing bucket E was missing.
 
 Read closely, the sentence welds two claims together:
 
-- **that it cannot be a pure function at a bounded sweep count**, which is a
-  property of one *method*, and
+- **that it cannot be a pure function at a bounded sweep count**, and
 - **that also looks good**, which is a claim about pictures and was never
   tested.
 
-The first is true of a force simulation and of nothing else here. A simulation
-integrates a system of forces and stops when the movement falls below a
-tolerance; stop it early and it is caught mid-swing, so the bound and the
-picture are the same question. That is not how this form has to be drawn.
+The first is too strong, and saying so is the honest start. A force simulation
+*can* be made a pure function of its input: fix the starting arrangement, fix
+the step size, fix the iteration count, and it repeats exactly. A tolerance does
+not make an algorithm non-deterministic either — a loop that stops when a
+number falls below a threshold stops at the same place every time it is given
+the same arithmetic. So there is no impossibility here, and this record does not
+rest on one. What 0039 did was treat one method's *stopping rule* as a property
+of the whole family, which is the same over-broad move
+[ADR 0053](0053-tidy-tree-layout.md) and [ADR 0072](0072-layered-graph-layout.md)
+found in it twice already.
 
-**Stress majorization is not a simulation.** It minimises one number — how far
-the drawn distances are from the graph's own — and it does so by replacing that
-function, at each step, with a quadratic that touches it from above and whose
-minimum is an arithmetic expression. There is no integration, no tolerance and
-no clock. Every step goes downhill or nowhere, so stopping after a fixed count
-costs quality and cannot cost correctness: the drawing at sweep fifty is the
-drawing at sweep five hundred, further along.
+What is true is narrower and is a reason rather than a proof:
 
-So the refusal was of a method, and the form outlived it. What is left is the
-second claim, and this record settles it the only way it can be settled: by
-building the thing and looking at the pictures.
+- **The objective is named.** Stress is a number, so "is this arrangement better
+  than that one" has an answer that can be measured and tested. A force
+  simulation has no objective it is descending — the forces are the model — so
+  the same question has no answer inside the method.
+- **The descent never goes uphill.** Majorization moves the arrangement down a
+  function that sits above the stress, so the cost of stopping after a fixed
+  number of sweeps is a known trade: quality, bounded, and visible in a
+  measurement. Stopping a simulation early leaves it wherever it happened to be
+  in its own swing, and nothing in the method says how far that is from where it
+  was going.
+- **The pictures were measured**, which is the part 0039 never did and the part
+  this record spends most of its length on.
+
+A force simulation with a fixed budget would be a defensible choice too. It is
+not the one made here, and the difference is an argument about objectives and
+guarantees rather than about what is possible.
 
 ## Decision
 
 **`stat.Stress` places the nodes and `geom.NodeLink` draws them.** Five claims,
 three of which are measurements rather than arguments.
 
-### 1. The sweep count is a constant, for the third time
+### 1. The sweep never goes uphill, and that is a test rather than a phrase
 
 `stat.StressSweeps` is 50, beside `stat.SankeySweeps` and
 `stat.LayeredSweeps`, and for the reason those exist
-([ADR 0012](0012-parallel-panels.md)). Each sweep computes every new position
-from the previous sweep's positions only — Jacobi rather than Gauss–Seidel — so
-the arrangement does not depend on the order the nodes are visited in, only on
-the order the caller's rows interned them in. Nothing reads a map.
+([ADR 0012](0012-parallel-panels.md)).
 
-The two forms were measured against each other and came out within a tenth of a
-percent of one another on the test graphs, so the one with the stronger property
-was kept.
+What a bound costs depends on what a sweep guarantees, so it is worth being
+exact about the step. Majorization replaces the stress with a quadratic that
+sits above it and touches it at the current arrangement. Minimising *that
+quadratic*, over all the nodes at once, is a linear system — and this does not
+solve one. It descends the quadratic one node at a time: each node's own block
+is solved exactly with the others held still, and the result is written back
+before the next node reads it. Block coordinate descent on a convex quadratic
+never raises it, and the quadratic sits above the stress and meets it at the
+start of the sweep, so the stress does not rise either. That is the whole of
+"a bound costs quality and cannot cost correctness", and
+`TestASweepNeverRaisesTheStress` is it as a property over five graphs.
+
+**The simultaneous form does not have it, and that was measured rather than
+assumed.** Computing every new position from the previous sweep's positions —
+Jacobi rather than in place — is not a descent: two nodes whose target distance
+is 1, placed 1.02 apart, come out 0.98 apart, then 1.02 again, for ever, at
+constant stress. The first version of this record claimed that form as a virtue,
+on the grounds that it does not depend on the order the nodes are visited in.
+It does not descend either. `TestTheSimultaneousSweepIsWhyThisOneIsNot` pins the
+case.
+
+So the order a sweep visits the nodes in is load-bearing, and it is the order
+the caller's rows interned them in — which is the order every other layout in
+this package already works in, and the one ADR 0012 asks for.
 
 ### 2. Where it starts is what a bounded run decides, and the start is arithmetic
 
-Majorization only ever goes downhill, so the minimum it reaches is chosen by
-where it begins. A random start is the usual answer and the reason the usual
-implementation cannot be repeated. The first version here started from a circle
-in interning order, which is repeatable and wrong:
+A descent that never goes uphill reaches the minimum whose basin it starts in,
+so the starting arrangement is the whole of that decision. A random start is the
+usual answer and the reason the usual implementation cannot be repeated. The
+first version here started from a circle in interning order, which is repeatable
+and wrong:
 
 > **A 4×4 grid came out folded in half.** Its two far corners were drawn a tenth
 > of the picture apart.
 
-So the start is `stat.Stress.classical`: classical multidimensional scaling of
-the distance table — the two directions the graph is most spread out along —
-found by power iteration over the double-centred squared distances. The
-iteration count is `stat.StressPowerIterations` rather than a tolerance; the
-start vector is the first node's own distances, which is data rather than a
-seed and is never the vector that matrix annihilates. From there the same grid
-comes out a grid.
+So the start is classical multidimensional scaling of the distance table — the
+directions the graph is most spread out along — found by power iteration over
+the double-centred squared distances. The iteration count is
+`stat.StressPowerIterations` rather than a tolerance; the start vector is a
+node's own row of distances, which is data rather than a seed. From there the
+same grid comes out a grid.
 
-A repeated leading eigenvalue has no single answer to "the most spread out
-direction". The iteration then lands wherever its arithmetic lands — the same
-way every time, which is the property this repository needs, but not a
-*canonical* one: the 4×4 grid comes out standing on its diagonals, and another
-implementation of the same method could pick another pair from the same
-eigenspace. Nothing downstream depends on which.
+**"Most spread out" means the biggest eigenvalue by value, and power iteration
+finds the biggest by magnitude.** Those are the same thing only when the
+distances are Euclidean, and graph distances frequently are not. The complete
+bipartite graph K(5,5) is the case, not a contrived one: its centred table has
+the spectrum −5.5, eight 2s and a 0, and the iteration converges to the −5.5 —
+then reports 5.5, because what it has in hand is a norm. Taking the square root
+of that as a coordinate scale is arithmetic on a direction the arrangement is
+not spread along at all, and checking the sign afterwards does not help, because
+by then the iteration has converged to the wrong direction.
+
+The fix is to move the whole spectrum: measure the spectral radius with one
+unshifted run, then iterate on the table shifted up by it, where every
+eigenvalue is non-negative and the biggest by magnitude *is* the biggest by
+value; subtract the shift back at the end. Two details come with it. The iterate
+is held orthogonal to the vector of ones, because the centred table annihilates
+that direction and the shift would otherwise make it a competitor. And the two
+directions start from two different nodes' rows: started from the same one,
+projecting the first direction out of the second can leave nothing of it behind
+— K(5,5) again, which came back with a second eigenvalue of zero.
+
+**A table of rank one is an answer, not a failure.** A path's distances are
+realised exactly by points on a line, so its centred table has one positive
+eigenvalue and nothing else, and the truthful drawing *is* that line. The first
+version treated a missing second direction as a failure and fell back to the
+circle, which is what bowed a five-node chain by a seventh of its own length —
+a defect this record shipped with and described as a property of the method.
+Keeping the first direction and flattening the second brings the same chain to
+under one percent of its span.
 
 ### 3. A fixed spiral does the one job a random start really has
 
@@ -108,10 +160,10 @@ minimum, so the smallest push is enough — what it needed was a push.
 `stat.MaxStressNodes` is 250, and two limits arrive together at about that
 number. The picture gives out first — a straight-line drawing of a few hundred
 nodes is a hairball — and the arithmetic just after, because every pair has a
-distance and every sweep reads all of them: 250 nodes is about 30 ms and 500
-about 140, measured. `geom.NodeLink` refuses a bigger graph with
-`ErrTooManyNodes` and names what draws it instead, which is the rule
-`ErrTooManySets` already follows.
+distance and every sweep reads all of them: 250 nodes is about 40 ms on the
+machine this was written on, and the growth is quadratic. `geom.NodeLink`
+refuses a bigger graph with `ErrTooManyNodes` and names what draws it instead,
+which is the rule `ErrTooManySets` already follows.
 
 That the legibility bound and the frame budget agree is luck, and it is the kind
 of luck worth writing down: had they not, the honest constant would have been
@@ -133,7 +185,7 @@ being scaled as long as both axes are scaled alike.
 
 | | |
 |---|---|
-| `stat` | `Stress`, `StressPoint`, `StressEdge`, `StressSweeps`, `StressPowerIterations`, `MaxStressNodes` |
+| `stat` | `Stress`, `StressPoint`, `StressEdge`, `StressSweeps`, `StressPowerIterations`, `MaxStressNodes`, and three internal tests for the properties above |
 | `geom` | `NodeLink`, `MarkNodeLink`, `ErrTooManyNodes`, `NodeLinkRadius` |
 | `spec` | the mark `"node-link"`, with a fill, a stroke and a size |
 | `ir`, `render`, `coord`, `scale`, `internal/layout`, `figure` | unchanged |
@@ -143,13 +195,12 @@ being scaled as long as both axes are scaled alike.
 ADR 0039, and this is it. `CONCEPT §14`'s sentence about the family that shares
 nothing with the rest is now spent in full.
 
-**A long chain is drawn as a shallow arc.** Classical scaling's own artefact —
-the horseshoe — partly straightened by the sweeps: the middle node of a
-five-node path sits about a seventh of its span off the line between its ends.
-It is the one place where the bound is visible in the picture rather than only
-in the arithmetic. A straight line is the exact optimum of that graph, so this
-is slow convergence and not a wrong answer; multi-level coarsening is the known
-fix and is not here.
+**A long chain is drawn straight, to within about a hundredth of its span.**
+That number is here because the first version of this record reported a seventh
+instead, and called it classical scaling's horseshoe partly straightened. It was
+not: it was the circle fallback of claim 2, and it went away when the fallback
+did. The measurement is `TestStressDrawsNearThingsNear`'s neighbourhood, and the
+chain case is in the shape probes behind claim 2.
 
 **The layout runs in `Train`,** which means once per render rather than once per
 edge list. A chart that redraws every frame pays for it every frame, and at this
@@ -161,17 +212,17 @@ for a sankey's nodes, unchanged.
 
 ## Not in scope
 
-- **A force simulation.** Still refused, and now for a reason narrower than the
-  one 0039 gave: not because the family cannot be a pure function, but because
-  *that method* stops on a tolerance. Nothing needs it.
+- **A force simulation.** Not built, and not refused as impossible — per the
+  Context, a fixed start, a fixed step and a fixed count make one repeatable
+  too. What it does not have is an objective of its own, so the cost of its
+  bound cannot be stated the way this one's can. Nothing needs it.
 - **Edge weights as distances.** `geom.Value` is read by the flow marks and
   ignored here: a number on an edge is a magnitude, and turning it into a length
   is a different chart with a different reading. It would also break the whole
   number arithmetic the distance table rests on.
-- **Multi-level coarsening.** The known fix for the chain artefact and the way
-  past `MaxStressNodes`: coarsen by a maximal matching, lay the small graph out,
-  interpolate, refine. Deterministic in principle — the matching is a walk in
-  interning order — and its own record.
+- **Multi-level coarsening.** The way past `MaxStressNodes`: coarsen by a
+  maximal matching, lay the small graph out, interpolate, refine. Deterministic
+  in principle — the matching is a walk in interning order — and its own record.
 - **Arrowheads, curved edges, edge bundling.** A direction shown on a line is
   [`geom.Graph`](0072-layered-graph-layout.md)'s reading; bundling is a layout
   of the edges rather than of the nodes.
@@ -183,8 +234,9 @@ for a sankey's nodes, unchanged.
 
 ## Revisit if
 
-- **A chain artefact turns up in a chart somebody cares about.** Multi-level is
-  the answer and it moves `MaxStressNodes` at the same time.
+- **A graph turns up whose picture this gets wrong.** The shape probes behind
+  claim 2 are where a new case goes; multi-level is the answer that also moves
+  `MaxStressNodes`.
 - **Someone wants the edge weights to be distances.** That is a different
   distance table — a weighted shortest path — and everything above it is
   unchanged. What it needs is an argument about what the number on an edge
@@ -192,3 +244,49 @@ for a sankey's nodes, unchanged.
 - **A graph arrives that is too big for this and has a direction.** That is
   `geom.Graph` and it is already there. One with neither is an adjacency matrix,
   which `geom.Rect` over two ordinal axes already draws.
+
+## Amendment: three corrections from review
+
+**Date:** 2026-09-18
+
+Three claims in the first version of this record were wrong. Two were wrong in
+the *code* as well, and the pictures changed when they were fixed; the third was
+only wrong in the prose, which in a record is not a lesser kind of wrong. All
+three came from a reading that checked the arithmetic rather than the argument,
+and each is now a test.
+
+**The step was described as a closed-form minimisation of the majorizing
+quadratic.** It is not: minimising that quadratic over all the nodes at once is
+a linear solve, and what the sweep does is descend it one node at a time. Worse,
+the version that shipped did it *simultaneously* — every new position from the
+previous sweep's — which is not a descent at all, and the record had claimed
+that form as a virtue for being order-independent. Two nodes whose target
+distance is 1, placed 1.02 apart, cycled 0.98, 1.02, 0.98 at constant stress.
+The sweep now writes each position back before the next node reads it, which is
+block coordinate descent and does not raise the stress; claim 1 says so, and two
+tests hold it.
+
+**The starting directions were chosen by magnitude.** Power iteration finds the
+biggest eigenvalue by magnitude, and classical scaling needs the biggest by
+value; for non-Euclidean distances — which graph distances often are — those
+differ, and the code then took the square root of a negative eigenvalue as a
+coordinate scale. K(5,5) is the example, and it is an ordinary graph rather than
+a corner case. Claim 2 carries the fix and the test.
+
+**And the refusal was framed as an impossibility.** The first version said a
+force simulation "cannot" be a pure function at a bounded sweep count and that a
+tolerance makes a picture depend on where the arithmetic landed. Neither is so:
+a fixed start, a fixed step and a fixed count repeat exactly, and a tolerance on
+identical arithmetic is met in the same place every time. The Context now says
+what is actually true — that this method has a named objective and a monotone
+descent, so the cost of its bound can be stated — and does not claim the
+alternative is unavailable.
+
+**One defect had been written down as a property.** The first version reported
+that a five-node chain came out bowed by a seventh of its span and explained it
+as classical scaling's horseshoe, partly straightened. It was neither classical
+scaling's nor partly straightened: a path's distance table has rank one, the
+code treated a missing second direction as a failure, and the fallback put the
+chain on a circle. Keeping the first direction brings the same chain under one
+percent. A record that explains a defect is worse than one that omits it, which
+is the reason this paragraph exists.

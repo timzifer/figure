@@ -230,14 +230,13 @@ sankey's relaxation runs `stat.SankeySweeps` sweeps rather than to convergence.
 
 **Nothing is missing from this bucket.** The last row was the node-link diagram,
 and [ADR 0077](adr/0077-a-node-link-layout.md) drew it by taking 0039's sentence
-apart one more time: what a bounded sweep count cannot be made to work with is a
-*force simulation*, whose method is to run until it settles. Stress
-majorization replaces the number it minimises with a quadratic that touches it
-from above and solves that in closed form, so there is no tolerance to stop on
-and a fixed count of sweeps costs quality rather than correctness. Where a
-bounded run *ends up* is decided by where it starts, so it starts from classical
-scaling of the distance table rather than from a random arrangement — measured,
-because started from a circle a 4×4 grid comes out folded in half.
+apart one more time. Not by showing a force simulation cannot be bounded — it
+can, with a fixed start and a fixed budget — but by choosing a method with an
+objective: stress majorization descends a named quantity and never raises it, so
+a fixed count of sweeps costs quality and not correctness. Where a bounded run
+*ends up* is decided by where it starts, so it starts from classical scaling of
+the distance table rather than from a random arrangement — measured, because
+started from a circle a 4×4 grid comes out folded in half.
 
 **The set charts were never a relational layout, which is why they were cheap.**
 [ADR 0074](adr/0074-sets-are-counted.md) took the other half of 0039's sentence
@@ -252,8 +251,10 @@ than that record first gave**, which its
 out: the area-proportional diagram is refused **from three sets on**, because
 two circles are an exactly determined construction and three are an
 over-determined one; a fourth set is refused because this mark writes each
-count *into* its region and a four-set diagram has regions too thin to hold a
-number — not because no fixed arrangement of four exists, which it does.
+count *into* its region at one type size, and a four-set diagram has regions
+that will not hold one under that promise — not because no fixed arrangement of
+four exists, which it does, and not because no drawing of four sets could ever
+be labelled.
 
 **That sentence was narrowed twice and then spent.** [ADR 0053](adr/0053-tidy-tree-layout.md)
 took tree layouts out of it and [ADR 0072](adr/0072-layered-graph-layout.md)

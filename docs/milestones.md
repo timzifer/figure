@@ -649,9 +649,9 @@ after the hexagonal lattice and the beeswarm's offsets.
   byte-for-byte what it was. ✔
 
 Node-link was the one row left, and it is drawn since
-[ADR 0077](adr/0077-a-node-link-layout.md): what 0039 refused was a force
-simulation, and stress majorization is a closed-form step repeated a constant
-number of times. (The set charts arrived in between, and they were never a
+[ADR 0077](adr/0077-a-node-link-layout.md): stress majorization descends a named
+objective and never raises it, so a constant number of sweeps is a bound whose
+cost can be stated. (The set charts arrived in between, and they were never a
 relational layout — see [ADR 0074](adr/0074-sets-are-counted.md).) See
 [ADR 0039](adr/0039-relational-layouts.md).
 

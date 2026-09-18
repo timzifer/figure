@@ -32,14 +32,18 @@ const VennSteps = 96
 
 // MaxVennSets is how many sets a [Venn] draws.
 //
-// Three, and the limit is legibility rather than geometry. This mark writes
-// each region's count *into* the region, so a region too thin to carry a number
-// is one where the mark cannot do what it promises. Three circles of one size
-// have a symmetric arrangement whose seven regions all exist and are all big
-// enough to write in. Four circles have no such arrangement at all, and the
-// four-ellipse diagram that does show all fifteen regions has slivers too thin
-// to label — which is why the printed four-set picture is labelled from a key
-// beside it instead, and that is a different mark. An [Intersections] plot
+// Three, and the limit is this mark's own promise rather than geometry. It
+// writes each region's count *into* the region, at one type size, in an
+// arrangement fixed in advance: three circles of one size have a symmetric
+// arrangement whose seven regions all exist and all hold a number. Four circles
+// have no arrangement showing all fifteen, and the four-ellipse diagram that
+// does has slivers that hold nothing under those conditions — which is why the
+// printed four-set picture is labelled from a key beside it instead, and that
+// is a different mark.
+//
+// Whether four *could* be labelled depends on the arrangement, the size the
+// chart is drawn at and how many digits the counts have; none of that is fixed
+// by geometry, and none of it is what this mark does. An [Intersections] plot
 // is the answer past three, and it is the better reading well before that.
 const MaxVennSets = 3
 

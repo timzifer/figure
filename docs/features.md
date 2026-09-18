@@ -61,8 +61,9 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   that has neither a hierarchy nor a direction: dots joined by lines, placed so
   that two dots near each other are two things with a short path between them.
   What places them is `stat.Stress` — classical scaling for a start and a fixed
-  number of majorization sweeps after it, so the picture is a pure function of
-  the table rather than of when a simulation was stopped
+  number of majorization sweeps after it, each of which lowers a named quantity
+  and never raises it, so the picture is a pure function of the table and the
+  cost of the bound is quality rather than correctness
   ([ADR 0077](adr/0077-a-node-link-layout.md)).
 - **Set charts** — **`Intersections`** and **`SetMatrix`** are the two halves of
   an **UpSet plot**: a bar per combination of sets over a matrix saying which
@@ -79,8 +80,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   three-set diagram of the same counts, in a fixed arrangement rather than a
   packing solution. An area-proportional diagram is refused **from three sets
   on**, where it stops being a construction and becomes an optimiser, and a
-  fourth set is refused because every region has to be big enough to hold the
-  count written in it ([ADR 0074](adr/0074-sets-are-counted.md)).
+  fourth set is refused because this mark writes each count inside its own
+  region at one type size, and a four-set diagram has regions that will not hold
+  one — its own promise rather than a fact about four sets
+  ([ADR 0074](adr/0074-sets-are-counted.md)).
 - **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
   series, with an opt-in log-log confidence band and censoring ticks, from a
   time column and a `geom.Event` indicator. `stat` holds the arithmetic of the
@@ -335,8 +338,8 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
 Deliberately **not** here: geographic projections, force *simulations* — the
-node-link diagram they were refused for is `geom.NodeLink`, placed by a
-closed-form minimisation rather than by one
+node-link diagram they were once refused for is `geom.NodeLink`, placed by a
+descent on a named objective instead
 ([ADR 0077](adr/0077-a-node-link-layout.md)) — area-proportional Venn diagrams,
 and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link

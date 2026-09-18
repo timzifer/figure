@@ -48,25 +48,35 @@ type StressEdge struct {
 // Stress places the nodes of a graph so that the distance between two of them
 // on the page is as close as it can be to the number of edges between them.
 //
-// It is the layout a node-link diagram is drawn with, and it is not a force
-// simulation. A simulation integrates a system of forces until it settles,
-// which is where [ADR 0039](../../docs/adr/0039-relational-layouts.md) refused
-// it: the stopping point is a tolerance, so the picture depends on where the
-// arithmetic happened to land. What this runs is *majorization* — at each sweep
-// the stress function is replaced by a quadratic that touches it from above and
-// is minimised in closed form, which is one arithmetic expression per node and
-// no search at all. See docs/adr/0077-a-node-link-layout.md.
+// It is the layout a node-link diagram is drawn with. What it minimises is that
+// distance, summed over every pair and weighted, and the number has a name —
+// the *stress* — which is the first thing to know about it: whether one
+// arrangement is better than another is a measurement here rather than a
+// matter of taste.
+//
+// The method is majorization. At each sweep the stress is replaced by a
+// quadratic that sits above it and touches it at the current arrangement, and
+// the arrangement is moved downhill on that quadratic instead. Minimising the
+// quadratic over *all* the nodes at once is a linear system; this does not
+// solve one. It descends the quadratic one node at a time, solving each node's
+// own block exactly with the others held still, which is enough for the
+// property the bound rests on: the majorizing function never rises, and it sits
+// above the stress, so the stress never rises either.
+// See docs/adr/0077-a-node-link-layout.md.
 //
 // Three properties make it a pure function of its input:
 //
-//   - The starting arrangement is a circle in index order, which is the order
-//     the caller's rows named the nodes in.
-//   - Each sweep computes every new position from the previous sweep's
-//     positions only — Jacobi rather than Gauss–Seidel — so the result does not
-//     depend on the order the nodes are visited in, only on the order they were
-//     interned in.
-//   - The sweep count is [StressSweeps], and the distances are whole numbers of
-//     edges, so nothing here reads a tolerance or a clock.
+//   - The starting arrangement comes from classical scaling of the distance
+//     table, whose own arithmetic is the caller's rows and nothing else; a
+//     graph with no spread at all falls back to a circle in index order.
+//   - A sweep visits the nodes in index order, which is the order the caller's
+//     rows interned them in, and writes each position back before the next node
+//     reads it ([ADR 0012](../../docs/adr/0012-parallel-panels.md)). The
+//     simultaneous form of the same update is not a descent at all — see
+//     [Stress.sweep].
+//   - The sweep count is [StressSweeps] and the refinement count is
+//     [StressPowerIterations]; the distances are whole numbers of edges. Nothing
+//     here reads a clock, and nothing stops on a tolerance.
 //
 // It is a struct with a [Stress.Reset] rather than a pair of functions for the
 // reason [Sankey], [Tidy] and [Layered] are: the layout keeps several buffers
@@ -92,8 +102,7 @@ type Stress struct {
 	queue                   []int
 	dist                    []float64
 	x, y                    []float64
-	nx, ny                  []float64
-	rowMean, scratch        []float64
+	rowMean, scratch, probe []float64
 }
 
 // Reset lays out the edge list from[i] → to[i] over the given number of nodes.
@@ -124,7 +133,6 @@ func (s *Stress) Reset(from, to []int, nodes int) {
 	// same buffer. Keeping one quadratic buffer rather than two is the whole
 	// reason for the order.
 	s.x, s.y = growFloats(s.x, nodes), growFloats(s.y, nodes)
-	s.nx, s.ny = growFloats(s.nx, nodes), growFloats(s.ny, nodes)
 	s.classical(nodes)
 	s.scatter(nodes)
 	s.distances(nodes)
@@ -239,12 +247,15 @@ func (s *Stress) circle(nodes int) {
 // The two directions are the leading eigenvectors of the double-centred squared
 // distance table, found by power iteration:
 //
-//   - The start vector is the first node's own distances — data rather than a
-//     seed, and never the vector this matrix annihilates.
+//   - The start vector is a node's own row of distances — data rather than a
+//     seed, and never the vector this matrix annihilates. The two directions
+//     start from two different nodes.
 //   - The count is [StressPowerIterations] rather than a tolerance, for the
 //     reason the sweep count is.
 //   - The second direction is kept orthogonal to the first at every step, which
 //     is deflation without forming a second matrix.
+//   - The table is shifted so that "biggest eigenvalue" means biggest by value
+//     rather than by magnitude — see below.
 //
 // A matrix with a repeated leading eigenvalue has no single answer to "the
 // most spread out direction", and this is not the place that decides it: the
@@ -258,13 +269,41 @@ func (s *Stress) classical(nodes int) {
 		return
 	}
 	s.gram(nodes)
-	lx := s.power(nodes, s.x, nil)
-	ly := s.power(nodes, s.y, s.x)
-	if !(lx > 0) || !(ly > 0) {
-		// No two directions to be spread along: every pair is the same
-		// distance from every other, which is a graph with no edges in it.
+	// The centred table's biggest eigenvalue by *magnitude* need not be its
+	// biggest by value, and classical scaling needs the biggest by value: a
+	// negative eigenvalue names a direction the arrangement is not spread along
+	// at all, and taking its square root as a scale is arithmetic on a number
+	// that is not there. Graph distances are frequently not Euclidean, so this
+	// is a case that arrives rather than one that could — the complete
+	// bipartite graph K(5,5) centres to a spectrum of −5.5, eight 2s and a 0,
+	// and an iteration that takes the biggest magnitude takes the −5.5.
+	//
+	// So the iteration runs once to measure the spectral radius, and twice more
+	// on the table shifted up by it. Every eigenvalue of the shifted table is
+	// non-negative, so there the biggest by magnitude *is* the biggest by
+	// value, and subtracting the shift back gives the true one. Checking the
+	// sign afterwards would not do instead: by then the iteration has already
+	// converged to the wrong direction.
+	s.probe = growFloats(s.probe, nodes)
+	shift := math.Abs(s.power(nodes, 0, s.probe, nil, 0))
+	lx := s.power(nodes, 0, s.x, nil, shift)
+	ly := s.power(nodes, 1, s.y, s.x, shift)
+	if !(lx > 0) {
+		// Not one direction the arrangement is spread along: every pair the
+		// same distance from every other, which is a graph with no edges in it,
+		// and a ring is the honest picture of that.
 		s.circle(nodes)
 		return
+	}
+	if !(ly > 0) {
+		// One direction and no second one, which is not a failure: a path's
+		// distances are realised exactly by points on a line, so the table has
+		// rank one and the truthful drawing is that line. Keeping the first
+		// direction and flattening the second is what draws it; [Stress.scatter]
+		// gives the nodes the width they need to be told apart, and the sweeps
+		// take it from there. Falling back to a ring here instead is what made
+		// a five-node chain come out bowed by a seventh of its own length.
+		ly = 0
 	}
 	lx, ly = math.Sqrt(lx), math.Sqrt(ly)
 	for i := range nodes {
@@ -338,12 +377,37 @@ func (s *Stress) gram(nodes int) {
 	}
 }
 
-// power refines one direction of the centred table, kept orthogonal to prev,
-// and returns the eigenvalue it settled on. The vector comes back normalised.
-func (s *Stress) power(nodes int, v, prev []float64) float64 {
-	copy(v, s.dist[:nodes]) // the first node's row: its distances to everything
+// power refines one direction of the centred table shifted up by shift, kept
+// orthogonal to prev, and returns the eigenvalue of the *unshifted* table that
+// it settled on. The vector comes back normalised.
+//
+// A shift big enough to make every eigenvalue non-negative is what turns "the
+// biggest by magnitude", which is what this iteration finds, into "the biggest
+// by value", which is what [Stress.classical] needs. It costs convergence —
+// the gap between the top two eigenvalues shrinks against their size — and
+// [StressPowerIterations] is set with that cost in it.
+func (s *Stress) power(nodes, from int, v, prev []float64, shift float64) float64 {
+	// The start vector is one node's own row of distances: data rather than a
+	// seed, and never the vector this matrix annihilates. The second direction
+	// starts from a different node, because starting both from the same one and
+	// projecting the first out can leave nothing of the second in what remains
+	// — K(5,5) is that case, and it came back with an eigenvalue of zero.
+	copy(v, s.dist[from*nodes:(from+1)*nodes])
 	s.scratch = growFloats(s.scratch, nodes)
 	orth := func(v []float64) {
+		// The centred table annihilates the vector of ones, so every direction
+		// it is worth finding is orthogonal to that one and the iterate is held
+		// there. Without this the shift below turns a direction with no spread
+		// at all into a competitor — its shifted eigenvalue is the shift — and
+		// a path came back with a second direction of zero.
+		mean := 0.0
+		for i := range nodes {
+			mean += v[i]
+		}
+		mean /= float64(nodes)
+		for i := range nodes {
+			v[i] -= mean
+		}
 		if prev == nil {
 			return
 		}
@@ -378,27 +442,40 @@ func (s *Stress) power(nodes int, v, prev []float64) float64 {
 			for j := range nodes {
 				sum += row[j] * v[j]
 			}
-			s.scratch[i] = sum
+			s.scratch[i] = sum + shift*v[i]
 		}
 		copy(v, s.scratch)
 		orth(v)
 		lambda = norm(v)
 		if !(lambda > 0) {
-			return 0
+			return -shift
 		}
 		for i := range nodes {
 			v[i] /= lambda
 		}
 	}
-	return lambda
+	return lambda - shift
 }
 
-// sweep is one majorization pass: the Guttman transform, which is the minimum
-// of the quadratic that touches the stress function at the current positions.
+// sweep is one majorization pass: for each node in turn, the position that
+// minimises the majorizing quadratic in that node alone, with the others held
+// where they are.
 //
-// Every new position is computed from the old ones and written to a second
-// buffer, so the pass is Jacobi rather than Gauss–Seidel and the arrangement
-// does not depend on which node is visited first.
+// This is block coordinate descent on that quadratic — the Guttman transform
+// applied one node at a time and written back before the next node reads it.
+// Each block is solved exactly, so the majorizing function never rises; it sits
+// above the stress and touches it at the current arrangement, so the stress
+// never rises either. That is what makes a fixed sweep count cost quality and
+// not correctness.
+//
+// It is deliberately not the simultaneous form, where every new position is
+// computed from the old ones. That form is not a descent at all and it was
+// measured rather than argued: two nodes whose target distance is 1, placed
+// 1.02 apart, come out 0.98 apart, then 1.02 again, for ever, at constant
+// stress. See TestASweepNeverRaisesTheStress.
+//
+// The order is the order the caller's rows interned the nodes in, which is the
+// order every other layout in this package works in ([ADR 0012](../docs/adr/0012-parallel-panels.md)).
 func (s *Stress) sweep(nodes int) {
 	for i := range nodes {
 		row := s.dist[i*nodes : (i+1)*nodes]
@@ -421,8 +498,8 @@ func (s *Stress) sweep(nodes int) {
 			} else {
 				// Two nodes exactly on top of each other have no direction to
 				// be pushed apart in. Leaving the term at the other node's own
-				// position is the choice that does not invent one; the next
-				// sweep separates them, because their neighbours differ.
+				// position is the choice that does not invent one; [Stress.scatter]
+				// is what stops the case arising in the first place.
 				dx, dy = 0, 0
 			}
 			sx += w * (s.x[j] + dx)
@@ -430,13 +507,10 @@ func (s *Stress) sweep(nodes int) {
 			sw += w
 		}
 		if sw == 0 {
-			s.nx[i], s.ny[i] = s.x[i], s.y[i]
 			continue
 		}
-		s.nx[i], s.ny[i] = sx/sw, sy/sw
+		s.x[i], s.y[i] = sx/sw, sy/sw
 	}
-	s.x, s.nx = s.nx, s.x
-	s.y, s.ny = s.ny, s.y
 }
 
 // emit scales the arrangement into the unit square.

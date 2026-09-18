@@ -1232,18 +1232,27 @@ and what is next, in the order it is being done. Adding a stub for something on
 that list is not progress towards it: the seams exist, that is enough. The
 release order is in [CONTRIBUTING](CONTRIBUTING.md#releasing).
 
-Deliberately not done. There is **no force simulation** — its method is to run
-until it settles, so where it stops is a tolerance. The chart it was refused for
-is drawn: `geom.NodeLink` places nodes by stress majorization, which is a
-closed-form step repeated a constant number of times, so
+Deliberately not done. There is **no force simulation** — not because one
+cannot be made repeatable, which a fixed start and a fixed budget do, but
+because it descends no objective, so what stopping it early costs cannot be
+said. The chart it was once refused for is drawn: `geom.NodeLink` places nodes
+by stress majorization, a descent that never goes uphill, stopped after a
+constant number of sweeps — so
 [ADR 0012](docs/adr/0012-parallel-panels.md) is satisfied the way every other
-layout here satisfies it
-([ADR 0077](docs/adr/0077-a-node-link-layout.md)). It refuses a graph of more
+layout here satisfies it ([ADR 0077](docs/adr/0077-a-node-link-layout.md)).
+Two things there are load-bearing and were wrong once: a sweep writes each
+node's position back **before the next node reads it**, because the
+simultaneous form is not a descent at all and cycles; and the starting
+directions are chosen by eigenvalue **value** rather than magnitude, because
+graph distances are often not Euclidean and the biggest by magnitude can be
+negative. It refuses a graph of more
 than `stat.MaxStressNodes` nodes rather than drawing a hairball. There is **no area-proportional Venn and no Venn of four sets** — the
 first is a construction at two sets and an optimiser from three on, where seven
 region areas have six free numbers to hit them with; the second is refused
-because this mark writes each count *into* its region and a four-set diagram has
-regions too thin to hold one, not because no fixed arrangement of four exists.
+because this mark writes each count *into* its region at one type size in a
+fixed arrangement, and a four-set diagram has regions that hold nothing under
+those conditions — a decision about this mark's promise rather than a fact about
+four sets, and not because no fixed arrangement of four exists.
 `geom.Venn` draws the two- and three-set diagram, whose positions are a table
 rather than a solution, and `geom.Intersections` is the chart that keeps working
 past three ([ADR 0074](docs/adr/0074-sets-are-counted.md) and its

@@ -637,20 +637,23 @@ The record of how each of those arrived, and the argument that shaped it, is in
   ([ADR 0053](docs/adr/0053-tidy-tree-layout.md)). The clustered heatmap falls
   out of it.
 - **Node-link diagrams** were the last of the relational family, and they are
-  drawn ([ADR 0077](docs/adr/0077-a-node-link-layout.md)). What 0039 refused was
-  a *force simulation*, whose method is to run until it settles; what draws this
-  is stress majorization, which replaces the number it minimises with a
-  quadratic that touches it from above and solves that in closed form. There is
-  no tolerance to stop on, so a fixed count of sweeps costs quality and cannot
-  cost correctness, and [ADR 0012](docs/adr/0012-parallel-panels.md) is answered
-  the way `stat.Squarify` answers it.
+  drawn ([ADR 0077](docs/adr/0077-a-node-link-layout.md)). What draws them is
+  stress majorization: a named quantity — how far the drawn distances are from
+  the graph's own — descended one node at a time, where each step solves that
+  node's block of a quadratic sitting above the objective. The descent never
+  goes uphill, so a fixed count of sweeps costs quality and cannot cost
+  correctness, and [ADR 0012](docs/adr/0012-parallel-panels.md) is answered the
+  way `stat.Squarify` answers it. A force simulation could be made repeatable
+  too, with a fixed start and a fixed budget; what it has not got is an
+  objective, so the cost of its bound cannot be stated.
 - **Sets are counted rather than laid out.** The other half of that sentence has
   been answered: an UpSet plot is a matrix chart, so it needed a count in `stat`
   and two ordinary marks, and a Venn diagram of two or three sets is a fixed
   arrangement rather than the optimiser 0039 declined — which is still declined
   from three sets on, where it has more region areas to hit than free numbers to
-  hit them with, and a fourth set with it, because a region too thin to hold its
-  count cannot do what that mark promises
+  hit them with, and a fourth set with it, because that mark writes each count inside
+  its own region at one type size and a four-set diagram has regions that will
+  not hold one
   ([ADR 0074](docs/adr/0074-sets-are-counted.md)).
 - **A bucket of domain reductions** — the
   Kaplan–Meier estimator, the SPC control-limit family, ACF and PACF, ROC and
