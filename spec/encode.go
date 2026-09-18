@@ -585,6 +585,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// The levels the layer is actually tracing, so that a document reads
 		// back as the same lines — which is the whole reason to pin them.
 		m.Levels, m.LevelCount = d.Levels, d.LevelCount
+		m.LabelLevels = d.LabelLevels
 	case geom.MarkRaster:
 		// The reduction and nothing else. A raster has neither a stroke nor a
 		// fill of its own — every pixel takes its colour from the ramp — and
@@ -643,6 +644,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// the encoder rather than here, because a family with no name is a
 		// layer that cannot be written down at all — see [encodeLayer].
 		m.Levels, m.Extend = d.Levels, boolPtr(d.Extend)
+		m.LabelLevels = d.LabelLevels
 	case geom.MarkHLine, geom.MarkVLine, geom.MarkSegment:
 		stroke()
 		m.Extend = boolPtr(d.Extend)

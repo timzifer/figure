@@ -37,12 +37,17 @@ import (
 // which is the point of them being one tracing in [stat.Contour] rather than
 // two.
 //
+// # Labels along the lines
+//
+// [LabelLevels] writes each level's value along the curve it is drawn at,
+// gapping the line to make room and turning the text to it, which is what makes
+// the chart readable without a colourbar beside it. See
+// docs/adr/0073-labels-on-a-curve.md.
+//
 // # What it does not do
 //
-// Filled bands between levels, and labels along a line. Both are worth having
-// and neither is this: a band is a polygon where this is a path, and a label on
-// a curve is a placement problem with its own record. Say so here rather than
-// leaving a caller to discover it.
+// Filled bands between levels: a band is a polygon where this is a path. Say so
+// here rather than leaving a caller to discover it.
 func Contour(src data.Source, opts ...Option) Geom {
 	return &contourGeom{src: src, cfg: newConfig(opts)}
 }
@@ -62,8 +67,13 @@ type contourGeom struct {
 	ramp scale.ColorScale
 	err  error
 
-	// pts is the device-space scratch one run is mapped into.
-	pts []ir.Point
+	// pts is the device-space scratch one run is mapped into, and labels the
+	// runs written along the lines once every line has been stroked. Both are
+	// kept on the layer so that a chart redrawn every frame allocates neither.
+	pts    []ir.Point
+	texts  []string
+	labels []ir.TextRun
+	label  curveLabeller
 }
 
 func (g *contourGeom) Train(t Training) error {
@@ -106,6 +116,9 @@ func (g *contourGeom) resolve(t Training) error {
 	g.ramp = g.cfg.colorScale
 	g.levels = g.levelsFor()
 	g.lines.Reset(g.grid.Xs, g.grid.Ys, g.grid.V, g.levels)
+	if g.cfg.labelLevels {
+		g.texts = g.cfg.levelTexts(g.texts, g.levels)
+	}
 
 	trainColumn(t.X, g.grid.Xs)
 	trainColumn(t.Y, g.grid.Ys)
@@ -173,6 +186,8 @@ func (g *contourGeom) Build(b ir.Backend, f Frame) error {
 		b.StrokePath(&path, ir.Stroke{Color: g.colorAt(f, level), Width: width, Dash: dash})
 		path.Reset()
 	}
+	g.labels = g.labels[:0]
+	text := ir.TextRun{Font: g.cfg.labelFont(f)}
 	for _, run := range g.lines.Lines {
 		if !open || run.Level != level {
 			flush()
@@ -185,11 +200,43 @@ func (g *contourGeom) Build(b ir.Backend, f Frame) error {
 		if len(g.pts) < 2 {
 			continue
 		}
-		path.Polyline(g.pts)
+		if !g.cfg.labelLevels {
+			path.Polyline(g.pts)
+			continue
+		}
+		// The line is gapped for its own label, and the two halves are the
+		// same path's subpaths: the batching a level's colour buys is kept.
+		text.Text, text.Color = levelTextAt(g.levels, g.texts, level), g.colorAt(f, level)
+		placed, ok := g.label.place(b, f.Labels, g.pts, text)
+		if !ok {
+			path.Polyline(g.pts)
+			continue
+		}
+		for _, half := range [2][]ir.Point{g.label.head, g.label.tail} {
+			if len(half) >= 2 {
+				path.Polyline(half)
+			}
+		}
+		g.labels = append(g.labels, placed)
 	}
 	flush()
+
+	// After every line and not beside its own: a label written while the next
+	// level was still to be stroked would be crossed by it.
+	for _, run := range g.labels {
+		b.Text(run)
+	}
 	return nil
 }
+
+// AvoidsLabels implements [LabelAvoider]: a labelled contour asks for the
+// panel's placer without the caller opting in twice.
+//
+// A layer whose own labels overlapped each other would have no use for the
+// chart it drew, which is why this is not [AvoidOverlap]'s switch — that one
+// opts a text layer into competing with other layers, and this one is a mark
+// that cannot be read at all without the arbitration.
+func (g *contourGeom) AvoidsLabels() bool { return g.cfg.labelLevels }
 
 // colorAt is the ink one level is drawn in: the ramp's reading of it, or the
 // layer's own colour where there is no ramp.

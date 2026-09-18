@@ -438,16 +438,20 @@ func (c config) annotationHatching(f Frame) ir.Hatching {
 // and an axis trained on it has no ticks left anywhere a reader is looking.
 // [Extend] turns training on for a caller drawing a bounded family.
 //
+// # It writes on the curves when asked
+//
+// [LabelLevels] writes "3 dB" along the contour itself, turned to the tangent
+// and with the curve gapped to make room, which is
+// docs/adr/0073-labels-on-a-curve.md. A locus also gets a legend entry from
+// [Label] like any annotation, and the chart reads without either because the
+// contours nest monotonically.
+//
 // # What it does not do
 //
-// It writes nothing on the curves. A locus gets a legend entry from [Label]
-// like any annotation, but "3 dB" written along the contour itself, rotated to
-// the tangent, needs an anchor rule and a seat at the table
-// docs/adr/0040-label-collision-avoidance.md sets for participating text
-// layers. The chart is readable without it because the contours nest
-// monotonically. It also announces nothing: there is no [github.com/timzifer/figure/data.Source]
+// It announces nothing: there is no [github.com/timzifer/figure/data.Source]
 // behind it, so a pointer passes over it exactly as it passes over a reference
-// line.
+// line — and a label it writes is at a place the family chose rather than at a
+// datum, so it adds nothing to the hit index either.
 func Locus(f Family, levels []float64, opts ...Option) Geom {
 	g := &locusGeom{family: f, cfg: newConfig(opts)}
 	g.cfg.levels = append(g.cfg.levels[:0], levels...)
@@ -475,6 +479,9 @@ type locusGeom struct {
 	// redrawn every frame does not allocate one per frame.
 	xs, ys []float64
 	pts    []ir.Point
+	texts  []string
+	labels []ir.TextRun
+	label  curveLabeller
 }
 
 // Train is where a locus does nothing, unless it was asked to.
@@ -510,6 +517,29 @@ func (g *locusGeom) Build(b ir.Backend, f Frame) error {
 	}
 	cd, ext := f.Coords(), g.extent(f)
 	var path ir.Path
+	g.labels = g.labels[:0]
+	if g.cfg.labelLevels && len(g.texts) != len(g.cfg.levels) {
+		g.texts = g.cfg.levelTexts(g.texts, g.cfg.levels)
+	}
+	text := ir.TextRun{Font: g.cfg.labelFont(f), Color: stroke.Color}
+	// One label per run, which for a family is one per level per stretch of it
+	// that is in view: a curve that leaves the panel and comes back is two
+	// statements about where that value is.
+	emit := func(level float64) {
+		if !g.cfg.labelLevels {
+			strokeRun(b, cd, &path, g.pts, stroke, false)
+			return
+		}
+		text.Text = levelTextAt(g.cfg.levels, g.texts, level)
+		placed, ok := g.label.place(b, f.Labels, g.pts, text)
+		if !ok {
+			strokeRun(b, cd, &path, g.pts, stroke, false)
+			return
+		}
+		strokeRun(b, cd, &path, g.label.head, stroke, false)
+		strokeRun(b, cd, &path, g.label.tail, stroke, false)
+		g.labels = append(g.labels, placed)
+	}
 	for _, level := range g.cfg.levels {
 		g.xs, g.ys = g.family.Locus(g.xs[:0], g.ys[:0], level, ext)
 		g.pts = g.pts[:0]
@@ -519,16 +549,27 @@ func (g *locusGeom) Build(b ir.Backend, f Frame) error {
 			// it. That is the missing-data policy every layer has followed
 			// since v0.1, and it is what a family's own NaN is written in.
 			if !defined(f.X, g.xs[i]) || !defined(f.Y, g.ys[i]) {
-				strokeRun(b, cd, &path, g.pts, stroke, false)
+				emit(level)
 				g.pts = g.pts[:0]
 				continue
 			}
 			g.pts = append(g.pts, cd.Point(f.X.Map(g.xs[i]), f.Y.Map(g.ys[i])))
 		}
-		strokeRun(b, cd, &path, g.pts, stroke, false)
+		emit(level)
+	}
+
+	// After every curve, for the reason a contour's labels are: a label written
+	// while the next level was still to be stroked would be crossed by it.
+	for _, run := range g.labels {
+		b.Text(run)
 	}
 	return nil
 }
+
+// AvoidsLabels implements [LabelAvoider]: a labelled family asks for the
+// panel's placer, so that two contours crossing near each other do not write
+// their numbers on top of one another.
+func (g *locusGeom) AvoidsLabels() bool { return g.cfg.labelLevels }
 
 // extent is what the family is asked for its curves over: the panel's own
 // domains, and how finely the panel is worth sampling.

@@ -90,3 +90,30 @@ type spiral struct{}
 func (spiral) Locus(xs, ys []float64, level float64, ext stat.Extent) ([]float64, []float64) {
 	return append(xs, -180, -90), append(ys, level, level)
 }
+
+// A labelled family carries the switch and not the format: a Go function does
+// not survive a document, so a chart written down says that it writes its
+// levels and reads back writing them the standard way.
+func TestALabelledLocusWritesTheSwitchAndNotTheFormat(t *testing.T) {
+	c := nicholsChart(geom.Locus(stat.NicholsM, []float64{-6, 0, 6},
+		geom.LabelLevels(true),
+		geom.LevelFormat(func(v float64) string { return "never written down" })))
+	s, err := spec.Of(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Layer[0].Mark.LabelLevels {
+		t.Error("the document does not say the locus labels its levels")
+	}
+	b, err := s.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "never written down") {
+		t.Errorf("the format was written into the document:\n%s", b)
+	}
+	want, got := draw(t, c), draw(t, roundTrip(t, c))
+	if strings.Join(want, "\n") == strings.Join(got, "\n") {
+		t.Error("the round trip drew the caller's format back, which it cannot carry")
+	}
+}

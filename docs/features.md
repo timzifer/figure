@@ -148,6 +148,17 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   own; alone among the annotations a locus does not extend the axis domain to
   include itself, because a family says what the region of the plane means
   ([ADR 0050](adr/0050-locus-annotations.md)).
+- **A label written along a curve** — `geom.LabelLevels(true)` writes each level
+  a `geom.Contour` or a `geom.Locus` draws along the curve it draws it at: the
+  text is turned to the curve and the curve is gapped for it, so a contour map
+  reads without a colourbar beside it and a Nichols chart's M contours carry
+  their decibels. The placement is chosen from the device geometry — the
+  flattest stretch of the run with room for the text — and asks the panel's
+  label placer for the space without being allowed to move off its own curve, so
+  a label never names a level it is not on. `geom.LevelFormat` says how a level
+  is written, and is a Go function, so a document carries that a chart labels its
+  levels and reads back labelling them the standard way
+  ([ADR 0073](adr/0073-labels-on-a-curve.md)).
 - **Three dimensions** — `figure/three` is the chart whose x, y and z are all
   data. A `three.Surface` over a regular grid gives the shape of a response
   between its samples, which is exactly what a heatmap of the same grid hides;
