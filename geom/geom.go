@@ -242,10 +242,14 @@ type config struct {
 	opacity  float64
 
 	// The finishes a filled mark can take beyond its colour. See [Hatch],
-	// [HatchDensity], [Gradient], [Corner] and [Inset].
+	// [HatchDensity], [HatchColor], [HatchWidth], [Gradient], [Corner] and
+	// [Inset].
 	hatch      ir.Hatch
 	hatchSet   bool
 	density    float64
+	ink        ir.Color
+	inkSet     bool
+	hatchWidth float64
 	gradient   *ir.Color
 	corner     float32
 	inset      float32
@@ -540,6 +544,39 @@ func Hatch(h ir.Hatch) Option {
 // [github.com/timzifer/figure/theme.DensitySeriesHatches] instead.
 func HatchDensity(f float64) Option {
 	return func(c *config) { c.density = f }
+}
+
+// HatchColor draws this layer's hatch in col rather than in the ink the theme
+// mixes from the mark's own colour.
+//
+// The default is the mix, and it is the right default: a hatch is normally the
+// same series saying which series it is, so it belongs to the mark's colour
+// and only leans toward the theme's ink far enough to stay legible against a
+// solid fill of it. Setting a colour here breaks that tie on purpose, for the
+// case where the pattern is not a second reading of the same thing but a
+// category of its own — a status band where the fill says *what* and the hatch
+// says *why*, and the why has a colour the reader already knows from
+// somewhere else on the screen.
+//
+// It is the caller's job to keep the result legible: figure will draw a black
+// hatch on a black fill if asked.
+//
+//	geom.Rect(src, geom.Hatch(ir.HatchDiagonal), geom.HatchColor(green))
+func HatchColor(col ir.Color) Option {
+	return func(c *config) { c.ink, c.inkSet = col, true }
+}
+
+// HatchWidth scales the stroke width of this layer's hatch: 2 is twice the
+// theme's, 0.5 half it, and the default 1 is the theme's own.
+//
+// It is [HatchDensity]'s other half. Density moves the lines apart, width
+// makes each one heavier, and the two are separate because a thick line spaced
+// wide and a thin line spaced close carry the same amount of ink but do not
+// read the same: the first is one bold pattern, the second is texture. For a
+// filled pattern — dots, triangles, scales — it scales the size of one element
+// instead, which is the same reading.
+func HatchWidth(f float64) Option {
+	return func(c *config) { c.hatchWidth = f }
 }
 
 // Gradient makes this layer's fill a linear ramp from its own colour to col.
@@ -1170,14 +1207,24 @@ func (c config) hatchingOf(f Frame, i int, base ir.Color) ir.Hatching {
 	if width <= 0 {
 		width = theme.Light.HatchWidth
 	}
-	ink := f.Theme.HatchColor
-	if ink.A == 0 {
-		ink = theme.Light.HatchColor
+	if c.hatchWidth > 0 {
+		width *= float32(c.hatchWidth)
+	}
+	// An explicit colour is used as given: a layer that names one has said the
+	// hatch is not a second reading of the mark's colour, so mixing it back
+	// toward the mark would undo exactly what it asked for.
+	line := c.ink
+	if !c.inkSet {
+		ink := f.Theme.HatchColor
+		if ink.A == 0 {
+			ink = theme.Light.HatchColor
+		}
+		line = palette.Lerp(opaque(base), ink, hatchMix)
 	}
 	return ir.Hatching{
 		Hatch: h,
 		Line: ir.Stroke{
-			Color: palette.Lerp(opaque(base), ink, hatchMix),
+			Color: line,
 			Width: width,
 			Cap:   ir.CapButt,
 		},

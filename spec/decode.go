@@ -349,6 +349,14 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		d.Hatch, d.HatchSet = hatchOf(l.Mark.Hatch), true
 	}
 	d.HatchDensity = l.Mark.HatchDensity
+	d.HatchWidth = l.Mark.HatchWidth
+	if l.Mark.HatchColor != "" {
+		c, err := parseColor(l.Mark.HatchColor)
+		if err != nil {
+			return nil, err
+		}
+		d.HatchColor, d.HatchColorSet = c, true
+	}
 	if l.Mark.Gradient != "" {
 		c, err := parseColor(l.Mark.Gradient)
 		if err != nil {

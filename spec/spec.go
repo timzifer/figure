@@ -188,12 +188,16 @@ type Mark struct {
 	Angle       float64   `json:"angle,omitempty"`
 
 	// The finishes a filled mark can wear beyond its colour. Hatch is the
-	// pattern over it, HatchDensity how dense that pattern is, Gradient the
-	// colour its fill ramps to, Corner its corner radius and Inset the inner
-	// border just inside its edge. None of them has a Vega-Lite spelling to
-	// borrow. See docs/adr/0069.
+	// pattern over it, HatchDensity how dense that pattern is, HatchWidth how
+	// heavy each of its lines is, HatchColor the ink it is drawn in rather
+	// than the one the theme mixes, Gradient the colour its fill ramps to,
+	// Corner its corner radius and Inset the inner border just inside its
+	// edge. None of them has a Vega-Lite spelling to borrow. See
+	// docs/adr/0069.
 	Hatch        string  `json:"hatch,omitempty"`
 	HatchDensity float64 `json:"hatchDensity,omitempty"`
+	HatchWidth   float64 `json:"hatchWidth,omitempty"`
+	HatchColor   string  `json:"hatchColor,omitempty"`
 	Gradient     string  `json:"gradient,omitempty"`
 	Corner       float32 `json:"corner,omitempty"`
 	Inset        float32 `json:"inset,omitempty"`
