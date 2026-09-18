@@ -73,6 +73,11 @@ const (
 	// MarkTree is the node-link tree: a dendrogram, an org chart, and under a
 	// polar coord a radial dendrogram. See docs/adr/0053-tidy-tree-layout.md.
 	MarkTree Mark = "tree"
+	// MarkGraph is the layered directed graph: a state chart, a dependency
+	// graph, a flowchart. It is the one relational mark that draws a cyclic
+	// edge table rather than refusing it. See
+	// docs/adr/0072-layered-graph-layout.md.
+	MarkGraph Mark = "graph"
 	// MarkSurvival is the Kaplan–Meier survival curve. See
 	// docs/adr/0054-statistical-instruments.md.
 	MarkSurvival Mark = "survival"
@@ -483,6 +488,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Arc(d.Source, opts...), nil
 	case MarkTree:
 		return Tree(d.Source, opts...), nil
+	case MarkGraph:
+		return Graph(d.Source, opts...), nil
 	case MarkSurvival:
 		return Survival(d.Source, opts...), nil
 	case MarkDepends:

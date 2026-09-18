@@ -376,7 +376,34 @@ p.Add(geom.Arc(src, geom.From("from"), geom.To("to"), geom.Value("rps"),
 
 ![The same traffic as a chord diagram](images/chord.png)
 
-Four marks, six charts, and no second implementation of anything — the same
+### And the one that runs in circles
+
+Every mark above refuses a cyclic edge table with `geom.ErrCyclic`, because a
+flow that returns to where it came from has no column to stand in. A state
+machine that cannot return to an earlier state is not a state machine, so
+`geom.Graph` breaks cycles instead of refusing them and draws the edge that
+closes one in its true direction:
+
+```go
+p.Add(geom.Graph(src, geom.From("state"), geom.To("next"),
+    geom.Baseline(1), geom.Corner(4)))
+```
+
+Nodes stand one rank past the deepest predecessor that reaches them, and within
+a rank they are ordered by six passes of the barycentre heuristic — a *stable*
+sort over the order the rows gave them, which is what makes a layout that
+reduces crossings still a pure function of its input
+([ADR 0072](adr/0072-layered-graph-layout.md)). There is no `rankdir` option:
+`geom.Baseline` decides which end rank zero is at and the coord decides the
+rest, so the same layer under `coord.Polar()` is a radial state diagram with
+the start state at the hub.
+
+A node's box is measured from its own label through the backend's text metrics,
+which is why it stays a rectangle under every coord — a name cannot be set in an
+annular sector — while the *layout* never sees a label at all.
+[`examples/statechart`](../examples/statechart) draws both charts.
+
+Six marks, nine charts, and no second implementation of anything — the same
 thing the coordinate stage bought for the pie, one bucket later. The layouts
 themselves are pure functions in [`stat/`](../stat), each with a determinism test:
 node order comes from the order the rows first named them and never from a map,
@@ -386,8 +413,8 @@ exactly what a serial one draws
 ([ADR 0039](adr/0039-relational-layouts.md)).
 
 Both axes describe the unit square, which is nothing a reader needs to see — so
-these charts want the same bare theme a pie does. A runnable version of all six
-is in [`examples/relational`](../examples/relational).
+these charts want the same bare theme a pie does. A runnable version of the
+first six is in [`examples/relational`](../examples/relational).
 
 ## Boxes bounded by their own row
 

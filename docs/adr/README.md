@@ -81,6 +81,7 @@ depends on.
 | [0069](0069-hatching-as-the-third-redundant-channel.md) | A filled mark is told apart by a hatch, drawn rather than declared | Accepted | — |
 | [0070](0070-a-third-labelled-family.md) | A coord raises a labelled family of its own, and `Furniture` carries families beside its two sides | Accepted | — |
 | [0071](0071-curve-families.md) | A curve is a family chosen for the drawing, and a smoother is a fit chosen for the data | Accepted | — |
+| [0072](0072-layered-graph-layout.md) | A layered graph is bounded and deterministic once the sort is stable, and the node's box is decoration rather than layout | Accepted, amended | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the

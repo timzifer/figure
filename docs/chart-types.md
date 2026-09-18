@@ -194,9 +194,11 @@ be two: the legend and the hit test were already general enough, which is what
 | Node-link, force-directed | missing | — |
 | Node-link, tree-shaped | `geom.Tree` — [ADR 0053](adr/0053-tidy-tree-layout.md) | Cartesian |
 | **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
+| State chart, dependency graph, flowchart | `geom.Graph` — [ADR 0072](adr/0072-layered-graph-layout.md) | Cartesian + `geom.Baseline(1)` |
+| **Radial state diagram** | `geom.Graph` | `coord.Polar()` |
 | Venn / UpSet | missing | — |
 
-**Four marks, six charts.** Every layout here fills the unit square — a span
+**Six marks, nine charts.** Every layout here fills the unit square — a span
 across, a height out — and the coordinate stage decides what that looks like.
 That is the coordinate stage's move made twice: an icicle wrapped round a
 circle is a
@@ -230,7 +232,15 @@ ADR 0012 has to be answered on its own terms before it lands. Venn is a
 circle-packing optimiser, and UpSet is a matrix chart rather than a relational
 layout at all.
 
-**That sentence was one size too large, and bucket L is the correction.** It
+**That sentence has been narrowed twice.** [ADR 0053](adr/0053-tidy-tree-layout.md)
+took tree layouts out of it and [ADR 0072](adr/0072-layered-graph-layout.md)
+took layered ones out: a Sugiyama layout's crossing reduction is a heuristic
+sort, which 0039 and 0053 both refused, and it is admissible once the sort is
+*stable* over an order the caller's rows decided and the sweep count is a
+constant. So a state machine, a dependency graph and a flowchart are drawn, and
+what is left in the category is the force simulation alone.
+
+**The first narrowing, in full.** It
 binds force layouts and not tree layouts: Reingold–Tilford, in Buchheim's
 linear-time form, is O(n), deterministic and bounded, which is `stat.Squarify`'s
 shape exactly. See [ADR 0053](adr/0053-tidy-tree-layout.md).

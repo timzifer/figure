@@ -78,6 +78,8 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "arc-diagram", "", nil
 	case geom.MarkTree:
 		return "tree", "", nil
+	case geom.MarkGraph:
+		return "graph", "", nil
 	case geom.MarkSurvival:
 		return "survival", "", nil
 	case geom.MarkDepends:
@@ -179,6 +181,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkArc, nil
 	case "tree":
 		return geom.MarkTree, nil
+	case "graph":
+		return geom.MarkGraph, nil
 	case "survival":
 		return geom.MarkSurvival, nil
 	case "dependency":
