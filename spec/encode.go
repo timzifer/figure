@@ -395,6 +395,12 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.HatchDensity > 0 {
 			m.HatchDensity = d.HatchDensity
 		}
+		if d.HatchWidth > 0 {
+			m.HatchWidth = d.HatchWidth
+		}
+		if d.HatchColorSet {
+			m.HatchColor = colorHex(d.HatchColor)
+		}
 		if d.Gradient != nil {
 			m.Gradient = colorHex(*d.Gradient)
 		}

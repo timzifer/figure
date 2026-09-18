@@ -321,16 +321,23 @@ type Desc struct {
 	// choice — "this layer stays plain whatever the theme says" — and a round
 	// trip through the JSON spec must not turn the first into the second.
 	//
-	// HatchDensity scales the theme's spacing; zero means the theme's own.
+	// HatchDensity scales the theme's spacing and HatchWidth its stroke; zero
+	// means the theme's own for either. HatchColor is the ink a layer named
+	// for its hatch, and HatchColorSet reports whether it named one — the
+	// zero [ir.Color] is transparent, which is a colour nobody asks a hatch
+	// to be drawn in, but the pair keeps the spec round trip honest anyway.
 	// Gradient is the colour a [Gradient] fill ramps to, nil for a flat one.
 	// Corner and Inset are the radius and the inner border, both in device
 	// units and both zero for a mark that asked for neither.
-	Hatch        ir.Hatch
-	HatchSet     bool
-	HatchDensity float64
-	Gradient     *ir.Color
-	Corner       float32
-	Inset        float32
+	Hatch         ir.Hatch
+	HatchSet      bool
+	HatchDensity  float64
+	HatchWidth    float64
+	HatchColor    ir.Color
+	HatchColorSet bool
+	Gradient      *ir.Color
+	Corner        float32
+	Inset         float32
 	// Closed reports a connected layer that joins its last mark back to its
 	// first — the radar contour of [Closed].
 	Closed bool
@@ -649,6 +656,12 @@ func (d Desc) options() []Option {
 	if d.HatchDensity > 0 {
 		opts = append(opts, HatchDensity(d.HatchDensity))
 	}
+	if d.HatchWidth > 0 {
+		opts = append(opts, HatchWidth(d.HatchWidth))
+	}
+	if d.HatchColorSet {
+		opts = append(opts, HatchColor(d.HatchColor))
+	}
 	if d.Gradient != nil {
 		opts = append(opts, Gradient(*d.Gradient))
 	}
@@ -686,99 +699,102 @@ func (c config) describe(mark Mark) Desc {
 
 func (c config) describeStacking(mark Mark, def Stacking) Desc {
 	return Desc{
-		Mark:         mark,
-		X:            c.xcol,
-		Y:            c.ycol,
-		Z:            c.zcol,
-		X2:           c.x2col,
-		Y2:           c.y2col,
-		ColorCol:     c.colorCol,
-		ColorScale:   c.colorScale,
-		SizeCol:      c.sizeCol,
-		SizeScale:    c.sizeScale,
-		Bins:         c.bins,
-		BinLo:        c.binLo,
-		BinHi:        c.binHi,
-		Bands:        c.bands,
-		BandHeight:   c.bandHeight,
-		Levels:       c.levels,
-		LevelCount:   c.levelCount,
-		LabelLevels:  c.labelLevels,
-		Resample:     c.resample,
-		Branch:       c.branch,
-		Orient:       c.orient,
-		EventCol:     c.eventCol,
-		Confidence:   c.confidence,
-		CensorMarks:  c.censorMarks,
-		HideGuide:    c.hideGuide,
-		Extrude:      c.extrude,
-		Bandwidth:    c.bandwidth,
-		Span:         c.span,
-		Smooth:       c.smooth,
-		Overlap:      c.overlap,
-		Group:        c.groupCol,
-		Key:          c.keyCol,
-		Stack:        c.stackFor(def),
-		StackSet:     c.stackSet,
-		Dodge:        c.dodge,
-		DodgePad:     c.dodgePad,
-		Order:        c.order,
-		WidthCol:     c.widthCol,
-		From:         c.fromCol,
-		To:           c.toCol,
-		LinkCol:      c.linkCol,
-		ProgressCol:  c.progCol,
-		ID:           c.idCol,
-		ParentCol:    c.parentCol,
-		ValueCol:     c.valCol,
-		Padding:      c.padding,
-		Thickness:    c.thickness,
-		Explode:      c.explode,
-		ExplodeCol:   c.explodeCol,
-		Label:        c.label,
-		TextCol:      c.textCol,
-		Elide:        c.elide,
-		Color:        c.color,
-		Fill:         c.fill,
-		Width:        c.width,
-		Dash:         c.dash,
-		DashSet:      c.dashSet,
-		Tension:      c.tension,
-		Curve:        c.curve,
-		CurveSet:     c.curveSet,
-		Missing:      c.missing,
-		Marker:       c.marker,
-		MarkerSet:    c.markerSet,
-		Hatch:        c.hatch,
-		HatchSet:     c.hatchSet,
-		HatchDensity: c.density,
-		Gradient:     c.gradient,
-		Corner:       c.corner,
-		Inset:        c.inset,
-		Closed:       c.closed,
-		OnY2:         c.onY2,
-		OnX2:         c.onX2,
-		Size:         c.size,
-		BarWidth:     c.barWidth,
-		Baseline:     c.baseline,
-		Opacity:      c.opacity,
-		Steps:        c.steps,
-		Whisker:      c.whisker,
-		Outliers:     c.outliers,
-		MidCol:       c.midCol,
-		ErrorCol:     c.errCol,
-		ErrorXCol:    c.errXCol,
-		Caps:         c.caps,
-		Decimate:     c.decimate,
-		Budget:       c.budget,
-		CellSize:     c.cellSize,
-		FontSize:     c.fontSize,
-		HAlign:       c.halign,
-		VAlign:       c.valign,
-		AlignSet:     c.alignSet,
-		Rotation:     c.rotation,
-		Extend:       c.extend,
-		Extra:        c.extra,
+		Mark:          mark,
+		X:             c.xcol,
+		Y:             c.ycol,
+		Z:             c.zcol,
+		X2:            c.x2col,
+		Y2:            c.y2col,
+		ColorCol:      c.colorCol,
+		ColorScale:    c.colorScale,
+		SizeCol:       c.sizeCol,
+		SizeScale:     c.sizeScale,
+		Bins:          c.bins,
+		BinLo:         c.binLo,
+		BinHi:         c.binHi,
+		Bands:         c.bands,
+		BandHeight:    c.bandHeight,
+		Levels:        c.levels,
+		LevelCount:    c.levelCount,
+		LabelLevels:   c.labelLevels,
+		Resample:      c.resample,
+		Branch:        c.branch,
+		Orient:        c.orient,
+		EventCol:      c.eventCol,
+		Confidence:    c.confidence,
+		CensorMarks:   c.censorMarks,
+		HideGuide:     c.hideGuide,
+		Extrude:       c.extrude,
+		Bandwidth:     c.bandwidth,
+		Span:          c.span,
+		Smooth:        c.smooth,
+		Overlap:       c.overlap,
+		Group:         c.groupCol,
+		Key:           c.keyCol,
+		Stack:         c.stackFor(def),
+		StackSet:      c.stackSet,
+		Dodge:         c.dodge,
+		DodgePad:      c.dodgePad,
+		Order:         c.order,
+		WidthCol:      c.widthCol,
+		From:          c.fromCol,
+		To:            c.toCol,
+		LinkCol:       c.linkCol,
+		ProgressCol:   c.progCol,
+		ID:            c.idCol,
+		ParentCol:     c.parentCol,
+		ValueCol:      c.valCol,
+		Padding:       c.padding,
+		Thickness:     c.thickness,
+		Explode:       c.explode,
+		ExplodeCol:    c.explodeCol,
+		Label:         c.label,
+		TextCol:       c.textCol,
+		Elide:         c.elide,
+		Color:         c.color,
+		Fill:          c.fill,
+		Width:         c.width,
+		Dash:          c.dash,
+		DashSet:       c.dashSet,
+		Tension:       c.tension,
+		Curve:         c.curve,
+		CurveSet:      c.curveSet,
+		Missing:       c.missing,
+		Marker:        c.marker,
+		MarkerSet:     c.markerSet,
+		Hatch:         c.hatch,
+		HatchSet:      c.hatchSet,
+		HatchDensity:  c.density,
+		HatchWidth:    c.hatchWidth,
+		HatchColor:    c.ink,
+		HatchColorSet: c.inkSet,
+		Gradient:      c.gradient,
+		Corner:        c.corner,
+		Inset:         c.inset,
+		Closed:        c.closed,
+		OnY2:          c.onY2,
+		OnX2:          c.onX2,
+		Size:          c.size,
+		BarWidth:      c.barWidth,
+		Baseline:      c.baseline,
+		Opacity:       c.opacity,
+		Steps:         c.steps,
+		Whisker:       c.whisker,
+		Outliers:      c.outliers,
+		MidCol:        c.midCol,
+		ErrorCol:      c.errCol,
+		ErrorXCol:     c.errXCol,
+		Caps:          c.caps,
+		Decimate:      c.decimate,
+		Budget:        c.budget,
+		CellSize:      c.cellSize,
+		FontSize:      c.fontSize,
+		HAlign:        c.halign,
+		VAlign:        c.valign,
+		AlignSet:      c.alignSet,
+		Rotation:      c.rotation,
+		Extend:        c.extend,
+		Extra:         c.extra,
 
 		AvoidOverlap:   c.avoidLabels,
 		HideDroplines:  c.hideDroplines,
