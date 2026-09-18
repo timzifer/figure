@@ -1245,8 +1245,12 @@ regions too thin to hold one, not because no fixed arrangement of four exists.
 rather than a solution, and `geom.Intersections` is the chart that keeps working
 past three ([ADR 0074](docs/adr/0074-sets-are-counted.md) and its
 [amendment](docs/adr/0074-sets-are-counted.md#amendment-two-refusals-restated)).
-**An UpSet plot is a count and not a layout**, which is why it is two ordinary
-marks and a track rather than anything new below `geom`. A relational mark
+**An UpSet plot is a count and not a layout**, which is why it is three ordinary
+marks and a track rather than anything new below `geom` — and why the set-size
+bars beside the matrix are a mark reading that same count rather than arithmetic
+repeated in the caller's code, though the panel they stand in is still the
+caller's ([ADR 0076](docs/adr/0076-the-other-half-of-the-count.md)). A
+relational mark
 **ignores `geom.SizeBy`**, because a size per node is
 meaningless when the value already is the size. A **sankey does not reorder its
 nodes to reduce crossings**: that means a sort per sweep, and a sort is where a

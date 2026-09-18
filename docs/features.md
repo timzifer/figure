@@ -64,9 +64,12 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   pair, named by the same `geom.From`/`geom.To` a flow uses. Both halves run one
   count, `stat.Intersections`, so a bar cannot drift off its own column, and
   each bar holds the elements in *exactly* its combination, so the bars
-  partition the elements. The panels are the caller's: the matrix is a
-  `Plot.Track` sharing the bars' X scale object, and the set-size bars beside it
-  are a third panel and therefore a `figure.Grid`. **`Venn`** draws the two- or
+  partition the elements. **`SetSizes`** is the third panel beside the matrix —
+  one bar per set, how big it is altogether, which is a different count from the
+  bars above and the same table; on a `scale.Reverse` X it grows away from the
+  matrix, the way the form is printed. The panels are the caller's: the matrix
+  is a `Plot.Track` sharing the bars' X scale object, and the sizes are a third
+  panel and therefore a `figure.Grid` ([ADR 0076](adr/0076-the-other-half-of-the-count.md)). **`Venn`** draws the two- or
   three-set diagram of the same counts, in a fixed arrangement rather than a
   packing solution. An area-proportional diagram is refused **from three sets
   on**, where it stops being a construction and becomes an optimiser, and a

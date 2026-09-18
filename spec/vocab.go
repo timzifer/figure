@@ -87,6 +87,8 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "intersections", "", nil
 	case geom.MarkSetMatrix:
 		return "set-matrix", "", nil
+	case geom.MarkSetSizes:
+		return "set-sizes", "", nil
 	case geom.MarkVenn:
 		return "venn", "", nil
 	case geom.MarkSurvival:
@@ -196,6 +198,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkIntersections, nil
 	case "set-matrix":
 		return geom.MarkSetMatrix, nil
+	case "set-sizes":
+		return geom.MarkSetSizes, nil
 	case "venn":
 		return geom.MarkVenn, nil
 	case "survival":

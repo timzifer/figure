@@ -198,6 +198,7 @@ be two: the legend and the hit test were already general enough, which is what
 | State chart, dependency graph, flowchart | `geom.Graph` — [ADR 0072](adr/0072-layered-graph-layout.md) | Cartesian + `geom.Baseline(1)` |
 | **Radial state diagram** | `geom.Graph` | `coord.Polar()` |
 | **UpSet plot** | `geom.Intersections` + `geom.SetMatrix` in a track — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian, an ordinal axis each |
+| **UpSet with set sizes** | the same two plus `geom.SetSizes` in a `figure.Grid` — [ADR 0076](adr/0076-the-other-half-of-the-count.md) | Cartesian; the sizes on a `scale.Reverse` X |
 | **Venn (two or three sets)** | `geom.Venn` — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian |
 
 **Nine marks, twelve charts.** Every layout here fills the unit square — a span

@@ -643,6 +643,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
+	case geom.MarkSetSizes:
+		// No ranking: a set's total is over the whole table, so the options
+		// that decide an UpSet's columns say nothing about these bars.
+		fill()
 	case geom.MarkVenn:
 		fill()
 		stroke()

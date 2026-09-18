@@ -10,8 +10,11 @@
 // bars and the dots are two panels — the matrix is a track under the panel,
 // sharing its X scale object, which is what keeps a bar over its own column.
 //
-// The second is the same chart with the set sizes beside it, which needs a
-// third panel and therefore a figure.Grid rather than a track.
+// The second is the same chart with the set sizes beside it. That is a third
+// panel, and a mark cannot make one, so it is a figure.Grid rather than a
+// track — but the count is geom.SetSizes rather than arithmetic done by hand
+// out here, because three panels of one chart have to agree about what is in
+// the table.
 //
 // The third is the Venn diagram of the same three products, which is the chart
 // people ask for and the one that stops working at four.
@@ -88,6 +91,12 @@ func matrix(opts ...geom.Option) geom.Geom {
 	return geom.SetMatrix(subscriptions(), append(channels(), opts...)...)
 }
 
+// sizes is the third panel's mark: how many customers each product has, which
+// is a different count from either of the other two and the same table.
+func sizes(opts ...geom.Option) geom.Geom {
+	return geom.SetSizes(subscriptions(), append(channels(), opts...)...)
+}
+
 // upsetChart is the form itself: how many customers have exactly each
 // combination of products, and which combination that is.
 //
@@ -116,7 +125,11 @@ func upsetChart(out string) error {
 // the bars is where a printed UpSet leaves a gap too.
 func upsetWithSetSizes(out string) error {
 	cols, lanes := scale.Ordinal(), scale.Ordinal()
-	counts, totals := scale.Linear(scale.Zero()), scale.Linear(scale.Zero())
+	counts := scale.Linear(scale.Zero())
+	// The totals run the other way, so the bars grow away from the matrix and
+	// meet it at their own axis — the way the form is printed. scale.Reverse is
+	// the axis's direction; writing the domain backwards is not (ADR 0075).
+	totals := scale.Linear(scale.Zero(), scale.Reverse())
 
 	top := figure.New(figure.Title("customers per combination"))
 	top.X(cols)
@@ -129,17 +142,16 @@ func upsetWithSetSizes(out string) error {
 	dots.Add(matrix())
 
 	// The set sizes: one bar per product, on the lanes the matrix uses, so the
-	// bar and the row of dots line up. They are a different count from the bars
-	// above — a customer with two products is in two of these and in one of
-	// those.
+	// bar and the row of dots line up — they share the ordinal scale object, so
+	// that holds by construction rather than by two tables being sorted the
+	// same way. They are a different count from the bars above: a customer with
+	// two products is in two of these and in one of those.
 	// A member plot's title is the label above its panel, and its own axis
 	// titles are not used — the canvas belongs to the grid.
 	side := figure.New(figure.Title("subscribers per product"))
 	side.X(totals)
 	side.Y(lanes)
-	// A bar that runs across rather than up is a rect from zero to its value,
-	// which is the recipe a gantt row already is: geom.Bar measures up Y.
-	side.Add(geom.Rect(sizeTable(), geom.X("zero"), geom.X2("n"), geom.Y("what")))
+	side.Add(sizes())
 
 	g := figure.NewGrid(2,
 		figure.GridSize(900, 520),
@@ -153,27 +165,6 @@ func upsetWithSetSizes(out string) error {
 	g.At(1, 0, side)
 	g.At(1, 1, dots)
 	return g.Render(figure.SVG(out))
-}
-
-// sizeTable is how many customers each product has, which is a count of the
-// membership rows and not of the combinations.
-func sizeTable() data.Source {
-	order := []string{}
-	n := map[string]int{}
-	for _, s := range what {
-		if _, seen := n[s]; !seen {
-			order = append(order, s)
-		}
-		n[s]++
-	}
-	counts := make([]float64, 0, len(order))
-	for _, s := range order {
-		counts = append(counts, float64(n[s]))
-	}
-	return figure.NewTable().
-		String("what", order).
-		Float64("zero", make([]float64, len(order))).
-		Float64("n", counts)
 }
 
 // vennChart is the picture everybody asks for, drawn so that it says what it

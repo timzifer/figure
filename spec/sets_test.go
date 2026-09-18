@@ -38,6 +38,10 @@ func TestEverySetMarkSurvivesTheRoundTrip(t *testing.T) {
 			geom.Intersections(src, geom.From("who"), geom.To("what"), geom.Order(geom.OrderAppearance)), theme.Light},
 		{"set-matrix", scale.Ordinal(), scale.Ordinal(),
 			geom.SetMatrix(src, geom.From("who"), geom.To("what"), geom.Top(3)), theme.Light},
+		{"set-sizes", scale.Linear(), scale.Ordinal(),
+			geom.SetSizes(src, geom.From("who"), geom.To("what")), theme.Light},
+		{"set-sizes reversed", scale.Linear(scale.Zero(), scale.Reverse()), scale.Ordinal(),
+			geom.SetSizes(src, geom.From("who"), geom.To("what")), theme.Light},
 		{"venn", scale.Linear(), scale.Linear(),
 			geom.Venn(src, geom.From("who"), geom.To("what")), theme.Light},
 	}
@@ -67,6 +71,7 @@ func TestASetLayerWritesItsOwnMarkNames(t *testing.T) {
 	}{
 		{geom.Intersections(src, geom.From("who"), geom.To("what"), geom.Top(5)), scale.Ordinal(), scale.Linear(), "intersections"},
 		{geom.SetMatrix(src, geom.From("who"), geom.To("what")), scale.Ordinal(), scale.Ordinal(), "set-matrix"},
+		{geom.SetSizes(src, geom.From("who"), geom.To("what")), scale.Linear(), scale.Ordinal(), "set-sizes"},
 		{geom.Venn(src, geom.From("who"), geom.To("what")), scale.Linear(), scale.Linear(), "venn"},
 	} {
 		s, err := spec.Of(spec.Chart{

@@ -83,6 +83,10 @@ const (
 	// membership table — see docs/adr/0074-sets-are-counted.md.
 	MarkIntersections Mark = "intersections"
 	MarkSetMatrix     Mark = "set-matrix"
+	// MarkSetSizes is the bar per set beside the matrix: how big each set is
+	// altogether, which is a different count from the bars above it. See
+	// docs/adr/0076-the-other-half-of-the-count.md.
+	MarkSetSizes Mark = "set-sizes"
 	// MarkVenn is the two- or three-set Venn diagram of the same table.
 	MarkVenn Mark = "venn"
 	// MarkSurvival is the Kaplan–Meier survival curve. See
@@ -519,6 +523,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Intersections(d.Source, opts...), nil
 	case MarkSetMatrix:
 		return SetMatrix(d.Source, opts...), nil
+	case MarkSetSizes:
+		return SetSizes(d.Source, opts...), nil
 	case MarkVenn:
 		return Venn(d.Source, opts...), nil
 	case MarkSurvival:

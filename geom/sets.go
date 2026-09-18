@@ -274,23 +274,32 @@ func (g *intersectionsGeom) Build(b ir.Backend, f Frame) error {
 	return nil
 }
 
-// slotHalfWidth is half the width of one column, in device units.
+// slotHalfWidth is half the width of one column, in device units, and
+// slotHalfHeight the same for a mark whose slots are rows rather than columns.
 //
 // A band scale knows it — that is what [scale.Band] is for, and it is what an
 // ordinal axis is. A caller who gave the axis some other categorical scale gets
 // an even share of the panel instead, which is a bar rather than a mark of no
 // width at all.
 func slotHalfWidth(f Frame, columns int, frac float64) float32 {
+	return slotHalf(f.X, f.Area.Dx(), columns, frac)
+}
+
+func slotHalfHeight(f Frame, lanes int, frac float64) float32 {
+	return slotHalf(f.Y, f.Area.Dy(), lanes, frac)
+}
+
+func slotHalf(s scale.Scale, extent float32, n int, frac float64) float32 {
 	if frac <= 0 || frac > 1 {
 		frac = 0.8
 	}
-	if band, ok := f.X.(scale.Band); ok {
+	if band, ok := s.(scale.Band); ok {
 		return band.Bandwidth() / 2 * float32(frac) / 0.8
 	}
-	if columns < 1 {
-		columns = 1
+	if n < 1 {
+		n = 1
 	}
-	return f.Area.Dx() / float32(columns) / 2 * float32(frac)
+	return extent / float32(n) / 2 * float32(frac)
 }
 
 func (g *intersectionsGeom) Legend(f Frame) (LegendEntry, bool) {
@@ -452,9 +461,171 @@ func (g *setMatrixGeom) Describe() Desc {
 	return d
 }
 
+// SetSizes draws one bar per set: how many elements are in it altogether.
+//
+// It is the third panel of an UpSet plot, the one beside the matrix, and it
+// reads the same membership table the other two do — the element named by
+// [From] and the set it is in by [To].
+//
+//	sets := scale.Ordinal()
+//	side.X(scale.Linear(scale.Zero(), scale.Reverse()))
+//	side.Y(sets)
+//	side.Add(geom.SetSizes(src, geom.From("customer"), geom.To("product")))
+//
+// The count is [stat.Intersections.Sizes], which is the same arithmetic
+// [Intersections] and [SetMatrix] run, from the same table, in the same
+// [Geom.Train] — so the three panels of one chart cannot disagree about what is
+// in the data. A membership the table names twice is one membership, because a
+// set holds an element or it does not.
+//
+// # It is a different count from the bars above
+//
+// [Intersections] counts the elements in *exactly* one combination of sets, so
+// its bars partition the elements. These count the elements in a set whatever
+// else they are in, so a customer with two products is in two of these and in
+// one of those. The two rows of numbers do not add up to each other and are not
+// meant to: one says how the sets overlap and the other says how big they are.
+//
+// # What it does not read
+//
+// [Order] and [Top] name which *columns* a chart has, and a set's total is over
+// the whole table rather than over the drawn columns. This mark accepts them
+// and ignores them, the way the relational marks accept and ignore [SizeBy].
+// The lanes are the sets in the order the table first names them, which is
+// [SetMatrix]'s lane order — hand both marks the same ordinal scale object and
+// the bars line up with the rows of dots by construction.
+//
+// # The panel is still the caller's
+//
+// A mark cannot make a panel ([ADR 0054](docs/adr/0054-statistical-instruments.md)),
+// and this one does not: the three-panel UpSet is a [github.com/timzifer/figure.Grid]
+// whose cells share two scale objects, which is what `examples/sets` builds.
+// What this replaces is the *arithmetic* the caller used to do by hand beside
+// it. The X axis carries the count and the Y axis the sets; [scale.Reverse] on
+// the X is what grows the bars away from the matrix, which is how the form is
+// printed. See docs/adr/0076-the-other-half-of-the-count.md.
+func SetSizes(src data.Source, opts ...Option) Geom {
+	return &setSizesGeom{src: src, cfg: newConfig(opts)}
+}
+
+type setSizesGeom struct {
+	src data.Source
+	cfg config
+	m   membership
+	err error
+
+	// ys is the encoded lane of each set, filled in Train because that is where
+	// the axis learns its categories.
+	ys []float64
+}
+
+func (g *setSizesGeom) Train(t Training) error {
+	g.err = g.resolve(t)
+	return g.err
+}
+
+func (g *setSizesGeom) resolve(t Training) error {
+	if err := g.m.reset(g.src, g.cfg); err != nil {
+		return err
+	}
+	y, err := categorical(t.Y, "sets")
+	if err != nil {
+		return err
+	}
+	g.ys = grow(g.ys, g.m.sets.count())[:0]
+	for i, name := range g.m.sets.keys {
+		g.ys = append(g.ys, y.Encode(name))
+		t.X.Train(float64(g.m.x.Sizes[i]))
+	}
+	// A bar is read as the distance from the baseline, so the baseline has to
+	// be inside the domain — [Intersections]'s rule turned a quarter turn.
+	t.X.Train(g.cfg.baseline)
+	return nil
+}
+
+func (g *setSizesGeom) Build(b ir.Backend, f Frame) error {
+	if g.err != nil {
+		return g.err
+	}
+	fill := g.cfg.colorFor(f)
+	if g.cfg.fill != nil {
+		fill = *g.cfg.fill
+	}
+	if g.cfg.opacity >= 0 {
+		fill = ir.Fade(fill, clamp01(g.cfg.opacity))
+	}
+	if fill.A == 0 || len(g.ys) == 0 {
+		return nil
+	}
+
+	sc := acquire(f)
+	defer sc.release()
+
+	cd := f.Coords()
+	base := baselineAcross(f, g.cfg.baseline)
+	half := slotHalfHeight(f, len(g.ys), g.cfg.barWidth)
+	sc.fill.Reset()
+	for i := range g.ys {
+		y := f.Y.Map(g.ys[i])
+		x0, x1 := f.X.Map(float64(g.m.x.Sizes[i])), base
+		if x1 < x0 {
+			x0, x1 = x1, x0
+		}
+		areaRound(&sc.fill, cd, ir.R(x0, y-half, x1, y+half), ir.Point{}, g.cfg.corner)
+	}
+	if sc.fill.Empty() {
+		return nil
+	}
+	g.cfg.fillMark(b, &sc.fill, f, 0, fill)
+	return nil
+}
+
+// baselineAcross maps the value a bar grows from, on the axis it grows along.
+//
+// It is [baselinePos] turned a quarter turn and it answers the same question:
+// a log axis has no position for zero, so a bar denied its baseline starts at
+// the end of the axis nearest to it. Asking which end of the *domain* is
+// nearest, rather than which end of the panel is on the left, is what keeps
+// that true on an axis drawn backwards — see [scale.Reverse].
+func baselineAcross(f Frame, v float64) float32 {
+	if defined(f.X, v) {
+		return f.X.Map(v)
+	}
+	lo, hi := f.X.Domain()
+	if v <= lo {
+		return f.X.Map(lo)
+	}
+	return f.X.Map(hi)
+}
+
+func (g *setSizesGeom) Legend(f Frame) (LegendEntry, bool) {
+	if g.err != nil || g.cfg.label == "" {
+		return LegendEntry{}, false
+	}
+	col := g.cfg.colorFor(f)
+	if g.cfg.fill != nil {
+		col = *g.cfg.fill
+	}
+	return g.cfg.boxSwatch(f, g.cfg.label, col), true
+}
+
+func (g *setSizesGeom) Source() data.Source { return g.src }
+
+func (g *setSizesGeom) Subset(rows []int) Geom {
+	return &setSizesGeom{src: data.Rows(g.src, rows), cfg: g.cfg}
+}
+
+func (g *setSizesGeom) Describe() Desc {
+	d := g.cfg.describe(MarkSetSizes)
+	d.Source = g.src
+	return d
+}
+
 var (
 	_ Describer = (*intersectionsGeom)(nil)
 	_ Faceter   = (*intersectionsGeom)(nil)
 	_ Describer = (*setMatrixGeom)(nil)
 	_ Faceter   = (*setMatrixGeom)(nil)
+	_ Describer = (*setSizesGeom)(nil)
+	_ Faceter   = (*setSizesGeom)(nil)
 )

@@ -170,6 +170,9 @@ options: the categories are encoded into the axis in ranking order.
   ones claim 4 gave.
 - **Set-size bars as an option on the matrix mark.** They are a third panel, and
   a mark cannot make one. `figure.Grid` is the answer and the example shows it.
+  The panel still is the caller's; the *count* is a mark of its own since
+  [ADR 0076](0076-the-other-half-of-the-count.md), which is the half of this
+  sentence that was not a panel question.
 - **A degree filter, or dropping sets.** `Top` ranks; anything else about which
   rows are in the chart is a cut of the caller's own table, which is
   `data.Rows`'s job and not a mark's.
