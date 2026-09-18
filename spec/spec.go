@@ -304,6 +304,11 @@ type Mark struct {
 	// "bins": 8 for a contour would be a document claiming the mark bins.
 	Levels     []float64 `json:"levels,omitempty"`
 	LevelCount int       `json:"levelCount,omitempty"`
+	// Top caps how many groups a mark that ranks its own groups draws: the
+	// biggest n of them. An UpSet's two halves carry the same value, because
+	// they are two layers over one ranking. Vega-Lite has no such property;
+	// the name is figure's.
+	Top int `json:"top,omitempty"`
 	// LabelLevels writes each level's value along the curve a contour or a
 	// locus draws it at. Vega-Lite has neither mark, so the name is figure's.
 	//

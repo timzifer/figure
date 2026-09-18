@@ -285,6 +285,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		BandHeight:  l.Mark.BandHeight,
 		Levels:      l.Mark.Levels,
 		LabelLevels: l.Mark.LabelLevels,
+		Top:         l.Mark.Top,
 		Family:      family(l.Mark.Family),
 		LevelCount:  l.Mark.LevelCount,
 		Resample:    resampling(l.Mark.Resample),
@@ -324,7 +325,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.Dodge != nil {
 		d.Dodge, d.DodgePad = true, *l.Mark.Dodge
 	}
-	d.Order = ordering(l.Mark.Order)
+	d.Order, d.OrderSet = ordering(l.Mark.Order), l.Mark.Order != ""
 	if l.Mark.Opacity != nil {
 		d.Opacity = *l.Mark.Opacity
 	}

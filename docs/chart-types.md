@@ -173,7 +173,7 @@ strokes — and parallel
 coordinates would want the same shape of answer from a coord of its own rather
 than a second one drawn by a geom.
 
-## E — needs a relational layout — **shipped**, except force-directed node-link and Venn
+## E — needs a relational layout — **shipped**, except force-directed node-link
 
 Sankey/alluvial, chord, arc diagram, node-link, treemap, sunburst/icicle,
 Venn/UpSet.
@@ -197,9 +197,10 @@ be two: the legend and the hit test were already general enough, which is what
 | **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
 | State chart, dependency graph, flowchart | `geom.Graph` — [ADR 0072](adr/0072-layered-graph-layout.md) | Cartesian + `geom.Baseline(1)` |
 | **Radial state diagram** | `geom.Graph` | `coord.Polar()` |
-| Venn / UpSet | missing | — |
+| **UpSet plot** | `geom.Intersections` + `geom.SetMatrix` in a track — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian, an ordinal axis each |
+| **Venn (two or three sets)** | `geom.Venn` — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian |
 
-**Six marks, nine charts.** Every layout here fills the unit square — a span
+**Nine marks, twelve charts.** Every layout here fills the unit square — a span
 across, a height out — and the coordinate stage decides what that looks like.
 That is the coordinate stage's move made twice: an icicle wrapped round a
 circle is a
@@ -229,9 +230,16 @@ sankey's relaxation runs `stat.SankeySweeps` sweeps rather than to convergence.
 **What is still missing, and why.** A *force-directed* node-link layout is a
 simulation whose whole method is to run until it settles — so it cannot be a
 pure function of its input at a bounded sweep count that also looks good, and
-ADR 0012 has to be answered on its own terms before it lands. Venn is a
-circle-packing optimiser, and UpSet is a matrix chart rather than a relational
-layout at all.
+ADR 0012 has to be answered on its own terms before it lands. It is the only
+thing left in this bucket.
+
+**The set charts were never a relational layout, which is why they were cheap.**
+[ADR 0074](adr/0074-sets-are-counted.md) took the other half of 0039's sentence
+apart: an UpSet plot lays nothing out — it counts a membership list by which
+sets each element is in, and the rest is a bar chart over a dot matrix in a
+track sharing its X scale — and the Venn diagram people draw is three circles in
+a fixed arrangement rather than the circle-packing optimiser 0039 declined,
+which is still declined along with any fourth set.
 
 **That sentence has been narrowed twice.** [ADR 0053](adr/0053-tidy-tree-layout.md)
 took tree layouts out of it and [ADR 0072](adr/0072-layered-graph-layout.md)

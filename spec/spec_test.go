@@ -451,11 +451,12 @@ func TestALayerThatCannotDescribeItselfIsAnError(t *testing.T) {
 }
 
 func TestAnUnknownMarkIsAnError(t *testing.T) {
-	// "violin" used to be the example here, until v0.9 made it a mark, and
+	// "violin" used to be the example here, until v0.9 made it a mark;
 	// "sunburst" until the relational layouts arrived — a sunburst is an
-	// icicle under a polar coord, so naming it here read as a contradiction of
-	// its own documentation.
-	s := spec.Spec{Layer: []spec.Layer{{Mark: spec.Mark{Type: "venn"}}}}
+	// icicle under a polar coord — and "venn" until
+	// docs/adr/0074-sets-are-counted.md made that one a mark. An Euler diagram
+	// is the nearest thing this dialect still has no word for.
+	s := spec.Spec{Layer: []spec.Layer{{Mark: spec.Mark{Type: "euler"}}}}
 	if _, err := s.Chart(); err == nil {
 		t.Fatal("an unknown mark was accepted")
 	}

@@ -31,6 +31,7 @@ picture here cannot drift away from the code that produced it.
 | ![A rebuild plan as a gantt chart: bars part filled by how far each task has got, arrows between them with the critical path in orange, milestone diamonds and a dashed line at today](images/gantt.png) | ![The same stacked revenue chart under redundant encoding: a different hatch pattern over each product, so the stack reads without colour](images/hatched.png) |
 | ![The same stacked revenue chart with the colour taken out: three products as three greys, two of them almost the same one](images/greyscale-plain.png) | ![The same greyscale chart with redundant encoding on: the greys are unchanged and each product carries a pattern, so the stack reads again](images/greyscale-hatched.png) |
 | ![Traffic by channel as stacked areas, each band hatched and its crest marked with points](images/hatched-area.png) | ![The fourteen hatch patterns as fourteen labelled samples: lines, dots, wavering lines and tilings](images/hatch-kinds.png) |
+| ![Customers by which products they subscribe to, as an UpSet plot: a bar per combination over a matrix of dots saying which products that combination is](images/upset.png) | ![The same three products as a Venn diagram, each region carrying the customers who have exactly those products](images/venn.png) |
 
 ---
 

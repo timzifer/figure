@@ -122,12 +122,12 @@ func TestFromDescNeedsASource(t *testing.T) {
 }
 
 func TestFromDescRejectsAnUnknownMark(t *testing.T) {
-	// "hexbin" used to be the example here, until v0.9 made it a mark, and
+	// "hexbin" used to be the example here, until v0.9 made it a mark;
 	// "sunburst" until the relational layouts arrived — a sunburst is an
-	// [Icicle] under a polar coord and not a mark at all, so naming it here
-	// read as a contradiction of its own documentation. Anything this package
-	// genuinely has no constructor for will do.
-	if _, err := FromDesc(Desc{Mark: "venn", Source: testSource()}); err == nil {
+	// [Icicle] under a polar coord and not a mark at all — and "venn" until
+	// docs/adr/0074-sets-are-counted.md made that one a mark too. Anything this
+	// package genuinely has no constructor for will do.
+	if _, err := FromDesc(Desc{Mark: "euler", Source: testSource()}); err == nil {
 		t.Error("an unknown mark was built")
 	}
 }

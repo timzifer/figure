@@ -123,7 +123,7 @@ func Dodge(padding float64) Option {
 }
 
 // Order sets the order a layer's groups are stacked and listed in.
-func Order(o Ordering) Option { return func(c *config) { c.order = o } }
+func Order(o Ordering) Option { return func(c *config) { c.order, c.orderSet = o, true } }
 
 // WidthBy reads a bar's width from a column instead of from the spacing of the
 // data, in the axis's own units.

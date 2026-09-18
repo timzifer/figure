@@ -143,8 +143,9 @@ picture cannot drift away from the code that produced it.
   decade, pinned tick sequences, probability paper.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
   violins, ridgelines, hexbins, beeswarms, ECDFs, survival curves, trends,
-  contours, horizons, rasters, treemaps, icicles, trees, sankeys, arcs, error
-  bars, intervals, text, annotations — including a **locus**, a family of curves given by a formula
+  contours, horizons, rasters, treemaps, icicles, trees, sankeys, arcs, graphs,
+  UpSet plots, Venn diagrams, error bars, intervals, text, annotations —
+  including a **locus**, a family of curves given by a formula
   rather than by data, which is what a Nichols diagram's closed-loop contours
   and a Smith chart's VSWR circles are.
 - **Schedules** — a rect on a time axis is a gantt bar; `geom.ProgressBy` fills

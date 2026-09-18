@@ -54,6 +54,18 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `geom.Orient(geom.Horizontal)` reads the breadth up Y, which is what a
   dendrogram in a *left* track needs, so one heatmap carries a tree on both
   edges ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+- **Set charts** — **`Intersections`** and **`SetMatrix`** are the two halves of
+  an **UpSet plot**: a bar per combination of sets over a matrix saying which
+  combination that is, read off a membership table — one row per (element, set)
+  pair, named by the same `geom.From`/`geom.To` a flow uses. Both halves run one
+  count, `stat.Intersections`, so a bar cannot drift off its own column, and
+  each bar holds the elements in *exactly* its combination, so the bars
+  partition the elements. The panels are the caller's: the matrix is a
+  `Plot.Track` sharing the bars' X scale object, and the set-size bars beside it
+  are a third panel and therefore a `figure.Grid`. **`Venn`** draws the two- or
+  three-set diagram of the same counts, in a fixed arrangement rather than a
+  packing solution — an area-proportional diagram and a fourth set are both
+  refused ([ADR 0074](adr/0074-sets-are-counted.md)).
 - **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
   series, with an opt-in log-log confidence band and censoring ticks, from a
   time column and a `geom.Event` indicator. `stat` holds the arithmetic of the
