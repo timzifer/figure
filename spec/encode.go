@@ -144,7 +144,13 @@ func encodeScale(d scale.Desc) *Scale {
 	out := &Scale{Nice: d.Nice, Zero: d.Zero, Format: d.Format, Locale: d.Locale}
 	switch d.Kind {
 	case scale.KindLinear:
-		out.Type, out.TickValues = "linear", d.TickValues
+		// Reverse is written only for the kind that reads it back. On a
+		// positional scale the word means the axis runs the other way and on a
+		// colour scale it means the ramp does, which is one word for two ideas
+		// — tolerable because the channel a scale hangs off says which of them
+		// is in question, and misleading the moment a kind that ignores it
+		// writes it down anyway.
+		out.Type, out.TickValues, out.Reverse = "linear", d.TickValues, d.Reverse
 	case scale.KindLog:
 		out.Type, out.Base = "log", d.Base
 		out.MinorTicks = boolPtr(d.MinorTicks)
@@ -572,6 +578,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Orient == geom.Horizontal {
 			m.Orientation = "horizontal"
 		}
+	case geom.MarkNodeLink:
+		// Dots and lines: a fill for the discs, a stroke for the edges, and the
+		// mark's size is a disc's diameter. There is no ranking, no direction
+		// and no edge shape to write — the layout is the whole of it.
+		fill()
+		stroke()
+		m.Size = d.Size
 	case geom.MarkGraph:
 		// A graph is boxes and arrows, so it writes both a fill and a stroke,
 		// where rank zero sits, the edge shape when it is not the elbow, and
@@ -637,6 +650,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
+	case geom.MarkSetSizes:
+		// No ranking: a set's total is over the whole table, so the options
+		// that decide an UpSet's columns say nothing about these bars.
+		fill()
 	case geom.MarkVenn:
 		fill()
 		stroke()

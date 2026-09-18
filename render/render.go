@@ -1236,8 +1236,18 @@ func selectXLabels(m layout.Measurer, fur *coord.Furniture, ticks []scale.Tick, 
 		}
 		return keep
 	}
+	// The sweep drops a label that would run into the one before it, so it has
+	// to meet them in the order a reader does: left to right across the panel.
+	// A tick sequence is ascending by value, and on a reversed axis
+	// ([scale.Reverse]) that is right to left — where sweeping in tick order
+	// keeps the rightmost label and then finds every other one behind it.
+	from, to, step := 0, len(ticks), 1
+	if xLabelsRunRightToLeft(fur, ticks) {
+		from, to, step = len(ticks)-1, -1, -1
+	}
 	prevRight := float32(-1e30)
-	for i, t := range ticks {
+	for i := from; i != to; i += step {
+		t := ticks[i]
 		if t.Label == "" || !inFurniture(fur.InX, i) || i >= len(fur.LabelX) {
 			continue
 		}
@@ -1250,6 +1260,23 @@ func selectXLabels(m layout.Measurer, fur *coord.Furniture, ticks []scale.Tick, 
 		prevRight = fur.LabelX[i].At.X + w/2
 	}
 	return keep
+}
+
+// xLabelsRunRightToLeft reports whether the labelled ticks cross the panel
+// backwards. A positional scale is monotone, so the two outermost labels decide
+// it for the whole sequence.
+func xLabelsRunRightToLeft(fur *coord.Furniture, ticks []scale.Tick) bool {
+	first, last := -1, -1
+	for i := range ticks {
+		if ticks[i].Label == "" || !inFurniture(fur.InX, i) || i >= len(fur.LabelX) {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		last = i
+	}
+	return first >= 0 && last > first && fur.LabelX[last].At.X < fur.LabelX[first].At.X
 }
 
 func drawTitles(b ir.Backend, lay layout.GridResult, th theme.Theme, c Chart) {

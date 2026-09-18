@@ -17,8 +17,43 @@ func Nice() LinearOption { return func(l *linear) { l.nice = true } }
 // whose baseline is off-screen misleads.
 func Zero() LinearOption { return func(l *linear) { l.zero = true } }
 
+// Reverse draws the axis the other way round: the low end of the domain at the
+// high end of the range, so values grow leftwards on X and downwards on Y.
+//
+// It is what the set-size panel of an UpSet plot needs — bars that grow away
+// from the matrix they label — and what any reading whose small numbers belong
+// at the far end needs: a depth below a surface, a rank where first is best, a
+// countdown.
+//
+// # Why this is not a domain written backwards
+//
+// Pinning Domain(hi, lo) looks like it should do the same thing and very nearly
+// does: [Scale.Map] and [Scale.Invert] both mirror correctly, because both are
+// one interpolation over the pair. Three other things then break quietly.
+// [Zero] and [Nice] take a minimum and a maximum of the pair and hand back an
+// ascending one. The containment test in Ticks drops every tick, including a
+// sequence pinned with [TickValues], because it asks whether a value is between
+// lo and hi and on a descending pair nothing is. And [Zoomer.SetDomain]
+// normalises what a drag hands it, so the first pan turns the axis back round.
+//
+// The direction is therefore a property of the axis and not of the two numbers
+// in its domain. The domain stays ascending, training, framing, the tick search
+// and the document all keep the invariant they were written with, and what
+// reverses is the pixel interval the domain is mapped onto — so a reversed axis
+// pans, zooms, autoscales, clones and round-trips exactly like an ordinary one.
+//
+// The dialect spells it `"reverse": true`, the word a colour scale already uses
+// for the same idea. See docs/adr/0075-an-axis-has-a-direction.md.
+func Reverse() LinearOption { return func(l *linear) { l.reverse = true } }
+
 // Domain pins the data domain explicitly, disabling training.
+//
+// The bounds are ordered, the way [Zoomer.SetDomain] orders a drag's. A domain
+// is which values the axis covers; which way round it runs is [Reverse], and
+// writing the bounds backwards used to mirror the geometry and then drop every
+// tick, which is a chart with no numbers on one of its axes.
 func Domain(min, max float64) LinearOption {
+	min, max = order(min, max)
 	return func(l *linear) {
 		l.fixed = true
 		l.dmin, l.dmax, l.trained = min, max, true
@@ -71,11 +106,12 @@ func Linear(opts ...LinearOption) Scale {
 
 type linear struct {
 	domainRange
-	nice   bool
-	zero   bool
-	fixed  bool
-	pinned bool
-	format func(float64) string
+	nice    bool
+	zero    bool
+	fixed   bool
+	pinned  bool
+	reverse bool
+	format  func(float64) string
 	// ticks is the sequence [TickValues] pinned, ascending, or nil for an axis
 	// that chooses its own. It is written once at construction and never
 	// afterwards, which is why Clone and Snapshot share it rather than copying
@@ -143,9 +179,24 @@ const defaultTickCount = 5
 
 func (l *linear) Domain() (float64, float64) { return l.effective() }
 
+// device is the pixel interval the domain is mapped onto, with its ends swapped
+// on a reversed axis.
+//
+// Reversing the range rather than the domain is what keeps the rest of this
+// file ascending: everything that frames, searches or filters a domain still
+// sees a low number and then a high one, and the only thing that knows which
+// way the axis runs is the pair of pixels it runs between. See [Reverse].
+func (l *linear) device() (float32, float32) {
+	rlo, rhi := l.rangeOf()
+	if l.reverse {
+		return rhi, rlo
+	}
+	return rlo, rhi
+}
+
 func (l *linear) Map(v float64) float32 {
 	lo, hi := l.effective()
-	rlo, rhi := l.rangeOf()
+	rlo, rhi := l.device()
 	if hi == lo {
 		return rlo
 	}
@@ -165,7 +216,7 @@ func (l *linear) Map(v float64) float32 {
 // Map64 implements [Precise].
 func (l *linear) Map64(v float64) float64 {
 	lo, hi := l.effective()
-	rlo, rhi := l.rangeOf()
+	rlo, rhi := l.device()
 	if hi == lo {
 		return float64(rlo)
 	}
@@ -174,7 +225,7 @@ func (l *linear) Map64(v float64) float64 {
 
 func (l *linear) Invert(pos float32) float64 {
 	lo, hi := l.effective()
-	rlo, rhi := l.rangeOf()
+	rlo, rhi := l.device()
 	if rhi == rlo {
 		return lo
 	}

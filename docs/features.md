@@ -13,6 +13,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `scale.TickValues` pins the sequence outright, for an axis whose ticks are a
   convention rather than a reading — the 0.2 / 0.5 / 1 / 2 / 5 of a Smith chart,
   the five points of a Likert item.
+  `scale.Reverse` draws a linear axis the other way round, for a reading whose
+  small numbers belong at the far end: an UpSet plot's set-size bars growing
+  away from the matrix they label, a depth below a surface, a rank where first
+  is best ([ADR 0075](adr/0075-an-axis-has-a-direction.md)).
   `scale.Probability` is probability paper: an axis warped by `Probit`, `Logit`,
   `CLogLog` or `Gumbel` so one distribution's cumulative function is a straight
   line, labelled on the 0.1 / 1 / 5 … 95 / 99 / 99.9 % ladder. An ECDF on it is
@@ -41,7 +45,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
-  **`Sankey`**, **`Arc`** and **`Tree`**, which read an edge table rather than a pair of
+  **`Sankey`**, **`Arc`**, **`Tree`** and **`NodeLink`**, which read an edge table rather than a pair of
   axes: `geom.From`/`geom.To` for a flow, `geom.ID`/`geom.Parent` for a
   hierarchy, and `geom.Value` for the magnitude of either. Each places its own
   layout in the unit square and hands it to the coordinate stage, so an
@@ -53,19 +57,33 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   in a track over a heatmap's ordinal axis it is a clustered heatmap —
   `geom.Orient(geom.Horizontal)` reads the breadth up Y, which is what a
   dendrogram in a *left* track needs, so one heatmap carries a tree on both
-  edges ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+  edges ([ADR 0053](adr/0053-tidy-tree-layout.md)). **`NodeLink`** draws a graph
+  that has neither a hierarchy nor a direction: dots joined by lines, placed so
+  that two dots near each other are two things with a short path between them.
+  What places them is `stat.Stress` — classical scaling for a start and a fixed
+  number of majorization sweeps after it, each of which lowers a named quantity
+  and never raises it, so the picture is a pure function of the table and the
+  cost of the bound is quality rather than correctness
+  ([ADR 0077](adr/0077-a-node-link-layout.md)).
 - **Set charts** — **`Intersections`** and **`SetMatrix`** are the two halves of
   an **UpSet plot**: a bar per combination of sets over a matrix saying which
   combination that is, read off a membership table — one row per (element, set)
   pair, named by the same `geom.From`/`geom.To` a flow uses. Both halves run one
   count, `stat.Intersections`, so a bar cannot drift off its own column, and
   each bar holds the elements in *exactly* its combination, so the bars
-  partition the elements. The panels are the caller's: the matrix is a
-  `Plot.Track` sharing the bars' X scale object, and the set-size bars beside it
-  are a third panel and therefore a `figure.Grid`. **`Venn`** draws the two- or
+  partition the elements. **`SetSizes`** is the third panel beside the matrix —
+  one bar per set, how big it is altogether, which is a different count from the
+  bars above and the same table; on a `scale.Reverse` X it grows away from the
+  matrix, the way the form is printed. The panels are the caller's: the matrix
+  is a `Plot.Track` sharing the bars' X scale object, and the sizes are a third
+  panel and therefore a `figure.Grid` ([ADR 0076](adr/0076-the-other-half-of-the-count.md)). **`Venn`** draws the two- or
   three-set diagram of the same counts, in a fixed arrangement rather than a
-  packing solution — an area-proportional diagram and a fourth set are both
-  refused ([ADR 0074](adr/0074-sets-are-counted.md)).
+  packing solution. An area-proportional diagram is refused **from three sets
+  on**, where it stops being a construction and becomes an optimiser, and a
+  fourth set is refused because this mark writes each count inside its own
+  region at one type size, and a four-set diagram has regions that will not hold
+  one — its own promise rather than a fact about four sets
+  ([ADR 0074](adr/0074-sets-are-counted.md)).
 - **Statistical instruments** — **`Survival`** draws a Kaplan–Meier curve per
   series, with an opt-in log-log confidence band and censoring ticks, from a
   time column and a `geom.Event` indicator. `stat` holds the arithmetic of the
@@ -319,8 +337,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   gives the interval it covers, a continuous ramp the value under the pointer
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
-Deliberately **not** here: geographic projections, force-directed node-link
-and Venn diagrams, and any engine that links two charts together — a link is a
+Deliberately **not** here: geographic projections, force *simulations* — the
+node-link diagram they were once refused for is `geom.NodeLink`, placed by a
+descent on a named objective instead
+([ADR 0077](adr/0077-a-node-link-layout.md)) — area-proportional Venn diagrams,
+and any engine that links two charts together — a link is a
 statement about two charts and this model is about one, so the host is the link
 ([ADR 0045](adr/0045-linked-views.md)). The rest are further out in
 [CONCEPT.md §14](../CONCEPT.md#14-what-is-built-and-what-is-next), and

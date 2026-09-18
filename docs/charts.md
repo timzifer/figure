@@ -403,7 +403,28 @@ which is why it stays a rectangle under every coord — a name cannot be set in 
 annular sector — while the *layout* never sees a label at all.
 [`examples/statechart`](../examples/statechart) draws both charts.
 
-Six marks, nine charts, and no second implementation of anything — the same
+### And the one with no direction at all
+
+A graph that is neither a hierarchy nor a flow has no rank to stand in either.
+`geom.NodeLink` draws it as dots joined by lines, placed so that two dots near
+each other are two things with a short path between them:
+
+```go
+p.Add(geom.NodeLink(src, geom.From("who"), geom.To("with")))
+```
+
+![Who worked with whom over a quarter, as a node-link diagram](images/network.png)
+
+Nothing in that table says there are three teams. The layout is what shows it,
+and it is a pure function of the table like every other layout here:
+`stat.Stress` starts from classical scaling of the graph's own distances and
+then runs a fixed number of majorization sweeps, each of which lowers how far
+the drawn distances are from the graph's own and never raises it
+([ADR 0077](adr/0077-a-node-link-layout.md)). It refuses a graph of more than
+`stat.MaxStressNodes` nodes rather than drawing a hairball, and
+[`examples/network`](../examples/network) draws the chart above.
+
+Seven marks, ten charts, and no second implementation of anything — the same
 thing the coordinate stage bought for the pie, one bucket later. The layouts
 themselves are pure functions in [`stat/`](../stat), each with a determinism test:
 node order comes from the order the rows first named them and never from a map,

@@ -173,7 +173,7 @@ strokes — and parallel
 coordinates would want the same shape of answer from a coord of its own rather
 than a second one drawn by a geom.
 
-## E — needs a relational layout — **shipped**, except force-directed node-link
+## E — needs a relational layout — **shipped**
 
 Sankey/alluvial, chord, arc diagram, node-link, treemap, sunburst/icicle,
 Venn/UpSet.
@@ -192,15 +192,16 @@ be two: the legend and the hit test were already general enough, which is what
 | Sankey, alluvial | `geom.Sankey` | Cartesian |
 | Arc diagram | `geom.Arc` | Cartesian |
 | **Chord diagram** | `geom.Arc` | `coord.Polar()` + `geom.Baseline(1)` |
-| Node-link, force-directed | missing | — |
+| **Node-link** | `geom.NodeLink` — [ADR 0077](adr/0077-a-node-link-layout.md) | Cartesian |
 | Node-link, tree-shaped | `geom.Tree` — [ADR 0053](adr/0053-tidy-tree-layout.md) | Cartesian |
 | **Radial dendrogram** | `geom.Tree` | `coord.Polar()` |
 | State chart, dependency graph, flowchart | `geom.Graph` — [ADR 0072](adr/0072-layered-graph-layout.md) | Cartesian + `geom.Baseline(1)` |
 | **Radial state diagram** | `geom.Graph` | `coord.Polar()` |
 | **UpSet plot** | `geom.Intersections` + `geom.SetMatrix` in a track — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian, an ordinal axis each |
+| **UpSet with set sizes** | the same two plus `geom.SetSizes` in a `figure.Grid` — [ADR 0076](adr/0076-the-other-half-of-the-count.md) | Cartesian; the sizes on a `scale.Reverse` X |
 | **Venn (two or three sets)** | `geom.Venn` — [ADR 0074](adr/0074-sets-are-counted.md) | Cartesian |
 
-**Nine marks, twelve charts.** Every layout here fills the unit square — a span
+**Ten marks, thirteen charts.** Every layout here fills the unit square — a span
 across, a height out — and the coordinate stage decides what that looks like.
 That is the coordinate stage's move made twice: an icicle wrapped round a
 circle is a
@@ -227,27 +228,43 @@ Both of ADR 0012's properties hold and are tested: node and link order comes
 from first appearance in the source table, never from map iteration, and the
 sankey's relaxation runs `stat.SankeySweeps` sweeps rather than to convergence.
 
-**What is still missing, and why.** A *force-directed* node-link layout is a
-simulation whose whole method is to run until it settles — so it cannot be a
-pure function of its input at a bounded sweep count that also looks good, and
-ADR 0012 has to be answered on its own terms before it lands. It is the only
-thing left in this bucket.
+**Nothing is missing from this bucket.** The last row was the node-link diagram,
+and [ADR 0077](adr/0077-a-node-link-layout.md) drew it by taking 0039's sentence
+apart one more time. Not by showing a force simulation cannot be bounded — it
+can, with a fixed start and a fixed budget — but by choosing a method with an
+objective: stress majorization descends a named quantity and never raises it, so
+a fixed count of sweeps costs quality and not correctness. Where a bounded run
+*ends up* is decided by where it starts, so it starts from classical scaling of
+the distance table rather than from a random arrangement — measured, because
+started from a circle a 4×4 grid comes out folded in half.
 
 **The set charts were never a relational layout, which is why they were cheap.**
 [ADR 0074](adr/0074-sets-are-counted.md) took the other half of 0039's sentence
 apart: an UpSet plot lays nothing out — it counts a membership list by which
 sets each element is in, and the rest is a bar chart over a dot matrix in a
 track sharing its X scale — and the Venn diagram people draw is three circles in
-a fixed arrangement rather than the circle-packing optimiser 0039 declined,
-which is still declined along with any fourth set.
+a fixed arrangement rather than the circle-packing optimiser 0039 declined.
 
-**That sentence has been narrowed twice.** [ADR 0053](adr/0053-tidy-tree-layout.md)
+**Both of 0074's refusals stand and both are recorded for a different reason
+than that record first gave**, which its
+[amendment](adr/0074-sets-are-counted.md#amendment-two-refusals-restated) sets
+out: the area-proportional diagram is refused **from three sets on**, because
+two circles are an exactly determined construction and three are an
+over-determined one; a fourth set is refused because this mark writes each
+count *into* its region at one type size, and a four-set diagram has regions
+that will not hold one under that promise — not because no fixed arrangement of
+four exists, which it does, and not because no drawing of four sets could ever
+be labelled.
+
+**That sentence was narrowed twice and then spent.** [ADR 0053](adr/0053-tidy-tree-layout.md)
 took tree layouts out of it and [ADR 0072](adr/0072-layered-graph-layout.md)
 took layered ones out: a Sugiyama layout's crossing reduction is a heuristic
 sort, which 0039 and 0053 both refused, and it is admissible once the sort is
 *stable* over an order the caller's rows decided and the sweep count is a
-constant. So a state machine, a dependency graph and a flowchart are drawn, and
-what is left in the category is the force simulation alone.
+constant. So a state machine, a dependency graph and a flowchart are drawn.
+[ADR 0077](adr/0077-a-node-link-layout.md) took the rest, and what is left of
+the category is the force simulation alone — which nothing needs, because it was
+never the form.
 
 **The first narrowing, in full.** It
 binds force layouts and not tree layouts: Reingold–Tilford, in Buchheim's
@@ -476,8 +493,9 @@ has dedicated commercial software and no general-purpose library.
 
 ## L — needs a deterministic tree layout — **shipped**, [ADR 0053](adr/0053-tidy-tree-layout.md)
 
-Bucket E declined node-link layouts because a force simulation's whole method
-is to run until it settles. A **tidy tree** is not a force simulation:
+Bucket E declined node-link layouts, at the time, because a force simulation's
+whole method is to run until it settles. A **tidy tree** is not a force
+simulation:
 Reingold–Tilford, in Buchheim's linear-time form, is O(n), deterministic,
 bounded and a pure function of its input — `stat.Squarify`'s shape exactly.
 
@@ -699,8 +717,9 @@ marimekko, rose, slope — and what follows is what the reading turned up
 | **Cycle plot, seasonal subseries** | drawable today — a facet per cycle position and a line per cycle — and missing only a gallery figure |
 | **Bump chart** | `Line` over ordinal ranks with `geom.AvoidOverlap` on the labels ([ADR 0040](adr/0040-label-collision-avoidance.md)); a recipe |
 | **Calendar heatmap** | already listed in bucket A; what is missing is a date→(week, weekday) helper, not machinery |
-| **Voronoi** | the one layout the node-link refusal does not cover — Fortune's algorithm is O(n log n), deterministic and bounded, which is `stat.Squarify`'s shape. It would also sharpen hit-testing ([ADR 0015](adr/0015-hit-testing.md)). Not written up: nobody has asked for the chart, and the hit-test is a performance question rather than a form |
-| Word cloud, Demers cartogram, Venn | declined for [ADR 0039](adr/0039-relational-layouts.md)'s reason: each is a packing optimiser with its own failure modes, and a layout that runs until it settles is not a pure function of its input |
+| **Voronoi** | Fortune's algorithm is O(n log n), deterministic and bounded, which is `stat.Squarify`'s shape — it was named here as the one layout the node-link refusal did not cover, and since [ADR 0077](adr/0077-a-node-link-layout.md) that refusal covers nothing. It would also sharpen hit-testing ([ADR 0015](adr/0015-hit-testing.md)). Not written up: nobody has asked for the chart, and the hit-test is a performance question rather than a form |
+| Word cloud, Demers cartogram | declined for [ADR 0039](adr/0039-relational-layouts.md)'s reason: each is a packing optimiser with its own failure modes, and a layout that runs until it settles is not a pure function of its input |
+| **Venn** | **drawn** since [ADR 0074](adr/0074-sets-are-counted.md), and this verdict was wrong about which diagram was in question: the one people draw is two or three circles in a fixed arrangement and was never a packing optimiser. The optimiser is the *area-proportional* diagram, still declined from three sets on — bucket E has the row |
 | Isotype, tally, pictorial bar | a `Text` mark repeated on a grid; drawable today, and a chart type only in the sense that a font is |
 | Kagi, point-and-figure, Renko | a domain reduction of a price series — bucket M's admission rule decides them, and the reduction is the chart |
 

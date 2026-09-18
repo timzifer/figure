@@ -96,6 +96,16 @@ The CPU rasterizer is the supported path —
 **gg is pinned exactly.** Upgrading it is a deliberate change with its own
 commit, not a side effect of `go get -u`.
 
+**A domain is ordered, and an axis's direction is `scale.Reverse`.** `Domain`,
+`LogDomain`, `SymLogDomain` and `Zoomer.SetDomain` all order the bounds they are
+given. Writing them backwards to flip an axis half-works, which is why it is not
+allowed to: `Map` and `Invert` mirror, and then `Zero` and `Nice` reorder the
+pair, the containment test in `Ticks` drops every tick there is, and the first
+pan turns the axis back round. What reverses is the device range — see
+[ADR 0075](docs/adr/0075-an-axis-has-a-direction.md). Anything that walks ticks
+across a panel walks them in **screen** order for the same reason: a tick
+sequence is ascending by value, and on a reversed axis that is right to left.
+
 **Scales place a value with one explicit rounding, and it is not redundant.**
 `scale.place` writes `rlo + float32(float32(t)*(rhi-rlo))`. The inner
 conversion looks like a no-op — `t` is already being converted — and it is not:
@@ -959,6 +969,24 @@ one each for the same reason. The buffer lives on the layer rather than in the
 frame's pool because `Train` runs outside a `Build`, where there is no scratch
 to take; that is the same argument the group index already makes.
 
+**A stress layout's row order decides which minimum it reaches, and that is a
+bigger number than it sounds.** `stat.Stress` descends a non-convex objective,
+and both the arrangement it starts from and the order a sweep visits the nodes
+in come from the order the caller's rows interned them. So relabelling the same
+edges is not a relabelling of the same picture: the collaboration graph in
+`docs/images/network.png` settles at a stress of 3.47 in the order its rows
+arrive in and at 2.30 under one relabelling — a third lower, from the same code
+at the same budget. Picking the start rows more cleverly does not fix it; that
+was measured and only moves which numbering is the unlucky one
+([ADR 0077](docs/adr/0077-a-node-link-layout.md)'s second amendment has the
+table). And **`geom.Order` is not the way to ask for another one**: it reaches
+the grouped marks and the set charts, `geom/relational.go`'s edge reader never
+looks at it, and a `NodeLink` given one draws exactly what it drew. A caller
+who wants a different node order re-orders the rows of the table. `stat.StressSweeps` is a *budget* and not a convergence point — about
+four percent of stress is still on the table at fifty sweeps for a 127-node
+tree — and a monotone descent on the stress is not a monotone improvement in
+legibility, because nothing here counts an overlap or a crossing.
+
 **A stat evaluated on a grid pins the grid's ends, and never truncates a
 kernel.** Both halves of that are the same bug, and it shipped for exactly one
 CI run — green on amd64, red on macOS. `lo + float64(i)*step` is a multiply and
@@ -1222,19 +1250,38 @@ and what is next, in the order it is being done. Adding a stub for something on
 that list is not progress towards it: the seams exist, that is enough. The
 release order is in [CONTRIBUTING](CONTRIBUTING.md#releasing).
 
-Deliberately not done. There is **no node-link layout**: a force
-simulation's whole method is to run until it settles, so it cannot be a pure
-function of its input at a bounded sweep count that also looks good, and
-[ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own terms
-first. There is **no area-proportional Venn and no Venn of four sets** — the
-first is that circle-packing optimiser and the second has no arrangement of
-circles at all; `geom.Venn` draws the two- and three-set diagram, whose
-positions are a table rather than a solution, and `geom.Intersections` is the
-chart that keeps working past three
-([ADR 0074](docs/adr/0074-sets-are-counted.md)). **An UpSet plot is a count and
-not a layout**, which is why it is two ordinary marks and a track rather than
-anything new below `geom`. A
-relational mark **ignores `geom.SizeBy`**, because a size per node is
+Deliberately not done. There is **no force simulation** — not because one
+cannot be made repeatable, which a fixed start and a fixed budget do, but
+because it descends no objective, so what stopping it early costs cannot be
+said. The chart it was once refused for is drawn: `geom.NodeLink` places nodes
+by stress majorization, a descent that never goes uphill, stopped after a
+constant number of sweeps — so
+[ADR 0012](docs/adr/0012-parallel-panels.md) is satisfied the way every other
+layout here satisfies it ([ADR 0077](docs/adr/0077-a-node-link-layout.md)).
+Two things there are load-bearing and were wrong once: a sweep writes each
+node's position back **before the next node reads it**, because the
+simultaneous form is not a descent at all and cycles; and the starting
+directions are chosen by eigenvalue **value** rather than magnitude, because
+graph distances are often not Euclidean and the biggest by magnitude can be
+negative. It refuses a graph of more
+than `stat.MaxStressNodes` nodes rather than drawing a hairball. There is **no area-proportional Venn and no Venn of four sets** — the
+first is a construction at two sets and an optimiser from three on, where seven
+region areas have six free numbers to hit them with; the second is refused
+because this mark writes each count *into* its region at one type size in a
+fixed arrangement, and a four-set diagram has regions that hold nothing under
+those conditions — a decision about this mark's promise rather than a fact about
+four sets, and not because no fixed arrangement of four exists.
+`geom.Venn` draws the two- and three-set diagram, whose positions are a table
+rather than a solution, and `geom.Intersections` is the chart that keeps working
+past three ([ADR 0074](docs/adr/0074-sets-are-counted.md) and its
+[amendment](docs/adr/0074-sets-are-counted.md#amendment-two-refusals-restated)).
+**An UpSet plot is a count and not a layout**, which is why it is three ordinary
+marks and a track rather than anything new below `geom` — and why the set-size
+bars beside the matrix are a mark reading that same count rather than arithmetic
+repeated in the caller's code, though the panel they stand in is still the
+caller's ([ADR 0076](docs/adr/0076-the-other-half-of-the-count.md)). A
+relational mark
+**ignores `geom.SizeBy`**, because a size per node is
 meaningless when the value already is the size. A **sankey does not reorder its
 nodes to reduce crossings**: that means a sort per sweep, and a sort is where a
 layout stops being a pure function of its input and starts depending on how a

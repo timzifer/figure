@@ -56,6 +56,11 @@ type Desc struct {
 
 	// Nice and Zero are the linear and log framing options.
 	Nice, Zero bool
+	// Reverse reports a positional scale drawn the other way round: the low
+	// end of the domain at the high end of the range. It is a linear scale's
+	// [Reverse], and it is not the colour reversal in [ColorDesc] — that one
+	// turns a ramp around, this one turns an axis around.
+	Reverse bool
 	// TickValues is a linear scale's pinned tick sequence, ascending, and is
 	// empty for an axis that chooses its own. See [TickValues].
 	TickValues []float64
@@ -143,6 +148,9 @@ func FromDesc(d Desc) (Scale, error) {
 		}
 		if d.Zero {
 			opts = append(opts, Zero())
+		}
+		if d.Reverse {
+			opts = append(opts, Reverse())
 		}
 		if d.Fixed {
 			opts = append(opts, Domain(d.Min, d.Max))
@@ -242,7 +250,7 @@ func FromDesc(d Desc) (Scale, error) {
 
 func (l *linear) Describe() Desc {
 	d := Desc{
-		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Fixed: l.fixed,
+		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Reverse: l.reverse, Fixed: l.fixed,
 		Formatted: l.format != nil, Format: l.numFormat.spec, Locale: localeName(l.loc),
 	}
 	if l.fixed {

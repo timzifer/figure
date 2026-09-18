@@ -26,6 +26,7 @@ func LogNice() LogOption { return func(l *logScale) { l.nice = true } }
 // must be positive; a non-positive bound is ignored, since a log scale has no
 // position for it.
 func LogDomain(min, max float64) LogOption {
+	min, max = order(min, max)
 	return func(l *logScale) {
 		if min <= 0 || max <= 0 {
 			return

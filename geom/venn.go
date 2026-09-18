@@ -15,11 +15,12 @@ import (
 //
 // [ADR 0039](docs/adr/0039-relational-layouts.md) refused Venn as "a
 // circle-packing optimiser with its own failure modes", and that is true of the
-// *area-proportional* diagram, where the radii and the distances have to be
-// solved for so that every region's area is its count. It is not true of the
-// diagram people draw: two or three circles of one size in a fixed arrangement,
-// with the counts written in the regions. Nothing there is solved, so nothing
-// there is a simulation. See docs/adr/0074-sets-are-counted.md.
+// *area-proportional* diagram from three sets on, where the radii and the
+// distances have to be solved for so that every region's area is its count. It
+// is not true of the diagram people draw: two or three circles of one size in a
+// fixed arrangement, with the counts written in the regions. Nothing there is
+// solved, so nothing there is a simulation.
+// See docs/adr/0074-sets-are-counted.md and its amendment.
 
 // VennSteps is how many points one circle of a [Venn] is drawn with.
 //
@@ -31,12 +32,19 @@ const VennSteps = 96
 
 // MaxVennSets is how many sets a [Venn] draws.
 //
-// Three, because three circles of one size have a symmetric arrangement whose
-// seven regions all exist and are all big enough to write a number in, and four
-// circles have no such arrangement at all — the four-set diagram that gets
-// drawn uses ellipses, which is a different picture with different regions, and
-// the five-set one is a packing problem. An [Intersections] plot is the answer
-// past three, and it is the better reading well before that.
+// Three, and the limit is this mark's own promise rather than geometry. It
+// writes each region's count *into* the region, at one type size, in an
+// arrangement fixed in advance: three circles of one size have a symmetric
+// arrangement whose seven regions all exist and all hold a number. Four circles
+// have no arrangement showing all fifteen, and the four-ellipse diagram that
+// does has slivers that hold nothing under those conditions — which is why the
+// printed four-set picture is labelled from a key beside it instead, and that
+// is a different mark.
+//
+// Whether four *could* be labelled depends on the arrangement, the size the
+// chart is drawn at and how many digits the counts have; none of that is fixed
+// by geometry, and none of it is what this mark does. An [Intersections] plot
+// is the answer past three, and it is the better reading well before that.
 const MaxVennSets = 3
 
 // Venn draws two or three overlapping circles and writes in each region how
@@ -64,10 +72,12 @@ const MaxVennSets = 3
 // # What it does not do
 //
 // It is not area-proportional: the circles are the same size whatever the
-// counts are, because making the areas the counts is an optimiser with its own
-// failure modes and no solution at all for most three-set tables. It refuses a
-// fourth set with [ErrTooManySets] rather than drawing something that looks
-// like a Venn diagram and is not one.
+// counts are. Solving for the areas is a construction at two sets — three
+// region areas against a radius each and the distance between the centres — and
+// an optimiser from three on, where seven region areas have six free numbers to
+// hit them with and most tables have no solution at all. It refuses a fourth
+// set with [ErrTooManySets] rather than drawing regions too thin to hold the
+// numbers it writes in them.
 func Venn(src data.Source, opts ...Option) Geom {
 	return &vennGeom{src: src, cfg: newConfig(opts)}
 }
