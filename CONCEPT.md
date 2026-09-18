@@ -636,13 +636,18 @@ The record of how each of those arrived, and the argument that shaped it, is in
   channels the relational family already defines
   ([ADR 0053](docs/adr/0053-tidy-tree-layout.md)). The clustered heatmap falls
   out of it.
-- **Node-link diagrams, Venn and UpSet** are what is left of the relational
-  family ([ADR 0039](docs/adr/0039-relational-layouts.md)). A force layout's
-  whole method is to run until it settles, so it cannot be a pure function of
-  its input at a bounded sweep count that also looks good, and
+- **Node-link diagrams** are what is left of the relational family
+  ([ADR 0039](docs/adr/0039-relational-layouts.md)). A force layout's whole
+  method is to run until it settles, so it cannot be a pure function of its
+  input at a bounded sweep count that also looks good, and
   [ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own
-  terms before it lands. Venn is a circle-packing optimiser and UpSet is a
-  matrix chart rather than a relational layout at all.
+  terms before it lands.
+- **Sets are counted rather than laid out.** The other half of that sentence has
+  been answered: an UpSet plot is a matrix chart, so it needed a count in `stat`
+  and two ordinary marks, and a Venn diagram of two or three sets is a fixed
+  arrangement rather than the optimiser 0039 declined — which is still declined,
+  along with the fourth set
+  ([ADR 0074](docs/adr/0074-sets-are-counted.md)).
 - **A bucket of domain reductions** — the
   Kaplan–Meier estimator, the SPC control-limit family, ACF and PACF, ROC and
   Lorenz — none of which needs a shape figure does not already draw. The record

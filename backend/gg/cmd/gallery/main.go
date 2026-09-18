@@ -212,6 +212,8 @@ func figures() []plate {
 	return append([]plate{
 		qqFigure(),
 		nicholsFigure(),
+		upsetFigure(),
+		vennFigure(),
 		labelsFigure(),
 		surfaceFigure(),
 		cascadeFigure(),

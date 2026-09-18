@@ -648,7 +648,8 @@ after the hexagonal lattice and the beeswarm's offsets.
   a hundred thousand rows as over a thousand; and every existing golden file is
   byte-for-byte what it was. ✔
 
-Still not drawn: node-link and Venn/UpSet. See
+Still not drawn: node-link. (The set charts arrived later, and they were never
+a relational layout — see [ADR 0074](adr/0074-sets-are-counted.md).) See
 [ADR 0039](adr/0039-relational-layouts.md).
 
 ### v1.5 — Two diagnostics — **shipped**

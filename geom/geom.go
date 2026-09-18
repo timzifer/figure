@@ -204,9 +204,11 @@ type config struct {
 	dodge      bool
 	dodgePad   float64
 	order      Ordering
+	orderSet   bool
 
 	levels      []float64
 	levelCount  int
+	top         int
 	labelLevels bool
 	levelFormat func(float64) string
 	resample    Resampling
@@ -368,6 +370,20 @@ func LabelLevels(on bool) Option { return func(c *config) { c.labelLevels = on }
 func LevelFormat(fn func(v float64) string) Option {
 	return func(c *config) { c.levelFormat = fn }
 }
+
+// Top caps how many groups a mark that ranks its own groups draws: the biggest
+// n, and the rest left out.
+//
+// [Intersections] and [SetMatrix] read it, because an UpSet plot of a real
+// membership table has more combinations than a screen has columns and the
+// long tail of them is a row of single elements. It is not a decimation — the
+// marks that are drawn are drawn in full, and what is left out is left out
+// because it was ranked rather than because the panel is narrow ([Budget] is
+// the other thing).
+//
+// Both halves of an UpSet must be given the same value, or the dots would name
+// columns the bars do not have.
+func Top(n int) Option { return func(c *config) { c.top = n } }
 
 // Resample sets how a [Raster] combines the cells that land on one pixel, when
 // its lattice is finer than the panel.

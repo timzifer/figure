@@ -626,6 +626,20 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	case geom.MarkECDF:
 		stroke()
 		group()
+	case geom.MarkIntersections:
+		fill()
+		// The ranking and nothing else: which columns there are is the whole
+		// of this mark's configuration, and both halves of the chart carry it.
+		m.Top, m.Order = d.Top, rankedBy(d)
+	case geom.MarkSetMatrix:
+		stroke()
+		m.Size, m.Top, m.Order = d.Size, d.Top, rankedBy(d)
+		if d.MarkerSet {
+			m.Shape = shapeName(d.Marker)
+		}
+	case geom.MarkVenn:
+		fill()
+		stroke()
 	case geom.MarkSurvival:
 		stroke()
 		group()
@@ -902,4 +916,17 @@ func encodeTrack(t Track, x, y axisKind) (TrackDoc, error) {
 		d.Layer = append(d.Layer, l)
 	}
 	return d, nil
+}
+
+// rankedBy is the order a set chart writes down.
+//
+// It is written whenever the layer was told one, including "appearance" — which
+// the grouped marks leave out, because for them it is the default. For a mark
+// that ranks its own columns it is a choice, and a document that left it out
+// would read back as the ranking rather than as the table's order.
+func rankedBy(d geom.Desc) string {
+	if !d.OrderSet {
+		return ""
+	}
+	return orderName(d.Order)
 }

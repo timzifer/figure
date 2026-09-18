@@ -78,6 +78,13 @@ const (
 	// edge table rather than refusing it. See
 	// docs/adr/0072-layered-graph-layout.md.
 	MarkGraph Mark = "graph"
+	// MarkIntersections is the bar per combination of sets that is the top half
+	// of an UpSet plot, and MarkSetMatrix the dot matrix under it. Both read a
+	// membership table — see docs/adr/0074-sets-are-counted.md.
+	MarkIntersections Mark = "intersections"
+	MarkSetMatrix     Mark = "set-matrix"
+	// MarkVenn is the two- or three-set Venn diagram of the same table.
+	MarkVenn Mark = "venn"
 	// MarkSurvival is the Kaplan–Meier survival curve. See
 	// docs/adr/0054-statistical-instruments.md.
 	MarkSurvival Mark = "survival"
@@ -160,6 +167,11 @@ type Desc struct {
 	Dodge    bool
 	DodgePad float64
 	Order    Ordering
+	// OrderSet records that the layer was told an order, which is what tells
+	// "in the table's order" from "in whatever order this mark ranks in". Only
+	// [Intersections] and [SetMatrix] rank by default, and they are the reason
+	// the flag exists — the same argument [Desc.AlignSet] makes.
+	OrderSet bool
 	WidthCol string
 
 	// Key is the column that identifies a row across renders, from [KeyBy].
@@ -221,6 +233,8 @@ type Desc struct {
 	// are set, and each carries what the layer is actually using.
 	Levels     []float64
 	LevelCount int
+	// Top caps how many groups a mark that ranks its own draws. See [Top].
+	Top int
 	// LabelLevels is whether a [Contour] or a [Locus] writes each level's value
 	// along the curve it draws it at. See [LabelLevels]; the format a Go caller
 	// gave is not here, because a function does not survive a document.
@@ -501,6 +515,12 @@ func FromDesc(d Desc) (Geom, error) {
 		return Tree(d.Source, opts...), nil
 	case MarkGraph:
 		return Graph(d.Source, opts...), nil
+	case MarkIntersections:
+		return Intersections(d.Source, opts...), nil
+	case MarkSetMatrix:
+		return SetMatrix(d.Source, opts...), nil
+	case MarkVenn:
+		return Venn(d.Source, opts...), nil
 	case MarkSurvival:
 		return Survival(d.Source, opts...), nil
 	case MarkDepends:
@@ -535,7 +555,7 @@ func (d Desc) options() []Option {
 		FontSize(d.FontSize),
 		Rotate(d.Rotation),
 		Extend(d.Extend),
-		Order(d.Order),
+		orderedBy(d),
 		Closed(d.Closed),
 		onSecondary(d.OnY2, d.OnX2),
 		Bins(d.Bins),
@@ -545,6 +565,7 @@ func (d Desc) options() []Option {
 		Levels(d.Levels...),
 		LevelCount(d.LevelCount),
 		LabelLevels(d.LabelLevels),
+		Top(d.Top),
 		Resample(d.Resample),
 		Branches(d.Branch),
 		Orient(d.Orient),
@@ -717,6 +738,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Levels:        c.levels,
 		LevelCount:    c.levelCount,
 		LabelLevels:   c.labelLevels,
+		Top:           c.top,
 		Resample:      c.resample,
 		Branch:        c.branch,
 		Orient:        c.orient,
@@ -736,6 +758,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Dodge:         c.dodge,
 		DodgePad:      c.dodgePad,
 		Order:         c.order,
+		OrderSet:      c.orderSet,
 		WidthCol:      c.widthCol,
 		From:          c.fromCol,
 		To:            c.toCol,
@@ -920,4 +943,15 @@ func OnSecondaryY(g Geom) bool {
 func OnSecondaryX(g Geom) bool {
 	d, ok := Describe(g)
 	return ok && d.OnX2
+}
+
+// orderedBy is the order option a description carries, and nothing at all when
+// it carries none: a mark that ranks its own groups has a default that is not
+// [OrderAppearance], so "unset" and "in the table's order" have to stay apart
+// through the round trip.
+func orderedBy(d Desc) Option {
+	if !d.OrderSet {
+		return func(*config) {}
+	}
+	return Order(d.Order)
 }

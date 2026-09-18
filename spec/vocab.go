@@ -80,6 +80,15 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "tree", "", nil
 	case geom.MarkGraph:
 		return "graph", "", nil
+	// The set charts. A membership table is a bipartite edge list, so these
+	// read the same channels the relational marks do — but they lay nothing
+	// out, they count. Vega-Lite has neither, so the names are figure's.
+	case geom.MarkIntersections:
+		return "intersections", "", nil
+	case geom.MarkSetMatrix:
+		return "set-matrix", "", nil
+	case geom.MarkVenn:
+		return "venn", "", nil
 	case geom.MarkSurvival:
 		return "survival", "", nil
 	case geom.MarkDepends:
@@ -183,6 +192,12 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkTree, nil
 	case "graph":
 		return geom.MarkGraph, nil
+	case "intersections":
+		return geom.MarkIntersections, nil
+	case "set-matrix":
+		return geom.MarkSetMatrix, nil
+	case "venn":
+		return geom.MarkVenn, nil
 	case "survival":
 		return geom.MarkSurvival, nil
 	case "dependency":

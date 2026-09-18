@@ -1226,8 +1226,14 @@ Deliberately not done. There is **no node-link layout**: a force
 simulation's whole method is to run until it settles, so it cannot be a pure
 function of its input at a bounded sweep count that also looks good, and
 [ADR 0012](docs/adr/0012-parallel-panels.md) has to be answered on its own terms
-first. There is **no Venn and no UpSet** — the first is a circle-packing
-optimiser, the second a matrix chart rather than a relational layout. A
+first. There is **no area-proportional Venn and no Venn of four sets** — the
+first is that circle-packing optimiser and the second has no arrangement of
+circles at all; `geom.Venn` draws the two- and three-set diagram, whose
+positions are a table rather than a solution, and `geom.Intersections` is the
+chart that keeps working past three
+([ADR 0074](docs/adr/0074-sets-are-counted.md)). **An UpSet plot is a count and
+not a layout**, which is why it is two ordinary marks and a track rather than
+anything new below `geom`. A
 relational mark **ignores `geom.SizeBy`**, because a size per node is
 meaningless when the value already is the size. A **sankey does not reorder its
 nodes to reduce crossings**: that means a sort per sweep, and a sort is where a
