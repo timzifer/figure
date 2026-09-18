@@ -109,7 +109,7 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, rung int,
 		Join:  ir.JoinRound,
 		Dash:  dash,
 	}
-	tension := float32(clamp01(g.cfg.tension))
+	cv := g.cfg.curveFit()
 	base := baselinePos(f, g.cfg.baseline)
 
 	// A band is bounded by both of its edges, so its reduction has to see both;
@@ -134,10 +134,10 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, rung int,
 		f.Marks(MarkRows{At: top, Rows: sc.rowsOf(seg, keep, len(x))})
 		if fill.A != 0 {
 			sc.fill.Reset()
-			appendCurve(&sc.fill, cd, top, tension, true)
+			sc.appendCurve(&sc.fill, cd, top, cv, true)
 			switch {
 			case z != nil:
-				appendCurve(&sc.fill, cd, sc.lowerEdge(cd, x, z, keep), tension, false)
+				sc.appendCurve(&sc.fill, cd, sc.lowerEdge(cd, x, z, keep), cv, false)
 			case g.cfg.closed:
 				// A closed contour is its own boundary: a filled radar is the
 				// polygon through the marks, not the polygon plus a detour to
@@ -157,14 +157,14 @@ func (g *areaGeom) build(b ir.Backend, f Frame, sc *scratch, s series, rung int,
 			continue
 		}
 		sc.line.Reset()
-		appendCurve(&sc.line, cd, top, tension, true)
-		if g.cfg.closed && z == nil {
+		sc.appendCurve(&sc.line, cd, top, cv, true)
+		if g.cfg.closed && z == nil && !cv.kind.closes() {
 			closeLoop(&sc.line, cd, top)
 		}
 		b.StrokePath(&sc.line, stroke)
 		if z != nil {
 			sc.line.Reset()
-			appendCurve(&sc.line, cd, sc.lowerEdge(cd, x, z, keep), tension, true)
+			sc.appendCurve(&sc.line, cd, sc.lowerEdge(cd, x, z, keep), cv, true)
 			b.StrokePath(&sc.line, stroke)
 		}
 	}

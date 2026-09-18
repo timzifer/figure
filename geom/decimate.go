@@ -238,6 +238,9 @@ type scratch struct {
 	cvals []float64  // the colour value behind each of its vertices
 	cuts  []crossing // the class boundaries one edge of it meets
 	cpts  []ir.Point
+	bpts  []ir.Point // the points a bundled curve blends towards its chord
+	slope []float32  // the tangent at each vertex of a monotone or natural fit
+	tri   []float32  // the natural spline's two swept tridiagonal rows
 	keep  []int
 	rows  []int
 	order []int

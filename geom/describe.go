@@ -296,7 +296,14 @@ type Desc struct {
 	Dash    []float32
 	DashSet bool
 	Tension float64
-	Missing Missing
+	// Curve is the family drawn between the vertices of a connected layer, and
+	// CurveSet reports whether the layer chose it. The pair is [Desc.Dash] and
+	// DashSet once more: [CurveLinear] is both the zero value and a family
+	// somebody may have asked for, and a Tension on a layer that asked for
+	// neither means [CurveCardinal].
+	Curve    CurveKind
+	CurveSet bool
+	Missing  Missing
 	// Marker is the shape a scatter draws, and MarkerSet reports whether the
 	// layer chose it. The pair is [Dash] and DashSet again, and for the same
 	// reason: a circle is both the zero value and a shape somebody may have
@@ -631,6 +638,9 @@ func (d Desc) options() []Option {
 	if d.HatchSet {
 		opts = append(opts, Hatch(d.Hatch))
 	}
+	if d.CurveSet {
+		opts = append(opts, Curve(d.Curve))
+	}
 	if d.HatchDensity > 0 {
 		opts = append(opts, HatchDensity(d.HatchDensity))
 	}
@@ -728,6 +738,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Dash:         c.dash,
 		DashSet:      c.dashSet,
 		Tension:      c.tension,
+		Curve:        c.curve,
+		CurveSet:     c.curveSet,
 		Missing:      c.missing,
 		Marker:       c.marker,
 		MarkerSet:    c.markerSet,

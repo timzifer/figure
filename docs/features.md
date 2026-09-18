@@ -18,7 +18,9 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   line, labelled on the 0.1 / 1 / 5 … 95 / 99 / 99.9 % ladder. An ECDF on it is
   a normal probability plot; median ranks (`stat.MedianRank`) on `CLogLog`
   against a log axis are a Weibull plot.
-- **Geoms** — `Line` (optionally tension-smoothed), `Scatter` (six marker
+- **Geoms** — `Line` (`geom.Curve` picks one of ten interpolation families —
+  cardinal, monotone, natural, basis, bundle and their open and closed
+  variants; monotone is the one that cannot overshoot), `Scatter` (six marker
   shapes), `Bar`, **`Area`** (to a baseline, or a band between two series),
   **`Step`** (pre/mid/post), **`Boxplot`** (Tukey whiskers, type-7 quartiles,
   outliers), and **`Rect`** — one box per row, bounded by the row rather than by
@@ -34,7 +36,8 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   **`Hexbin`**, **`Beeswarm`**, **`ECDF`** and **`Trend`**. Each is a pure
   function in [`stat/`](../stat) — a 1-D binner, a Gaussian KDE with Silverman's
   bandwidth rule, a hexagonal lattice, an empirical CDF, locally weighted
-  regression — with a determinism test, drawn by a mark that trains its axis on
+  regression, a running mean, a Savitzky-Golay fit that keeps the height of a
+  peak — with a determinism test, drawn by a mark that trains its axis on
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,

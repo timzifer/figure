@@ -336,6 +336,46 @@ func stepPos(name string) geom.StepPos {
 	return geom.StepPost
 }
 
+// Curve families, in Vega-Lite's spelling. None of these names may begin with
+// "step": geomMark tells a step chart from a line by exactly that prefix, so a
+// family spelled that way would decode as a staircase.
+var curves = []struct {
+	kind geom.CurveKind
+	name string
+}{
+	{geom.CurveLinear, "linear"},
+	{geom.CurveCardinal, "cardinal"},
+	{geom.CurveCardinalOpen, "cardinal-open"},
+	{geom.CurveCardinalClosed, "cardinal-closed"},
+	{geom.CurveMonotone, "monotone"},
+	{geom.CurveNatural, "natural"},
+	{geom.CurveBasis, "basis"},
+	{geom.CurveBasisOpen, "basis-open"},
+	{geom.CurveBasisClosed, "basis-closed"},
+	{geom.CurveBundle, "bundle"},
+}
+
+func curveName(k geom.CurveKind) string {
+	for _, c := range curves {
+		if c.kind == k {
+			return c.name
+		}
+	}
+	return "linear"
+}
+
+// curveOf reads a family back, and reports whether the name was one. An
+// unknown name is a linear curve nobody asked for, which is the same answer
+// an absent field gives.
+func curveOf(name string) (geom.CurveKind, bool) {
+	for _, c := range curves {
+		if c.name == name {
+			return c.kind, true
+		}
+	}
+	return geom.CurveLinear, false
+}
+
 // Marker shapes. The first five are Vega-Lite's own shape names; "plus" is
 // figure's, because Vega-Lite's "cross" is already the shape figure calls a
 // cross and there is no second name to borrow.
@@ -419,13 +459,17 @@ func markerShape(name string) ir.Marker {
 }
 
 // Trend fits. "loess" is the name the statistics literature uses and Vega
-// spells the same way; "linear" is ordinary least squares.
+// spells the same way; "linear" is ordinary least squares. The two window fits
+// are figure's own names — Vega-Lite has no equivalent to borrow — and are
+// spelled the way the literature spells them.
 var smoothings = []struct {
 	method geom.Smoothing
 	name   string
 }{
 	{geom.Loess, "loess"},
 	{geom.LinearFit, "linear"},
+	{geom.MovingAverage, "moving-average"},
+	{geom.SavitzkyGolay, "savitzky-golay"},
 }
 
 func smoothName(m geom.Smoothing) string {

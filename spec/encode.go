@@ -449,15 +449,26 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.Closed = d.Closed
 	}
 
+	// The curve family and its parameter travel together, because a tension
+	// with no family named is what "cardinal" always meant — which is why a
+	// layer that only set a tension still writes that word.
+	curve := func() {
+		switch {
+		case d.CurveSet:
+			m.Interpolate = curveName(d.Curve)
+		case d.Tension > 0:
+			m.Interpolate = curveName(geom.CurveCardinal)
+		}
+		m.Tension = d.Tension
+	}
+
 	switch d.Mark {
 	case geom.MarkLine:
 		stroke()
 		rows()
 		group()
 		loop()
-		if d.Tension > 0 {
-			m.Interpolate, m.Tension = "cardinal", d.Tension
-		}
+		curve()
 	case geom.MarkStep:
 		stroke()
 		rows()
@@ -509,9 +520,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		group()
 		loop()
 		m.Origin = d.Baseline
-		if d.Tension > 0 {
-			m.Interpolate, m.Tension = "cardinal", d.Tension
-		}
+		curve()
 	case geom.MarkBoxplot:
 		stroke()
 		fill()
@@ -626,9 +635,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		stroke()
 		group()
 		m.Span, m.Method = d.Span, smoothName(d.Smooth)
-		if d.Tension > 0 {
-			m.Interpolate, m.Tension = "cardinal", d.Tension
-		}
+		curve()
 	case geom.MarkLocus:
 		stroke()
 		// The levels and nothing else places this mark: a locus has no datum,
@@ -674,9 +681,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
-		if d.Tension > 0 {
-			m.Interpolate, m.Tension = "cardinal", d.Tension
-		}
+		curve()
 	}
 }
 

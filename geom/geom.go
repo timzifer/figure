@@ -229,6 +229,8 @@ type config struct {
 	width    float32
 	dash     []float32
 	tension  float64
+	curve    CurveKind
+	curveSet bool
 	missing  Missing
 	marker   ir.Marker
 	size     float32
@@ -365,9 +367,78 @@ func Dash(pattern ...float32) Option {
 	return func(c *config) { c.dash, c.dashSet = pattern, true }
 }
 
-// Tension smooths a line. 0 (the default) is a plain polyline; values in
-// (0, 1] progressively round the corners using a Catmull-Rom spline.
+// Tension is the parameter of the curve families that have one. For the
+// cardinal family it scales the tangents: 1 is the classic uniform
+// Catmull-Rom curve and smaller values pull it back towards the polyline. For
+// [CurveBundle] it is beta, the blend towards the straight chord. Every other
+// family ignores it.
+//
+// Naming a tension without naming a [Curve] selects [CurveCardinal], which is
+// the whole of what this option meant before there was a family to choose —
+// so `Tension(0.4)` draws today exactly what it drew before.
 func Tension(t float64) Option { return func(c *config) { c.tension = t } }
+
+// CurveKind is the path drawn between the vertices of a connected layer.
+//
+// The families divide in two, and the division is the thing to know before
+// choosing one.
+//
+// An *interpolating* family — [CurveLinear], [CurveCardinal], [CurveMonotone],
+// [CurveNatural] — passes through every vertex, so the curve is a claim about
+// what the quantity did between two rows. An *approximating* family —
+// [CurveBasis], [CurveBundle] — does not: it is a drawing of the sequence, and
+// the ink between two rows is nowhere the data was. Reach for one when the
+// shape of a bundle of traces is the point and the individual values are not,
+// and say in the caption that you did.
+//
+// Either way [Rows] reports the vertices, because a row is where its value is
+// regardless of where the ink went.
+type CurveKind uint8
+
+// The curve families. [CurveLinear] is the default: a polyline is the only
+// path between two rows that invents nothing.
+//
+// The names are Vega-Lite's, and so are the open and closed variants: an
+// *open* family drops the segments at the two ends, where the spline has to
+// invent a neighbour, and a *closed* one wraps the neighbour round instead —
+// which also closes the path, so it implies [Closed].
+const (
+	CurveLinear CurveKind = iota
+	CurveCardinal
+	CurveCardinalOpen
+	CurveCardinalClosed
+	CurveMonotone
+	CurveNatural
+	CurveBasis
+	CurveBasisOpen
+	CurveBasisClosed
+	CurveBundle
+)
+
+// Smoothed reports whether the family draws anything but straight segments.
+func (c CurveKind) Smoothed() bool { return c != CurveLinear }
+
+// Interpolating reports whether the family passes through every vertex. It is
+// false for [CurveBasis] and its variants and for [CurveBundle]; see [Curve].
+func (c CurveKind) Interpolating() bool {
+	switch c {
+	case CurveBasis, CurveBasisOpen, CurveBasisClosed, CurveBundle:
+		return false
+	}
+	return true
+}
+
+// closes reports whether the family wraps its neighbours, which also closes
+// the path it draws.
+func (c CurveKind) closes() bool {
+	return c == CurveCardinalClosed || c == CurveBasisClosed
+}
+
+// Curve picks the path drawn between the vertices of a [Line], an [Area] or a
+// [Trend]. The default is [CurveLinear].
+func Curve(k CurveKind) Option {
+	return func(c *config) { c.curve, c.curveSet = k, true }
+}
 
 // OnMissing sets the NaN/Inf policy.
 func OnMissing(m Missing) Option { return func(c *config) { c.missing = m } }
@@ -801,8 +872,10 @@ func BandHeight(h float64) Option { return func(c *config) { c.bandHeight = h } 
 func Bandwidth(bw float64) Option { return func(c *config) { c.bandwidth = bw } }
 
 // Span sets the fraction of the rows one local fit of a [Trend] sees, in
-// (0, 1]. The default is stat.DefaultSpan. It has no effect on a straight fit,
-// which sees all of them.
+// (0, 1]. The default is stat.DefaultSpan for [Loess] and the narrower
+// stat.DefaultWindow for the two window fits, whose window is this fraction of
+// the rows rounded to a count. It has no effect on a straight fit, which sees
+// all of them.
 func Span(f float64) Option {
 	return func(c *config) {
 		if f > 0 {
@@ -825,6 +898,16 @@ const (
 	// line, which is the right answer when the claim being made is that the
 	// relationship *is* linear.
 	LinearFit
+
+	// MovingAverage is a centred running mean, [Span] wide. It is the fit a
+	// reader can check by hand, and the one that flattens a peak. See
+	// stat.MovingAverage.
+	MovingAverage
+
+	// SavitzkyGolay fits a quadratic to the rows around each one. It keeps the
+	// height and width of a peak, which is what a running mean over the same
+	// window takes away. See stat.SavitzkyGolay.
+	SavitzkyGolay
 )
 
 // Smooth sets how a [Trend] fits.

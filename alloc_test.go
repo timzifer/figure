@@ -35,6 +35,24 @@ func signal(n int) *figure.Plot {
 	return p
 }
 
+// curvedSignal is [signal] drawn with the family that solves a system per run.
+// Every other reduction in the library works out of the scratch pool, and the
+// tridiagonal sweep is the newest thing that could quietly stop doing so.
+func curvedSignal(n int, k geom.CurveKind) *figure.Plot {
+	x := make([]float64, n)
+	y := make([]float64, n)
+	for i := range n {
+		x[i] = float64(i)
+		y[i] = math.Sin(float64(i)/50) + 0.2*math.Sin(float64(i)/3)
+	}
+	src := figure.Float64Columns(map[string][]float64{"x": x, "y": y})
+	p := figure.New(figure.Size(800, 500), figure.Title("Signal"))
+	p.X(scale.Linear(scale.Nice()))
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(src, geom.X("x"), geom.Y("y"), geom.Curve(k)))
+	return p
+}
+
 func colouredCloud(n int) *figure.Plot {
 	x := make([]float64, n)
 	y := make([]float64, n)

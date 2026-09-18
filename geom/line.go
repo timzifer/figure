@@ -98,14 +98,24 @@ func (g *lineGeom) build(b ir.Backend, f Frame, sc *scratch, s series, col ir.Co
 }
 
 // strokeOne draws one run of the path, straight or curved.
+//
+// A closed family closes the path itself, by wrapping the neighbour each end
+// of the run was missing — which is a different shape from joining the last
+// point back to the first, and is why closeLoop is not also called there.
 func (g *lineGeom) strokeOne(b ir.Backend, cd coord.Coord, sc *scratch, pts []ir.Point, stroke ir.Stroke, closed bool) {
-	if g.cfg.tension <= 0 {
+	cv := g.cfg.curveFit()
+	if !cv.kind.Smoothed() {
 		strokeRun(b, cd, &sc.line, pts, stroke, closed)
 		return
 	}
 	sc.line.Reset()
-	appendCurve(&sc.line, cd, pts, float32(clamp01(g.cfg.tension)), true)
-	if closed {
+	sc.appendCurve(&sc.line, cd, pts, cv, true)
+	if sc.line.Empty() {
+		// An open family with too few rows has no span all of whose
+		// neighbours are data, and draws nothing rather than inventing one.
+		return
+	}
+	if closed && !cv.kind.closes() {
 		closeLoop(&sc.line, cd, pts)
 	}
 	b.StrokePath(&sc.line, stroke)
@@ -307,67 +317,6 @@ func (s *series) append(src series, i int) {
 }
 
 func lerp(a, b, t float64) float64 { return a + (b-a)*t }
-
-// appendCurve appends pts to p, straight when tension is zero and
-// Catmull-Rom-smoothed otherwise, starting a new subpath when move is set.
-//
-// Continuing an existing subpath is what lets an area append its lower edge to
-// its upper one and get a single closed shape rather than two.
-//
-// A coord that bends its edges takes them over from both forms. Smoothing is a
-// curve fitted through device positions, and under a polar transform the
-// tangent it fits is not the tangent the data has — so an edge the coord
-// already knows how to draw is the better answer than a spline through points
-// it has moved.
-func appendCurve(p *ir.Path, cd coord.Coord, pts []ir.Point, tension float32, move bool) {
-	if len(pts) == 0 {
-		return
-	}
-	if !cd.Straight() {
-		appendEdges(p, cd, pts, move)
-		return
-	}
-	if move {
-		p.MoveTo(pts[0].X, pts[0].Y)
-	} else {
-		p.LineTo(pts[0].X, pts[0].Y)
-	}
-	if tension <= 0 {
-		for _, q := range pts[1:] {
-			p.LineTo(q.X, q.Y)
-		}
-		return
-	}
-	catmullRom(p, pts, tension)
-}
-
-// catmullRom appends a Catmull-Rom spline through pts as cubic Béziers,
-// continuing from p's current point — which must already be pts[0].
-//
-// tension in (0, 1] scales the tangents: 1 gives the classic uniform
-// Catmull-Rom curve, smaller values pull the curve back towards the polyline.
-// The curve passes through every data point, which matters — a smoothing that
-// misses the data would be drawing something that was never measured.
-func catmullRom(p *ir.Path, pts []ir.Point, tension float32) {
-	n := len(pts)
-	if n < 2 {
-		return
-	}
-	if n == 2 {
-		p.LineTo(pts[1].X, pts[1].Y)
-		return
-	}
-	k := tension / 6
-	for i := 0; i < n-1; i++ {
-		p0 := pts[max(i-1, 0)]
-		p1 := pts[i]
-		p2 := pts[i+1]
-		p3 := pts[min(i+2, n-1)]
-		c1 := ir.Point{X: p1.X + (p2.X-p0.X)*k, Y: p1.Y + (p2.Y-p0.Y)*k}
-		c2 := ir.Point{X: p2.X - (p3.X-p1.X)*k, Y: p2.Y - (p3.Y-p1.Y)*k}
-		p.CubicTo(c1.X, c1.Y, c2.X, c2.Y, p2.X, p2.Y)
-	}
-}
 
 func clamp01(v float64) float64 {
 	if v < 0 {

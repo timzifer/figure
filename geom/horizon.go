@@ -77,8 +77,9 @@ import (
 // the series column, or one [github.com/timzifer/figure.Plot.Track] per series
 // with `TrackSize` naming the strip height.
 //
-// [Tension] is ignored. A spline through a folded value overshoots the top and
-// the bottom of its band, which is ink outside the only interval the band has.
+// [Curve] and [Tension] are ignored. A spline through a folded value
+// overshoots the top and the bottom of its band, which is ink outside the only
+// interval the band has.
 //
 // See docs/adr/0065-horizon-charts.md.
 func Horizon(src data.Source, opts ...Option) Geom {
@@ -291,9 +292,9 @@ func (g *horizonGeom) buildBand(b ir.Backend, f Frame, sc *scratch, cd coord.Coo
 			continue
 		}
 		sc.fill.Reset()
-		// Straight edges whatever [Tension] said: a spline through a clamped
-		// fraction overshoots the band it is clamped to.
-		appendCurve(&sc.fill, cd, top, 0, true)
+		// Straight edges whatever [Curve] and [Tension] said: a spline through
+		// a clamped fraction overshoots the band it is clamped to.
+		sc.appendCurve(&sc.fill, cd, top, curveFit{}, true)
 		appendFloor(&sc.fill, cd, x, keep, floor)
 		sc.fill.Close()
 		b.FillPath(&sc.fill, ir.Solid(fill), ir.NonZero)

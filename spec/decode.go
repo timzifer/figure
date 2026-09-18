@@ -244,6 +244,9 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if err != nil {
 		return nil, err
 	}
+	// A step chart reads the same field through stepPos, so an interpolate
+	// naming a staircase is not a curve family and leaves the curve unset.
+	curve, curveSet := curveOf(l.Mark.Interpolate)
 	d := geom.Desc{
 		Mark:       mark,
 		Label:      l.Name,
@@ -266,6 +269,8 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		Extend:     true,
 		Opacity:    -1,
 		Tension:    l.Mark.Tension,
+		Curve:      curve,
+		CurveSet:   curveSet,
 		Marker:     markerShape(l.Mark.Shape),
 		MarkerSet:  l.Mark.Shape != "",
 		Closed:     l.Mark.Closed,

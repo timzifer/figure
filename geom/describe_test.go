@@ -33,7 +33,16 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Scatter(src, X("x"), Y("y"), Shape(ir.MarkerPlus), Size(11), ColorBy("z", cs)),
 		Bar(src, X("x"), Y("y"), BarWidth(0.4), Baseline(-2), Fill(palette.Green), Opacity(0.3)),
 		Bar(src, X("x"), X2("z"), Y("y"), GroupBy("z"), Explode(0.08), ExplodeBy("z")),
+		Line(src, X("x"), Y("y"), Curve(CurveMonotone)),
+		Line(src, X("x"), Y("y"), Curve(CurveBundle), Tension(0.6)),
+		// An explicit linear curve beside a tension is the case a plain
+		// Tension field could not carry: the two together mean a straight
+		// line, and a round trip that dropped CurveSet would smooth it.
+		Line(src, X("x"), Y("y"), Curve(CurveLinear), Tension(0.7)),
 		Area(src, X("x"), Y("y"), Y2("z"), Decimate(MinMax), Budget(64)),
+		Area(src, X("x"), Y("y"), Curve(CurveNatural)),
+		Trend(src, X("x"), Y("y"), Smooth(MovingAverage), Span(0.3)),
+		Trend(src, X("x"), Y("y"), Smooth(SavitzkyGolay), Span(0.4), Curve(CurveBasis)),
 		Step(src, X("x"), Y("y"), Steps(StepMid)),
 		Boxplot(src, X("x"), Y("y"), Whisker(3), Outliers(false)),
 		HLine(1.5, Label("limit"), Extend(false)),

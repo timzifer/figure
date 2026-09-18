@@ -84,6 +84,36 @@ func TestGoldenLineChart(t *testing.T) {
 	golden(t, "line", p)
 }
 
+// One chart per curve family, over data coarse enough that the families
+// visibly disagree: a step-like rise is where a cardinal spline overshoots,
+// where a monotone fit does not, and where a basis spline cuts the corner
+// instead of turning it.
+func TestGoldenCurveFamilies(t *testing.T) {
+	xs := ramp(0, 9, 10)
+	src := figure.Float64Columns(map[string][]float64{
+		"x": xs,
+		"y": {0, 0, 0, 5, 5, 5, 1, 4, 4, 2},
+	})
+	for _, tc := range []struct {
+		name  string
+		curve geom.CurveKind
+	}{
+		{"curve-cardinal", geom.CurveCardinal},
+		{"curve-monotone", geom.CurveMonotone},
+		{"curve-natural", geom.CurveNatural},
+		{"curve-basis", geom.CurveBasis},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := figure.New(figure.Size(640, 400), figure.Title(tc.name))
+			p.X(scale.Linear(scale.Nice()))
+			p.Y(scale.Linear(scale.Nice()))
+			p.Add(geom.Line(src, geom.X("x"), geom.Y("y"),
+				geom.Curve(tc.curve), geom.Color(palette.Blue)))
+			golden(t, tc.name, p)
+		})
+	}
+}
+
 func TestGoldenMultiSeriesWithLegend(t *testing.T) {
 	xs := ramp(0, 4, 25)
 	src := figure.Float64Columns(map[string][]float64{
