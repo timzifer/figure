@@ -250,9 +250,10 @@ type scratch struct {
 	pts   []ir.Point
 	offs  []ir.Point // how far each mark is broken out of the middle
 	rects []ir.Rect
-	done  []ir.Rect // the finished part of each cell, for a progress layer
-	links []link    // the dependencies whose two ends both resolved
-	lrun  []link    // one colour's worth of them
+	lbox  []labelBox // the box behind each label of a text layer
+	done  []ir.Rect  // the finished part of each cell, for a progress layer
+	links []link     // the dependencies whose two ends both resolved
+	lrun  []link     // one colour's worth of them
 	edge  []ir.Point
 	cols  []ir.Color
 	sizes []float32

@@ -30,3 +30,7 @@ geom keeps its original placement. The spec writes `avoidOverlap` only on text.
 
 Revisit when callouts need leader lines, a spatial index is justified by
 measured label-heavy workloads, or obstacles beyond text are required.
+
+Leader lines arrived in [ADR 0082](0082-a-label-fits-its-box-or-is-called-out.md),
+for a box label that does not fit its box, beside this placer rather than
+through it.

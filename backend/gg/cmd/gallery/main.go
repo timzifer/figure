@@ -19,6 +19,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/timzifer/figure/mathtext"
 	"github.com/timzifer/figure/palette"
 	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
 	"github.com/timzifer/figure/theme"
 	"github.com/timzifer/figure/three"
 )
@@ -603,6 +605,24 @@ func figures() []plate {
 				p.Add(geom.Bar(src, geom.X("all"), geom.Y("share"),
 					geom.GroupBy("browser"),
 					geom.ColorBy("browser", scale.Qualitative(palette.OkabeIto))))
+
+				// The labels are a text layer over the same slices, each one
+				// named by the two edges the stack gave it. A label too big
+				// for its slice is drawn smaller, and one that is still too
+				// big is drawn smaller, and one that is still too big is
+				// called out of the pie on a leader — see ADR 0082.
+				lo, hi := stacked(share)
+				labels := make([]string, len(names))
+				for i, n := range names {
+					labels[i] = fmt.Sprintf("%s %g %%", n, share[i])
+				}
+				p.Add(geom.Text(figure.NewTable().
+					Float64("all", make([]float64, len(names))).
+					Float64("lo", lo).Float64("hi", hi).
+					String("browser", names).String("label", labels),
+					geom.X("all"), geom.Y("lo"), geom.Y2("hi"), geom.TextBy("label"),
+					geom.ColorBy("browser", scale.Qualitative(palette.OkabeIto)),
+					geom.Callout(true)))
 			},
 		},
 		{
@@ -637,6 +657,25 @@ func figures() []plate {
 					geom.X("floor"), geom.X2("used"), geom.Y("share"),
 					geom.GroupBy("team"), geom.ExplodeBy("pull"),
 					geom.ColorBy("team", scale.Qualitative(palette.OkabeIto))))
+
+				// Each slice carries how much of its budget it used, and the
+				// label on the broken-out slice goes with it because it reads
+				// the same break-out column. The thin slices have no room for
+				// theirs and call them out.
+				lo, hi := stacked(share)
+				labels := make([]string, len(teams))
+				for i := range teams {
+					labels[i] = fmt.Sprintf("%.0f %% used", used[i]*100)
+				}
+				p.Add(geom.Text(figure.NewTable().
+					String("team", teams).
+					Float64("floor", floor).Float64("used", used).
+					Float64("lo", lo).Float64("hi", hi).
+					Float64("pull", pull).String("label", labels),
+					geom.X("floor"), geom.X2("used"), geom.Y("lo"), geom.Y2("hi"),
+					geom.TextBy("label"), geom.ExplodeBy("pull"),
+					geom.ColorBy("team", scale.Qualitative(palette.OkabeIto)),
+					geom.Callout(true)))
 			},
 		},
 		{
@@ -915,15 +954,29 @@ func figures() []plate {
 			// layer draws under a Cartesian coord, wrapped round a circle — the
 			// hierarchy's span goes round and its depth goes out, so the root
 			// is at the middle and the leaves are at the rim.
-			name: "sunburst", width: 520, high: 440, title: "Disk by directory",
+			name: "sunburst", width: 620, high: 440, title: "Disk by directory",
 			theme: bareLayout(theme.Light),
-			opts:  []figure.Option{figure.Coord(coord.Polar(coord.Hole(0.12)))},
+			opts:  []figure.Option{figure.Coord(coord.Polar(coord.Hole(0.12), coord.Radius(0.8)))},
 			build: func(p *figure.Plot) {
 				p.X(scale.Linear())
 				p.Y(scale.Linear())
+				// Both layers are coloured by one scale over the path, so that
+				// each label is written in the ink that reads on its own cell.
+				byPath := scale.Qualitative(theme.Light.Palette)
 				p.Add(geom.Icicle(diskUsage(),
 					geom.ID("path"), geom.Parent("under"), geom.Value("kb"),
-					geom.Padding(0.004)))
+					geom.Padding(0.004), geom.ColorBy("path", byPath)))
+
+				// The labels are a text layer over the same cells, laid out
+				// by the same three stat functions the icicle calls. A label
+				// stays in the middle of its cell, where the eye looks for
+				// it: it breaks over lines there, shrinks there, and one the
+				// middle cannot hold is called out on a leader rather than
+				// slid along the ring to where it would read as a neighbour's.
+				p.Add(geom.Text(sunburstCells(),
+					geom.X("lo"), geom.X2("hi"), geom.Y("in"), geom.Y2("out"),
+					geom.TextBy("label"), geom.ColorBy("path", byPath),
+					geom.Wrap(true), geom.Slide(false), geom.Callout(true)))
 			},
 		},
 		{
@@ -1002,6 +1055,19 @@ func budgets() (teams []string, share, floor, used, pull []float64) {
 		[]float64{0.35, 0.35, 0.35, 0.35, 0.35},
 		[]float64{0.92, 0.78, 1, 0.55, 0.66},
 		[]float64{0, 0, 0.12, 0, 0}
+}
+
+// stacked is where each of a column of shares starts and ends when they are
+// stacked in the order they are given, which is the order a grouped bar
+// stacks its groups in.
+func stacked(share []float64) (lo, hi []float64) {
+	lo, hi = make([]float64, len(share)), make([]float64, len(share))
+	at := 0.0
+	for i, v := range share {
+		lo[i], at = at, at+v
+		hi[i] = at
+	}
+	return lo, hi
 }
 
 // browserShare is a market share that adds to a hundred, so the ring closes on
@@ -1395,6 +1461,39 @@ func diskUsage() figure.Source {
 			150, 90,
 			200, 110,
 		})
+}
+
+// sunburstCells is where each directory of diskUsage is drawn in the sunburst:
+// its span round the circle and its ring, which is what geom.Icicle computes
+// in Train and does not hand out. The root is not labelled, because it is the
+// whole circle and its label would sit at the bottom of the innermost ring as
+// if it were a slice of it.
+func sunburstCells() figure.Source {
+	src := diskUsage()
+	ids, _ := data.Labels(src, "path")
+	under, _ := data.Labels(src, "under")
+	kb, _ := data.Float64Column(src, "kb")
+	parent := make([]int, len(ids))
+	for i, u := range under {
+		parent[i] = slices.Index(ids, u)
+	}
+	depth := stat.Depth(parent)
+	total := stat.Rollup(kb, parent, depth)
+	lo, hi := stat.Partition(total, parent, depth)
+	rings := float64(slices.Max(depth) + 1)
+	in, out := make([]float64, len(ids)), make([]float64, len(ids))
+	labels := make([]string, len(ids))
+	for i, d := range depth {
+		in[i], out[i] = float64(d)/rings, float64(d+1)/rings
+		if d > 0 {
+			labels[i] = fmt.Sprintf("%s %g kB", ids[i], total[i])
+		}
+	}
+	return figure.NewTable().
+		String("path", ids).
+		Float64("lo", lo).Float64("hi", hi).
+		Float64("in", in).Float64("out", out).
+		String("label", labels)
 }
 
 // requestFlow is where a service's traffic goes: one row per edge, its two ends

@@ -719,6 +719,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		}
 		m.Elide = d.Elide
 		m.AvoidOverlap = d.AvoidOverlap
+		m.Callout, m.MinFontSize, m.Wrap = d.Callout, d.MinFontSize, d.Wrap
+		if d.Pinned {
+			m.Slide = boolPtr(false)
+		}
 	default:
 		// A mark this package did not define. Nobody here knows which of the
 		// shared options it reads, so the ones a mark most plausibly honours

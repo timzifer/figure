@@ -785,7 +785,11 @@ stats ([ADR 0028](adr/0028-distribution-stats.md)); the Smith coord
 itself owns — a tooltip, a crosshair, a brush rectangle — drawn last and
 announced to no observer, because a tooltip a pointer can hit is a tooltip that
 flickers ([ADR 0046](adr/0046-overlay-layer.md)). Label collision avoidance is
-opt-in per layer ([ADR 0040](adr/0040-label-collision-avoidance.md)).
+opt-in per layer ([ADR 0040](adr/0040-label-collision-avoidance.md)). A box label is fitted
+to the shape of its box on screen, moved along it, broken over lines or
+shrunk before it is dropped, and may be called out of a pie or a sunburst
+with a leader
+([ADR 0082](adr/0082-a-label-fits-its-box-or-is-called-out.md)).
 
 Bucket N is drawn today too, and it is the newest: `figure/three` projects a
 scene above the IR and orders it back to front, so a surface, a trajectory, a

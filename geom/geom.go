@@ -72,6 +72,16 @@ type LabelAvoider interface {
 	AvoidsLabels() bool
 }
 
+// Overhanger is implemented by a layer that may draw past the coord's clip and
+// asks to be clipped to the panel rectangle instead: a label written outside a
+// pie with a leader back to its slice is outside the disc the coord clips to,
+// and inside the panel. Like [LabelAvoider] it is optional, so Geom's stable
+// interface is unchanged, and a layer that does not implement it is clipped as
+// it always was.
+type Overhanger interface {
+	Overhangs() bool
+}
+
 // Coords is the frame's coordinate system, which is [coord.Cartesian] framed
 // in the plot rectangle when it has none.
 //
@@ -294,6 +304,10 @@ type config struct {
 	onX2        bool
 	elide       bool
 	avoidLabels bool
+	callout     bool
+	wrap        bool
+	pinned      bool
+	minFont     float64
 	dashSet     bool
 	markerSet   bool
 	extend      bool
@@ -917,6 +931,65 @@ func Elide(on bool) Option { return func(c *config) { c.elide = on } }
 // omitted. Only participating text layers avoid each other; marks and axis
 // furniture are not obstacles. The default is false.
 func AvoidOverlap(on bool) Option { return func(c *config) { c.avoidLabels = on } }
+
+// MinFontSize is the smallest size a [Text] layer shrinks a label to before it
+// gives up on the label's box, in device units.
+//
+// A box label that does not fit its box at the layer's size is drawn smaller,
+// as large as still fits, but never below this. Below it a label stops being
+// read and starts being squinted at, so what happens next is [Callout]'s, then
+// [Elide]'s, and otherwise the label is dropped. The default is three quarters
+// of the layer's size; a size at or above the layer's own turns shrinking off.
+//
+// It does nothing in point mode, where there is no box to fit.
+func MinFontSize(pt float64) Option { return func(c *config) { c.minFont = pt } }
+
+// Slide lets a [Text] layer move a label along its box to where it fits, when
+// it does not fit the box's middle. It is on by default.
+//
+// Under a coord with a middle a box is not the same shape all the way along —
+// a slice is wider at its rim, a long cell of a sunburst runs level in one
+// place and diagonally in another — so a label that has no room across the
+// middle may have room further along. The price is that the label no longer
+// sits where the eye looks for it, and on a chart of many thin cells a label
+// moved to the end of its cell can read as its neighbour's. Slide(false) keeps
+// every label in the middle of its box: one that does not fit there, broken or
+// shrunk, is called out with a leader where [Callout] allows it and dropped
+// where it does not.
+//
+// Under Cartesian a box is the same shape all the way along and a label is
+// never moved, so it changes nothing there.
+func Slide(on bool) Option { return func(c *config) { c.pinned = !on } }
+
+// Wrap lets a [Text] layer break a label that does not fit its box on one
+// line over two or three, at spaces.
+//
+// The break chosen is the one whose widest line is narrowest, which is the
+// most compact block the words make, and it is tried before the label is
+// shrunk: "Wareneingang Halle 3" on two lines at the layer's size reads better
+// than on one line at three quarters of it. Where neither fits, the label is
+// shrunk as a block or as a line, whichever holds the larger type, and only
+// then is it called out, cut or dropped. A label without a space is one line
+// whatever this says.
+//
+// It does nothing in point mode, where there is no box to break a label for,
+// and a label called out of its box is written on one line: outside the box
+// there is room for it.
+func Wrap(on bool) Option { return func(c *config) { c.wrap = on } }
+
+// Callout lets a [Text] layer draw a label that does not fit its box outside
+// the box instead, joined to it by a leader line.
+//
+// The label goes out of the middle of the chart along the box's own bisector,
+// past everything the coord draws, and is written level at the end of a short
+// horizontal arm; labels on one side are stacked apart so that no two of them
+// share a line. It is what a thin slice of a pie or of a sunburst needs, where
+// the number is the reading and there is no room for it in the slice.
+//
+// It needs a coord with a middle to go out of — [coord.Exploder] is that
+// answer — so under [coord.Cartesian] it does nothing: a bar has no outside
+// that is not the neighbouring bar's inside. See docs/adr/0082.
+func Callout(on bool) Option { return func(c *config) { c.callout = on } }
 
 // SizeBy maps a column through a size scale, giving every mark its own size.
 // It applies to [Scatter]; geoms whose mark has a width the axes decide ignore

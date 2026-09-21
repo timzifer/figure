@@ -232,6 +232,20 @@ type Mark struct {
 	Elide bool `json:"elide,omitempty"`
 	// AvoidOverlap enables deterministic collision avoidance for text labels.
 	AvoidOverlap bool `json:"avoidOverlap,omitempty"`
+	// Callout is whether a text layer writes a label that does not fit its box
+	// outside it, joined back by a leader line, and MinFontSize the smallest
+	// size a label is shrunk to before that happens. Both are figure's own.
+	Callout     bool    `json:"callout,omitempty"`
+	MinFontSize float64 `json:"minFontSize,omitempty"`
+	// Wrap is whether a text layer breaks a label that does not fit its box
+	// over lines. Vega-Lite breaks text only where the string says to, so
+	// the name is figure's own.
+	Wrap bool `json:"wrap,omitempty"`
+	// Slide is whether a text layer moves a label along its box to where it
+	// fits. It is a pointer because the default is true, and a document that
+	// omits it slides; writing `false` keeps every label in the middle of its
+	// box.
+	Slide *bool `json:"slide,omitempty"`
 
 	// Origin is the value bars and areas grow from — Vega-Lite reaches the
 	// same place through a scale's `zero`, which is a different thing.

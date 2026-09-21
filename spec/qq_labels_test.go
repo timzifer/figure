@@ -47,3 +47,29 @@ func TestHandwrittenQQSpecNeedsOnlyTheSampleColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCalloutAndFloorRoundTrip(t *testing.T) {
+	src := data.NewTable().Float64("lo", []float64{0, 97}).Float64("hi", []float64{97, 100}).
+		Float64("r0", []float64{0, 0}).Float64("r1", []float64{1, 1}).String("label", []string{"a", "b"})
+	g := geom.Text(src, geom.X("r0"), geom.X2("r1"), geom.Y("lo"), geom.Y2("hi"), geom.TextBy("label"),
+		geom.Callout(true), geom.MinFontSize(8), geom.Wrap(true), geom.Slide(false))
+	c := spec.Chart{Width: 500, Height: 350, DPR: 1, Theme: theme.Light, X: scale.Linear(), Y: scale.Linear(), Layers: []geom.Geom{g}}
+	back := roundTrip(t, c)
+	bd, _ := geom.Describe(back.Layers[0])
+	if !bd.Callout || bd.MinFontSize != 8 || !bd.Wrap || !bd.Pinned {
+		t.Fatalf("read back as callout %v, floor %v, wrap %v, pinned %v", bd.Callout, bd.MinFontSize, bd.Wrap, bd.Pinned)
+	}
+
+	// A document that says nothing about sliding slides.
+	s, err := spec.Parse([]byte(`{"data":{"values":[{"x":0,"x2":1,"y":0,"y2":1,"t":"a"}]},"layer":[{"mark":{"type":"text"},"encoding":{"x":{"field":"x"},"x2":{"field":"x2"},"y":{"field":"y"},"y2":{"field":"y2"},"text":{"field":"t"}}}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc, err := s.Chart()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, _ := geom.Describe(sc.Layers[0]); d.Pinned {
+		t.Error("a document that omits slide reads back pinned")
+	}
+}
