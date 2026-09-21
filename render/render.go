@@ -972,9 +972,14 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 		b.Text(labelRun(t.Label, tickFont, fur.LabelX[i], th.TickColor))
 	}
 
-	// Y ticks. On a Cartesian axis these stack vertically and are right-
-	// aligned against the axis, so they collide far less often; the theme's
-	// tick count hint is enough.
+	// Y ticks. On a Cartesian axis these stack vertically, and a short panel
+	// stacks them closer than a line of text is tall: the tick count hint was
+	// chosen for a whole chart, not for a panel forty pixels high. They are
+	// thinned the way the X labels are, unless the scattered pass above has
+	// already decided them.
+	if fur.XLabelsShareARow && showY {
+		keepY = selectYLabels(b, fur, yTicks, tickFont, th.TickLabelPad)
+	}
 	for i, t := range yTicks {
 		if !inFurniture(fur.InY, i) || !th.ShowTicksY {
 			continue
@@ -1108,12 +1113,17 @@ func selectScatteredLabels(m layout.Measurer, fur *coord.Furniture, xTicks, yTic
 // overlapsAny reports whether box comes within pad of any of kept.
 func overlapsAny(box ir.Rect, kept []ir.Rect, pad float32) bool {
 	for _, k := range kept {
-		if box.Min.X < k.Max.X+pad && box.Max.X+pad > k.Min.X &&
-			box.Min.Y < k.Max.Y+pad && box.Max.Y+pad > k.Min.Y {
+		if overlaps(box, k, pad) {
 			return true
 		}
 	}
 	return false
+}
+
+// overlaps reports whether a comes within pad of b.
+func overlaps(a, b ir.Rect, pad float32) bool {
+	return a.Min.X < b.Max.X+pad && a.Max.X+pad > b.Min.X &&
+		a.Min.Y < b.Max.Y+pad && a.Max.Y+pad > b.Min.Y
 }
 
 // drawAxesOverData is the axis pass for the panels whose coord reported
@@ -1206,6 +1216,8 @@ func drawOppositeAxis(b ir.Backend, th theme.Theme, cd coord.Coord, area ir.Rect
 	keep := []bool(nil)
 	if !vertical {
 		keep = selectXLabels(b, fur, ticks, tickFont, th.TickLabelPad)
+	} else if labels {
+		keep = selectYLabels(b, fur, ticks, tickFont, th.TickLabelPad)
 	}
 	for i, t := range ticks {
 		if !inFurniture(in, i) {
@@ -1274,6 +1286,41 @@ func selectXLabels(m layout.Measurer, fur *coord.Furniture, ticks []scale.Tick, 
 		}
 		keep[i] = true
 		prevRight = fur.LabelX[i].At.X + w/2
+	}
+	return keep
+}
+
+// selectYLabels is selectXLabels for the Y axis: greedily, in tick order, each
+// label is kept only if its box clears the last one kept by pad. It returns nil
+// when every label clears, which is the common case and means every label is
+// kept, so that a panel with room to spare allocates nothing.
+//
+// Tick order is value order, so the sweep keeps the lowest label and then every
+// one that clears it, whichever way up the axis runs; a monotone scale meets
+// its labels in a line either way.
+func selectYLabels(m layout.Measurer, fur *coord.Furniture, ticks []scale.Tick, font ir.FontRef, pad float32) []bool {
+	var keep []bool
+	var prev ir.Rect
+	have := false
+	for i, t := range ticks {
+		if t.Label == "" || !inFurniture(fur.InY, i) || i >= len(fur.LabelY) {
+			continue
+		}
+		run := labelRun(t.Label, font, fur.LabelY[i], ir.Color{})
+		box := layout.LabelBounds(run, m.Measure(run))
+		if have && overlaps(box, prev, pad) {
+			if keep == nil {
+				keep = make([]bool, len(ticks))
+				for j := 0; j < i; j++ {
+					keep[j] = true
+				}
+			}
+			continue
+		}
+		if keep != nil {
+			keep[i] = true
+		}
+		prev, have = box, true
 	}
 	return keep
 }

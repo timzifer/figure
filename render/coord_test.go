@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/timzifer/figure/coord"
+	"github.com/timzifer/figure/data"
+	"github.com/timzifer/figure/geom"
 	"github.com/timzifer/figure/internal/irtest"
 	"github.com/timzifer/figure/internal/layout"
 	"github.com/timzifer/figure/ir"
@@ -208,6 +210,38 @@ func TestPolarTickLabelsDoNotOverlap(t *testing.T) {
 	}
 	if len(boxes) < 4 {
 		t.Fatalf("a gauge wrote only %v", texts)
+	}
+	for i := range boxes {
+		for j := i + 1; j < len(boxes); j++ {
+			a, b := boxes[i], boxes[j]
+			if a.Min.X < b.Max.X && b.Min.X < a.Max.X && a.Min.Y < b.Max.Y && b.Min.Y < a.Max.Y {
+				t.Errorf("tick labels %q and %q overlap: %v and %v", texts[i], texts[j], a, b)
+			}
+		}
+	}
+}
+
+// A short Cartesian panel stacks its Y labels closer than a line of text is
+// tall, because the tick count was chosen for a whole chart. The ones that
+// would not fit are dropped, not piled up, and the lowest one stays.
+func TestAShortPanelsYLabelsDoNotOverlap(t *testing.T) {
+	src := data.Float64Columns(map[string][]float64{"x": {0, 1, 2, 3}, "y": {0, 4000, 1000, 3000}})
+	c := chart(geom.Line(src, geom.X("x"), geom.Y("y")))
+	c.Height = 70
+	rec := draw(t, c)
+
+	var boxes []ir.Rect
+	var texts []string
+	for _, call := range rec.Calls {
+		// The Y labels are the right-aligned ones.
+		if call.Op != "Text" || call.Text.Color != c.Theme.TickColor || call.Text.H != ir.AlignEnd {
+			continue
+		}
+		boxes = append(boxes, layout.LabelBounds(call.Text, rec.Measure(call.Text)))
+		texts = append(texts, call.Text.Text)
+	}
+	if len(texts) < 2 || texts[0] != "0" {
+		t.Fatalf("a short panel wrote Y labels %v, want the lowest and at least one more", texts)
 	}
 	for i := range boxes {
 		for j := i + 1; j < len(boxes); j++ {
