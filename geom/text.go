@@ -637,6 +637,12 @@ type callout struct {
 	from, bend ir.Point // the leader's foot on the box, and where it turns level
 	y          float32  // the height the label is written at, once stacked apart
 	side       float32  // +1 written to the right, -1 to the left
+
+	// How the label is written beside the chart: in which font, broken how,
+	// and the block that makes — w wide and h high.
+	font  ir.FontRef
+	shape wrapping
+	w, h  float32
 }
 
 // callOut writes the labels that did not fit their boxes outside them, each
@@ -649,13 +655,13 @@ type callout struct {
 // crosses the outer rings rather than stopping on top of them — and turns
 // level. Labels on one side are then stacked apart in the order they left, so
 // that a run of thin slices writes a column of labels rather than a pile.
+//
+// A label too wide for the room beside the chart on its side is broken over
+// lines where [Wrap] allows it, then shrunk down to [MinFontSize], and only
+// then dropped (see [textGeom.calloutShape]).
 func (g *textGeom) callOut(b ir.Backend, f Frame, cd coord.Coord, out coord.Exploder, run ir.TextRun, ink ir.Color, rows []int, pts []ir.Point, boxes []labelBox, offs []ir.Point, drawn []int) []int {
 	size := float32(run.Font.Size)
 	run.Rotation = 0
-	h := b.Measure(ir.TextRun{Text: g.labels[rows[g.callouts[0].at]], Font: run.Font}).Height()
-	if h <= 0 {
-		h = size * 1.2
-	}
 	gap, arm := size, size
 	x0e, x1e, y0e, y1e := cd.Extent()
 	lx0, lx1 := min(x0e, x1e), max(x0e, x1e)
@@ -717,6 +723,30 @@ func (g *textGeom) callOut(b ir.Backend, f Frame, cd coord.Coord, out coord.Expl
 		}
 	}
 
+	// How each label is written is settled before the labels are stacked,
+	// because a label broken over two lines takes two lines of the column.
+	// The room is what the drawing below allows: from where the label starts
+	// at the end of a full arm to the edge of the panel, and the arm may give
+	// up all but a quarter of the type to it.
+	kept := cs[:0]
+	for _, c := range cs {
+		start := c.bend.X + c.side*(arm+gap/2)
+		room := f.Area.Max.X - start
+		if c.side < 0 {
+			room = start - f.Area.Min.X
+		}
+		room += arm - size/4
+		var ok bool
+		c.font, c.shape, c.w, c.h, ok = g.calloutShape(b, run.Font, g.labels[rows[c.at]], room)
+		if ok {
+			kept = append(kept, c)
+		}
+	}
+	cs = kept
+	if len(cs) == 0 {
+		return drawn
+	}
+
 	// Stacked apart a side at a time, top to bottom, inside the panel.
 	slices.SortFunc(cs, func(a, b callout) int {
 		if a.side != b.side {
@@ -724,21 +754,24 @@ func (g *textGeom) callOut(b ir.Backend, f Frame, cd coord.Coord, out coord.Expl
 		}
 		return cmpFloat(a.bend.Y, b.bend.Y)
 	})
-	step := h + 1
+	// Two neighbours stand half of each one's height apart and a pixel more,
+	// which for two one-line labels is the line and a pixel it always was.
+	step := func(a, b callout) float32 { return (a.h+b.h)/2 + 1 }
 	for lo := 0; lo < len(cs); {
 		hi := lo + 1
 		for hi < len(cs) && cs[hi].side == cs[lo].side {
 			hi++
 		}
 		side := cs[lo:hi]
-		side[0].y = max(side[0].y, f.Area.Min.Y+h/2)
+		side[0].y = max(side[0].y, f.Area.Min.Y+side[0].h/2)
 		for k := 1; k < len(side); k++ {
-			side[k].y = max(side[k].y, side[k-1].y+step)
+			side[k].y = max(side[k].y, side[k-1].y+step(side[k-1], side[k]))
 		}
-		if bottom := f.Area.Max.Y - h/2; side[len(side)-1].y > bottom {
-			side[len(side)-1].y = bottom
+		last := &side[len(side)-1]
+		if bottom := f.Area.Max.Y - last.h/2; last.y > bottom {
+			last.y = bottom
 			for k := len(side) - 2; k >= 0; k-- {
-				side[k].y = min(side[k].y, side[k+1].y-step)
+				side[k].y = min(side[k].y, side[k+1].y-step(side[k], side[k+1]))
 			}
 		}
 		lo = hi
@@ -768,6 +801,7 @@ func (g *textGeom) callOut(b ir.Backend, f Frame, cd coord.Coord, out coord.Expl
 			run.H = ir.AlignEnd
 		}
 		run.Text = g.labels[rows[c.at]]
+		run.Font = c.font
 		run.At = ir.Point{X: end.X + c.side*gap/2, Y: c.y}
 
 		// A label that runs past the edge of the panel is drawn in on a
@@ -775,22 +809,92 @@ func (g *textGeom) callOut(b ir.Backend, f Frame, cd coord.Coord, out coord.Expl
 		// one that still has no room beside the chart is dropped rather than
 		// cut by the edge, which is the rule every other label here keeps:
 		// half a label names nothing.
-		w := b.Measure(ir.TextRun{Text: run.Text, Font: run.Font}).Advance
+		w := c.w
 		over := max(f.Area.Min.X-(run.At.X-w), 0)
 		if c.side > 0 {
 			over = max(run.At.X+w-f.Area.Max.X, 0)
 		}
-		if over > arm-size/4 || c.y-h/2 < f.Area.Min.Y || c.y+h/2 > f.Area.Max.Y {
+		if over > arm-size/4 || c.y-c.h/2 < f.Area.Min.Y-0.01 || c.y+c.h/2 > f.Area.Max.Y+0.01 {
 			continue
 		}
 		end.X -= c.side * over
 		run.At.X -= c.side * over
 		b.Polyline([]ir.Point{c.from, c.bend, end}, line)
-		b.Text(run)
+		if c.shape.lines > 1 {
+			g.drawLines(b, run, run.Text, c.shape)
+		} else {
+			b.Text(run)
+		}
 		pts[c.at] = run.At
 		drawn = append(drawn, c.at)
 	}
 	return drawn
+}
+
+// calloutShape decides how a called-out label is written in the room beside
+// the chart: at the layer's size on one line if it fits; broken over two or
+// three lines if [Wrap] was asked for and that fits; smaller, down to
+// [MinFontSize], on whichever of those shapes holds the largest type, fewer
+// lines winning a tie. It reports false for a label that has no room even
+// then, and returns the font, the break and the block it makes.
+//
+// It is the order a box label is fitted in, and for the same reason: two
+// lines at the layer's size read better than one at three quarters of it. A
+// label out of a slice at three o'clock has the margin beside the chart and
+// nothing else, and a long name there is exactly the one that used to be
+// dropped — the name a callout exists for.
+//
+// Only the width is searched. The column the labels are stacked in is as
+// tall as the panel, and the stacking pushes a taller block along rather than
+// refusing it.
+func (g *textGeom) calloutShape(m ir.Measurer, font ir.FontRef, text string, room float32) (ir.FontRef, wrapping, float32, float32, bool) {
+	size := font.Size
+	tm := m.Measure(ir.TextRun{Text: text, Font: font})
+	h := tm.Height()
+	if h <= 0 {
+		h = float32(size) * 1.2
+	}
+	if room <= 0 {
+		return font, wrapping{}, 0, 0, false
+	}
+
+	shapes := [maxLines]wrapping{{lines: 1, width: tm.Advance}}
+	k := 1
+	if g.cfg.wrap {
+		for lines := 2; lines <= maxLines; lines++ {
+			if s, ok := balance(m, font, text, lines); ok {
+				shapes[k] = s
+				k++
+			}
+		}
+	}
+	for _, s := range shapes[:k] {
+		if s.width <= room {
+			return font, s, s.width, h * float32(s.lines), true
+		}
+	}
+
+	// A run's advance scales with its size, so the largest size a shape
+	// fits at is read off rather than searched for, and rounded down to a
+	// quarter of a unit as a box label's is.
+	floor := g.minFontSize(size)
+	best, shape := 0.0, shapes[0]
+	for _, s := range shapes[:k] {
+		if s.width <= 0 {
+			continue
+		}
+		z := math.Floor(size*float64(room/s.width)*4) / 4
+		if z >= floor && z > best {
+			best, shape = z, s
+		}
+	}
+	if best <= 0 {
+		return font, wrapping{}, 0, 0, false
+	}
+	f := float32(best / size)
+	font.Size = best
+	shape.width *= f
+	return font, shape, shape.width, h * f * float32(shape.lines), true
 }
 
 func cmpFloat(a, b float32) int {

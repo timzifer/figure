@@ -1,6 +1,6 @@
 # 0082 — A label fits the shape of its box on screen, is moved, broken or shrunk before it is dropped, and may be called out of it
 
-**Status:** Accepted · **Date:** 2026-09-21 · **Implemented:** 2026-09-21
+**Status:** Accepted, amended · **Date:** 2026-09-21 · **Implemented:** 2026-09-21 · see [Amendment](#amendment-a-called-out-label-is-broken-or-shrunk-before-it-is-dropped)
 
 ## Context
 
@@ -59,7 +59,8 @@ better than one at three quarters of it. The lines are cut out of the label
 rather than built, and a block is drawn as one run per line, because a run is
 one line and the IR stays as it is. It is opt-in because it changes the shape
 of a label as well as its size; a label called out of its box is written on
-one line, because outside the box there is room for it.
+one line, because outside the box there is room for it — until there is not;
+see the [amendment](#amendment-a-called-out-label-is-broken-or-shrunk-before-it-is-dropped).
 
 **A label that does not fit is shrunk before anything else happens to it.**
 It is drawn at the largest size that fits, down to `geom.MinFontSize`, whose
@@ -131,3 +132,40 @@ layer asks for it, so a chart without one draws exactly what it drew.
   missing is the rule that picks it.
 - A Cartesian chart wants callouts — a label above a short bar is a direction
   somebody chose, and it would be a named option rather than a default.
+
+## Amendment: a called-out label is broken or shrunk before it is dropped
+
+The decision above wrote a called-out label on one line at the layer's size,
+and dropped one that had no room beside the chart even on a shorter arm. In a
+sunburst whose panel is not much wider than the ring, that dropped the wrong
+labels: a thin slice at nine or three o'clock has only the margin beside the
+ring, and the labels that did not fit there were the long names — the ones a
+reader could not have guessed from the colour, and the ones a callout exists
+for. A slice near twelve, whose label turns level almost above the middle, had
+room for the same name and kept it.
+
+**A called-out label is fitted to the room beside the chart the way a box
+label is fitted to its box, in the same order.** The room is measured on its
+own side, from where the label starts at the end of a full arm to the edge of
+the panel, plus the part of the arm it may give up. What fits it at the
+layer's size on one line is written as before. With `geom.Wrap`, the label is
+next tried broken over two lines and then three, at the break whose widest
+line is narrowest — two lines at the layer's size read better than one at
+three quarters of it, which is the reason breaking comes before shrinking in a
+box. Then it is shrunk, down to `geom.MinFontSize`, on whichever shape holds
+the largest type, fewer lines winning a tie. Only a label that fits none of
+these is dropped with its leader.
+
+Only the width is fitted. The column beside the chart is as tall as the panel,
+and a label broken over lines is a taller block in it: labels on one side are
+now stacked apart by half of each neighbour's height and a pixel, which for
+two one-line labels is the line and a pixel it always was. The leader meets a
+block in its middle. A block pushed past the bottom of the panel is dropped
+there, as a one-line label was.
+
+The shape is settled before the labels are stacked, because stacking needs the
+heights, and that is why the decision is made per label from its own side's
+room rather than while drawing.
+
+Nothing changes for a label that fitted before: it is written on one line at
+the layer's size, where it was. The documentation figures are the same.
