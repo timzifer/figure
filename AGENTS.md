@@ -139,8 +139,9 @@ per panel, twice: once before the furniture pass and once before the data pass.
 Dropping the second call leaves every panel but the last drawing its data where
 the last panel's axis is. There is a test.
 
-**A dependency arrow is routed in device space, and a curve label is placed
-there; those two are the whole list.** Everywhere else a geom computes a
+**A dependency arrow is routed in device space, a curve label is placed there,
+and a nearest-neighbour partition is cut there; those three are the whole
+list.** Everywhere else a geom computes a
 midpoint, a corner or a staircase step *before* the coord, because those are
 statements about the data — `geom.stepColumns` is the canonical case.
 `geom.Depends` puts its two *ends* through `coord.Point` like every other mark
@@ -161,6 +162,21 @@ the feature exists for. `geom.curveLabeller` therefore reads the device points
 the mark is about to stroke and nothing else — which is also why one helper
 serves a traced lattice and a formula. See
 [ADR 0073](docs/adr/0073-labels-on-a-curve.md).
+
+The third is `geom.Voronoi`, and its argument is the treemap's rather than
+either of those. A cell's whole content is that its boundary is **halfway
+between two dots**, which needs a length — and the two axes of a chart are not
+obliged to share one: there is no distance between a millimetre of rain and a
+kilometre of easting. Cutting the partition in the scaled pair and stretching
+it into the panel is an anisotropic map, which takes perpendicular bisectors to
+lines that are not perpendicular bisectors, so every boundary on screen would
+be halfway between nothing. The sites go through the scales and `coord.Point`
+like every other mark's positions; only the partition between them is device
+geometry, which is why `stat.Voronoi` runs in `Build` against `Frame.Area` —
+the fourth stat to do so, beside the hexagonal lattice, the beeswarm's offsets
+and the treemap's squarify. The honest cost is that the picture depends on the
+panel: a colourbar narrows the plot area and the boundaries move. See
+[ADR 0080](docs/adr/0080-nearest-neighbour-cells.md).
 
 **A progress layer paints twice over, and that is what keeps the batching.**
 `geom.ProgressBy` draws every cell at the unfinished alpha and the finished
@@ -1320,6 +1336,26 @@ rather than anything in the table: for these marks the row is the reading, which
 is the first time that has been true and is
 [ADR 0015](docs/adr/0015-hit-testing.md)'s revisit clause rather than this
 record's.
+
+Deliberately not done. A **nearest-neighbour partition is none of the above and
+sits at the other end of the same question**: its rows have coordinates, so
+`geom.Voronoi` reads a pair of axes, and each cell *is* one row and reports it.
+It **draws no dots** — a `geom.Scatter` layer over the same table does that —
+and **no labels**; it **ignores `GroupBy`**, because there is one partition
+over every row of the layer and a series inside it partitions nothing; and it
+gives **one of two rows at the same point no cell at all**, because the
+bisector between them is undefined and two cells drawn on top of each other are
+two marks nobody can point at separately. It **outlines a cell only when both a
+`Fill` and a `Color` are named**, which is `geom.Rect`'s rule for `interact`'s
+reason, and the treemap's padding is not an alternative here: a cell that had
+been inset would no longer be the set of points nearest its row, which is the
+only thing the mark asserts. There is **no Lloyd relaxation, no weighted or
+power diagram and no Voronoi treemap** — each is the optimiser
+[ADR 0039](docs/adr/0039-relational-layouts.md) refuses — and **no Delaunay
+triangulation**, because a half-plane intersection does not produce one and an
+interpolated surface over scattered samples is a claim about the values
+*between* the rows where a cell is a claim about which row is nearest
+([ADR 0080](docs/adr/0080-nearest-neighbour-cells.md)).
 
 Deliberately not done. A **hexbin has no colourbar**, for the
 ordering reason above. A **histogram ignores `GroupBy`**. A **sized layer draws

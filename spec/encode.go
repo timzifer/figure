@@ -555,6 +555,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		fill()
 		density()
 		m.Overlap = d.Overlap
+	case geom.MarkVoronoi:
+		// A partition is filled, and it is outlined only where the caller
+		// named both a fill and a stroke — geom.Rect's rule, and this mark
+		// keeps it. There is nothing else to write: where the cells fall is
+		// the panel's and the encoding's, and no option moves them.
+		fill()
+		stroke()
 	// The relational layouts. Each writes the gap it leaves between its shapes;
 	// the two that place nodes also write how thick a node is, and the one
 	// whose picture depends on where its rail sits writes that.

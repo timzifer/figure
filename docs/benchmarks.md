@@ -74,7 +74,12 @@ times the rows are the same few hundred crossings, so only the counting pass
 sees them and the drawing does not grow at all — which is exactly why a node
 name built per row rather than per category could hide there, and did, at four
 allocations a row for the same picture
-([ADR 0079](adr/0079-parallel-sets.md)). Their
+([ADR 0079](adr/0079-parallel-sets.md)). `Voronoi` is the odd pair among these:
+its two sizes are 250 sites and a thousand rather than a hundredfold, because
+the mark refuses past `stat.MaxVoronoiSites` — every cell is clipped against
+every other site, so between the two the *work* grows sixteenfold and the
+allocations must not move at all
+([ADR 0080](adr/0080-nearest-neighbour-cells.md)). Their
 slack against the small side is eight, or twelve where the large frame is big
 enough to provoke a pool miss; `allocgate.awk` says which and why.
 

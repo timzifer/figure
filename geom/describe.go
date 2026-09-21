@@ -43,6 +43,14 @@ const (
 	// is the grid it paints. See docs/adr/0066-a-raster-mark.md.
 	MarkRaster Mark = "raster"
 
+	// MarkVoronoi is the panel divided into the part nearest each row: a
+	// Thiessen polygon map. It is beside the raster because it answers the
+	// raster's question about a sample that is scattered rather than gridded,
+	// and it is not a relational mark — it reads a pair of axes, and the
+	// partition between them is cut on the panel. See
+	// docs/adr/0080-nearest-neighbour-cells.md.
+	MarkVoronoi Mark = "voronoi"
+
 	// The distribution marks. Each of them replaces the rows with a summary of
 	// where they are, so each of them decides one of its own axes: a histogram
 	// and a hexbin count, a violin and a ridgeline estimate a density, an ECDF
@@ -509,6 +517,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Contour(d.Source, opts...), nil
 	case MarkRaster:
 		return Raster(d.Source, opts...), nil
+	case MarkVoronoi:
+		return Voronoi(d.Source, opts...), nil
 	case MarkHorizon:
 		return Horizon(d.Source, opts...), nil
 	case MarkBeeswarm:
