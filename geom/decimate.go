@@ -271,6 +271,8 @@ type scratch struct {
 	queue []int       // the nodes whose children a treemap has still to pack
 	cells []stat.Cell
 	verts []stat.Point
+	vor   stat.Voronoi // the cells of a nearest-neighbour partition
+	sites []ir.Point   // the site of each of those cells that was drawn
 	img   *image.NRGBA
 
 	// wantRows is whether this Build's caller asked which source row is behind

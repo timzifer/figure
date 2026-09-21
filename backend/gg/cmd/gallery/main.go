@@ -215,6 +215,7 @@ func figures() []plate {
 		upsetFigure(),
 		parallelFigure(),
 		parallelSetsFigure(),
+		voronoiFigure(),
 		vennFigure(),
 		networkFigure(),
 		labelsFigure(),

@@ -193,6 +193,20 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   because each column is a partition and a partition has to add up; and a
   ribbon reports no row, because a count is not a row
   ([ADR 0079](adr/0079-parallel-sets.md)).
+- **A nearest-neighbour partition** — `geom.Voronoi` divides the panel into the
+  part nearest each row: Thiessen polygons, a coverage or catchment map, and —
+  filled from a `ColorBy` column — a map of the nearest measurement to every
+  point of it, which is the coarsest interpolation of a scattered sample that
+  invents no value. The cells are cut **on the panel** rather than in the data,
+  because equidistance needs a length and a reading against a grid reference
+  has none: halfway between two dots is a place on the page, so the same rows
+  in a differently shaped panel are a different partition. A cell is one row —
+  it reports that row at its own site, unlike every other layout-shaped mark
+  here — and one of two rows at the same point draws nothing, because their
+  bisector is undefined. It is an intersection of half-planes, so the row order
+  changes nothing at all, and it refuses past `stat.MaxVoronoiSites` rather
+  than drawing cells too small to tell apart
+  ([ADR 0080](adr/0080-nearest-neighbour-cells.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and

@@ -68,6 +68,11 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 	// figure's own names — and the arc diagram is spelled out rather than
 	// "arc" because Vega-Lite's arc is a pie wedge. Borrowing it would make a
 	// Vega-Lite document decode into a mark that draws something else.
+	case geom.MarkVoronoi:
+		// The panel divided into the part nearest each row. Vega-Lite has no
+		// mark for it and no transform that would stand in, so this is
+		// figure's own name.
+		return "voronoi", "", nil
 	case geom.MarkTreemap:
 		return "treemap", "", nil
 	case geom.MarkIcicle:
@@ -193,6 +198,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkLocus, nil
 	case "errorbar":
 		return geom.MarkErrorBar, nil
+	case "voronoi":
+		return geom.MarkVoronoi, nil
 	case "treemap":
 		return geom.MarkTreemap, nil
 	case "icicle":

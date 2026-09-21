@@ -89,6 +89,7 @@ depends on.
 | [0077](0077-a-node-link-layout.md) | A node-link layout is a monotone descent on a named objective | Accepted, amended | — |
 | [0078](0078-a-coord-with-more-than-two-axes.md) | A coord may carry more than two axes, and it holds their scales | Accepted | — |
 | [0079](0079-parallel-sets.md) | A parallel-sets diagram is a count, and the flow layout already draws it | Accepted | — |
+| [0080](0080-nearest-neighbour-cells.md) | A cell is the part of a panel nearest one row, and it is cut where the reader measures it | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -273,6 +274,26 @@ mean: the ribbons are a count (`stat.Crosstab`), the layout under them is
 same total through every column — and the only thing the layout had to learn is
 that a category's column is given rather than derived, since the longest path
 to a category nothing reaches is zero and would stand it among the sources.
+
+**0080 closes the last row of the sweep that was a decision rather than a
+recipe.** The Voronoi verdict in
+[chart-types.md](../chart-types.md#the-sweep-of-the-unusual-forms) said the
+architectural objection was gone — [ADR 0077](0077-a-node-link-layout.md) had
+admitted a bounded layout, and a partition into half-planes descends nothing at
+all — and left the form out because *"nobody has asked for the chart, and the
+hit-test is a performance question rather than a form."* The second clause is
+about a different feature, and the record keeps it: the nearest-site index is
+still unwritten and still 0015's business. What the record had to decide is the
+question no mark here had faced, and it is the reason this was never a recipe:
+**in what space is a distance measured?** A treemap has no coordinates and a
+scatter needs no distance; a cell needs both, and there is no length between a
+millimetre of rain and a kilometre of easting. So the partition is cut on the
+panel, in `Build`, which makes it the fourth stat to run there
+([ADR 0028](0028-distribution-stats.md)) and the third mark to compute geometry
+in device space — beside a dependency arrow's elbow and a label on a curve, and
+for their reason: each is a reading aid rather than a claim about a value. It
+is also the first layout-shaped mark whose mark *is* a row, where 0074's bars
+and 0079's ribbons are counts and report nothing.
 
 **0065 was the one that fitted the examples already in the repository** — a
 machine, a status board and a stream — and it is the one of the three that has

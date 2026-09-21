@@ -533,6 +533,45 @@ additions is [ADR 0068](adr/0068-gantt-charts.md).
 
 A runnable version of all four charts is in [`examples/groups`](../examples/groups).
 
+## A sample measured where the instruments are
+
+A heatmap needs a grid. A network of rain gauges, sensors, depots or shops is
+not on one: the rows are wherever somebody put them, and the question asked of
+such a table before any reading is looked at is which one speaks for this
+ground. `geom.Voronoi` is that question drawn — the panel divided into the part
+nearest each row:
+
+```go
+p.Add(geom.Voronoi(gauges, geom.X("east"), geom.Y("north"),
+    geom.ColorBy("rain", scale.Sequential(palette.Viridis)),
+    geom.Label("Rainfall (mm)")))
+p.Add(geom.Scatter(gauges, geom.X("east"), geom.Y("north"),
+    geom.Color(ir.RGB(255, 255, 255)), geom.Size(4)))
+```
+
+![Last month's rainfall over twenty gauges, drawn as the panel divided into the
+part nearest each of them and filled with that gauge's
+reading](images/voronoi.png)
+
+Left unpainted it is a coverage map — Thiessen polygons, and the boundaries are
+the reading. Filled from a column it is a map of the nearest measurement to
+every point of the panel, which is the coarsest interpolation of a scattered
+sample and the only one that invents no value. The dots are an ordinary
+`geom.Scatter` layer over the same table: this mark draws regions and nothing
+else.
+
+The cells are cut **on the panel** rather than in the data, because
+equidistance needs a length and there is none between a millimetre of rain and
+a kilometre of easting — halfway between two dots is a place on the page. So
+the same rows in a differently shaped panel are a different partition, which is
+a property to know rather than a defect, and one that every nearest-neighbour
+diagram ever published shares. A cell is one row and reports it; two rows at
+one point have no boundary between them, so the first keeps the cell; and the
+row order changes nothing at all, because an intersection of half-planes does
+not care in which order it was taken
+([ADR 0080](adr/0080-nearest-neighbour-cells.md)). Both halves are in
+[`examples/voronoi`](../examples/voronoi).
+
 ## Distributions
 
 Seven marks that summarise a column rather than plotting it. Each is a pure

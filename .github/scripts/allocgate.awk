@@ -171,6 +171,16 @@ END {
 	flat("BenchmarkParallelSets1k", "BenchmarkParallelSets100k", 8)
 	flat("BenchmarkTreemap1k", "BenchmarkTreemap100k", 8)
 
+	# The nearest-neighbour partition, added with ADR 0080. Its two sizes are a
+	# quarter of the cap and the cap, rather than a hundredfold, because this
+	# mark refuses past stat.MaxVoronoiSites — the *work* between the two grows
+	# sixteenfold and the allocations must not move at all. Four buffers carry
+	# it: the sites as two device columns, the cells, their vertices, and the
+	# two rings the clip swaps between. Growing a vertex slice per cell is the
+	# way to break it, and a chart of a thousand cells draws the same picture
+	# while doing so.
+	flat("BenchmarkVoronoi250", "BenchmarkVoronoi1000", 8)
+
 	# Row identity, added after v0.5. Tracking which source row is behind each
 	# mark is opt-in, and what it is opt-in *for* is memory per mark — not
 	# per-frame allocations. If that stops being true it is a buffer that

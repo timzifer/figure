@@ -651,6 +651,44 @@ func benchmarkNichols(b *testing.B, width int) {
 func BenchmarkNichols480(b *testing.B)  { benchmarkNichols(b, 480) }
 func BenchmarkNichols1440(b *testing.B) { benchmarkNichols(b, 1440) }
 
+// gaugeField is a nearest-neighbour partition of a panel between n gauges,
+// each carrying a reading that paints its cell.
+//
+// The sites are the point. Every cell is clipped against every other site, so
+// four times the rows are sixteen times the clipping — and none of it may be a
+// fresh allocation, because the cells, their vertices and the two rings the
+// clip swaps between are all buffers the layout owns.
+func gaugeField(n int) *figure.Plot {
+	xs, ys, vs := make([]float64, n), make([]float64, n), make([]float64, n)
+	for i := range n {
+		// A lattice turned by an irrational fraction of a turn: spread out, no
+		// two sites at one point, and the same sites every run.
+		t := float64(i) * 2.399963229728653
+		r := math.Sqrt(float64(i+1) / float64(n))
+		xs[i], ys[i] = r*math.Cos(t), r*math.Sin(t)
+		vs[i] = math.Hypot(xs[i], ys[i])
+	}
+	src := figure.NewTable().Float64("x", xs).Float64("y", ys).Float64("v", vs)
+	p := figure.New(figure.Size(900, 600), figure.Title("Gauges"))
+	p.X(scale.Linear())
+	p.Y(scale.Linear())
+	p.Add(geom.Voronoi(src, geom.X("x"), geom.Y("y"),
+		geom.ColorBy("v", scale.Sequential(palette.Viridis))))
+	return p
+}
+
+func benchmarkVoronoi(b *testing.B, sites int) {
+	onOnePGate(b)
+	benchmarkPlot(b, gaugeField(sites))
+}
+
+// The partition, at a quarter of its cap and at it. What must not grow is the
+// allocation count: the work does, quadratically, and it is bounded by
+// stat.MaxVoronoiSites rather than by this gate. See
+// docs/adr/0080-nearest-neighbour-cells.md.
+func BenchmarkVoronoi250(b *testing.B)  { benchmarkVoronoi(b, 250) }
+func BenchmarkVoronoi1000(b *testing.B) { benchmarkVoronoi(b, stat.MaxVoronoiSites) }
+
 // benchmarkTrajectory prices a path through the box, one primitive per
 // segment.
 func benchmarkTrajectory(b *testing.B, rows int) {

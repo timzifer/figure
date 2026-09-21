@@ -58,6 +58,7 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Raster(src, X("x"), Y("y"), Z("z"), Resample(Max), Label("field")),
 		Locus(stat.NicholsM, []float64{-3, 0, 3}, Label("M contours")),
 		Locus(stat.SmithVSWR, []float64{2}, Extend(true)),
+		Voronoi(src, X("x"), Y("y"), ColorBy("z", cs)),
 		Treemap(src, ID("x"), Parent("y"), Value("z"), Padding(0.01)),
 		Icicle(src, ID("x"), Parent("y"), Value("z"), ColorBy("z", cs)),
 		Sankey(src, From("x"), To("y"), Value("z"), Thickness(0.05), Padding(0.02)),
