@@ -69,7 +69,12 @@ sized by the data on every `Train` — a node per distinct name, a depth and a
 total per node, a relaxation or a squarify on top
 ([ADR 0039](adr/0039-relational-layouts.md)); the layer keeps those buffers and
 the interning map is cleared rather than replaced, and a map made per `Train`
-is what would break it. Their
+is what would break it. `ParallelSets` is the same claim in its strongest form: a hundred
+times the rows are the same few hundred crossings, so only the counting pass
+sees them and the drawing does not grow at all — which is exactly why a node
+name built per row rather than per category could hide there, and did, at four
+allocations a row for the same picture
+([ADR 0079](adr/0079-parallel-sets.md)). Their
 slack against the small side is eight, or twelve where the large frame is big
 enough to provoke a pool miss; `allocgate.awk` says which and why.
 

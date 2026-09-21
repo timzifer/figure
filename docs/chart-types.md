@@ -52,6 +52,7 @@ reading declined.
 | A raster mark (`geom.Raster`) | **shipped** — [ADR 0066](adr/0066-a-raster-mark.md) | spectrogram, Hovmöller diagram, recurrence plot, a dense heatmap of a measured field |
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
 | A bivariate colour channel (`scale.BivariateColorScale`) | **shipped** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
+| A crossing count over categorical columns (`stat.Crosstab`) | **shipped** — [ADR 0079](adr/0079-parallel-sets.md) | parallel sets, alluvial — the flow layout was already here, and a count is what it was missing |
 
 ## A — needs a rectangle mark, and nothing else — **shipped**
 
@@ -719,7 +720,7 @@ marimekko, rose, slope — and what follows is what the reading turned up
 | **Raincloud plot** | an option, not a mark: bucket F above |
 | **Durov diagram** | one row in bucket J, beside Piper, once the barycentric coord exists |
 | **Hovmöller diagram** | drawable today with `Rect`, and the reason bucket O is about the *size* rather than about the form |
-| **Parallel coordinates** | **drawn** since [ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md) — `coord.Parallel` plus `geom.Parallel`, exactly the coord-of-its-own bucket D named. **Parallel sets** is still not: ribbons between adjacent axes whose width is a count are a flow layout, which is `stat.Sankey`'s question rather than this coord's |
+| **Parallel coordinates** | **drawn** since [ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md) — `coord.Parallel` plus `geom.Parallel`, exactly the coord-of-its-own bucket D named. **Parallel sets** is **drawn** too, since [ADR 0079](adr/0079-parallel-sets.md), and this verdict was right about whose question it is and wrong about it being somebody else's problem: `geom.ParallelSets` counts the pairs of categories neighbouring columns hold (`stat.Crosstab`) and hands them to `stat.Sankey`, which lays them out unchanged because a count over neighbouring columns *is* a flow. No coord, and an alluvial diagram is the same mark with a column per time step |
 | **Recurrence plot** | a distance matrix and bucket O's mark; the stat is small and the picture is a raster |
 | **Cycle plot, seasonal subseries** | drawable today — a facet per cycle position and a line per cycle — and missing only a gallery figure |
 | **Bump chart** | `Line` over ordinal ranks with `geom.AvoidOverlap` on the labels ([ADR 0040](adr/0040-label-collision-avoidance.md)); a recipe |

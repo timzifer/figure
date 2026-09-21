@@ -32,7 +32,7 @@ picture here cannot drift away from the code that produced it.
 | ![The same stacked revenue chart with the colour taken out: three products as three greys, two of them almost the same one](images/greyscale-plain.png) | ![The same greyscale chart with redundant encoding on: the greys are unchanged and each product carries a pattern, so the stack reads again](images/greyscale-hatched.png) |
 | ![Traffic by channel as stacked areas, each band hatched and its crest marked with points](images/hatched-area.png) | ![The fourteen hatch patterns as fourteen labelled samples: lines, dots, wavering lines and tilings](images/hatch-kinds.png) |
 | ![Customers by which products they subscribe to, as an UpSet plot: a bar per combination over a matrix of dots saying which products that combination is](images/upset.png) | ![The same three products as a Venn diagram, each region carrying the customers who have exactly those products](images/venn.png) |
-| ![Sixty cars as a parallel-coordinates plot: four vertical axes in four different units, one line per car crossing all of them, coloured by origin](images/parallel.png) | |
+| ![Sixty cars as a parallel-coordinates plot: four vertical axes in four different units, one line per car crossing all of them, coloured by origin](images/parallel.png) | ![A quarter of support tickets as a parallel-sets diagram: three columns of category boxes for channel, urgency and outcome, with ribbons between them as thick as the tickets that answer both that way, split into the solved and escalated share](images/parallelsets.png) |
 | ![Who worked with whom over a quarter, as a node-link diagram: three teams as three clusters, one person joining all of them, and a pair working on their own off to the side](images/network.png) | |
 
 ---

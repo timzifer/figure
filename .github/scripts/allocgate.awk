@@ -161,6 +161,14 @@ END {
 	# shows up here as a hundred thousand allocations and nowhere else, because
 	# neither is visible in the picture.
 	flat("BenchmarkSankey1k", "BenchmarkSankey100k", 8)
+
+	# The parallel-sets count, added with ADR 0079. It is the strongest form of
+	# the same claim: a hundred times the rows are the same few hundred
+	# crossings, so the *drawing* does not grow at all and only the counting
+	# pass sees the rows. What would break it is a node name built per row
+	# rather than per category — which is how this was written first, and it
+	# cost four allocations a row while drawing exactly the same picture.
+	flat("BenchmarkParallelSets1k", "BenchmarkParallelSets100k", 8)
 	flat("BenchmarkTreemap1k", "BenchmarkTreemap100k", 8)
 
 	# Row identity, added after v0.5. Tracking which source row is behind each

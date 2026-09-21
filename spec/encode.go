@@ -567,6 +567,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	case geom.MarkArc:
 		fill()
 		m.Padding, m.Thickness, m.Origin = d.Padding, d.Thickness, d.Baseline
+	case geom.MarkParallelSets:
+		// The same two a sankey writes, because it is the same layout under a
+		// different count: the gap between the boxes in a column, and how wide
+		// a column of them is. Which columns are crossed is the encoding's,
+		// beside every other mark that reads Dims.
+		fill()
+		m.Padding, m.Thickness = d.Padding, d.Thickness
 	case geom.MarkTree:
 		// A tree is its branches, so it writes a stroke and no fill; where its
 		// root sits, and the branch shape when it is not the elbow.

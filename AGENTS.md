@@ -1305,7 +1305,17 @@ layout stops being a pure function of its input and starts depending on how a
 tie was broken — `geom.Order` is how a caller asks for a different order, by
 sorting its own rows. A **treemap draws its leaves only**, because an internal
 node's rectangle is the union of its children's and the nesting shows as
-padding. And a **hit on one of these reports the layout's own coordinates**
+padding. A **parallel-sets diagram counts complete rows only**: a row missing a
+category anywhere is counted nowhere, which is the one place in this library
+where an absent value costs a row rather than gapping what it is part of —
+each of its columns is a partition of the same total, and a count that skipped
+only the crossings beside the gap would leave one column adding up to less than
+the next, after which no two thicknesses in the diagram mean the same thing.
+Its ribbons also **report no row**, because a ribbon is a count over rows and a
+count is not a row; and its boxes are **not painted from the colour column's
+scale**, because asking a discrete scale for a box's name is what registers
+that name, and the legend beside it is naming classes
+([ADR 0079](docs/adr/0079-parallel-sets.md)). And a **hit on one of these reports the layout's own coordinates**
 rather than anything in the table: for these marks the row is the reading, which
 is the first time that has been true and is
 [ADR 0015](docs/adr/0015-hit-testing.md)'s revisit clause rather than this

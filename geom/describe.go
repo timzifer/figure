@@ -96,6 +96,10 @@ const (
 	// [github.com/timzifer/figure/coord.Parallel]. See
 	// docs/adr/0078-a-coord-with-more-than-two-axes.md.
 	MarkParallel Mark = "parallel"
+	// MarkParallelSets is the ribbon per crossing of two categorical columns:
+	// the same table as MarkParallel, counted rather than drawn a row at a
+	// time. See docs/adr/0079-parallel-sets.md.
+	MarkParallelSets Mark = "parallel-sets"
 	// MarkSurvival is the Kaplan–Meier survival curve. See
 	// docs/adr/0054-statistical-instruments.md.
 	MarkSurvival Mark = "survival"
@@ -541,6 +545,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Venn(d.Source, opts...), nil
 	case MarkParallel:
 		return Parallel(d.Source, opts...), nil
+	case MarkParallelSets:
+		return ParallelSets(d.Source, opts...), nil
 	case MarkSurvival:
 		return Survival(d.Source, opts...), nil
 	case MarkDepends:

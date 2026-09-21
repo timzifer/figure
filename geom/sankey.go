@@ -81,25 +81,28 @@ func (g *sankeyGeom) Train(t Training) error {
 	return nil
 }
 
-// width is how wide a column of nodes is, in the unit square.
-func (g *sankeyGeom) width() float64 {
-	w := g.cfg.thickness
+// flowWidth is how wide a column of nodes is, in the unit square, for a layer
+// that asked for the given thickness and laid its nodes out in that many
+// columns. A layer that named none gets [sankeyNode], narrowed once there are
+// enough columns that a fixed width would crowd them.
+func flowWidth(thickness float64, layers int) float64 {
+	w := thickness
 	if !(w > 0) {
 		w = sankeyNode
-		if room := 0.5 / float64(max(g.lay.Layers, 1)); w > room {
+		if room := 0.5 / float64(max(layers, 1)); w > room {
 			w = room
 		}
 	}
 	return min(w, 1)
 }
 
-// columnAt is the near edge of column l, spaced so the first column starts at
-// the left of the plot and the last one ends at its right.
-func (g *sankeyGeom) columnAt(l int, w float64) float64 {
-	if g.lay.Layers <= 1 {
+// flowColumnAt is the near edge of column l, spaced so the first column starts
+// at the left of the plot and the last one ends at its right.
+func flowColumnAt(l, layers int, w float64) float64 {
+	if layers <= 1 {
 		return (1 - w) / 2
 	}
-	return float64(l) * (1 - w) / float64(g.lay.Layers-1)
+	return float64(l) * (1 - w) / float64(layers-1)
 }
 
 func (g *sankeyGeom) Build(b ir.Backend, f Frame) error {
@@ -109,7 +112,7 @@ func (g *sankeyGeom) Build(b ir.Backend, f Frame) error {
 	sc := acquire(f)
 	defer sc.release()
 	cd := f.Coords()
-	w := g.width()
+	w := flowWidth(g.cfg.thickness, g.lay.Layers)
 
 	// The bands go down first and the nodes on top of them, which is both the
 	// right picture — a node is a landmark and should not be hidden by what
@@ -126,7 +129,7 @@ func (g *sankeyGeom) nodes(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, w
 		if !(n.Hi > n.Lo) {
 			continue
 		}
-		x := g.columnAt(n.Layer, w)
+		x := flowColumnAt(n.Layer, g.lay.Layers, w)
 		rects = append(rects, ir.R(f.X.Map(x), f.Y.Map(n.Lo), f.X.Map(x+w), f.Y.Map(n.Hi)))
 		rows = append(rows, i)
 	}
@@ -153,8 +156,8 @@ func (g *sankeyGeom) bands(b ir.Backend, sc *scratch, cd coord.Coord, f Frame, w
 			continue
 		}
 		src, dst := g.e.from[e], g.e.to[e]
-		x0 := g.columnAt(g.lay.Nodes[src].Layer, w) + w
-		x1 := g.columnAt(g.lay.Nodes[dst].Layer, w)
+		x0 := flowColumnAt(g.lay.Nodes[src].Layer, g.lay.Layers, w) + w
+		x1 := flowColumnAt(g.lay.Nodes[dst].Layer, g.lay.Layers, w)
 
 		col := g.cfg.nodeColor(f, g.e.keys, src)
 		if cols != nil {
