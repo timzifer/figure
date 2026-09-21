@@ -97,6 +97,11 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		// The line per row across a panel's own axes. Vega-Lite has no such
 		// mark and no coord to draw it in, so the name is figure's.
 		return "parallel", "", nil
+	case geom.MarkParallelSets:
+		// The same table counted rather than drawn a row at a time. It is a
+		// mark of its own and not an option on the one above: what it draws is
+		// a ribbon per crossing, and no encoding turns lines into those.
+		return "parallel-sets", "", nil
 	case geom.MarkSurvival:
 		return "survival", "", nil
 	case geom.MarkDepends:
@@ -212,6 +217,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkVenn, nil
 	case "parallel":
 		return geom.MarkParallel, nil
+	case "parallel-sets":
+		return geom.MarkParallelSets, nil
 	case "survival":
 		return geom.MarkSurvival, nil
 	case "dependency":

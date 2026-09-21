@@ -180,6 +180,19 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   through. An axis that reads better upside down is `scale.Reverse()` on that
   dimension's scale and needs nothing else
   ([ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md)).
+- **Parallel sets** — `geom.ParallelSets` is the same list of columns when the
+  columns are categories: a column of boxes per dimension, and a ribbon between
+  two boxes as thick as the number of rows that hold both. A line per row is
+  the wrong drawing there — a thousand rows over three categorical columns land
+  on a dozen paths — so the rows are counted instead. Nothing under it is new:
+  `stat.Crosstab` counts the pairs and `stat.Sankey` lays them out unchanged,
+  because a count over neighbouring columns is a flow with the same total
+  passing through every column. `geom.ColorBy` *subdivides* the ribbons rather
+  than recolouring them, so one class is a band a reader can follow the whole
+  length of the diagram; a row missing a category anywhere is counted nowhere,
+  because each column is a partition and a partition has to add up; and a
+  ribbon reports no row, because a count is not a row
+  ([ADR 0079](adr/0079-parallel-sets.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and

@@ -61,6 +61,7 @@ func TestDescribeAndRebuildAgree(t *testing.T) {
 		Treemap(src, ID("x"), Parent("y"), Value("z"), Padding(0.01)),
 		Icicle(src, ID("x"), Parent("y"), Value("z"), ColorBy("z", cs)),
 		Sankey(src, From("x"), To("y"), Value("z"), Thickness(0.05), Padding(0.02)),
+		ParallelSets(src, Dims("x", "y", "z"), Thickness(0.05), Padding(0.02), Opacity(0.6)),
 		Arc(src, From("x"), To("y"), Value("z"), Baseline(1), Thickness(0.08)),
 		Rect(src, X("x"), X2("z"), Y("y"), ProgressBy("z")),
 		Rect(src, X("x"), X2("z"), Y("y"),

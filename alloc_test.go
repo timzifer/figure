@@ -354,6 +354,30 @@ func flowOf(rows int) *figure.Plot {
 	return p
 }
 
+// crossingsOf is a table of categorical columns of the given size: four
+// questions with a few dozen answers each, which is the shape a parallel-sets
+// diagram is for — the rows grow and the picture does not, because what is
+// drawn is the count.
+func crossingsOf(rows int) *figure.Plot {
+	a := make([]string, rows)
+	b := make([]string, rows)
+	c := make([]string, rows)
+	d := make([]string, rows)
+	for i := range rows {
+		a[i] = "a" + strconv.Itoa(i%7)
+		b[i] = "b" + strconv.Itoa(i%11)
+		c[i] = "c" + strconv.Itoa(i%5)
+		d[i] = "d" + strconv.Itoa(i%13)
+	}
+	p := figure.New(figure.Size(900, 500), figure.Theme(bareLayoutTheme()), figure.Legend(false))
+	p.X(scale.Linear())
+	p.Y(scale.Linear())
+	p.Add(geom.ParallelSets(figure.NewTable().
+		String("a", a).String("b", b).String("c", c).String("d", d),
+		geom.Dims("a", "b", "c", "d")))
+	return p
+}
+
 // treeOf is a hierarchy of the given size: one root, a fan of directories, and
 // the rest leaves under them.
 func treeOf(rows int) *figure.Plot {
@@ -395,6 +419,11 @@ func benchmarkSankey(b *testing.B, rows int) {
 	benchmarkPlot(b, flowOf(rows))
 }
 
+func benchmarkParallelSets(b *testing.B, rows int) {
+	onOnePGate(b)
+	benchmarkPlot(b, crossingsOf(rows))
+}
+
 func benchmarkTreemap(b *testing.B, rows int) {
 	onOnePGate(b)
 	benchmarkPlot(b, treeOf(rows))
@@ -422,6 +451,14 @@ func benchmarkPlot(b *testing.B, p *figure.Plot) {
 // between frames.
 func BenchmarkSankey1k(b *testing.B)   { benchmarkSankey(b, 1_000) }
 func BenchmarkSankey100k(b *testing.B) { benchmarkSankey(b, 100_000) }
+
+// The parallel-sets count, which is the one layer here whose *drawing* does
+// not grow with the table at all: a hundred times the rows are the same few
+// hundred crossings, and every buffer the count runs out of — the category
+// index per row, the crossings, the order they are sorted into — is kept on
+// the layer between frames. See docs/adr/0079-parallel-sets.md.
+func BenchmarkParallelSets1k(b *testing.B)   { benchmarkParallelSets(b, 1_000) }
+func BenchmarkParallelSets100k(b *testing.B) { benchmarkParallelSets(b, 100_000) }
 
 func BenchmarkTreemap1k(b *testing.B)   { benchmarkTreemap(b, 1_000) }
 func BenchmarkTreemap100k(b *testing.B) { benchmarkTreemap(b, 100_000) }

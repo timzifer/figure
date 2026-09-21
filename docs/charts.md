@@ -424,7 +424,35 @@ the drawn distances are from the graph's own and never raises it
 `stat.MaxStressNodes` nodes rather than drawing a hairball, and
 [`examples/network`](../examples/network) draws the chart above.
 
-Seven marks, ten charts, and no second implementation of anything — the same
+### And the table that has no edges at all
+
+The three above read a relationship somebody wrote down. A table of categorical
+columns — how a ticket arrived, how urgent it was, how it ended — has one
+nobody wrote down, and counting it is what turns it into a flow:
+
+```go
+p.Add(geom.ParallelSets(tickets,
+    geom.Dims("channel", "urgency", "outcome"),
+    geom.Value("tickets"),
+    geom.ColorBy("outcome", scale.Qualitative(palette.OkabeIto)),
+    geom.Padding(0.02), geom.Opacity(0.55)))
+```
+
+![A quarter of support tickets as a parallel-sets diagram](images/parallelsets.png)
+
+A column of boxes per question, and a ribbon between two boxes as thick as the
+number of rows that answer both that way. It is the chart a
+parallel-coordinates plot (`geom.Parallel`) cannot be for this table:
+a line per row would put nine hundred tickets on a dozen paths and say nothing
+about how many took each. `stat.Crosstab` is the count and `stat.Sankey` is the
+layout, unchanged — because a count over neighbouring columns *is* a flow, and
+one with the same total passing through every column
+([ADR 0079](adr/0079-parallel-sets.md)). The colour column subdivides the
+ribbons rather than recolouring them, which is what makes the escalated share
+readable in the first column instead of only in the last, and
+[`examples/parallelsets`](../examples/parallelsets) draws both halves.
+
+Eight marks, eleven charts, and no second implementation of anything — the same
 thing the coordinate stage bought for the pie, one bucket later. The layouts
 themselves are pure functions in [`stat/`](../stat), each with a determinism test:
 node order comes from the order the rows first named them and never from a map,

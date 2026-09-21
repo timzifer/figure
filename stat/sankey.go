@@ -51,7 +51,9 @@ type SankeyFlow struct {
 // function of its input and starts depending on how a tie was broken. A caller
 // that wants a different order sorts its own rows and hands them over that way.
 //
-// The zero Sankey is unusable; call [Sankey.Reset] first.
+// The zero Sankey is unusable; call [Sankey.Reset] first — or
+// [Sankey.ResetColumns], when the caller already knows which column each node
+// stands in.
 type Sankey struct {
 	// Nodes has one entry per node, indexed as the caller's edge list indexes
 	// them.
@@ -78,22 +80,71 @@ type Sankey struct {
 // An edge naming a node outside [0, nodes) is skipped, and an edge list with a
 // cycle sets [Sankey.Cyclic] and lays nothing out.
 func (s *Sankey) Reset(from, to []int, value []float64, nodes int, pad float64) {
-	s.Nodes = s.Nodes[:0]
-	s.Flows = s.Flows[:0]
-	s.Layers, s.Cyclic = 0, false
-	if nodes <= 0 {
+	m, ok := s.begin(from, to, value, nodes)
+	if !ok {
 		return
-	}
-	m := min(len(from), len(to), len(value))
-
-	for range nodes {
-		s.Nodes = append(s.Nodes, SankeyNode{})
 	}
 	if !s.assignLayers(from, to, m, nodes) {
 		s.Nodes, s.Cyclic = s.Nodes[:0], true
 		return
 	}
+	s.place(from, to, value, m, nodes, pad)
+}
 
+// ResetColumns lays the same edge list out with each node's column given
+// rather than derived: column[i] is the column node i stands in, counting from
+// zero.
+//
+// It is [Sankey.Reset]'s other entry point for the reason [Tidy.ResetLeaves] is
+// [Tidy.Reset]'s: the layout is the same one and only the first of its two
+// questions is answered differently. A flow read off an edge list has to be
+// told which stage is which, because nothing else says; a flow counted from a
+// table of categorical columns already knows — the column a category stands in
+// is the column it was read from, and deriving it again from the links would
+// get it wrong exactly where the data is thin. A category nothing in the
+// column before it reaches has no incoming link, and the longest path to it is
+// zero, so it would stand at the far left among the sources. See
+// docs/adr/0079-parallel-sets.md.
+//
+// A node whose column is negative or outside the columns the rest of the list
+// implies stands in column zero. There is no cycle to find here — a column is
+// given rather than reached — so [Sankey.Cyclic] is never set, and a link that
+// runs backwards is laid out backwards rather than refused.
+func (s *Sankey) ResetColumns(from, to []int, value []float64, column []int, nodes int, pad float64) {
+	m, ok := s.begin(from, to, value, nodes)
+	if !ok {
+		return
+	}
+	for i := range nodes {
+		l := 0
+		if i < len(column) && column[i] > 0 {
+			l = column[i]
+		}
+		s.Nodes[i].Layer = l
+		s.Layers = max(s.Layers, l+1)
+	}
+	s.place(from, to, value, m, nodes, pad)
+}
+
+// begin clears the last layout and gives every node its empty slot, reporting
+// how many links there are to read and whether there is anything to lay out.
+func (s *Sankey) begin(from, to []int, value []float64, nodes int) (int, bool) {
+	s.Nodes = s.Nodes[:0]
+	s.Flows = s.Flows[:0]
+	s.Layers, s.Cyclic = 0, false
+	if nodes <= 0 {
+		return 0, false
+	}
+	for range nodes {
+		s.Nodes = append(s.Nodes, SankeyNode{})
+	}
+	return min(len(from), len(to), len(value)), true
+}
+
+// place is the half of the layout that does not depend on where the columns
+// came from: how thick each node is, how far down it sits, and where each band
+// meets it.
+func (s *Sankey) place(from, to []int, value []float64, m, nodes int, pad float64) {
 	s.in = resize(s.in, nodes)
 	s.out = resize(s.out, nodes)
 	s.cursor = resize(s.cursor, nodes)

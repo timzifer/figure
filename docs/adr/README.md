@@ -88,6 +88,7 @@ depends on.
 | [0076](0076-the-other-half-of-the-count.md) | The other half of the count is a mark, and the panel is still the caller's | Accepted | — |
 | [0077](0077-a-node-link-layout.md) | A node-link layout is a monotone descent on a named objective | Accepted, amended | — |
 | [0078](0078-a-coord-with-more-than-two-axes.md) | A coord may carry more than two axes, and it holds their scales | Accepted | — |
+| [0079](0079-parallel-sets.md) | A parallel-sets diagram is a count, and the flow layout already draws it | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -258,6 +259,20 @@ its own text, `render` strokes it with the grid and labels it with the ticks
 after both axes have had their pick, and `coord.Ternary` reads each component
 along its own edge. A projection's graticule and a Smith chart drawn on Γ are
 now each a coord's own arithmetic and no further seam.
+
+**0079 is the half of 0078 that a line per row cannot draw.** A
+parallel-coordinates plot is the chart for a table of measured quantities, and
+the same table with *categorical* columns is a different picture entirely:
+nine hundred rows over three categorical columns are nine hundred lines landing
+on a dozen paths, which says which combinations occur and nothing about how
+many. Both 0078's mark and the sweep in
+[chart-types.md](../chart-types.md#the-sweep-of-the-unusual-forms) named the
+answer as a flow layout and left it there. The record is what that turns out to
+mean: the ribbons are a count (`stat.Crosstab`), the layout under them is
+`stat.Sankey`'s unchanged — because the count *is* a flow, and one with the
+same total through every column — and the only thing the layout had to learn is
+that a category's column is given rather than derived, since the longest path
+to a category nothing reaches is zero and would stand it among the sources.
 
 **0065 was the one that fitted the examples already in the repository** — a
 machine, a status board and a stream — and it is the one of the three that has
