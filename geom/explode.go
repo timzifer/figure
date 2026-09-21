@@ -44,6 +44,9 @@ func Explode(f float64) Option { return func(c *config) { c.explode = f } }
 // A row whose value is zero or missing does not move. The column wins over a
 // constant [Explode] where it has a value, which is how a layer says "this far,
 // except here".
+//
+// A [Text] layer labelling the same boxes takes the same column, and its
+// labels go with their slices.
 func ExplodeBy(col string) Option { return func(c *config) { c.explodeCol = col } }
 
 // breakOut is a layer's break-out resolved for one Build: the coord that can

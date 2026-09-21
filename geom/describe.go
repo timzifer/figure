@@ -331,6 +331,17 @@ type Desc struct {
 	Elide   bool
 	// AvoidOverlap opts a text layer into panel-local collision avoidance.
 	AvoidOverlap bool
+	// Callout writes a text layer's label that does not fit its box outside
+	// it, with a leader, and MinFontSize is the smallest size a label is
+	// shrunk to before that; zero is the default floor.
+	Callout     bool
+	MinFontSize float64
+	// Wrap breaks a text layer's label over lines where one does not fit,
+	// and Pinned keeps it in the middle of its box rather than sliding it
+	// along to where it fits: see [Slide], whose opposite it is so that the
+	// zero value is the default.
+	Wrap   bool
+	Pinned bool
 
 	// The styling options, one field per [Option]. A nil Color or Fill means
 	// the layer takes its colour from the palette.
@@ -619,6 +630,10 @@ func (d Desc) options() []Option {
 		Overlap(d.Overlap),
 		Elide(d.Elide),
 		AvoidOverlap(d.AvoidOverlap),
+		Callout(d.Callout),
+		MinFontSize(d.MinFontSize),
+		Wrap(d.Wrap),
+		Slide(!d.Pinned),
 		Link(d.Linkage),
 	}
 	if d.StackSet {
@@ -858,6 +873,10 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Extra:         c.extra,
 
 		AvoidOverlap:   c.avoidLabels,
+		Callout:        c.callout,
+		MinFontSize:    c.minFont,
+		Wrap:           c.wrap,
+		Pinned:         c.pinned,
 		HideDroplines:  c.hideDroplines,
 		UncertaintyCol: c.secondCol,
 	}

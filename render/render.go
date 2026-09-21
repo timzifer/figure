@@ -1412,6 +1412,14 @@ func drawLayers(b ir.Backend, p Panel, plot ir.Rect, th theme.Theme, obs Observe
 	b.Push(&clip, ir.Identity)
 	defer b.Pop()
 
+	// A layer that writes outside its marks — a label called out of a pie
+	// slice — is clipped to the panel rectangle instead, which is only a
+	// different shape under a coord that clips to less than the rectangle.
+	// The rectangle is built the first time a layer asks for it, so a chart
+	// with no such layer pays nothing for it.
+	var rect *ir.Path
+	wide := false
+
 	var labels *labelPlacer
 	for i, g := range p.Layers {
 		if isHidden(hidden, i) {
@@ -1428,6 +1436,19 @@ func drawLayers(b ir.Backend, p Panel, plot ir.Rect, th theme.Theme, obs Observe
 				defer releaseLabels(labels)
 			}
 			f.Labels = labels
+		}
+		if over, ok := g.(geom.Overhanger); ok && over.Overhangs() != wide || !ok && wide {
+			wide = !wide
+			b.Pop()
+			if wide {
+				if rect == nil {
+					rect = new(ir.Path)
+					rect.Rect(plot)
+				}
+				b.Push(rect, ir.Identity)
+			} else {
+				b.Push(&clip, ir.Identity)
+			}
 		}
 		if obs != nil {
 			// Which scales this layer reads are told before the layer is

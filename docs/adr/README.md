@@ -91,6 +91,7 @@ depends on.
 | [0079](0079-parallel-sets.md) | A parallel-sets diagram is a count, and the flow layout already draws it | Accepted | — |
 | [0080](0080-nearest-neighbour-cells.md) | A cell is the part of a panel nearest one row, and it is cut where the reader measures it | Accepted | — |
 | [0081](0081-a-map-projection.md) | A map projection is a coord that is handed degrees, and its graticule is the two tick lists a panel already has | Accepted | — |
+| [0082](0082-a-label-fits-its-box-or-is-called-out.md) | A label fits the shape of its box on screen, is moved, broken or shrunk before it is dropped, and may be called out of it | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
