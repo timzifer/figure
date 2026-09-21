@@ -603,6 +603,15 @@ and what the VSWR circles and constant-Q arcs
 annotations defined in data space, so the coordinate stage draws them and
 `render` keeps its two tick lists
 ([ADR 0050](docs/adr/0050-locus-annotations.md)).
+A map: `coord.Geo` places a longitude and a latitude by one of four named
+projections — Mollweide, where equal areas of the world cover equal ink, which
+is the default because size on a map reads as quantity; Mercator for a bearing;
+the equirectangular one a table of degrees is already in; and the orthographic
+globe whose far side has no image at all — and every
+mark draws on it unchanged, so a scatter is a point map, a line is a route and
+a rect is a cell of a gridded field. It ships no geography and computes no
+routes: a coastline and a great circle are rows in the caller's table
+([ADR 0081](docs/adr/0081-a-map-projection.md)).
 A schedule that is a schedule rather than a picture of one: a span filled as far
 as the work has got, the constraints between spans drawn in all four linkages
 from a link table of their own, and a critical path that is a column of that
@@ -625,10 +634,15 @@ The record of how each of those arrived, and the argument that shaped it, is in
 - **More coordinate systems.** A **barycentric coord** is the fourth, on the
   same seam as Cartesian, polar and Smith and cheaper than any of them: the map
   is affine, so an edge stays a straight line and only the clip changes
-  ([ADR 0051](docs/adr/0051-barycentric-coord.md)). A geographic projection is
-  the wider one — it transforms every point with no linear interval underneath
-  it, and its graticule has no tick behind it — and is argued on its own
-  evidence rather than smuggled in beside the affine case.
+  ([ADR 0051](docs/adr/0051-barycentric-coord.md)). A **geographic projection**
+  was the wider one, and it has been argued on its own evidence and built:
+  both objections against it — no linear interval underneath the transform, no
+  tick behind the graticule — turned out to have been paid for by charts nobody
+  thought of as maps, the first by the Smith chart's identity range and the
+  second by the ternary chart's third ladder. `coord.Geo` reads a panel's axes
+  as degrees, so the graticule *is* the two tick lists, and the only furniture
+  with no tick behind it is the edge of the map
+  ([ADR 0081](docs/adr/0081-a-map-projection.md)).
 - **A tidy tree.** Reingold–Tilford in Buchheim's linear-time form is O(n),
   deterministic, bounded and a pure function of its input, which is
   `stat.Squarify`'s shape exactly — so a dendrogram, a phylogram, an org chart

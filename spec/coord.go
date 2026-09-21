@@ -49,6 +49,14 @@ func encodeCoord(c coord.Coord) (*Coord, error) {
 	if d.Type == coord.TypeOblique {
 		out.Depth, out.DepthAngle = d.Depth, d.DepthAngle
 	}
+	// The projection and its centre are a map's, and they are written even
+	// when the projection is the default one: a coord object that named "geo"
+	// and nothing else would be a map, so the field says which map rather
+	// than leaving a reader to guess.
+	if d.Type == coord.TypeGeo {
+		out.Projection = string(d.Projection)
+		out.CenterLon, out.CenterLat = d.CenterLon, d.CenterLat
+	}
 	// The dimensions of a coord whose axes are the thing being configured. It
 	// is the one list in this object, and the one coord that has it.
 	for _, dim := range d.Dims {
@@ -62,7 +70,7 @@ func encodeCoord(c coord.Coord) (*Coord, error) {
 	// Each coord's default edge is the absent field, so that a document naming
 	// a type and nothing else draws what that type's constructor draws.
 	switch {
-	case d.Type == coord.TypeSmith:
+	case d.Type == coord.TypeSmith, d.Type == coord.TypeGeo:
 		if d.Arc {
 			out.Edge = EdgeArc
 		}
@@ -97,6 +105,8 @@ func decodeCoord(c *Coord) (coord.Coord, error) {
 	}
 	d.Depth, d.DepthAngle = c.Depth, c.DepthAngle
 	d.Sum = c.Sum
+	d.Projection = coord.Projection(c.Projection)
+	d.CenterLon, d.CenterLat = c.CenterLon, c.CenterLat
 	for _, dim := range c.Dims {
 		e := coord.DimDesc{Name: dim.Name}
 		if dim.Scale != nil {
@@ -114,15 +124,16 @@ func decodeCoord(c *Coord) (coord.Coord, error) {
 			d.Sweep = *c.Sweep
 		}
 	}
-	// The absent edge is each coord's own default, and the two coords default
-	// opposite ways: an arc round a ring, a chord across a Smith chart.
-	smith := d.Type == coord.TypeSmith
+	// The absent edge is each coord's own default, and they do not all default
+	// the same way: an arc round a ring, a chord across a Smith chart and a
+	// chord across a map, where two rows are two samples of a track.
+	chordByDefault := d.Type == coord.TypeSmith || d.Type == coord.TypeGeo
 	switch c.Edge {
 	case "":
 	case EdgeArc:
-		d.Arc = smith
+		d.Arc = chordByDefault
 	case EdgeChord:
-		d.Chord = !smith
+		d.Chord = !chordByDefault
 	default:
 		return nil, fmt.Errorf("figure/spec: unknown coord edge %q", c.Edge)
 	}

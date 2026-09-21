@@ -207,6 +207,23 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   changes nothing at all, and it refuses past `stat.MaxVoronoiSites` rather
   than drawing cells too small to tell apart
   ([ADR 0080](adr/0080-nearest-neighbour-cells.md)).
+- **Maps** — `coord.Geo` reads a panel's two axes as a longitude and a latitude
+  and places the pair by a named projection: `Mollweide`, where equal areas of
+  the world cover equal amounts of the page, which is the projection a quantity
+  per unit area has to be drawn on and the **default**, because on a map how
+  much ground a thing covers reads as how much of it there is; `Mercator`,
+  where a constant bearing is a straight line; `PlateCarree`, the projection a
+  table of degrees is already in; and `Orthographic`, the globe as a planet,
+  with the far hemisphere not drawn at all. The three that mislead about size
+  are asked for by name. Every mark composes with it — a scatter is a
+  point map, a line is a route, a `Rect` is a cell of a gridded field, drawn
+  with its sides along the parallels and meridians that bound it — and the
+  graticule is the two axes' own ticks, because a meridian is what a longitude
+  tick looks like once the projection has had it. The map keeps its own shape
+  in whatever panel it is given, a narrower domain is how it is cropped, and a
+  pan or a zoom moves it like any other chart. It ships no geography and
+  computes no routes: a coastline and a great circle are both rows in the
+  caller's table ([ADR 0081](adr/0081-a-map-projection.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and
@@ -379,7 +396,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   gives the interval it covers, a continuous ramp the value under the pointer
   ([ADR 0048](adr/0048-clickable-colourbar-and-size-key.md)).
 
-Deliberately **not** here: geographic projections, force *simulations* — the
+Deliberately **not** here: force *simulations* — the
 node-link diagram they were once refused for is `geom.NodeLink`, placed by a
 descent on a named objective instead
 ([ADR 0077](adr/0077-a-node-link-layout.md)) — area-proportional Venn diagrams,

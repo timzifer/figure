@@ -572,6 +572,65 @@ not care in which order it was taken
 ([ADR 0080](adr/0080-nearest-neighbour-cells.md)). Both halves are in
 [`examples/voronoi`](../examples/voronoi).
 
+## A map is a coordinate system too
+
+Longitude and latitude are two ordinary columns, and what makes a table of them
+a map is the projection between the degrees and the page. That is a stage
+between the scales and the IR, so it is a coord: `coord.Geo` reads X as degrees
+east and Y as degrees north, and every mark draws what it always drew.
+
+```go
+p := figure.New(figure.Coord(coord.Geo(coord.Mollweide)))
+p.X(scale.Linear(scale.Domain(-180, 180), scale.TickValues(-180, -120, -60, 0, 60, 120, 180)))
+p.Y(scale.Linear(scale.Domain(-90, 90), scale.TickValues(-90, -60, -30, 0, 30, 60, 90)))
+p.Add(geom.Rect(field,
+    geom.X("west"), geom.X2("east"), geom.Y("south"), geom.Y2("north"),
+    geom.ColorBy("cover", scale.Sequential(palette.Viridis)),
+    geom.Label("Cloud cover (%)")))
+```
+
+![Mean July cloud cover over the whole world on an equal-area projection, one
+coloured cell per ten degrees](images/map.png)
+
+The tick values are the graticule: a meridian is what a longitude tick looks
+like once the projection has had it, exactly as a polar coord's ring is what a
+Y tick looks like. Nothing draws the grid but the theme, and nothing in the
+chart above is a map-specific mark — the cells are `geom.Rect`, and the coord
+draws each one's sides along the parallels and meridians that bound it rather
+than as the chords across them, which is what keeps a cell over the ground it
+was measured on.
+
+**Which projection is a question about what the chart claims.** `Mollweide`
+gives equal areas equal ink, which is the only honest background for a quantity
+*per unit area* and is why it is the default; `Mercator` gives a constant
+bearing a straight line, which is what a navigator's chart is for and why every
+web map is one; `PlateCarree` is the projection a table of degrees is already
+in; `Orthographic` is the globe as a planet, showing the hemisphere that faces
+the reader and nothing else. The three that draw a region larger or smaller
+than its share of the world are named on purpose: on a map, how much ground a
+thing covers reads as how much of it there is.
+
+```go
+p := figure.New(figure.Coord(coord.Geo(coord.Orthographic, coord.GeoCenter(75, 55))))
+p.Add(geom.Line(greatCircle, geom.X("lon"), geom.Y("lat"), geom.Label("Great circle")))
+p.Add(geom.Line(rhumb, geom.X("lon"), geom.Y("lat"), geom.Label("Rhumb line")))
+```
+
+![Edinburgh to Tokyo on a globe seen from over the pole: the great circle close
+to the ice, the rhumb line bowing far south of it](images/globe.png)
+
+Both routes are rows. A path between two places is a claim about the route —
+the shortest over the sphere, the one at a constant bearing, the one that
+avoids the ice — and the coord's job is to put the rows where the projection
+says rather than to decide which path was meant. For the same reason there is
+no geography in this library: a coastline is a table of degrees, and reading a
+shapefile is a job for a package that is allowed dependencies.
+
+A map crops by narrowing its domain, keeps its own shape in whatever panel it
+is given, and pans and zooms like any other chart. The whole of it is
+[`examples/map`](../examples/map), and the argument is
+[ADR 0081](adr/0081-a-map-projection.md).
+
 ## Distributions
 
 Seven marks that summarise a column rather than plotting it. Each is a pure

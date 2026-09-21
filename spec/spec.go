@@ -404,8 +404,8 @@ type CoordDim struct {
 }
 
 type Coord struct {
-	// Type is "cartesian", "polar", "smith", "oblique", "ternary" or
-	// "parallel".
+	// Type is "cartesian", "polar", "smith", "oblique", "ternary",
+	// "parallel" or "geo".
 	Type string `json:"type"`
 	// Dims are the axes of a coord that has more than the panel's two, in the
 	// order they are drawn: a parallel-coordinates coord's dimensions, and
@@ -440,6 +440,18 @@ type Coord struct {
 	// Sum is what a ternary coord's three components add up to: absent is 1,
 	// and 100 is the percentage spelling.
 	Sum float64 `json:"sum,omitempty"`
+	// Projection is which map projection a geo coord draws:
+	// "plate-carree", "mercator", "mollweide" or "orthographic". An absent
+	// field is "mollweide", the equal-area one: on a map, how much ground a
+	// thing covers reads as how much of it there is, so a projection that
+	// misleads about size is one a document names on purpose.
+	Projection string `json:"projection,omitempty"`
+	// CenterLon and CenterLat are where a geo coord's map is centred, in
+	// degrees. Absent is zero for both, which is the map's own default: the
+	// prime meridian down the middle, and — for the globe, the only
+	// projection with a centre in both directions — the equator across it.
+	CenterLon float64 `json:"centerLon,omitempty"`
+	CenterLat float64 `json:"centerLat,omitempty"`
 	// Depth is how deep an oblique coord draws a mark's volume, as a fraction
 	// of the panel's shorter side, and DepthAngle the direction of it, in
 	// radians in device space. Absent is the default for both; straight to the

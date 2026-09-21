@@ -297,6 +297,17 @@ func Math(ts mathtext.Typesetter) Option { return func(p *Plot) { p.math = ts } 
 //	p.Y(scale.Linear(scale.Domain(-50, 50), scale.TickValues(-5, -1, -0.5, 0.5, 1, 5)))
 //	p.Add(geom.Line(sweep, geom.X("r"), geom.Y("x")))
 //
+// [coord.Geo] is the map: it reads the pair as a longitude and a latitude in
+// degrees and places it by one of four named projections, so a scatter is a
+// point map, a line is a route and a [geom.Rect] is a cell of a gridded field.
+// Its graticule is the two axes' own ticks for the Smith chart's reason — a
+// meridian is what a longitude tick looks like once the projection has had it:
+//
+//	p := figure.New(figure.Coord(coord.Geo(coord.Mollweide)))
+//	p.X(scale.Linear(scale.Domain(-180, 180), scale.TickValues(-180, -120, -60, 0, 60, 120, 180)))
+//	p.Y(scale.Linear(scale.Domain(-90, 90), scale.TickValues(-90, -60, -30, 0, 30, 60, 90)))
+//	p.Add(geom.Scatter(cities, geom.X("lon"), geom.Y("lat")))
+//
 // A coord belongs to the chart rather than to a panel, so the panels of a
 // facet all share it.
 func Coord(c coordpkg.Coord) Option { return func(p *Plot) { p.coord = c } }

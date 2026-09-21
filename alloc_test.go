@@ -677,6 +677,39 @@ func gaugeField(n int) *figure.Plot {
 	return p
 }
 
+// worldOfStations is n readings scattered over the sphere, drawn on the globe.
+//
+// The projection is the point. Every row goes through the orthographic map —
+// three trigonometric functions and a visibility test — and rather more than
+// half of them land on the far side and are not drawn at all, so this is where
+// a coord that allocated per point, or a geom that grew a buffer for the
+// points it decided to drop, would show up.
+func worldOfStations(n int) *figure.Plot {
+	lon, lat := make([]float64, n), make([]float64, n)
+	for i := range n {
+		// A spherical Fibonacci lattice: even over the sphere, no two rows at
+		// one place, and the same rows every run.
+		t := float64(i) * 2.399963229728653
+		z := 1 - 2*(float64(i)+0.5)/float64(n)
+		lon[i] = math.Mod(t*180/math.Pi+180, 360) - 180
+		lat[i] = math.Asin(z) * 180 / math.Pi
+	}
+	src := figure.NewTable().Float64("lon", lon).Float64("lat", lat)
+	p := figure.New(figure.Size(900, 600), figure.Title("Stations"),
+		figure.Coord(coord.Geo(coord.Orthographic, coord.GeoCenter(10, 30))))
+	p.X(scale.Linear(scale.Domain(-180, 180)))
+	p.Y(scale.Linear(scale.Domain(-90, 90)))
+	p.Add(geom.Scatter(src, geom.X("lon"), geom.Y("lat")))
+	return p
+}
+
+// The globe, at a thousand rows and at a hundred thousand. What must not grow
+// is the allocation count: the projection is arithmetic per point into buffers
+// the layer already owns, and half the rows are dropped without one. See
+// docs/adr/0081-a-map-projection.md.
+func BenchmarkGlobe1k(b *testing.B)   { onOnePGate(b); benchmarkPlot(b, worldOfStations(1_000)) }
+func BenchmarkGlobe100k(b *testing.B) { onOnePGate(b); benchmarkPlot(b, worldOfStations(100_000)) }
+
 func benchmarkVoronoi(b *testing.B, sites int) {
 	onOnePGate(b)
 	benchmarkPlot(b, gaugeField(sites))

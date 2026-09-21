@@ -53,6 +53,7 @@ reading declined.
 | A folded axis (`geom.Horizon`) | **shipped** — [ADR 0065](adr/0065-horizon-charts.md) | horizon chart — forty series in one screen, at the resolution of one |
 | A bivariate colour channel (`scale.BivariateColorScale`) | **shipped** — [ADR 0067](adr/0067-a-bivariate-colour-channel.md) | VSUP, multi-class hexbin, bivariate choropleth |
 | A crossing count over categorical columns (`stat.Crosstab`) | **shipped** — [ADR 0079](adr/0079-parallel-sets.md) | parallel sets, alluvial — the flow layout was already here, and a count is what it was missing |
+| A map projection (`coord.Geo`) | **shipped** — [ADR 0081](adr/0081-a-map-projection.md) | point map, route map, gridded field, catchment map, the world in four projections |
 
 ## A — needs a rectangle mark, and nothing else — **shipped**
 
@@ -707,6 +708,29 @@ All three are drawn in `examples/bivariate`: `scale.VSUP` with
 `palette.BivariateBlueRed` over two rates, and `geom.Hexbin` with `GroupBy` and
 a matrix of class colours faded across purity.
 
+## R — needs a map projection — **shipped**, [ADR 0081](adr/0081-a-map-projection.md)
+
+The one bucket whose absence was architectural rather than anybody's afternoon,
+and the last coordinate system in the catalogue. Two lines of
+[ADR 0018](adr/0018-coordinate-systems.md) had been holding it: a projection
+transforms every point with no linear interval underneath it, and its graticule
+has no tick behind it. Both were paid for by other charts — the first by
+[ADR 0033](adr/0033-smith-charts.md)'s identity range, the second by
+[ADR 0070](adr/0070-a-third-labelled-family.md)'s family — and once the axes
+carry degrees the graticule turns out to *be* the two tick lists.
+
+| Form | Machinery | Status |
+|---|---|---|
+| Point map, bubble map | `geom.Scatter` under `coord.Geo`, sized or coloured like any other scatter | **shipped** |
+| Route map, track, flight path | `geom.Line`; the waypoints are the caller's rows, because a great circle and a rhumb line are two different claims about one pair of places | **shipped** — `examples/map` draws both |
+| Gridded field — climate, cloud, sea surface, model output | `geom.Rect` over a box in degrees, whose sides the coord draws along the parallels and meridians that bound them | **shipped** — `examples/map`, on the equal-area projection such a field has to be read on, which is also what a map drawn without naming one gets |
+| Globe | `coord.Geo(coord.Orthographic)`: the hemisphere facing the reader, the far side with no image at all | **shipped** — and it is *not* `three.Spherical`, which is a scene with a camera ([ADR 0058](adr/0058-what-3d-is-for.md)) |
+| Catchment / coverage map over stations | `geom.Voronoi` under `coord.Geo` — cut on the panel, which under a projection is where 0080 argued a distance has to be measured | **shipped** |
+| Place names | `geom.Text`, with `geom.AvoidOverlap` ([ADR 0040](adr/0040-label-collision-avoidance.md)) | **shipped** |
+| Choropleth of country shapes | a mark that fills a closed ring of rows, which does not exist | **declined for now** — it is a mark rather than a coord and has four questions of its own to answer; 0081's "Not in scope" has them |
+| Tiles, basemaps, shapefiles, GeoJSON | a reader with dependencies | **declined** — the core module has none ([ADR 0001](adr/0001-module-layout.md)); a coastline is rows in the caller's table |
+| Conic projections — Albers, Lambert | two standard parallels, which is a shape of configuration `coord.Desc` does not carry | **declined for now** — additive within v1, and waiting for somebody who needs the projection |
+
 ## The sweep of the unusual forms
 
 Buckets O, P and Q came out of reading [xeno.graphics](https://xeno.graphics)
@@ -802,6 +826,13 @@ anything else in it, and all but the first of them have been built.
    Last, and deliberately: it is the widest reach in the catalogue and the least
    architecture, so nothing waits on it and it costs nothing to defer. Most of
    the work in it is documentation.
+
+**Bucket R is the last one, and it was the oldest.** A geographic projection
+had been deferred in one line in four places since v0.1 and argued in none of
+them; what closed it was not new machinery but the discovery that the two
+objections on record had been settled by the Smith chart and by the ternary
+chart's third ladder. `coord.Geo` is one file, four projections and no change
+anywhere else in the tree ([ADR 0081](adr/0081-a-map-projection.md)).
 
 **Buckets O, P and Q were outside that order and never joined it.** Nothing in
 them waited on a locus, a coord, a scale or a layout, and nothing in J through
