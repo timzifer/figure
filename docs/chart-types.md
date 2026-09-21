@@ -165,13 +165,20 @@ rather than to the chart: `render` sets it while it collects the guides, because
 panels are built concurrently and a geom writing a shared scale in `Build` would
 be a data race.
 
-**Parallel coordinates** needs no new channel but does need per-axis scales
-inside one panel, which makes it a near-relative of radar: both draw their own
-axes inside the plot area. Radar got its axes from `coord.Polar`'s furniture in
-the coordinate stage — spokes and rings the coord reports and `render`
-strokes — and parallel
-coordinates would want the same shape of answer from a coord of its own rather
-than a second one drawn by a geom.
+**Parallel coordinates** is that coord, and it is drawn:
+`coord.Parallel` holds a scale per dimension, places one vertical axis for each
+and raises them as labelled families the way `coord.Polar` reports a radar's
+spokes, while `geom.Parallel` draws one line per row across them. The axes have
+*different* domains, which is the whole difference from a radar — miles per
+gallon beside kilograms, neither squashed into the other's range — and it is
+why the coord holds the scales rather than borrowing the panel's two
+([ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md)).
+
+| Chart | Coord | Mark |
+|---|---|---|
+| Parallel coordinates | `coord.Parallel` | `geom.Parallel` |
+| **Profile plot of a wide table** | the same | the same, one line per row |
+| **Better-is-up** | an axis built with `scale.Reverse()` | unchanged — [ADR 0075](adr/0075-an-axis-has-a-direction.md) |
 
 ## E — needs a relational layout — **shipped**
 
@@ -712,7 +719,7 @@ marimekko, rose, slope — and what follows is what the reading turned up
 | **Raincloud plot** | an option, not a mark: bucket F above |
 | **Durov diagram** | one row in bucket J, beside Piper, once the barycentric coord exists |
 | **Hovmöller diagram** | drawable today with `Rect`, and the reason bucket O is about the *size* rather than about the form |
-| **Parallel coordinates, parallel sets** | the widest genuine gap on the page, and the answer is already named in bucket D: a coord of its own, reporting its axes as furniture the way `coord.Polar` reports a radar's spokes. Go has nothing and neither does D3 out of the box |
+| **Parallel coordinates** | **drawn** since [ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md) — `coord.Parallel` plus `geom.Parallel`, exactly the coord-of-its-own bucket D named. **Parallel sets** is still not: ribbons between adjacent axes whose width is a count are a flow layout, which is `stat.Sankey`'s question rather than this coord's |
 | **Recurrence plot** | a distance matrix and bucket O's mark; the stat is small and the picture is a raster |
 | **Cycle plot, seasonal subseries** | drawable today — a facet per cycle position and a line per cycle — and missing only a gallery figure |
 | **Bump chart** | `Line` over ordinal ranks with `geom.AvoidOverlap` on the labels ([ADR 0040](adr/0040-label-collision-avoidance.md)); a recipe |
@@ -723,9 +730,9 @@ marimekko, rose, slope — and what follows is what the reading turned up
 | Isotype, tally, pictorial bar | a `Text` mark repeated on a grid; drawable today, and a chart type only in the sense that a font is |
 | Kagi, point-and-figure, Renko | a domain reduction of a price series — bucket M's admission rule decides them, and the reduction is the chart |
 
-**Ranking, if only one of these gets built.** Parallel coordinates reaches the
-most readers and needs the most argument; the raster reaches the most charts
-already half-drawn and needs the least. Nothing here waits on anything in
+**Ranking, if only one of these gets built.** Parallel coordinates reached the
+most readers and needed the most argument, and it is built; the raster reaches
+the most charts already half-drawn and needs the least. Nothing here waits on anything in
 buckets I through M.
 
 ## Already possible today

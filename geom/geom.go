@@ -139,6 +139,19 @@ type Training struct {
 	// one is a three.Layer rather than a Geom, which is what keeps the two
 	// from being confusable. ADR 0056 is the record.
 	Z scale.Scale
+
+	// Dims are the scales of a panel that has more axes than two, in the order
+	// the coord draws them, and it is the second field this struct has been
+	// widened by.
+	//
+	// It is nil for every chart with a pair of axes, which is all of them but
+	// one: [github.com/timzifer/figure/coord.Parallel] gives a panel an axis
+	// per dimension, and a mark drawn in it trains the dimension it reads
+	// rather than the panel's Y. render fills this from the panel's coord
+	// through coord.Dimensions, so a coord with two axes costs nothing and a
+	// mark that never heard of a third axis reads X and Y and is right to.
+	// See docs/adr/0078-a-coord-with-more-than-two-axes.md.
+	Dims []scale.Scale
 }
 
 // Geom is a layer of marks.
@@ -206,6 +219,7 @@ type config struct {
 	order      Ordering
 	orderSet   bool
 
+	dims        []string
 	levels      []float64
 	levelCount  int
 	top         int
@@ -384,6 +398,23 @@ func LevelFormat(fn func(v float64) string) Option {
 // Both halves of an UpSet must be given the same value, or the dots would name
 // columns the bars do not have.
 func Top(n int) Option { return func(c *config) { c.top = n } }
+
+// Dims names the columns a mark draws against a panel's own axes, in the order
+// those axes are drawn.
+//
+// It is the one option in this package that carries a list of columns, and it
+// is [Parallel]'s: a parallel-coordinates panel has an axis per dimension, and
+// naming them one channel at a time would put a limit on how many there may
+// be where the chart has none.
+//
+// The names are matched to the coord's dimensions **in order**, and a layer
+// that names a different number of them is an error out of Train rather than a
+// chart with an axis nothing is drawn against. The coord's dimensions carry a
+// label and a scale and never a column name, which is what keeps a coord from
+// knowing what a table is.
+func Dims(cols ...string) Option {
+	return func(c *config) { c.dims = append(c.dims[:0], cols...) }
+}
 
 // Resample sets how a [Raster] combines the cells that land on one pixel, when
 // its lattice is finer than the panel.

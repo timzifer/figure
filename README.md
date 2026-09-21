@@ -144,7 +144,8 @@ picture cannot drift away from the code that produced it.
 - **Marks** — lines, points, bars, areas, steps, rects, boxplots, histograms,
   violins, ridgelines, hexbins, beeswarms, ECDFs, survival curves, trends,
   contours, horizons, rasters, treemaps, icicles, trees, sankeys, arcs, graphs,
-  UpSet plots, Venn diagrams, error bars, intervals, text, annotations —
+  UpSet plots, Venn diagrams, parallel coordinates, error bars, intervals,
+  text, annotations —
   including a **locus**, a family of curves given by a formula
   rather than by data, which is what a Nichols diagram's closed-loop contours
   and a Smith chart's VSWR circles are.
@@ -153,7 +154,8 @@ picture cannot drift away from the code that produced it.
   between bars in all four linkages, taking its colour from the link table so
   that a critical path is a column rather than a feature.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is
-  a sunburst), and Smith.
+  a sunburst), Smith, ternary, and parallel — the last with one axis per
+  dimension, which is the parallel-coordinates plot.
 - **Three dimensions** — `figure/three` draws a chart whose x, y and z are all
   data: a surface over a grid, a trajectory through a volume, a field of bars
   over two categoricals. It projects above the IR, so every backend draws one;

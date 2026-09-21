@@ -141,6 +141,23 @@ type Furniture struct {
 	// way: it is a reference behind the marks, not a label on them.
 	AxesOverData bool
 
+	// FamiliesAreTheAxes reports that the families *are* this panel's axes,
+	// so their labels are written wherever the panel writes labels at all —
+	// even where the theme has turned the panel's own tick labels off.
+	//
+	// It is false for a coord whose families are a third reading beside two
+	// axes that carry their own numbers: a ternary chart with its ticks turned
+	// off should not come back with one component labelled and two not. It is
+	// true for a coord whose two axes carry nothing a reader wants numbered,
+	// where the alternative is a chart whose every axis loses its numbers to a
+	// theme option that looks like it is about something else. See
+	// docs/adr/0078-a-coord-with-more-than-two-axes.md.
+	//
+	// It does not reach past the panel: an inner panel of a facet leaves its
+	// labels to the outer ones either way, which is ADR 0070's own rule and
+	// the reason the gate exists at all.
+	FamiliesAreTheAxes bool
+
 	// LabelsYFirst decides which axis keeps its labels where the two collide.
 	// Labels that do not share a row are thinned by render against every
 	// other label by their boxes, greedily in axis order — X first, unless
@@ -161,6 +178,7 @@ func (f *Furniture) Reset() {
 	f.Families = resetFamilies(f.Families)
 	f.XLabelsShareARow = false
 	f.AxesOverData = false
+	f.FamiliesAreTheAxes = false
 	f.LabelsYFirst = false
 }
 

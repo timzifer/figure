@@ -93,6 +93,10 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		return "set-sizes", "", nil
 	case geom.MarkVenn:
 		return "venn", "", nil
+	case geom.MarkParallel:
+		// The line per row across a panel's own axes. Vega-Lite has no such
+		// mark and no coord to draw it in, so the name is figure's.
+		return "parallel", "", nil
 	case geom.MarkSurvival:
 		return "survival", "", nil
 	case geom.MarkDepends:
@@ -206,6 +210,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkSetSizes, nil
 	case "venn":
 		return geom.MarkVenn, nil
+	case "parallel":
+		return geom.MarkParallel, nil
 	case "survival":
 		return geom.MarkSurvival, nil
 	case "dependency":

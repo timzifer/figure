@@ -387,7 +387,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	// geom.FromDesc refuses it. It is spelled out rather than deferred to
 	// hasField, which would newly hand a source to a layer encoded only by
 	// colour.
-	if d.X != "" || d.Y != "" || d.From != "" || d.ID != "" {
+	if d.X != "" || d.Y != "" || d.From != "" || d.ID != "" || len(d.Dims) > 0 {
 		if d.Source, err = decodeData(l.Data); err != nil {
 			return nil, err
 		}
@@ -417,6 +417,9 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.ExplodeCol = fieldOf(enc.Explode)
 	d.MidCol, d.ErrorCol, d.ErrorXCol = fieldOf(enc.Mid), fieldOf(enc.Error), fieldOf(enc.ErrorX)
 	d.From, d.To = fieldOf(enc.From), fieldOf(enc.To)
+	for i := range enc.Dims {
+		d.Dims = append(d.Dims, enc.Dims[i].Field)
+	}
 	d.ID, d.ParentCol, d.ValueCol = fieldOf(enc.ID), fieldOf(enc.Parent), fieldOf(enc.Value)
 	d.EventCol = fieldOf(enc.Event)
 	d.UncertaintyCol = fieldOf(enc.Uncertainty)
