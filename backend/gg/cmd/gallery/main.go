@@ -213,6 +213,7 @@ func figures() []plate {
 		qqFigure(),
 		nicholsFigure(),
 		upsetFigure(),
+		parallelFigure(),
 		vennFigure(),
 		networkFigure(),
 		labelsFigure(),

@@ -41,6 +41,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/facet"
@@ -390,9 +391,27 @@ type Mark struct {
 //
 // The field is absent for a Cartesian chart, which is every chart written
 // before there was a coord to write.
+// CoordDim is one axis of a coord that has more than the panel's two: what it
+// is called, and the scale that places a value on it.
+//
+// Vega-Lite has no such coord, so both words are figure's. The scale is the
+// same object a channel carries, because it is the same kind of thing: a
+// dimension of a parallel-coordinates panel is an axis, and an axis has a
+// scale.
+type CoordDim struct {
+	Name  string `json:"name,omitempty"`
+	Scale *Scale `json:"scale,omitempty"`
+}
+
 type Coord struct {
-	// Type is "cartesian", "polar", "smith", "oblique" or "ternary".
+	// Type is "cartesian", "polar", "smith", "oblique", "ternary" or
+	// "parallel".
 	Type string `json:"type"`
+	// Dims are the axes of a coord that has more than the panel's two, in the
+	// order they are drawn: a parallel-coordinates coord's dimensions, and
+	// nothing else today. A mark drawn in such a coord names one column per
+	// dimension in its own encoding, and the two are matched in order.
+	Dims []CoordDim `json:"dims,omitempty"`
 	// Theta is the axis a polar coord sweeps around the circle: "x" or "y".
 	Theta string `json:"theta,omitempty"`
 	// Hole is the inner radius as a fraction of the outer one: a donut.
@@ -443,6 +462,15 @@ const (
 
 // Encoding maps channels onto columns, values and scales.
 type Encoding struct {
+	// Dims are the columns a mark draws against a panel's own axes, one per
+	// axis of its coord and in the same order. A parallel-coordinates layer is
+	// the only mark that reads them.
+	//
+	// It is a list of channels rather than a list of names because each of
+	// them is a channel: a dimension is a positional encoding, and spelling it
+	// as one leaves room for the type and the title a channel already carries.
+	Dims []Channel `json:"dims,omitempty"`
+
 	X     *Channel `json:"x,omitempty"`
 	Y     *Channel `json:"y,omitempty"`
 	X2    *Channel `json:"x2,omitempty"`
@@ -579,6 +607,19 @@ type Channel struct {
 	// "none" is figure's spelling of Vega-Lite's `null`, which is a JSON null
 	// rather than an absent field and would read as "not set" here.
 	Stack string `json:"stack,omitempty"`
+}
+
+// empty reports an encoding that says nothing, which is written as no
+// encoding at all.
+//
+// It is a method rather than a comparison with the zero value because the
+// dimension list makes this struct uncomparable — the cost of the one channel
+// that is a list, paid once here.
+func (e *Encoding) empty() bool {
+	if e == nil {
+		return true
+	}
+	return reflect.DeepEqual(*e, Encoding{})
 }
 
 // Scale is a positional or colour scale.

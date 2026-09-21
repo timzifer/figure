@@ -215,6 +215,23 @@ re-derives the range from the domain it was just handed. Anything new that
 assumes "a scale's range is in pixels" is wrong under this coord and probably
 under the next one. See [ADR 0033](docs/adr/0033-smith-charts.md).
 
+**A coord holds no scales, with one exception, and it is the one with more
+than two axes.** `coord.Parallel` carries a scale per dimension because that is
+what a parallel-coordinates panel is; every other coord borrows the panel's two
+and re-ranges them (`smith.identityRange`, `ternary.pin`). Two things follow
+and both are load-bearing. A mark reaches those scales through
+`coord.Dimensions` — `geom.Training.Dims` at train time, `f.Coords()` at build
+time — rather than through anything new on `Coord`, which never gains a method.
+And the panel's own ticks are silenced **by the coord**: left to themselves
+they would number an axis index and a fraction of an axis. A theme that turns
+them off as well gives back the gutter a panel reserves for tick labels it
+never writes, and the dimensions keep their numbers through it because
+`Furniture.FamiliesAreTheAxes` says the families *are* the axes — ADR 0070's
+label gate, amended. A coord whose family is a third reading beside two
+labelled axes leaves that flag alone, which is why a ternary chart is
+unchanged. See
+[ADR 0078](docs/adr/0078-a-coord-with-more-than-two-axes.md).
+
 **A coord may draw one grid line per tick, and may label nothing the scale did
 not.** `render.drawAxes` walks `for i, t := range xTicks`, takes the geometry
 from `fur.GridX[i]` and the *text* from `t.Label`. That is why a Smith chart's

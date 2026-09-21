@@ -132,3 +132,51 @@ func TestAFamilyLabelYieldsToAnAxisLabel(t *testing.T) {
 		}
 	}
 }
+
+// A theme that turns the ticks off has said something about the panel's own
+// two axes. A coord whose families *are* the axes keeps their labels through
+// it — otherwise the one chart whose axes carry nothing a reader wants
+// numbered would lose every number it has to a switch that looks like it is
+// about something else. ADR 0078 amends ADR 0070's gate; family *lines* have
+// never answered to the per-axis theme flags for the same reason.
+func TestFamiliesThatAreTheAxesKeepTheirLabelsWithTheTicksOff(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		axes bool
+		want bool
+	}{
+		{"a third reading beside two labelled axes", false, false},
+		{"the panel's own axes", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := familyChart("A")
+			c.Coord = &axisFamilyCoord{familyCoord: c.Coord.(*familyCoord), axes: tc.axes}
+			c.Theme = theme.Light.With(theme.Ticks(false, false))
+			rec := draw(t, c)
+
+			drawn := false
+			for _, call := range rec.Calls {
+				drawn = drawn || (call.Op == "Text" && call.Text.Text == "A")
+			}
+			if drawn != tc.want {
+				t.Errorf("the family label was drawn = %v, want %v", drawn, tc.want)
+			}
+		})
+	}
+}
+
+// axisFamilyCoord is the family coord with a say about whether its families
+// are the panel's axes.
+type axisFamilyCoord struct {
+	*familyCoord
+	axes bool
+}
+
+func (f *axisFamilyCoord) Frame(fr coord.Framing) coord.Coord {
+	return &axisFamilyCoord{familyCoord: f.familyCoord.Frame(fr).(*familyCoord), axes: f.axes}
+}
+
+func (f *axisFamilyCoord) Furniture(dst *coord.Furniture, req coord.FurnitureRequest) {
+	f.familyCoord.Furniture(dst, req)
+	dst.FamiliesAreTheAxes = f.axes
+}

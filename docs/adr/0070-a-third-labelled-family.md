@@ -1,6 +1,6 @@
 # 0070 — A coord raises a labelled family of its own, and `Furniture` carries families beside its two sides
 
-**Status:** Accepted · **Date:** 2026-09-18
+**Status:** Accepted, amended · **Date:** 2026-09-18 · see [Amendment](#amendment-a-family-that-is-the-axis)
 
 ## Context
 
@@ -176,3 +176,42 @@ the record 0033 asked for before any of them gets code.
   honest fix is a style hint on `Family`, not a second drawing order.
 - A caller asks to turn one family off by name. Today the answer is the coord's
   options, which is where a ternary chart's `sum` already lives.
+
+## Amendment: a family that *is* the axis
+
+**Date:** 2026-09-21 · [ADR 0078](0078-a-coord-with-more-than-two-axes.md)
+
+The three rules above stand for a family that is a third reading beside two
+axes carrying their own numbers, which was the only kind that existed when they
+were written. A coord whose families are the panel's *axes* arrived with
+`coord.Parallel`, and one of the three rules is wrong for it.
+
+The rule said labels are drawn "when the panel writes tick labels at all". Two
+different switches answer that, and the record conflated them:
+
+- **`p.ShowX` / `p.ShowY`**, which is the facet case the rule was argued from —
+  an inner panel leaving its ladders to the edge of the grid. That is right for
+  every family and is unchanged.
+- **`theme.ShowTicksX` / `ShowTicksY`**, which says something about *the
+  panel's own two axes*. Letting it govern a family is the same category error
+  this record already rejected for family **lines**, where it wrote: *"a theme
+  that turns off the horizontal grid has said something about the horizontal
+  grid, and silently taking the third family down with it would make the answer
+  depend on which of the three components the caller happened to put on X."*
+
+For a parallel-coordinates panel the consequence was not a subtlety. Its own
+two axes carry an axis index and a fraction, so the chart wants them turned
+off — and turning them off took the numbers off every dimension. Leaving them
+on cost a gutter reserved for labels the panel never writes, about a tenth of
+the canvas in the gallery's figure.
+
+So `Furniture` gains a fourth flag, beside `XLabelsShareARow`, `AxesOverData`
+and `LabelsYFirst`: **`FamiliesAreTheAxes`**. A coord that sets it has its
+families labelled wherever the panel writes labels at all, whatever the theme
+says about the panel's own ticks. `coord.Parallel` sets it; `coord.Ternary`
+does not, and a ternary chart with its ticks turned off behaves exactly as it
+did — one component labelled and two not would be a worse answer than none.
+
+The decision stays where this record put it: with the coord, which is the only
+thing that knows whether its families are a third reading or the whole of what
+the panel has to say.

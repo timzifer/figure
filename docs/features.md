@@ -164,7 +164,22 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   so each component is read along its own edge and all three ladders carry
   numbers ([ADR 0051](adr/0051-barycentric-coord.md),
   [ADR 0070](adr/0070-a-third-labelled-family.md)). The corner labels naming
-  the components are still `geom.Note`.
+  the components are still `geom.Note`. **`coord.Parallel`** is the fifth, and
+  the first with more than two axes: it holds one scale per dimension, places a
+  vertical axis for each across the panel and raises them as labelled families
+  of their own, so `render` — which never learns how many axes a panel has —
+  strokes them with the grid and writes their numbers with the ticks
+  ([ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md)).
+- **Parallel coordinates** — `geom.Parallel` draws one line per row across
+  those axes, each crossing at that row's value on *its own* domain: miles per
+  gallon beside kilograms, neither squashed into the other's range, which is
+  the difference from a radar whose spokes share one scale. The columns are
+  named by `geom.Dims` and matched to the coord's axes in order; a row is a
+  line, so it is reported at every axis it crosses and a pointer anywhere along
+  it finds that row; a row missing a value gaps there rather than being drawn
+  through. An axis that reads better upside down is `scale.Reverse()` on that
+  dimension's scale and needs nothing else
+  ([ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and

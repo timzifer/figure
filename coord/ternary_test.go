@@ -2,6 +2,7 @@ package coord
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/timzifer/figure/ir"
@@ -253,7 +254,9 @@ func TestATernaryRoundTripsThroughItsDesc(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := Describe(back)
-	if got != d {
+	// Compared with reflect rather than with ==: Desc holds the dimensions of
+	// a coord that has more axes than two, so it is no longer comparable.
+	if !reflect.DeepEqual(got, d) {
 		t.Errorf("round trip = %+v, want %+v", got, d)
 	}
 }

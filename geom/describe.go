@@ -92,6 +92,10 @@ const (
 	MarkSetSizes Mark = "set-sizes"
 	// MarkVenn is the two- or three-set Venn diagram of the same table.
 	MarkVenn Mark = "venn"
+	// MarkParallel is the line per row across a panel's own axes, drawn in
+	// [github.com/timzifer/figure/coord.Parallel]. See
+	// docs/adr/0078-a-coord-with-more-than-two-axes.md.
+	MarkParallel Mark = "parallel"
 	// MarkSurvival is the Kaplan–Meier survival curve. See
 	// docs/adr/0054-statistical-instruments.md.
 	MarkSurvival Mark = "survival"
@@ -242,6 +246,9 @@ type Desc struct {
 	LevelCount int
 	// Top caps how many groups a mark that ranks its own draws. See [Top].
 	Top int
+	// Dims are the columns a [Parallel] layer draws, one per axis of its
+	// coord, in the order those axes are drawn. See [Dims].
+	Dims []string
 	// LabelLevels is whether a [Contour] or a [Locus] writes each level's value
 	// along the curve it draws it at. See [LabelLevels]; the format a Go caller
 	// gave is not here, because a function does not survive a document.
@@ -532,6 +539,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return SetSizes(d.Source, opts...), nil
 	case MarkVenn:
 		return Venn(d.Source, opts...), nil
+	case MarkParallel:
+		return Parallel(d.Source, opts...), nil
 	case MarkSurvival:
 		return Survival(d.Source, opts...), nil
 	case MarkDepends:
@@ -577,6 +586,7 @@ func (d Desc) options() []Option {
 		LevelCount(d.LevelCount),
 		LabelLevels(d.LabelLevels),
 		Top(d.Top),
+		Dims(d.Dims...),
 		Resample(d.Resample),
 		Branches(d.Branch),
 		Orient(d.Orient),
@@ -750,6 +760,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		LevelCount:    c.levelCount,
 		LabelLevels:   c.labelLevels,
 		Top:           c.top,
+		Dims:          c.dims,
 		Resample:      c.resample,
 		Branch:        c.branch,
 		Orient:        c.orient,

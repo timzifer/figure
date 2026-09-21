@@ -49,6 +49,11 @@ func encodeCoord(c coord.Coord) (*Coord, error) {
 	if d.Type == coord.TypeOblique {
 		out.Depth, out.DepthAngle = d.Depth, d.DepthAngle
 	}
+	// The dimensions of a coord whose axes are the thing being configured. It
+	// is the one list in this object, and the one coord that has it.
+	for _, dim := range d.Dims {
+		out.Dims = append(out.Dims, CoordDim{Name: dim.Name, Scale: encodeScale(dim.Scale)})
+	}
 	// A sum of one is a ternary coord's default, so a chart that never asked
 	// for percentages writes no field.
 	if d.Type == coord.TypeTernary && d.Sum != 1 {
@@ -92,6 +97,17 @@ func decodeCoord(c *Coord) (coord.Coord, error) {
 	}
 	d.Depth, d.DepthAngle = c.Depth, c.DepthAngle
 	d.Sum = c.Sum
+	for _, dim := range c.Dims {
+		e := coord.DimDesc{Name: dim.Name}
+		if dim.Scale != nil {
+			sd, err := decodeScale(*dim.Scale, "quantitative")
+			if err != nil {
+				return nil, fmt.Errorf("figure/spec: the %q axis: %w", dim.Name, err)
+			}
+			e.Scale = sd
+		}
+		d.Dims = append(d.Dims, e)
+	}
 	if d.Type == coord.TypePolar {
 		d.Sweep = coord.FullTurn
 		if c.Sweep != nil {

@@ -754,6 +754,12 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		if d.Group != "" {
 			enc.Detail = &Channel{Field: d.Group, Type: "nominal"}
 		}
+		// One channel per axis of the mark's coord, in the order the axes are
+		// drawn: the columns and the coord's dimensions are matched by
+		// position, so the list's order is the whole of what it says.
+		for _, name := range d.Dims {
+			enc.Dims = append(enc.Dims, Channel{Field: name})
+		}
 		if d.Z != "" {
 			enc.Z = &Channel{Field: d.Z}
 		}
@@ -818,7 +824,7 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		if d.StackSet && enc.Y != nil {
 			enc.Y.Stack = stackName(d.Stack)
 		}
-		if *enc == (Encoding{}) {
+		if enc.empty() {
 			return nil, nil
 		}
 		return enc, nil
@@ -848,7 +854,7 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 			enc.X2, enc.Y2 = axes.x.datum(d.Datum.X1), axes.y.datum(d.Datum.Y1)
 		}
 	}
-	if *enc == (Encoding{}) {
+	if enc.empty() {
 		return nil, nil
 	}
 	return enc, nil

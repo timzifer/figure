@@ -2,6 +2,7 @@ package coord_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/timzifer/figure/coord"
@@ -34,7 +35,7 @@ func TestPieAndDonutAreTheRecipesTheyName(t *testing.T) {
 			t.Fatalf("%s does not describe itself", tc.name)
 		}
 		b, _ := coord.Describe(tc.long)
-		if a != b {
+		if !reflect.DeepEqual(a, b) {
 			t.Errorf("%s is\n %+v\nwant\n %+v", tc.name, a, b)
 		}
 	}

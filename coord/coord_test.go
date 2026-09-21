@@ -2,6 +2,7 @@ package coord_test
 
 import (
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/timzifer/figure/coord"
@@ -333,7 +334,7 @@ func TestACoordRoundTripsThroughItsDescription(t *testing.T) {
 			t.Fatalf("FromDesc: %v", err)
 		}
 		back, _ := coord.Describe(got)
-		if back != d {
+		if !reflect.DeepEqual(back, d) {
 			t.Errorf("round trip changed the coord:\n got %+v\nwant %+v", back, d)
 		}
 	}

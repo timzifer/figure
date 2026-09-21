@@ -418,9 +418,15 @@ func Draw(b ir.Backend, c Chart) error {
 	//    depends on the tick labels, so this has to happen before anything is
 	//    measured.
 	for _, p := range panels {
+		// A panel with more axes than two hands its layers the scales of all
+		// of them: a parallel-coordinates panel has one per dimension, and the
+		// layer drawn in it trains the dimension it reads rather than the
+		// panel's Y. Every other coord answers nil and costs a type assertion
+		// per panel. See docs/adr/0078-a-coord-with-more-than-two-axes.md.
+		dims := coord.Scales(coord.Dimensions(c.coordOf(p)))
 		for _, g := range p.Layers {
 			x, y := p.axesOf(g)
-			if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
+			if err := g.Train(geom.Training{X: x, Y: y, Dims: dims}); err != nil {
 				return err
 			}
 		}
@@ -942,7 +948,17 @@ func drawAxes(b ir.Backend, th theme.Theme, p Panel, fur *coord.Furniture, xTick
 	// A family's labels are thinned after both axes, so where a family's
 	// number would land on an axis's the axis keeps it: a family is the third
 	// reading of a chart and the axes are the first two. See ADR 0070.
-	keepFamily := selectFamilyLabels(b, fur, tickFont, th.TickLabelPad, kept, showX || showY)
+	// A family's labels follow the panel rather than the theme's tick switches
+	// where the families are the axes: a coord whose own two axes carry
+	// nothing a reader wants numbered would otherwise lose every ladder to
+	// theme.Ticks(false, false), which says something about those two axes.
+	// Family *lines* have never been governed by ShowGridX/ShowGridY for the
+	// same reason — ADR 0070, amended by ADR 0078.
+	showFamilies := showX || showY
+	if fur.FamiliesAreTheAxes {
+		showFamilies = p.ShowX || p.ShowY
+	}
+	keepFamily := selectFamilyLabels(b, fur, tickFont, th.TickLabelPad, kept, showFamilies)
 	for i, t := range xTicks {
 		if !inFurniture(fur.InX, i) || !th.ShowTicksX {
 			continue

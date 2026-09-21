@@ -1,6 +1,7 @@
 package spec_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -78,7 +79,7 @@ func TestASmithChartsDefaultEdgeIsAChordInJSONToo(t *testing.T) {
 	if d.Arc {
 		t.Error("a document that named no edge came back drawing arcs, not the chords the constructor draws")
 	}
-	if want, _ := coord.Describe(coord.Smith()); d != want {
+	if want, _ := coord.Describe(coord.Smith()); !reflect.DeepEqual(d, want) {
 		t.Errorf("decoded %+v, want the coord Smith() builds, %+v", d, want)
 	}
 }

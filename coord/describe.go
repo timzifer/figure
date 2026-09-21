@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"github.com/timzifer/figure/scale"
 )
 
 // Type names a coordinate system. It is the word a written-down chart carries
@@ -20,6 +22,9 @@ const (
 	// TypeTernary is the barycentric coord: two components of a composition
 	// on the axes and the third derived. See [Ternary].
 	TypeTernary Type = "ternary"
+	// TypeParallel is the coord with one vertical axis per dimension. See
+	// [Parallel].
+	TypeParallel Type = "parallel"
 )
 
 // Desc is a coord reduced to what configures it.
@@ -31,6 +36,18 @@ const (
 type Desc struct {
 	// Type is which coord this is.
 	Type Type
+
+	// Dims are the axes of a coord that has more than the panel's two, in the
+	// order they are drawn: a [Parallel] coord's dimensions and nothing else
+	// today.
+	//
+	// It is the first field here that is a list, and the reason is that it is
+	// the first coord whose configuration is one. Every other coord in this
+	// package is configured by a handful of numbers because it has a fixed
+	// number of axes; a coordinate system whose axes are the thing being
+	// configured cannot be written down as scalars without a limit on how many
+	// of them there may be.
+	Dims []DimDesc
 
 	// Theta is the axis a polar coord sweeps around the circle.
 	Theta Axis
@@ -81,6 +98,19 @@ type Desc struct {
 	Depth, DepthAngle float64
 }
 
+// DimDesc is one axis of a coord that has more than the panel's two: what it
+// is called, and the scale that places a value on it.
+//
+// The scale travels as a [github.com/timzifer/figure/scale.Desc] rather than
+// as a scale, for that type's own reason — a scale is an interface over an
+// unexported type, and a description is what can be written down. A scale
+// nobody can describe describes as the zero Desc, which reads back as a
+// linear one.
+type DimDesc struct {
+	Name  string
+	Scale scale.Desc
+}
+
 // Describe reports c's configuration, or ok == false if c cannot describe
 // itself. A third-party coord that does not implement [Describer] still draws;
 // it is simply not serializable.
@@ -123,6 +153,17 @@ func FromDesc(d Desc) (Coord, error) {
 
 	case TypeTernary:
 		return Ternary(TernarySum(d.Sum)), nil
+
+	case TypeParallel:
+		dims := make([]ParallelDim, 0, len(d.Dims))
+		for _, e := range d.Dims {
+			s, err := scale.FromDesc(e.Scale)
+			if err != nil {
+				return nil, fmt.Errorf("figure/coord: the %q axis: %w", e.Name, err)
+			}
+			dims = append(dims, Dim(e.Name, s))
+		}
+		return Parallel(dims...), nil
 	}
 	if build, ok := registered(d.Type); ok {
 		return build(d)

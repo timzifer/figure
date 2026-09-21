@@ -87,6 +87,7 @@ depends on.
 | [0075](0075-an-axis-has-a-direction.md) | An axis has a direction, and it belongs to the scale rather than to its domain | Accepted | — |
 | [0076](0076-the-other-half-of-the-count.md) | The other half of the count is a mark, and the panel is still the caller's | Accepted | — |
 | [0077](0077-a-node-link-layout.md) | A node-link layout is a monotone descent on a named objective | Accepted, amended | — |
+| [0078](0078-a-coord-with-more-than-two-axes.md) | A coord may carry more than two axes, and it holds their scales | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
