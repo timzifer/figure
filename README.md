@@ -155,8 +155,11 @@ picture cannot drift away from the code that produced it.
   between bars in all four linkages, taking its colour from the link table so
   that a critical path is a column rather than a feature.
 - **Coordinate systems** — Cartesian, polar (so a bar is a pie and an icicle is
-  a sunburst), Smith, ternary, and parallel — the last with one axis per
-  dimension, which is the parallel-coordinates plot.
+  a sunburst), Smith, ternary, parallel — with one axis per dimension, which is
+  the parallel-coordinates plot — and geographic: four map projections,
+  equal-area by default because size on a map reads as quantity, on which a
+  scatter is a point map, a line is a route and a rect is a cell of a gridded
+  field.
 - **Three dimensions** — `figure/three` draws a chart whose x, y and z are all
   data: a surface over a grid, a trajectory through a volume, a field of bars
   over two categoricals. It projects above the IR, so every backend draws one;

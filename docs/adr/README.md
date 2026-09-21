@@ -90,6 +90,7 @@ depends on.
 | [0078](0078-a-coord-with-more-than-two-axes.md) | A coord may carry more than two axes, and it holds their scales | Accepted | — |
 | [0079](0079-parallel-sets.md) | A parallel-sets diagram is a count, and the flow layout already draws it | Accepted | — |
 | [0080](0080-nearest-neighbour-cells.md) | A cell is the part of a panel nearest one row, and it is cut where the reader measures it | Accepted | — |
+| [0081](0081-a-map-projection.md) | A map projection is a coord that is handed degrees, and its graticule is the two tick lists a panel already has | Accepted | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -294,6 +295,27 @@ in device space — beside a dependency arrow's elbow and a label on a curve, an
 for their reason: each is a reading aid rather than a claim about a value. It
 is also the first layout-shaped mark whose mark *is* a row, where 0074's bars
 and 0079's ribbons are counts and report nothing.
+
+**0081 closes the oldest deferral in the repository, and it did it by
+reading the records rather than by building machinery.** A geographic
+projection is put off in one line in four places — `CONCEPT.md` §14, the v1
+audit, [ADR 0018](0018-coordinate-systems.md)'s "Revisit if" and
+[ADR 0080](0080-nearest-neighbour-cells.md)'s "Not in scope" — and argued in
+none of them. The two objections on record are that a projection has no linear
+interval underneath it and that its graticule has no tick behind it, and both
+had already been paid for by charts nobody thought of as maps: 0018 predicted
+that a projection *"will want `Frame` to hand a coord the data domain rather
+than a mapped position"*, which is exactly what
+[ADR 0033](0033-smith-charts.md)'s identity range does, and
+[ADR 0070](0070-a-third-labelled-family.md) spent the labelled-family seam with
+a projection's graticule named as its third customer. The implementation found
+0070 right that the seam was needed and wrong about what for: **once the axes
+are degrees the graticule has ticks behind it** — a meridian is what a
+longitude tick looks like after the projection has had it — and what has no
+tick behind it is the thing none of the four records mentioned, the edge of the
+map. A globe's rim is drawn nowhere else. So `coord.Geo` is one file, four
+named projections and no change anywhere else in the tree, and the family seam
+is spent here on one unlabelled line.
 
 **0065 was the one that fitted the examples already in the repository** — a
 machine, a status board and a stream — and it is the one of the three that has

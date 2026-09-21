@@ -25,6 +25,9 @@ const (
 	// TypeParallel is the coord with one vertical axis per dimension. See
 	// [Parallel].
 	TypeParallel Type = "parallel"
+	// TypeGeo is the map projection: a longitude and a latitude placed on the
+	// plane. See [Geo].
+	TypeGeo Type = "geo"
 )
 
 // Desc is a coord reduced to what configures it.
@@ -86,6 +89,17 @@ type Desc struct {
 	// fractions, 100 for percentages. Zero is the default, which is 1, so a
 	// Desc that names the type and nothing else draws what [Ternary] draws.
 	Sum float64
+
+	// Projection is which map projection a [Geo] coord draws, and CenterLon
+	// and CenterLat where it is centred, in degrees.
+	//
+	// The projection is a name rather than a function for the reason the
+	// curve families and the locus families are names: a Go function cannot
+	// be written down, and a coord that could not be written down would be a
+	// chart the spec loses. The centre is two numbers because a projection's
+	// configuration is a handful of numbers, which is what [Desc] is for.
+	Projection           Projection
+	CenterLon, CenterLat float64
 
 	// Depth and DepthAngle are an oblique coord's depth vector: how deep, as
 	// a fraction of the panel's shorter side, and in which direction, in
@@ -154,6 +168,23 @@ func FromDesc(d Desc) (Coord, error) {
 	case TypeTernary:
 		return Ternary(TernarySum(d.Sum)), nil
 
+	case TypeGeo:
+		p := d.Projection
+		if p == "" {
+			// The absent projection is the equal-area one: a map that
+			// misleads about size is asked for by name. See
+			// [DefaultProjection].
+			p = DefaultProjection
+		}
+		if !p.Known() {
+			return nil, fmt.Errorf("%w: %q", ErrUnknownProjection, p)
+		}
+		opts := []GeoOption{GeoCenter(d.CenterLon, d.CenterLat)}
+		if d.Arc {
+			opts = append(opts, GeoArc())
+		}
+		return Geo(p, opts...), nil
+
 	case TypeParallel:
 		dims := make([]ParallelDim, 0, len(d.Dims))
 		for _, e := range d.Dims {
@@ -174,6 +205,12 @@ func FromDesc(d Desc) (Coord, error) {
 // ErrUnknownType reports a Desc naming a coord this package does not have and
 // nobody registered.
 var ErrUnknownType = errors.New("figure/coord: unknown coord type")
+
+// ErrUnknownProjection reports a Desc naming a map projection this package
+// does not draw. Unlike a coord type it cannot be registered: the set is
+// closed so that a map can be written down, and a projection of one's own is a
+// [Coord] of one's own. See [Projection].
+var ErrUnknownProjection = errors.New("figure/coord: unknown map projection")
 
 func (p *polar) Describe() Desc {
 	return Desc{

@@ -79,7 +79,13 @@ its two sizes are 250 sites and a thousand rather than a hundredfold, because
 the mark refuses past `stat.MaxVoronoiSites` — every cell is clipped against
 every other site, so between the two the *work* grows sixteenfold and the
 allocations must not move at all
-([ADR 0080](adr/0080-nearest-neighbour-cells.md)). Their
+([ADR 0080](adr/0080-nearest-neighbour-cells.md)). `Globe` is a hundred
+thousand readings scattered over the sphere and projected onto the hemisphere
+that faces the reader: three trigonometric functions and a visibility test per
+row, and more than half the rows dropped without being drawn — so it is where
+a coord that allocated per point, or a layer that grew a buffer for the points
+it decided not to draw, would show
+([ADR 0081](adr/0081-a-map-projection.md)). Their
 slack against the small side is eight, or twelve where the large frame is big
 enough to provoke a pool miss; `allocgate.awk` says which and why.
 

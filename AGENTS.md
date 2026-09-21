@@ -231,6 +231,45 @@ re-derives the range from the domain it was just handed. Anything new that
 assumes "a scale's range is in pixels" is wrong under this coord and probably
 under the next one. See [ADR 0033](docs/adr/0033-smith-charts.md).
 
+**A map's default projection is the equal-area one, and that is a decision
+rather than a preference.** `coord.Geo("")` and a document naming no projection
+are both `coord.DefaultProjection`, which is `Mollweide`: on a map, how much
+ground a thing covers reads as how much of it there is, so the three
+projections that draw a region larger or smaller than its share are asked for
+by name. Do not "simplify" it to the affine one because that is the cheapest
+map to compute.
+
+**A map makes a scale's range its own domain too, and then cuts it.**
+`coord.Geo.Frame` calls the same `identityRange` the Smith coord does — a
+projection is not separable, so the pair reaching `Point` has to be the degrees
+themselves — and then *narrows* its own copy to what the projection reaches:
+±85.051129° for Mercator, a turn of longitude about the centre for everything.
+`Extent` reports that cut rather than the scale's range, so a mark asked to
+span the axis spans the map instead of running off to the infinity a Mercator's
+pole is. Three things follow. An axis here wants a **linear** scale, for the
+Smith chart's reason. A place the projection has no image for — the far side of
+a globe, a latitude past the cut — is **NaN**, so anything new that assumes
+`Point` is finite is wrong under this coord first: the graticule is drawn by a
+walk that starts a new subpath wherever the image resumes, which is why a
+meridian on a globe is one shape holding several subpaths. And the latitude
+clamp is *a hair inside* the cut, because the domain travels as a float32 and
+the nearest float32 to 85.051129 is outside it — clamp to the cut itself and
+the map loses its southern edge. Everything the coord draws for **itself** — a meridian, a parallel, the side of
+a cell, the outline of the map — is walked in longitudes measured from the
+centre meridian rather than in the caller's, and `geo.relW`/`relE` are that
+interval. A walk in the caller's longitudes jumps the width of the picture
+wherever theirs crosses the map's cut: a Pacific-centred world map has a domain
+of −180° to 180° and a map from −30° to 330°, and its parallels came out drawn
+straight back across the world. Data points go through `Point`, which wraps;
+anything the coord builds goes through `pointAt`, which does not. Unlike a
+Smith chart a map **zooms**, because its picture is derived from the domain
+rather than fixed: the fit is
+recomputed every `Frame` by walking the image of the domain — a lattice, plus
+the rim for a globe — rather than from a per-projection formula, and one scale
+factor serves both directions because a map stretched to fill its panel is a
+projection nobody chose. See
+[ADR 0081](docs/adr/0081-a-map-projection.md).
+
 **A coord holds no scales, with one exception, and it is the one with more
 than two axes.** `coord.Parallel` carries a scale per dimension because that is
 what a parallel-coordinates panel is; every other coord borrows the panel's two
@@ -265,13 +304,19 @@ what `geom.Locus` is, and it is why there are VSWR circles now and still no
 second tick list.
 A `Shape` may also hold more than one subpath, which is how a ternary chart's
 third grid family is drawn without a third tick list
-([ADR 0051](docs/adr/0051-barycentric-coord.md)). What genuinely still needs the
-wider seam is a labelled *furniture* family with no tick behind it — a
-projection's graticule, a ternary's third ladder — and that is one decision for
-all of them. [ADR 0073](docs/adr/0073-labels-on-a-curve.md) narrowed it to that
-much: a family drawn as a **mark** writes its own levels along its curves now,
-with the curve gapped for the text, and `render`'s one tick list per axis is
-untouched.
+([ADR 0051](docs/adr/0051-barycentric-coord.md)). What genuinely needed the
+wider seam was a labelled *furniture* family with no tick behind it — a
+ternary's third ladder, and what everyone assumed was a projection's graticule
+— and [ADR 0070](docs/adr/0070-a-third-labelled-family.md) spent it once for
+all of them. [ADR 0073](docs/adr/0073-labels-on-a-curve.md) had narrowed it to
+that much first: a family drawn as a **mark** writes its own levels along its
+curves now, with the curve gapped for the text, and `render`'s one tick list
+per axis is untouched. The graticule turned out not to be a customer: with
+degrees on the axes a meridian *is* a longitude tick's own shape, exactly as a
+polar ring is a Y tick's. What a map does raise as a family is the **edge of
+the map** — a globe's rim is where the sphere turns away rather than a meridian
+anybody can label, and it is drawn nowhere else
+([ADR 0081](docs/adr/0081-a-map-projection.md)).
 
 **A locus is sampled against the panel, and the Nichols families are refined
 rather than walked.** `stat.Extent.Steps` is a tolerance rather than a count for
@@ -1381,10 +1426,28 @@ tick reason. `coord.SmithZ` is the bridge. It does not implement `coord.Exploder
 the middle of a Smith chart is a matched load, not an origin of magnitude, so
 there is no direction away from it that means anything. And it does not zoom.
 
-Deliberately not done. There is no **geographic projection**: a
-projection transforms every point with no linear interval underneath it, which
-is a wider seam than this one, and ADR 0018 says it is argued on its own
-evidence rather than smuggled in as a third `Coord`. A polar coord **does not
+Deliberately not done, under a **geographic projection**, which exists now:
+`coord.Geo` ships **no geography** — a coastline, a border and a country's fill
+are rows in the caller's table, because a shapefile or a GeoJSON reader is a
+package that is allowed dependencies and the core has none — and **no
+spherical arithmetic**: a great circle and a rhumb line are two different
+claims about one pair of places, so the waypoints are the caller's rows and a
+coord that picked one would be answering a question about the world. A path
+crossing the **antimeridian** is drawn across the map rather than wrapped round
+it, for the same reason: two consecutive rows at 179° and −179° are two degrees
+apart or three hundred and fifty-eight, and the pair does not say which. There
+is **no mark that fills a closed ring of rows**, which is what a choropleth of
+country shapes wants: that is a mark rather than a coord, with four questions
+of its own — which row a region reports, how a ring is named, what a hole is,
+whether a vertex is a mark — and a record of its own when somebody has
+geography to draw. A gridded field is `geom.Rect` and draws today. There is
+**no conic projection**, because Albers and Lambert are configured by two
+standard parallels and `coord.Desc` carries no such field yet; adding one is
+additive. And the map **does not decimate**, because a pixel column is a band
+of longitude under two of the four projections and of nothing in particular
+under the other two ([ADR 0081](docs/adr/0081-a-map-projection.md)).
+
+Deliberately not done. A polar coord **does not
 decimate**, per that record's fourth property. `layout` is **untouched** — a
 polar coord inscribes itself in whatever rectangle the solver gives it, and
 gutter rules that understand a radial axis are a later milestone. A radar's

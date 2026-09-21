@@ -181,6 +181,15 @@ END {
 	# while doing so.
 	flat("BenchmarkVoronoi250", "BenchmarkVoronoi1000", 8)
 
+	# The map projection, added with ADR 0081. A hundred times the rows are a
+	# hundred times the arithmetic — three trigonometric functions and a
+	# visibility test per row — and none of it may allocate: the coord appends
+	# into the buffer the layer already owns, and a point on the far side of
+	# the globe is dropped by writing a NaN rather than by collecting the
+	# survivors into a slice of their own. The second is the one worth naming,
+	# because collecting them is the obvious way to write it.
+	flat("BenchmarkGlobe1k", "BenchmarkGlobe100k", 8)
+
 	# Row identity, added after v0.5. Tracking which source row is behind each
 	# mark is opt-in, and what it is opt-in *for* is memory per mark — not
 	# per-frame allocations. If that stops being true it is a buffer that
