@@ -126,6 +126,69 @@ func Cmap4() []byte {
 	return wrapCmap(3, 1, b)
 }
 
+// Cmap4Ranged is a format 4 map whose segments read the glyph id array
+// through idRangeOffset rather than adding a delta — the shape a real font
+// uses for scattered code points such as "·" and "•", and the one Cmap4 does
+// not exercise. Two such segments, because the offset is measured from the
+// segment's own entry and a reader that gets the base of the array wrong is
+// off by a different amount in each:
+//
+//	U+00B7        → GlyphA
+//	U+2022..2024  → GlyphComp, missing, GlyphB
+//	'A'..'B'      → a plain delta segment in front of them
+func Cmap4Ranged() []byte {
+	type seg struct {
+		start, end uint16
+		delta      int16
+		ids        []uint16 // nil: a delta segment
+	}
+	segs := []seg{
+		{'A', 'B', GlyphA - 'A', nil},
+		{0xB7, 0xB7, 0, []uint16{GlyphA}},
+		{0x2022, 0x2024, 0, []uint16{GlyphComp, 0, GlyphB}},
+		{0xFFFF, 0xFFFF, 1, nil},
+	}
+	n := len(segs)
+	var ids []uint16
+	offsets := make([]uint16, n)
+	for i, s := range segs {
+		if s.ids == nil {
+			continue
+		}
+		// From this segment's idRangeOffset entry to its first id: the rest
+		// of the offset array, then the ids of the segments before it.
+		offsets[i] = uint16(2*(n-i) + 2*len(ids))
+		ids = append(ids, s.ids...)
+	}
+
+	var b []byte
+	u16 := func(v uint16) { b = binary.BigEndian.AppendUint16(b, v) }
+	u16(4)
+	u16(uint16(16 + 8*n + 2*len(ids))) // length
+	u16(0)                             // language
+	u16(uint16(2 * n))
+	u16(2) // the search hints, which nothing reads
+	u16(1)
+	u16(0)
+	for _, s := range segs {
+		u16(s.end)
+	}
+	u16(0) // the reserved pad
+	for _, s := range segs {
+		u16(s.start)
+	}
+	for _, s := range segs {
+		u16(uint16(s.delta))
+	}
+	for _, off := range offsets {
+		u16(off)
+	}
+	for _, id := range ids {
+		u16(id)
+	}
+	return wrapCmap(3, 1, b)
+}
+
 // Cmap12 is the same mapping in the flat format a font needs to reach past the
 // Basic Multilingual Plane, plus one code point that actually is past it.
 func Cmap12() []byte {
