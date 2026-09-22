@@ -237,3 +237,23 @@ func TestARasterIsReadAsItsReadingsAndNotAsAnImage(t *testing.T) {
 		t.Errorf("the table mentions the image the mark happens to draw with:\n%s", tab)
 	}
 }
+
+// A break is marked on the axis for a reader who can see it; a listener is
+// told in words which stretch is missing, or the description says two
+// distances are alike that are not.
+func TestABrokenAxisIsDescribed(t *testing.T) {
+	c := a11y.Chart{
+		X:      scale.Linear(),
+		Y:      scale.Linear(scale.Break(10, 88), scale.Fold(scale.Interval{Lo: 92, Hi: 94})),
+		Layers: []geom.Geom{geom.Line(table(), geom.X("x"), geom.Y("y"))},
+	}
+	s := a11y.Describe(c)
+	for _, want := range []string{"vertical axis is broken, leaving out 10 to 88", "vertical axis folds out 92 to 94"} {
+		if !strings.Contains(s.Detail, want) {
+			t.Errorf("the description does not mention %q:\n%s", want, s.Detail)
+		}
+	}
+	if strings.Contains(s.Detail, "horizontal axis") {
+		t.Errorf("an unbroken axis was described as broken:\n%s", s.Detail)
+	}
+}

@@ -106,6 +106,23 @@ pan turns the axis back round. What reverses is the device range — see
 across a panel walks them in **screen** order for the same reason: a tick
 sequence is ascending by value, and on a reversed axis that is right to left.
 
+**An axis break is off until the renderer switches it on, and a value inside
+one is not missing.** `scale.Break`, `scale.Fold` and their time forms keep
+`Map` continuous: a value in a cut maps linearly across the gap and the panel's
+clip hides it, which is what keeps `Invert` exact and a bar across the break one
+bar. Do not "fix" that by answering NaN or `Defined == false` — a point there
+would vanish silently and the tall bar the break exists for would be cut. The
+gap is a device length the scale cannot know, so `render.breakGaps` sets it
+through `scale.Breaker` once per render, and sets it **off** under any coord
+that is not `coord.Breakable` and on every second axis: a break drawn without
+its mark is an axis whose ruler is wrong where nobody says so. The cuts are
+resolved on the stack of every call rather than cached, so a pan needs nothing
+invalidated and a snapshot shares nothing it writes; per piece, `place` and the
+endpoint snap apply exactly as they do to a whole axis. With no active cut,
+`framedCartesian.Clip` is the panel rectangle and its furniture is two-point
+polylines — which is why no golden file moved, and why that branch must stay.
+See [ADR 0083](docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md).
+
 **Scales place a value with one explicit rounding, and it is not redundant.**
 `scale.place` writes `rlo + float32(float32(t)*(rhi-rlo))`. The inner
 conversion looks like a no-op — `t` is already being converted — and it is not:
@@ -1307,9 +1324,9 @@ Optional interfaces are how this codebase extends a type without breaking
 everyone who implements it: `scale.Definite`, `scale.Categorical`,
 `scale.Band`, `scale.Cloner`, `scale.Snapshotter`, `scale.Zoomer`,
 `scale.Describer`, `scale.ColorDescriber`, `scale.DiscreteColorScale`,
-`scale.SizeDescriber`, `scale.Temporal`, `geom.Faceter`, `geom.Guided`,
+`scale.SizeDescriber`, `scale.Temporal`, `scale.Breaker`, `geom.Faceter`, `geom.Guided`,
 `geom.Sized`, `geom.Legender`, `geom.Describer`, `coord.Describer`,
-`coord.Exploder`, `ir.Partial`, `ir.Semantics`, `ir.Resizer`,
+`coord.Exploder`, `coord.Breakable`, `ir.Partial`, `ir.Semantics`, `ir.Resizer`,
 `mathtext.Plainer`. Reach for one before adding a method to `Scale`, `Geom` or
 `Backend`. `geom.Legender` is the newest and the argument is worth keeping in
 view: a pie, a stack and a waffle contribute N legend entries from one layer,

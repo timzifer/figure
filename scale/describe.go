@@ -64,6 +64,10 @@ type Desc struct {
 	// TickValues is a linear scale's pinned tick sequence, ascending, and is
 	// empty for an axis that chooses its own. See [TickValues].
 	TickValues []float64
+	// Cuts are the intervals a linear or time axis leaves out with a break,
+	// and Folds those it leaves out with a fold, ascending and disjoint, in
+	// the scale's own domain space. See [Break] and [Fold].
+	Cuts, Folds []Interval
 	// Base is the log or symlog base, and Threshold the symlog linear region.
 	Base, Threshold float64
 	// MinorTicks reports the unlabelled subdivisions of a log or symlog axis,
@@ -158,7 +162,11 @@ func FromDesc(d Desc) (Scale, error) {
 		if len(d.TickValues) > 0 {
 			opts = append(opts, TickValues(d.TickValues...))
 		}
-		opts = append(opts, func(l *linear) { l.numFormat = f; l.loc = localeNamed(d.Locale) })
+		opts = append(opts, func(l *linear) {
+			l.numFormat = f
+			l.loc = localeNamed(d.Locale)
+			l.cuts = l.cuts.with(false, d.Cuts...).with(true, d.Folds...)
+		})
 		return Linear(opts...), nil
 
 	case KindLog:
@@ -228,7 +236,10 @@ func FromDesc(d Desc) (Scale, error) {
 		if d.Layout != "" {
 			opts = append(opts, TimeLayout(d.Layout))
 		}
-		opts = append(opts, func(t *timeScale) { t.locale = localeNamed(d.Locale) })
+		opts = append(opts, func(t *timeScale) {
+			t.locale = localeNamed(d.Locale)
+			t.cuts = t.cuts.with(false, d.Cuts...).with(true, d.Folds...)
+		})
 		s := Time(opts...)
 		if d.Fixed {
 			s.(Zoomer).SetDomain(d.Min, d.Max)
@@ -259,6 +270,7 @@ func (l *linear) Describe() Desc {
 	if len(l.ticks) > 0 {
 		d.TickValues = append([]float64(nil), l.ticks...)
 	}
+	d.Cuts, d.Folds = l.cuts.intervals(false), l.cuts.intervals(true)
 	return d
 }
 
@@ -297,6 +309,7 @@ func (s *timeScale) Describe() Desc {
 	if s.fixed {
 		d.Min, d.Max = s.dmin, s.dmax
 	}
+	d.Cuts, d.Folds = s.cuts.intervals(false), s.cuts.intervals(true)
 	return d
 }
 

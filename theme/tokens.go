@@ -116,6 +116,12 @@ func Build(t Tokens) Theme {
 		TickCountHintX: 6,
 		TickCountHintY: 5,
 
+		AxisBreakGap:  1.5 * u,
+		AxisBreakSize: 2 * u,
+		AxisBreakMark: BreakSlash,
+		AxisFoldGap:   0.5 * u,
+		AxisFoldSize:  1.5 * u,
+
 		LegendSwatch:  3 * u,
 		LegendPad:     2 * u,
 		LegendGap:     1.5 * u,

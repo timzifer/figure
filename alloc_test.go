@@ -831,3 +831,35 @@ func spiral(rows int) *three.Plot {
 		Add(three.Line3(src, geom.X("x"), geom.Y("y"), geom.Z("t")))
 	return three.New(three.Size(800, 600)).Scene(sc)
 }
+
+// shiftLog is a series over n rows with two hundred idle stretches folded
+// off its axis — the machine chart a fold exists for, at a size where a walk
+// over the folds per row would show. The axis is linear rather than time so
+// that what is measured is the fold and not the conversion of a time column,
+// which a time axis pays with or without one; the two scales share the code
+// that places a value around a fold.
+func shiftLog(n int) *figure.Plot {
+	xs := make([]float64, n)
+	vs := make([]float64, n)
+	for i := range n {
+		xs[i] = float64(i) / float64(n) * 1000
+		vs[i] = math.Sin(float64(i) / 40)
+	}
+	folds := make([]scale.Interval, 200)
+	for i := range folds {
+		at := float64(i+1) * 1000 / 201
+		folds[i] = scale.Interval{Lo: at - 1, Hi: at + 1}
+	}
+	p := figure.New(figure.Size(800, 400))
+	p.X(scale.Linear(scale.Fold(folds...)))
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(figure.Float64Columns(map[string][]float64{"x": xs, "v": vs}), geom.X("x"), geom.Y("v")))
+	return p
+}
+
+// A folded axis, at a thousand rows and at a hundred thousand. Every row is
+// mapped by a binary search over the folds, into nothing but the stack; what
+// must not grow is the allocation count. See
+// docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+func BenchmarkFolded1k(b *testing.B)   { onOnePGate(b); benchmarkPlot(b, shiftLog(1_000)) }
+func BenchmarkFolded100k(b *testing.B) { onOnePGate(b); benchmarkPlot(b, shiftLog(100_000)) }

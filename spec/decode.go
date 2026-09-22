@@ -196,6 +196,13 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 		// and an absent type is already "linear" by the time it gets here.
 		d.Reverse = s.Reverse
 	}
+	var err error
+	if d.Cuts, err = decodeCuts(s.Cuts, d.Origin); err != nil {
+		return scale.Desc{}, err
+	}
+	if d.Folds, err = decodeCuts(s.Folds, d.Origin); err != nil {
+		return scale.Desc{}, err
+	}
 	if len(s.Domain) == 2 {
 		lo, err := domainValue(s.Domain[0], d.Origin)
 		if err != nil {
@@ -210,6 +217,27 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 		return scale.Desc{}, fmt.Errorf("a %s domain needs two bounds, got %d", typ, len(s.Domain))
 	}
 	return d, nil
+}
+
+// decodeCuts reads a scale's breaks or folds: pairs of bounds, each read the
+// way a domain bound is.
+func decodeCuts(cs [][]any, origin int64) ([]scale.Interval, error) {
+	var out []scale.Interval
+	for _, c := range cs {
+		if len(c) != 2 {
+			return nil, fmt.Errorf("an axis cut needs two bounds, got %d", len(c))
+		}
+		lo, err := domainValue(c[0], origin)
+		if err != nil {
+			return nil, err
+		}
+		hi, err := domainValue(c[1], origin)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, scale.Interval{Lo: lo, Hi: hi})
+	}
+	return out, nil
 }
 
 // domainValue reads one domain bound. A bound written as a timestamp is

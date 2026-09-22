@@ -1043,7 +1043,7 @@ func figures() []plate {
 				add("saturation", func(x float64) float64 { return 0.45 + 0.3*math.Sin(x/3) }, 3)
 			},
 		},
-	}, hatchFigures()...)
+	}, append(hatchFigures(), axisBreakFigures()...)...)
 }
 
 // budgets is five teams: what each spent as a share of the total, where its

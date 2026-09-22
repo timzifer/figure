@@ -125,6 +125,11 @@ type linear struct {
 	numFormat numberFormat
 	loc       *Locale
 
+	// cuts are the intervals [Break] and [Fold] leave out, and gaps how wide
+	// the renderer said they are. See [Breaker].
+	cuts cuts
+	gaps gaps
+
 	// cached nicing, invalidated whenever the domain changes
 	nicedFor [2]float64
 	niced    labelling
@@ -200,6 +205,9 @@ func (l *linear) Map(v float64) float32 {
 	if hi == lo {
 		return rlo
 	}
+	if b, ok := l.cuts.resolve(l.gaps, lo, hi, rlo, rhi); ok {
+		return b.mapTo(v)
+	}
 	// Snap the endpoints. Without this, mapping the domain maximum lands a
 	// float32 ulp short of the range end, and every "is this tick inside the
 	// plot" test at the boundary answers no.
@@ -220,6 +228,9 @@ func (l *linear) Map64(v float64) float64 {
 	if hi == lo {
 		return float64(rlo)
 	}
+	if b, ok := l.cuts.resolve(l.gaps, lo, hi, rlo, rhi); ok {
+		return b.map64(v)
+	}
 	return place64(rlo, rhi, (v-lo)/(hi-lo))
 }
 
@@ -228,6 +239,9 @@ func (l *linear) Invert(pos float32) float64 {
 	rlo, rhi := l.device()
 	if rhi == rlo {
 		return lo
+	}
+	if b, ok := l.cuts.resolve(l.gaps, lo, hi, rlo, rhi); ok {
+		return b.invert(pos)
 	}
 	t := float64((pos - rlo) / (rhi - rlo))
 	return lo + t*(hi-lo)
@@ -239,11 +253,16 @@ func (l *linear) SetLocale(loc *Locale) { l.loc = loc }
 func (l *linear) Ticks(req TickRequest) []Tick {
 	want := req.Want
 	lo, hi := l.effective()
+	rlo, rhi := l.device()
+	b, broke := l.cuts.resolve(l.gaps, lo, hi, rlo, rhi)
 	var vals []float64
 	step := 0.0
-	if len(l.ticks) > 0 {
+	switch {
+	case len(l.ticks) > 0:
 		vals, step = l.ticks, closestSpacing(l.ticks)
-	} else {
+	case broke:
+		vals, step = brokenValues(&b, want)
+	default:
 		lab := extendedWilkinson(lo, hi, want, false)
 		vals, step = lab.values(), lab.step
 	}
@@ -254,6 +273,9 @@ func (l *linear) Ticks(req TickRequest) []Tick {
 	out := make([]Tick, 0, len(vals))
 	for _, v := range vals {
 		if v < lo-1e-9*math.Abs(hi-lo) || v > hi+1e-9*math.Abs(hi-lo) {
+			continue
+		}
+		if broke && b.inside(v) {
 			continue
 		}
 		out = append(out, Tick{Value: v, Pos: l.Map(v), Label: fmtFn(v)})

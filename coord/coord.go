@@ -226,6 +226,11 @@ type Metrics struct {
 	// LabelPad is the gap between the end of a full-length tick mark and the
 	// label beyond it.
 	LabelPad float32
+	// BreakSize is how large the mark of an axis break is drawn, FoldSize the
+	// same for a fold, and BreakMark which mark a break gets. See
+	// [Breakable].
+	BreakSize, FoldSize float32
+	BreakMark           BreakMark
 }
 
 // tickLen is how far tick t's mark reaches.
@@ -262,7 +267,7 @@ func (cartesian) Frame(f Framing) Coord {
 		// Y is flipped: larger values are higher on screen.
 		y.SetRange(area.Max.Y, area.Min.Y)
 	}
-	return framedCartesian{area: area}
+	return framedCartesian{area: area, x: x, y: y}
 }
 
 // Extent is empty until [cartesian.Frame] has been called: an unframed coord
@@ -360,6 +365,10 @@ func (cartesian) Furniture(dst *Furniture, req FurnitureRequest) {
 type framedCartesian struct {
 	cartesian
 	area ir.Rect
+	// x and y are the scales it was framed against, kept for the one question
+	// a Cartesian coord asks of them after framing: whether either axis has
+	// intervals left out of it. See [Breakable].
+	x, y scale.Scale
 }
 
 func (f framedCartesian) Extent() (x0, x1, y0, y1 float32) {

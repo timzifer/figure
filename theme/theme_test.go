@@ -313,3 +313,17 @@ func TestHatchSizeSetsEitherHalfAlone(t *testing.T) {
 		t.Error("a negative size overwrote the theme's own")
 	}
 }
+
+// A break's gap and mark are lengths like any other, so a chart drawn at half
+// size draws them at half size too.
+func TestScaledScalesTheAxisBreaks(t *testing.T) {
+	th := theme.Light.With(theme.Scaled(0.5))
+	if th.AxisBreakGap != theme.Light.AxisBreakGap/2 || th.AxisBreakSize != theme.Light.AxisBreakSize/2 ||
+		th.AxisFoldGap != theme.Light.AxisFoldGap/2 || th.AxisFoldSize != theme.Light.AxisFoldSize/2 {
+		t.Errorf("Scaled(0.5) left the axis breaks at %v/%v/%v/%v",
+			th.AxisBreakGap, th.AxisBreakSize, th.AxisFoldGap, th.AxisFoldSize)
+	}
+	if theme.Light.AxisBreakGap <= 0 || theme.Light.AxisFoldSize <= 0 {
+		t.Errorf("the default theme has no break gap or fold size")
+	}
+}

@@ -388,6 +388,7 @@ something else.
 | A chart in a language | **shipped** — [ADR 0035](adr/0035-label-format-and-locale.md) | `scale.Locale` and `figure.Locale`. The time ladder rendered through Go's English tables and `strconv` writes a decimal point; for a German reader the second is not foreign but wrong. |
 | A PDF in a script WinAnsi cannot hold | **shipped** — [ADR 0038](adr/0038-embedded-fonts.md) | `pdf.WithFont`. The PDF emitter named the base-14 Helvetica and encoded WinAnsi, so every rune outside Latin-1 became `?` — Greek, Cyrillic, Hebrew, Thai and every CJK script, in the format people send to customers. |
 | Absence in a text or temporal column | **shipped** — [ADR 0034](adr/0034-null-values.md) | `data.Column.Nulls`. A null read back as `""` was a band of its own on an ordinal axis and one read back as the zero time stretched a domain across two millennia. |
+| An axis with an interval left out | **shipped** — [ADR 0083](adr/0083-an-axis-break-is-marked-or-not-drawn.md) | `scale.Break`, `scale.Fold` and `figure.SpansWhere`. One value thirty times the rest flattened every other bar to a sliver, and a machine's idle hours filled half of every timeline; a log axis answers the first by changing what a distance means everywhere, and nothing answered the second. The gap is marked, or the axis is not broken. |
 
 ## I — needs a locus — **shipped**, [ADR 0050](adr/0050-locus-annotations.md)
 

@@ -64,6 +64,17 @@ type Theme struct {
 	TickCountHintX int
 	TickCountHintY int
 
+	// Axis breaks and folds: how wide the gap is that an interval left out of
+	// an axis leaves behind, how large its mark is drawn, and which mark a
+	// break gets. A fold is always marked with a small slash. See
+	// [github.com/timzifer/figure/scale.Break] and
+	// docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+	AxisBreakGap  float32
+	AxisBreakSize float32
+	AxisBreakMark BreakMark
+	AxisFoldGap   float32
+	AxisFoldSize  float32
+
 	// Legend.
 	LegendSwatch  float32
 	LegendPad     float32
@@ -521,6 +532,44 @@ func TickCounts(x, y int) Option {
 	}
 }
 
+// BreakMark is how an axis break is marked.
+type BreakMark uint8
+
+const (
+	// BreakSlash draws // across the axis line at the two edges of the gap.
+	BreakSlash BreakMark = iota
+	// BreakZigzag runs a zigzag across the panel along both edges of the gap.
+	BreakZigzag
+)
+
+// AxisBreaks sets how an axis break is marked, how large its mark is and how
+// wide a gap it leaves. A size or gap that is not positive keeps the theme's.
+func AxisBreaks(mark BreakMark, size, gap float32) Option {
+	return func(t *Theme) {
+		t.AxisBreakMark = mark
+		if size > 0 {
+			t.AxisBreakSize = size
+		}
+		if gap > 0 {
+			t.AxisBreakGap = gap
+		}
+	}
+}
+
+// AxisFolds sets how large a fold's mark is and how wide a gap it leaves. A
+// gap of zero folds the axis without leaving any room, which is what an axis
+// with hundreds of folds may want; a negative value keeps the theme's.
+func AxisFolds(size, gap float32) Option {
+	return func(t *Theme) {
+		if size > 0 {
+			t.AxisFoldSize = size
+		}
+		if gap >= 0 {
+			t.AxisFoldGap = gap
+		}
+	}
+}
+
 // Density scales every spacing by f, tightening or loosening the whole chart
 // at once. Text sizes are left alone: a dense chart with unreadable labels is
 // not denser, it is worse.
@@ -533,6 +582,8 @@ func Density(f float64) Option {
 		t.TickLength *= s
 		t.TickLabelPad *= s
 		t.AxisTitlePad *= s
+		t.AxisBreakGap *= s
+		t.AxisFoldGap *= s
 		t.LegendSwatch *= s
 		t.LegendPad *= s
 		t.LegendGap *= s
@@ -583,6 +634,10 @@ func Scaled(f float64) Option {
 		t.TickLength *= s
 		t.TickLabelPad *= s
 		t.AxisTitlePad *= s
+		t.AxisBreakGap *= s
+		t.AxisBreakSize *= s
+		t.AxisFoldGap *= s
+		t.AxisFoldSize *= s
 
 		t.LegendSwatch *= s
 		t.LegendPad *= s

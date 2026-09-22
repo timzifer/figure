@@ -190,6 +190,12 @@ END {
 	# because collecting them is the obvious way to write it.
 	flat("BenchmarkGlobe1k", "BenchmarkGlobe100k", 8)
 
+	# A folded time axis. Each row is placed by a binary search over two
+	# hundred folds, resolved on the stack every call, so a pan needs nothing
+	# invalidated and a frame over a hundred thousand rows allocates what one
+	# over a thousand does. See docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+	flat("BenchmarkFolded1k", "BenchmarkFolded100k", 8)
+
 	# Row identity, added after v0.5. Tracking which source row is behind each
 	# mark is opt-in, and what it is opt-in *for* is memory per mark — not
 	# per-frame allocations. If that stops being true it is a buffer that

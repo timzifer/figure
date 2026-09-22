@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="360" viewBox="0 0 560 360">
+<defs>
+<clipPath id="c1"><path d="M56.448,12 L544.332,12 L544.332,181.541 L56.448,181.541 Z M56.448,187.541 L544.332,187.541 L544.332,328.825 L56.448,328.825 Z"/></clipPath>
+</defs>
+<path d="M0,0 L560,0 L560,360 L0,360 Z" fill="#ffffff"/>
+<polyline fill="none" points="56.448,328.825 544.332,328.825" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,258.183 544.332,258.183" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,187.541 544.332,187.541" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,153.284 544.332,153.284" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,82.642 544.332,82.642" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,12 544.332,12" stroke="#dddddd"/>
+<polyline fill="none" points="56.448,328.825 544.332,328.825" stroke="#333333"/>
+<path fill="none" d="M56.448,12 L56.448,181.541 M56.448,187.541 L56.448,328.825" stroke="#333333"/>
+<polyline fill="none" points="105.236,328.825 105.236,333.825" stroke="#333333"/>
+<text x="105.236" y="337.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">A</text>
+<polyline fill="none" points="202.813,328.825 202.813,333.825" stroke="#333333"/>
+<text x="202.813" y="337.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">B</text>
+<polyline fill="none" points="300.39,328.825 300.39,333.825" stroke="#333333"/>
+<text x="300.39" y="337.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">C</text>
+<polyline fill="none" points="397.966,328.825 397.966,333.825" stroke="#333333"/>
+<text x="397.966" y="337.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">D</text>
+<polyline fill="none" points="495.543,328.825 495.543,333.825" stroke="#333333"/>
+<text x="495.543" y="337.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">E</text>
+<polyline fill="none" points="51.448,328.825 56.448,328.825" stroke="#333333"/>
+<text x="47.448" y="328.825" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">0</text>
+<polyline fill="none" points="51.448,258.183 56.448,258.183" stroke="#333333"/>
+<text x="47.448" y="258.183" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">5</text>
+<polyline fill="none" points="51.448,187.541 56.448,187.541" stroke="#333333"/>
+<text x="47.448" y="187.541" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">10</text>
+<polyline fill="none" points="51.448,153.284 56.448,153.284" stroke="#333333"/>
+<text x="47.448" y="153.284" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">90</text>
+<polyline fill="none" points="51.448,82.642 56.448,82.642" stroke="#333333"/>
+<text x="47.448" y="82.642" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">95</text>
+<polyline fill="none" points="51.448,12 56.448,12" stroke="#333333"/>
+<text x="47.448" y="12" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">100</text>
+<text x="20.616" y="170.413" font-family="sans-serif" font-size="12" text-anchor="middle" fill="#333333" transform="rotate(-90 20.616 170.413)">load</text>
+<g clip-path="url(#c1)">
+<path d="M66.206,272.311 L144.267,272.311 L144.267,328.825 L66.206,328.825 Z M163.782,229.926 L241.844,229.926 L241.844,328.825 L163.782,328.825 Z M261.359,286.44 L339.42,286.44 L339.42,328.825 L261.359,328.825 Z M358.936,68.514 L436.997,68.514 L436.997,328.825 L358.936,328.825 Z M456.513,244.055 L534.574,244.055 L534.574,328.825 L456.513,328.825 Z" fill="#56b4e9"/>
+</g>
+<path fill="none" d="M52.448,183.941 L60.448,179.141 M52.448,189.941 L60.448,185.141" stroke="#333333"/>
+</svg>
