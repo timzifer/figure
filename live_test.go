@@ -214,3 +214,60 @@ type opaqueLayer struct{}
 func (opaqueLayer) Train(geom.Training) error                  { return nil }
 func (opaqueLayer) Build(ir.Backend, geom.Frame) error         { return nil }
 func (opaqueLayer) Legend(geom.Frame) (geom.LegendEntry, bool) { return geom.LegendEntry{}, false }
+
+// ResetView releases the zoom as Autoscale does, but leaves the frame to the
+// next Draw.
+func TestResetViewDrawsNothingUntilDraw(t *testing.T) {
+	_, live, rec := livePlot(t)
+	panel := live.Index().Panels()[0]
+	lo0, hi0 := panel.X.Domain()
+
+	sel := ir.Rect{
+		Min: ir.Point{X: panel.X.Map(1), Y: panel.Y.Map(6)},
+		Max: ir.Point{X: panel.X.Map(3), Y: panel.Y.Map(2)},
+	}
+	if err := live.ZoomTo(sel); err != nil {
+		t.Fatal(err)
+	}
+	calls := len(rec.Calls)
+
+	live.ResetView()
+	if len(rec.Calls) != calls {
+		t.Errorf("ResetView drew %d calls, want none", len(rec.Calls)-calls)
+	}
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.Calls) == calls {
+		t.Error("the Draw after ResetView painted nothing")
+	}
+	if lo, hi := live.Index().Panels()[0].X.Domain(); lo != lo0 || hi != hi0 {
+		t.Errorf("the domain is %v..%v after ResetView, want the data's %v..%v", lo, hi, lo0, hi0)
+	}
+}
+
+// SetSize takes the size as Resize does, but leaves the frame to the next
+// Draw.
+func TestSetSizeDrawsNothingUntilDraw(t *testing.T) {
+	_, live, rec := livePlot(t)
+	calls := len(rec.Calls)
+
+	if err := live.SetSize(500, 320); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.Calls) != calls {
+		t.Errorf("SetSize drew %d calls, want none", len(rec.Calls)-calls)
+	}
+	if w, h := live.Size(); w != 500 || h != 320 {
+		t.Errorf("the size is %dx%d, want 500x320", w, h)
+	}
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.Calls) == calls {
+		t.Error("the Draw after SetSize painted nothing")
+	}
+	if err := live.SetSize(0, 320); err == nil {
+		t.Error("SetSize took a width of zero")
+	}
+}
