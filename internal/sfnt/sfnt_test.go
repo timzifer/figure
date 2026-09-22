@@ -76,6 +76,20 @@ func TestTheCmapFormats(t *testing.T) {
 		check(t, f, 'Z', 0)
 		check(t, f, '\U0001F600', 0)
 	})
+	// Segments that go through the glyph id array. The reader once took the
+	// start of the idRangeOffset array for the start of the glyph id array,
+	// so every such lookup landed segCountX2 bytes early - on a neighbour's
+	// id. In Noto Sans that drew "•" as "," in every embedded PDF.
+	t.Run("format 4 with range offsets", func(t *testing.T) {
+		f := parse(t, sfnttest.Font(sfnttest.Cmap4Ranged(), sfnttest.NumGlyphs))
+		check(t, f, 'A', sfnttest.GlyphA)
+		check(t, f, 'B', sfnttest.GlyphB)
+		check(t, f, '·', sfnttest.GlyphA)
+		check(t, f, '•', sfnttest.GlyphComp)
+		check(t, f, '‣', 0)
+		check(t, f, '․', sfnttest.GlyphB)
+		check(t, f, '‥', 0)
+	})
 	t.Run("format 12", func(t *testing.T) {
 		f := parse(t, sfnttest.Font(sfnttest.Cmap12(), sfnttest.NumGlyphs))
 		check(t, f, 'A', sfnttest.GlyphA)

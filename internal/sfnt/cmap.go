@@ -118,7 +118,10 @@ func (c *cmap) read4(t []byte) error {
 	// Everything after the range-offset array is the glyph id array, and the
 	// offsets are measured from inside that array rather than from the table
 	// — which is why it is kept as bytes and indexed relative to its start.
-	c.glyphIDs = t[16+3*c.segX2:]
+	// After, not at: the range-offset array starts at 16+3*segX2 and is
+	// segX2 bytes long. Slicing at its start put every lookup through it
+	// segX2 bytes early, onto a neighbour's glyph.
+	c.glyphIDs = t[16+4*c.segX2:]
 	return nil
 }
 
