@@ -109,7 +109,7 @@ func (e *embedded) write(d *document, compress bool) error {
 		// CFF outlines are embedded whole and described as OpenType, because
 		// this package does not cut charstrings up — see internal/sfnt.
 		dict = "/Subtype /CIDFontType0"
-		fileKey = "/FontFile3 "
+		fileKey = "/FontFile3"
 	}
 
 	stream := fmt.Sprintf("/Length1 %d", len(prog))
@@ -121,7 +121,7 @@ func (e *embedded) write(d *document, compress bool) error {
 	xMin, yMin, xMax, yMax := f.BBox()
 	desc := d.add([]byte(fmt.Sprintf(
 		"<< /Type /FontDescriptor /FontName /%s /Flags 4 /FontBBox [%d %d %d %d] "+
-			"/ItalicAngle %s /Ascent %d /Descent %d /CapHeight %d /StemV %d %s%d 0 R >>",
+			"/ItalicAngle %s /Ascent %d /Descent %d /CapHeight %d /StemV %d %s %d 0 R >>",
 		name, k(xMin), k(yMin), k(xMax), k(yMax),
 		fmtNum(f.ItalicAngle()), k(f.Ascent()), k(f.Descent()), k(f.CapHeight()),
 		stemV(f.WeightClass()), fileKey, file)))

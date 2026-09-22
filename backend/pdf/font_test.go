@@ -1,6 +1,7 @@
 package pdf_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -55,6 +56,35 @@ func TestAnEmbeddedFontIsACIDFont(t *testing.T) {
 	}
 	if strings.Contains(doc, "/BaseFont /Helvetica") {
 		t.Error("a document with an embedded font still named Helvetica")
+	}
+}
+
+// The descriptor points at the font program by reference. A key run into the
+// object number ("/FontFile22 0 R") is a different name followed by a stray
+// "0 R": readers then treat the font as not embedded, and a PDF importer that
+// re-serialises the dictionary scrambles it.
+func TestTheDescriptorReferencesTheFontProgram(t *testing.T) {
+	for _, tc := range []struct {
+		name, key string
+		font      []byte
+	}{
+		{"TrueType", "/FontFile2", testTTF()},
+		{"CFF", "/FontFile3", sfnttest.CFFFont()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := drawLabel(t, "AB", pdf.WithFont(tc.font, nil, nil), pdf.Uncompressed())
+			m := regexp.MustCompile(regexp.QuoteMeta(tc.key) + ` (\d+) 0 R`).FindStringSubmatch(doc)
+			if m == nil {
+				t.Fatalf("the descriptor carries no %s reference", tc.key)
+			}
+			obj := regexp.MustCompile(`(?s)\n` + m[1] + ` 0 obj\n<<(.*?)>>\nstream`).FindStringSubmatch(doc)
+			if obj == nil {
+				t.Fatalf("%s points at object %s, which is not a stream", tc.key, m[1])
+			}
+			if tc.key == "/FontFile2" && !strings.Contains(obj[1], "/Length1") {
+				t.Errorf("object %s is not the font program: %s", m[1], obj[1])
+			}
+		})
 	}
 }
 
