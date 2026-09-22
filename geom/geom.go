@@ -972,9 +972,9 @@ func Slide(on bool) Option { return func(c *config) { c.pinned = !on } }
 // then is it called out, cut or dropped. A label without a space is one line
 // whatever this says.
 //
-// It does nothing in point mode, where there is no box to break a label for,
-// and a label called out of its box is written on one line: outside the box
-// there is room for it.
+// It does nothing in point mode, where there is no box to break a label for.
+// A label called out of its box ([Callout]) is broken the same way when the
+// room beside the chart does not hold it on one line.
 func Wrap(on bool) Option { return func(c *config) { c.wrap = on } }
 
 // Callout lets a [Text] layer draw a label that does not fit its box outside
@@ -985,6 +985,10 @@ func Wrap(on bool) Option { return func(c *config) { c.wrap = on } }
 // horizontal arm; labels on one side are stacked apart so that no two of them
 // share a line. It is what a thin slice of a pie or of a sunburst needs, where
 // the number is the reading and there is no room for it in the slice.
+//
+// A label too wide for the room beside the chart is broken over lines where
+// [Wrap] allows it, then shrunk down to [MinFontSize], and dropped only when
+// neither makes it fit.
 //
 // It needs a coord with a middle to go out of — [coord.Exploder] is that
 // answer — so under [coord.Cartesian] it does nothing: a bar has no outside

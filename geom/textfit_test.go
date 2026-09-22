@@ -264,6 +264,111 @@ func TestACalloutJustPastThePanelIsDrawnInOnAShorterArm(t *testing.T) {
 	}
 }
 
+// narrowPie frames a pie labelled with label in a panel narrowed by the same
+// amount on both sides, so that the disc does not move and the label, called
+// out at the layer's size on one line, runs over pixels past the edge.
+func narrowPie(t *testing.T, label string, over float32, opts ...geom.Option) (geom.Frame, geom.Geom) {
+	t.Helper()
+	g := pieLabels(pie(label, 0), append([]geom.Option{geom.Callout(true)}, opts...)...)
+	runs := draw(t, pieFrame(t, g), g).Filter("Text")
+	if len(runs) != 1 {
+		t.Fatalf("drew %v in the wide panel, want the label called out on one line", runs)
+	}
+	edge := runs[0].Text.At.X + irtest.New().Measure(runs[0].Text).Advance
+	d := 400 + over - edge
+	g = pieLabels(pie(label, 0), append([]geom.Option{geom.Callout(true)}, opts...)...)
+	return pieFrameIn(t, g, ir.R(d, 0, 400-d, 200)), g
+}
+
+// rightEdge is where the widest of runs ends.
+func rightEdge(runs []irtest.Call) float32 {
+	m := irtest.New()
+	var edge float32
+	for _, r := range runs {
+		edge = max(edge, r.Text.At.X+m.Measure(r.Text).Advance)
+	}
+	return edge
+}
+
+// A long name out of a slice at three o'clock has only the margin beside the
+// pie, and one that is too wide for it on one line is broken over lines where
+// Wrap allows it — at the layer's size, before it is shrunk - rather than
+// dropped. It was dropped: the name most worth calling out was the one that
+// never appeared.
+func TestACalloutTooWideForTheMarginIsBrokenOverLines(t *testing.T) {
+	const label = "Pause overrun"
+	f, g := narrowPie(t, label, 30, geom.Wrap(true))
+	r := draw(t, f, g)
+	runs, lines := r.Filter("Text"), r.Filter("Polyline")
+	if len(runs) < 2 || len(lines) != 1 {
+		t.Fatalf("drew %d runs and %d leaders, want the label broken over lines on one leader", len(runs), len(lines))
+	}
+	for _, run := range runs {
+		if run.Text.Font.Size != 12 || run.Text.H != ir.AlignStart {
+			t.Errorf("%q drawn at %v aligned %v, want the layer's 12 starting beside the pie", run.Text.Text, run.Text.Font.Size, run.Text.H)
+		}
+	}
+	if edge := rightEdge(runs); edge > f.Area.Max.X+0.01 {
+		t.Errorf("block ends at %.2f, past the edge of the panel at %.2f", edge, f.Area.Max.X)
+	}
+	// The leader meets the block in the middle, not its first line.
+	mid := (runs[0].Text.At.Y + runs[len(runs)-1].Text.At.Y) / 2
+	if end := lines[0].Points[2]; math.Abs(float64(end.Y-mid)) > 0.01 {
+		t.Errorf("leader ends at y %.2f, want the middle of the block at %.2f", end.Y, mid)
+	}
+}
+
+// Without Wrap the same label is shrunk to the margin, down to the floor.
+func TestACalloutTooWideForTheMarginIsShrunk(t *testing.T) {
+	f, g := narrowPie(t, "Pause overrun", 15)
+	runs := draw(t, f, g).Filter("Text")
+	if len(runs) != 1 {
+		t.Fatalf("drew %v, want the label shrunk onto one line", runs)
+	}
+	if s := runs[0].Text.Font.Size; s >= 12 || s < 9 {
+		t.Errorf("drawn at %v, want smaller than 12 and no smaller than the default floor of 9", s)
+	}
+	if edge := rightEdge(runs); edge > f.Area.Max.X+0.01 {
+		t.Errorf("label ends at %.2f, past the edge of the panel at %.2f", edge, f.Area.Max.X)
+	}
+
+	// A floor at the layer's size leaves nothing to shrink, and the label is
+	// dropped with its leader, as before.
+	f, g = narrowPie(t, "Pause overrun", 15, geom.MinFontSize(12))
+	r := draw(t, f, g)
+	if n := len(r.Filter("Text")) + len(r.Filter("Polyline")); n != 0 {
+		t.Errorf("drew %d runs and leaders for a label that fits neither at its size nor above its floor", n)
+	}
+}
+
+// A label broken over lines takes as many lines of the column it is stacked
+// in, and its neighbour is pushed along by the whole block.
+func TestAWrappedCalloutIsStackedByItsWholeHeight(t *testing.T) {
+	src := data.NewTable().
+		Float64("r0", []float64{0, 0, 0, 0}).
+		Float64("r1", []float64{1, 1, 1, 1}).
+		Float64("lo", []float64{0, 30, 31, 32}).
+		Float64("hi", []float64{30, 31, 32, 100}).
+		String("label", []string{"", "a label broken over lines", "1 %", ""})
+	g := pieLabels(src, geom.Callout(true), geom.Wrap(true))
+	f := pieFrame(t, g)
+	runs := draw(t, f, g).Filter("Text")
+	if len(runs) < 3 {
+		t.Fatalf("drew %v, want the first label broken and the second beside it", runs)
+	}
+	m := irtest.New()
+	h := m.Measure(ir.TextRun{Text: "0", Font: runs[0].Text.Font}).Height()
+	short := runs[len(runs)-1]
+	if short.Text.Text != "1 %" {
+		t.Fatalf("last run is %q, want the short label stacked under the block", short.Text.Text)
+	}
+	block := runs[:len(runs)-1]
+	bottom := block[len(block)-1].Text.At.Y + h/2
+	if top := short.Text.At.Y - h/2; top < bottom {
+		t.Errorf("short label's top at %.2f is inside the block ending at %.2f", top, bottom)
+	}
+}
+
 // Under Cartesian there is no outside to call a label out to, so the option
 // changes nothing: the label is dropped, as it would have been.
 func TestACalloutNeedsACoordWithAMiddle(t *testing.T) {
