@@ -666,6 +666,16 @@ type Scale struct {
 	Range    []string `json:"range,omitempty"`
 	Reverse  bool     `json:"reverse,omitempty"`
 
+	// Cuts are the intervals a linear or time axis leaves out with a break,
+	// and Folds those it leaves out with a fold, each a pair of bounds
+	// written the way `domain` writes one — numbers, or timestamps on a time
+	// axis. Vega-Lite has no axis breaks, and `breaks` below is already a
+	// threshold colour scale's class boundaries, so the word is figure's own.
+	// A document holds the intervals, never the query a caller computed them
+	// with. See docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+	Cuts  [][]any `json:"cuts,omitempty"`
+	Folds [][]any `json:"folds,omitempty"`
+
 	// Link is a probability axis's warp: "probit", "logit", "cloglog" or
 	// "gumbel", and "probit" when absent. Vega-Lite has no probability scale,
 	// so these are figure's names. A link written in Go has no name and

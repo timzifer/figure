@@ -158,6 +158,12 @@ type Furniture struct {
 	// the reason the gate exists at all.
 	FamiliesAreTheAxes bool
 
+	// Breaks are the marks of the gaps left in either axis, one shape with a
+	// subpath per stroke. render strokes them after the data, because a bar
+	// that crosses a break must not paint over the mark saying so. It is
+	// empty on every axis without a break. See [Breakable].
+	Breaks Shape
+
 	// LabelsYFirst decides which axis keeps its labels where the two collide.
 	// Labels that do not share a row are thinned by render against every
 	// other label by their boxes, greedily in axis order — X first, unless
@@ -171,6 +177,7 @@ type Furniture struct {
 func (f *Furniture) Reset() {
 	f.AxisX.reset()
 	f.AxisY.reset()
+	f.Breaks.reset()
 	f.GridX, f.GridY = resetShapes(f.GridX), resetShapes(f.GridY)
 	f.TickX, f.TickY = resetShapes(f.TickX), resetShapes(f.TickY)
 	f.LabelX, f.LabelY = f.LabelX[:0], f.LabelY[:0]

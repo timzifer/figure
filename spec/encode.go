@@ -182,6 +182,8 @@ func encodeScale(d scale.Desc) *Scale {
 		// travels under its own name.
 		out.Type = string(d.Kind)
 	}
+	out.Cuts = encodeCuts(d, d.Cuts)
+	out.Folds = encodeCuts(d, d.Folds)
 	if d.Fixed {
 		switch d.Kind {
 		case scale.KindTime:
@@ -197,6 +199,26 @@ func encodeScale(d scale.Desc) *Scale {
 		default:
 			out.Domain = []any{d.Min, d.Max}
 		}
+	}
+	return out
+}
+
+// encodeCuts writes a scale's breaks or folds as pairs of bounds, spelled the
+// way its domain is: instants on a time axis, for the reason the domain is.
+func encodeCuts(d scale.Desc, ivs []scale.Interval) [][]any {
+	if len(ivs) == 0 {
+		return nil
+	}
+	out := make([][]any, len(ivs))
+	for i, iv := range ivs {
+		if d.Kind == scale.KindTime {
+			out[i] = []any{
+				time.Unix(0, d.Origin+int64(iv.Lo)).UTC().Format(timeLayout),
+				time.Unix(0, d.Origin+int64(iv.Hi)).UTC().Format(timeLayout),
+			}
+			continue
+		}
+		out[i] = []any{iv.Lo, iv.Hi}
 	}
 	return out
 }

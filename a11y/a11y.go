@@ -342,6 +342,8 @@ func detail(c Chart, series []Series) string {
 		}
 		b.WriteString(".")
 	}
+	b.WriteString(cutsPhrase("horizontal", c.X))
+	b.WriteString(cutsPhrase("vertical", c.Y))
 	if c.Facet != "" {
 		fmt.Fprintf(&b, " Split into one panel per value of %s.", c.Facet)
 	}
@@ -349,6 +351,44 @@ func detail(c Chart, series []Series) string {
 		b.WriteString(" ")
 		b.WriteString(sentence(s))
 	}
+	return b.String()
+}
+
+// cutsPhrase says which intervals an axis leaves out. A sighted reader is told
+// by the mark on the axis; a listener has to be told in words, or the chart
+// says two distances are alike that are not. See
+// docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+func cutsPhrase(axis string, s scale.Scale) string {
+	d, ok := scale.Describe(s)
+	if !ok || len(d.Cuts)+len(d.Folds) == 0 {
+		return ""
+	}
+	spell := func(v float64) string {
+		if d.Kind == scale.KindTime {
+			return scale.InstantOf(s, v).UTC().Format(time.RFC3339)
+		}
+		return data.FormatNumber(v)
+	}
+	var b strings.Builder
+	write := func(what string, ivs []scale.Interval) {
+		if len(ivs) == 0 {
+			return
+		}
+		fmt.Fprintf(&b, " The %s axis %s ", axis, what)
+		for i, iv := range ivs {
+			switch {
+			case i == 0:
+			case i == len(ivs)-1:
+				b.WriteString(" and ")
+			default:
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(&b, "%s to %s", spell(iv.Lo), spell(iv.Hi))
+		}
+		b.WriteString(".")
+	}
+	write("is broken, leaving out", d.Cuts)
+	write("folds out", d.Folds)
 	return b.String()
 }
 

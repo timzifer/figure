@@ -432,6 +432,11 @@ func Draw(b ir.Backend, c Chart) error {
 		}
 	}
 
+	// Before anything is measured, every scale that can leave intervals out of
+	// its axis is told how wide a gap is — or that it has none to leave,
+	// because its panel's coord cannot mark one.
+	breakGaps(c, panels, th)
+
 	// 2. Measure. Tick label *text* depends only on the domain, but
 	//    Scale.Ticks also reports positions, which need a range — so
 	//    measurePanels gives every scale a provisional unit range, and the
@@ -490,9 +495,10 @@ func Draw(b ir.Backend, c Chart) error {
 		cd.Furniture(fur, coord.FurnitureRequest{Area: area, Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
 		drawPanelFill(b, area, th)
 		drawGrid(b, th, p, fur, xTicks, yTicks)
-		if fur.AxesOverData {
+		if fur.AxesOverData || !fur.Breaks.Empty() {
 			axesOver = true
-		} else {
+		}
+		if !fur.AxesOverData {
 			drawAxes(b, th, p, fur, xTicks, yTicks)
 		}
 		drawSecondaryAxes(b, th, p, cd, area)
@@ -789,6 +795,9 @@ func metricsOf(th theme.Theme) coord.Metrics {
 		TickLen:      th.TickLength,
 		MinorTickLen: th.TickLength * minorTickScale,
 		LabelPad:     th.TickLabelPad,
+		BreakSize:    th.AxisBreakSize,
+		FoldSize:     th.AxisFoldSize,
+		BreakMark:    coord.BreakMark(th.AxisBreakMark),
 	}
 }
 
@@ -1147,6 +1156,49 @@ func drawAxesOverData(b ir.Backend, c Chart, panels []Panel, areas []ir.Rect, th
 		cd.Furniture(fur, coord.FurnitureRequest{Area: areas[i], Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
 		if fur.AxesOverData {
 			drawAxes(b, th, p, fur, xTicks, yTicks)
+		}
+		drawBreaks(b, th, fur)
+	}
+}
+
+// drawBreaks strokes the marks of the gaps left in a panel's axes. It runs
+// after the data, like an axis that lies over it, because the mark is the
+// statement that the axis is broken and a bar crossing the break must not
+// paint over it. It is drawn whether or not the axis lines are: an axis whose
+// rule the theme turned off is still broken.
+func drawBreaks(b ir.Backend, th theme.Theme, fur *coord.Furniture) {
+	if fur.Breaks.Empty() {
+		return
+	}
+	strokeShape(b, &fur.Breaks, ir.Stroke{Color: th.AxisColor, Width: th.AxisWidth, Cap: ir.CapButt})
+}
+
+// breakGaps tells every scale on every panel that can leave an interval out
+// of its axis how wide a gap to leave. A scale under a coord that cannot mark
+// a break is told it has none, and so is a second axis, which is drawn by a
+// pass that places no clip and marks nothing: in both places a break would
+// be drawn without its mark, which is a chart that lies about its distances.
+// See docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
+func breakGaps(c Chart, panels []Panel, th theme.Theme) {
+	for _, s := range [...]scale.Scale{c.X2, c.Y2} {
+		if br, ok := s.(scale.Breaker); ok {
+			br.SetBreakGap(-1, 0)
+		}
+	}
+	for _, p := range panels {
+		brk := th.AxisBreakGap
+		if !coord.MarksBreaks(c.coordOf(p)) {
+			brk = -1
+		}
+		for _, s := range [...]scale.Scale{p.X, p.Y} {
+			if br, ok := s.(scale.Breaker); ok {
+				br.SetBreakGap(brk, th.AxisFoldGap)
+			}
+		}
+		for _, s := range [...]scale.Scale{p.X2, p.Y2} {
+			if br, ok := s.(scale.Breaker); ok {
+				br.SetBreakGap(-1, 0)
+			}
 		}
 	}
 }

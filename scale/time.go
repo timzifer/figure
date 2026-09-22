@@ -59,7 +59,18 @@ func Time(opts ...TimeOption) Scale {
 	for _, o := range opts {
 		o(t)
 	}
+	t.resolveSpans()
 	return t
+}
+
+// resolveSpans turns the spans into cuts in the scale's own domain space. It
+// runs after every option, because [Origin] decides what a domain value means
+// and may have been given after a fold.
+func (s *timeScale) resolveSpans() {
+	for _, sp := range s.spans {
+		s.cuts = s.cuts.with(sp.fold, Interval{s.Value(sp.span.From), s.Value(sp.span.To)})
+	}
+	s.spans = nil
 }
 
 // Nanos converts a time to the float64 domain value a time scale uses.
@@ -118,6 +129,14 @@ type timeScale struct {
 	// language the names in it are written in. See [TimeLayout] and [Locale].
 	layout string
 	locale *Locale
+
+	// spans are the stretches [TimeBreak] and [TimeFold] leave out, as given;
+	// cuts are the same stretches in domain space, resolved once every option
+	// has run and the origin is known. gaps is how wide the renderer said a
+	// cut is. See [Breaker].
+	spans []timeCut
+	cuts  cuts
+	gaps  gaps
 }
 
 // SetLocale implements [Localizer].
@@ -147,6 +166,9 @@ func (s *timeScale) Map(v float64) float32 {
 	if hi == lo {
 		return rlo
 	}
+	if b, ok := s.cuts.resolve(s.gaps, lo, hi, rlo, rhi); ok {
+		return b.mapTo(v)
+	}
 	switch v {
 	case lo:
 		return rlo
@@ -163,6 +185,9 @@ func (s *timeScale) Map64(v float64) float64 {
 	if hi == lo {
 		return float64(rlo)
 	}
+	if b, ok := s.cuts.resolve(s.gaps, lo, hi, rlo, rhi); ok {
+		return b.map64(v)
+	}
 	return place64(rlo, rhi, (v-lo)/(hi-lo))
 }
 
@@ -171,6 +196,9 @@ func (s *timeScale) Invert(pos float32) float64 {
 	rlo, rhi := s.rangeOf()
 	if rhi == rlo {
 		return lo
+	}
+	if b, ok := s.cuts.resolve(s.gaps, lo, hi, rlo, rhi); ok {
+		return b.invert(pos)
 	}
 	return lo + float64((pos-rlo)/(rhi-rlo))*(hi-lo)
 }
@@ -229,6 +257,11 @@ func (s *timeScale) Ticks(req TickRequest) []Tick {
 		return []Tick{{Value: lo, Pos: s.Map(lo), Label: s.label(start, timeUnits[3])}}
 	}
 
+	rlo, rhi := s.rangeOf()
+	if b, ok := s.cuts.resolve(s.gaps, lo, hi, rlo, rhi); ok {
+		return s.brokenTicks(&b, want)
+	}
+
 	u := s.pick(span, want)
 	times := s.walk(start, end, u)
 
@@ -240,6 +273,23 @@ func (s *timeScale) Ticks(req TickRequest) []Tick {
 		}
 		out = append(out, Tick{Value: v, Pos: s.Map(v), Label: s.label(t, u)})
 	}
+	return out
+}
+
+// brokenTicks is [brokenValues] for time: one unit, chosen for the time the
+// axis still shows, walked through each kept piece.
+func (s *timeScale) brokenTicks(b *broken, want int) []Tick {
+	u := s.pick(time.Duration(b.kept()), want)
+	var out []Tick
+	b.pieces(func(a, z float64) {
+		for _, t := range s.walk(s.Instant(a).In(s.loc), s.Instant(z).In(s.loc), u) {
+			v := s.Value(t)
+			if v < a || v > z {
+				continue
+			}
+			out = append(out, Tick{Value: v, Pos: s.Map(v), Label: s.label(t, u)})
+		}
+	})
 	return out
 }
 
