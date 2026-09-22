@@ -244,27 +244,47 @@ func (l *Live) TrackRows(on bool) *Live {
 //
 // Resizing to the size it already has is not an error and draws nothing.
 func (l *Live) Resize(w, h int) error {
+	if changed, err := l.setSize(w, h); err != nil || !changed {
+		return err
+	}
+	return l.Draw()
+}
+
+// SetSize is [Live.Resize] without the frame: the chart takes the new size
+// and draws it on the next [Live.Draw].
+//
+// It is for a caller that coalesces its frames — a widget that is laid out
+// and then redrawn for another reason in the same turn, or one that is not on
+// screen at all, would otherwise paint the whole chart once for the size and
+// once more for the reason.
+func (l *Live) SetSize(w, h int) error {
+	_, err := l.setSize(w, h)
+	return err
+}
+
+// setSize is SetSize, reporting whether the size changed.
+func (l *Live) setSize(w, h int) (bool, error) {
 	if l.b == nil {
-		return errors.New("figure: Resize on a closed Live")
+		return false, errors.New("figure: Resize on a closed Live")
 	}
 	if w <= 0 || h <= 0 {
-		return fmt.Errorf("figure: chart size %dx%d is not positive", w, h)
+		return false, fmt.Errorf("figure: chart size %dx%d is not positive", w, h)
 	}
 	if w == l.width && h == l.height {
-		return nil
+		return false, nil
 	}
 	l.width, l.height = w, h
 	l.chart.Width, l.chart.Height = w, h
 	l.chart.Theme = l.p.themeFor(w, h)
 	if r, ok := l.b.(ir.Resizer); ok {
 		if err := r.Resize(ir.Surface{WidthPx: w, HeightPx: h, DPR: l.dpr}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	// A frame of a different size is not comparable with the last one: every
 	// coordinate in it moved, so there is no damage to compute.
 	l.drawn = false
-	return l.Draw()
+	return true, nil
 }
 
 // Size reports the surface's current size in device-independent pixels.
@@ -585,6 +605,17 @@ func (l *Live) PanBy(dx, dy float64) error {
 // Autoscale releases every zoom and pan, so the axes come from the data again,
 // and redraws. It is the "reset view" every interactive chart needs.
 func (l *Live) Autoscale() error {
+	l.ResetView()
+	return l.Draw()
+}
+
+// ResetView is [Live.Autoscale] without the frame: every zoom and pan is
+// released, and the next [Live.Draw] shows the data's own extent.
+//
+// A caller that releases the view only to set another one straight after —
+// linked charts fitted to a common range — would otherwise draw the released
+// view first, a frame nobody sees.
+func (l *Live) ResetView() {
 	for _, p := range l.idx.Panels() {
 		// A fixed coord's domains were never moved, and releasing them would
 		// retrain them to the data and drop the grid's pinned ticks.
@@ -596,7 +627,6 @@ func (l *Live) Autoscale() error {
 		autoscale(p.Y2)
 		autoscale(p.X2)
 	}
-	return l.Draw()
 }
 
 // Select reports the rows under a device-space rectangle, firing one [Select]
