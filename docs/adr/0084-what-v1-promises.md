@@ -44,9 +44,14 @@ and in places where the literal count is wrong but the design is right:
 `coord.Coord.Points(dst, xs, ys)`, `Edge(p, from, to)` and
 `Area(p, x0, y0, x1, y1)`; `scale.Scale.SetRange(lo, hi)`,
 `scale.Zoomer.SetDomain(lo, hi)`; `scale.BivariateColorScale.ColorAt(v, u)`.
-Those take a point, a pair of points, an interval, a rectangle or a pair of
-columns — shapes that are fixed by what they are, the way 0060 argued the
-tuple-returning coord calls are fixed. A rule that a test cannot apply without
+Those take a point, a pair of points, an interval, a rectangle, a pair of
+columns or a bivariate reading — values whose arity is fixed by what they are,
+the way 0060 argued the tuple-returning coord calls are fixed. `ColorAt` is the
+clearest case: it is `ColorScale.Color(v)` for a mark that carries a second
+reading, called once per row, and two readings are the definition of the
+interface rather than a count that could grow —
+[ADR 0067](0067-a-bivariate-colour-channel.md) refuses a third, because three
+readings have no key a reader can decode. A rule that a test cannot apply without
 a judgement per method is a rule that erodes one reasonable exception at a
 time.
 
@@ -62,12 +67,13 @@ CHANGE BEFORE V1 row — not when the surface feels settled.** Every check is
 stdlib-only, because the core's one rule applies to its tools as much as to its
 code.
 
-### 1. The growth rule counts a fixed geometric shape as one value
+### 1. The growth rule counts a value of fixed arity as one parameter
 
-The rule in CONCEPT §15 is amended by one sentence: **a point, a pair of points,
-an interval, a rectangle, or a pair of parallel columns counts as one
-parameter**, because its arity is the geometry's rather than a description that
-can grow. Everything else counts as what it is. `ir.Backend`'s drawing calls
+The rule in CONCEPT §15 is amended by one sentence: **a value whose arity is
+fixed by what it is counts as one parameter** — a point, a pair of points, an
+interval, a rectangle, a pair of parallel columns, a bivariate reading — because
+its parts are the value's rather than a description that can grow. Everything
+else counts as what it is. `ir.Backend`'s drawing calls
 remain the exception the rule already names.
 
 Under that reading `Points`, `Edge`, `Area`, `SetRange`, `SetDomain` and
@@ -82,32 +88,62 @@ and `geom`.
 
 A test in the root package parses the public packages with `go/parser`, finds
 every exported interface, counts each method's parameters beyond a leading
-destination under the reading above, and fails on any it cannot account for.
-The exceptions are an allowlist in the test with a reason beside each —
-`ir.Backend`'s drawing calls and the geometric shapes — so that adding one is a
-visible line in a diff rather than a silence. A new interface that breaks the
+destination, and fails on any method with more than one it cannot account for.
+
+Syntax cannot tell a fixed-arity value from a description: `SetRange(lo, hi
+float32)` and `SetBreakGap(brk, fold float32)` are the same shape to a parser.
+So the exceptions are an **allowlist of methods by name**, each with its reason
+beside it — `ir.Backend`'s drawing calls, and the values §1 names — and §1 is
+the test for whether a method may be added to it. An entry is a visible line in
+a diff rather than a silence.
+
+The test reads **every** exported interface, not only the ones §15 lists as
+implemented by third parties. An optional interface such as `scale.Breaker` or
+`geom.LabelPlacer` is asserted rather than required, but anything exported can
+be implemented outside the module, and the day somebody does is not a day the
+signature can still change. A new interface that breaks the
 rule fails CI the day it is written, which is the only day it is free to fix.
 
 ### 3. The exported surface has a baseline, and CI diffs it
 
 `internal/cmd/apicheck` writes one line per exported declaration of every
 public package in each module — the shape of Go's own `api/*.txt` — into
-`api/<module>.txt`, and CI fails when the file does not match the code.
+`api/<module>.txt`, and CI fails when the file does not match the code. A
+function, a type, a method, **each method of an exported interface, each
+exported field of a struct and the value of each constant** is a line of its
+own, because each is something a caller can depend on separately.
 
 Before v1 the diff is a review aid: a change to the surface is a change to a
-committed file, and a reviewer reads it. **From v1 the check also refuses a
-removed or changed line**; an added line is the only kind that passes without a
-major version. It is a command of its own, beside `releasecheck`, rather than
+committed file, and a reviewer reads it. From v1 the check sorts a change into
+three kinds:
+
+- **A removed or changed line is refused.** That is a major version.
+- **A method added to an exported interface is refused**, although it is an
+  added line. Go has no default methods, so every implementation outside the
+  module stops compiling whatever the method does; a new capability arrives as
+  an optional interface beside it, as §15 already says.
+- **Anything else added passes** — a function, a type, a constant, a field. A
+  new field is where the check stops and the reviewer starts: it is compatible
+  only if its zero value leaves the behaviour as it was, which is §15's rule for
+  a struct and a question no text comparison can answer. It is a command of its own, beside `releasecheck`, rather than
 `golang.org/x/exp/apidiff`: that would be the first dependency of the core's
 tooling, and the check it performs is a sorted text comparison.
 
 ### 4. The JSON dialect has a corpus that is never edited
 
-`spec/testdata/v1/` holds one document per mark, coord, scale kind and guide,
-written by the code at the tag. A test parses each, renders it, and compares the
-result with its golden file. After v1 **the corpus is only ever added to**: a
-document that stops reading, or reads as a different chart, is a broken promise
-that the dialect's comment in `spec.Schema` makes and that nothing tests today.
+`spec/testdata/v1/` holds one document per mark, per coord, per positional
+scale kind and per colour and size scale kind, written by the code at the tag.
+A test parses each, checks that it marshals back to an equivalent document, and
+checks that the chart it builds describes itself as the document says —
+`geom.Desc`, `scale.Desc` and `coord.Desc` are what the comparison reads. After
+v1 **the documents are only ever added to**: one that stops reading, or reads as
+a different chart, is a broken promise that the dialect's comment in
+`spec.Schema` makes and that nothing tests today.
+
+What the corpus does not pin is the picture. Each document may also be rendered
+against a golden file, and that file is regenerated with `-update` like any
+other, because v1 does not promise pixels (below). The document is never
+regenerated; that is the whole difference between the two.
 
 ### 5. A second audit, recorded beside the first
 
@@ -154,10 +190,12 @@ first audit could not ask them:
   first.
 - A change to the exported surface touches a committed file. That is friction
   on purpose; it is the same friction a golden file puts on a changed chart.
-- The rule's exception for geometric shapes is written down, so the next
+- The rule's exception for fixed-arity values is written down, so the next
   `Area`-shaped method needs no argument — and a method that is *not* one of
-  those shapes cannot borrow the exception by resembling one, because the test
+  those values cannot borrow the exception by resembling one, because the test
   names the methods it excuses.
+- The zero-value rule for a new field stays a human judgement. The check makes
+  every new field a visible line; it cannot make the reviewer read it.
 
 ## What this does not do
 
@@ -170,6 +208,10 @@ first audit could not ask them:
   settled it.
 - **It does not move `backend/gg/gpu` off `v0.x`.** The GPU tier is opt-in beta
   ([ADR 0022](0022-gpu-tier.md)).
+- **It does not freeze the Go floor.** The `go` line in each `go.mod` follows
+  [ADR 0005](0005-go-version.md) and may rise in a minor release, as it does in
+  the Go project's own modules: it is a statement about the toolchain rather
+  than about the API, and the promise here is to programs that build.
 - **It does not promise output.** The golden files pin what a chart looks like
   within a release; v1 promises that a program compiles and a document reads,
   not that a later minor draws every pixel where an earlier one did.
@@ -177,7 +219,7 @@ first audit could not ask them:
 ## Revisit if
 
 - The growth-rule test wants a third kind of exception. Two — the ink and a
-  fixed shape — are a rule; three is a list, and the rule should be restated
+  value of fixed arity — are a rule; three is a list, and the rule should be restated
   rather than extended.
 - The baseline diff is routinely committed without being read. Then the check
   is a formality, and the answer is to make the pre-v1 diff fail too.
