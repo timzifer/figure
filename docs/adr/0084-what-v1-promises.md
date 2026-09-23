@@ -105,6 +105,14 @@ be implemented outside the module, and the day somebody does is not a day the
 signature can still change. A new interface that breaks the rule fails CI the
 day it is written, which is the only day it is free to fix.
 
+**A callback is a method by another name, and the test reads those too.** An
+exported function type, and an exported struct field of function type, is a
+signature somebody outside the module writes a body for — `backend/window`'s
+`Handler` is a struct of eight of them. The same count applies to their
+parameters. And the test runs over **every module that tags `v1`**, not only
+the core: `backend/gg` and `backend/window` freeze with it (§15), so their
+seams are held to the same rule.
+
 ### 3. The exported surface has a manifest, and CI checks it twice
 
 `internal/cmd/apicheck` writes one line per exported declaration of every
@@ -132,7 +140,9 @@ walks a named list of configurations — the default one, and `GOOS=js
 GOARCH=wasm` — and writes the union, each line marked with the configurations
 it exists under. A public file carrying a build constraint that no listed
 configuration satisfies fails the check, so a new platform-specific surface is
-either added to the list or noticed.
+either added to the list or noticed. A line's configurations are compared as a
+set: a declaration that becomes available on **more** configurations is an
+addition, and one that disappears from a configuration it had is a removal.
 
 It is checked twice, because one comparison cannot do both jobs:
 
@@ -141,22 +151,29 @@ It is checked twice, because one comparison cannot do both jobs:
    the surface a change to a committed file, which a reviewer reads. It cannot
    refuse anything, because a change that updates the code and the file together
    passes it by construction.
-2. **The code is compatible with what was published.** From `v1.0.0`, the
-   reference is the manifest as it stands at the **latest release tag** of the
-   same major version, read with `git show <tag>:api/<module>.txt` — a file no
-   commit on the branch can edit. Since the reference moves with every release,
-   a declaration added in v1.3 is protected from v1.3 on exactly as one from
-   v1.0 is. `releasecheck` runs the same comparison against the tag it is about
-   to create.
+2. **The code is compatible with what was published.** The reference is the
+   manifest at the **latest release tag of the same major version that is an
+   ancestor of the commit being checked and is not on that commit**, read with
+   `git show <tag>:api/<module>.txt` — a file no commit on the branch can edit.
+   Since the reference moves with every release, a declaration added in v1.3 is
+   protected from v1.3 on exactly as one from v1.0 is. `releasecheck` runs the
+   comparison for the tag it is about to create, and CI runs it again on the
+   tagged commit afterwards; in both, the tag under test is excluded, so a
+   release is never its own reference. **`v1.0.0` has no reference**: the
+   check is inactive until the first `v1` tag exists, and what stands in for it
+   at that one release is the second audit (§5) and the freshly committed
+   manifest it walked.
 
 The second check sorts each difference into one of three kinds:
 
 - **A removed or changed line is refused** — including a struct's
   comparability line and a constant's value. That is a major version.
-- **A method added to an exported interface is refused**, although it is an
-  added line. Go has no default methods, so every implementation outside the
-  module stops compiling whatever the method does; a new capability arrives as
-  an optional interface beside it, as §15 already says.
+- **A method added to an interface the reference already contains is
+  refused**, although it is an added line. Go has no default methods, so every
+  implementation outside the module stops compiling whatever the method does; a
+  new capability arrives as an optional interface beside it, as §15 already
+  says. A **new** interface is an addition, methods and all — that is what an
+  optional interface is.
 - **Anything else added passes** — a function, a type, a constant, a field. A
   new field is where the check stops and the reviewer starts: it is compatible
   only if its zero value leaves the behaviour as it was, which is §15's rule for
@@ -222,16 +239,77 @@ its own after every check above is green, with `releasecheck` run against the
 `v1.0.0` tags it would create before any is pushed. A major version of 1 needs
 no suffix on the module path, so no import changes.
 
+### 7. Changes already known before the second audit starts
+
+A review of this record found six places where the surface as it stands would
+be frozen into something the library would regret. Each is a CHANGE BEFORE V1
+row of the second audit, recorded here so that the audit starts from them
+rather than rediscovering them.
+
+- **A parallel coord drops a dimension it cannot describe.**
+  `parallel.Describe` leaves a dimension's scale description empty when the
+  scale implements no `scale.Describer`, and the document reads it back as a
+  linear scale: a log dimension goes in and a linear one comes out, with no
+  error. Every other path in `spec` fails rather than guesses. The fix is in
+  `spec` and needs no signature change: encoding a coord that implements
+  `coord.Dimensions` describes each dimension's scale itself and fails on the
+  first that cannot say what it is.
+- **A size scale always reads back as the built-in one.** `scale.SizeDesc`
+  carries no kind and `SizeFromDesc` builds `scale.Size` whatever it is handed,
+  so a third-party size scale with a linear mapping comes back area-proportional
+  — 25 maps to 50 — without an error. Before v1 the contract is made explicit
+  and narrow: `spec` refuses to encode a size scale that is not the built-in
+  one. A `SizeKind` field whose zero value names the built-in scale, and a
+  `scale.RegisterSize` beside `Register` and `RegisterColor`, are additive
+  afterwards and wait for a second size scale somebody actually has.
+- **A window's callbacks take positions as positional arguments.**
+  `Handler.Press(x, y)` and `Handler.Scroll(x, y, delta)` have no room for a
+  modifier key, a second button or a horizontal wheel, and after v1 each would
+  be a parallel callback field or a major version. They take event structs —
+  one for the pointer, one for the wheel — for 0060's reason. `Resize(w, h)`
+  and `Rescale(dpr)` stay: a size and a ratio are values of fixed arity.
+- **An extension's name can collide with a later built-in one.**
+  `geom.Register`, `scale.Register`, `scale.RegisterColor` and `coord.Register`
+  accept any name that is not built in, and panic on one that is — so a mark an
+  extension registered as `"foo"` stops the program the release figure ships a
+  mark of that name, although that release only added. Before v1 the namespace
+  is split: a built-in name never contains a dot, and an extension's name must —
+  `"example.com/foo"` or `"acme.foo"` — and `Register` panics on one that does
+  not. No built-in name has a dot today, and the repository's own tests already
+  register theirs as `"test.lollipop"` and `"test.squared"`. Restricting the
+  names after v1 would itself be the incompatible change.
+  The audit applies the same question to `theme.Register`,
+  `palette.RegisterRamp` and `mathtext.RegisterSymbol`.
+- **A tuning budget is not an API.** `stat.StressSweeps`,
+  `stat.StressPowerIterations`, `stat.LayeredSweeps`, `stat.SankeySweeps` and
+  `geom.VennSteps` are exported constants, so §3 would freeze their values and
+  a better iteration count would need a major version — although v1 explicitly
+  does not freeze output. They become unexported. The test the audit applies to
+  every exported constant is whether its value is a fact of a format or a
+  contract (`stat.MaxSets` is the width of a bitmask, `MaxVennSets` is the
+  Venn mark's promise) or a knob; knobs are unexported. `stat` keeps the
+  algorithms themselves — LTTB, the KDE, Kaplan–Meier — which are exported
+  because they are useful, not because a geom calls them.
+- **Comparability is decided per type, not inherited.** `ir.Surface`,
+  `scale.TickRequest`, `mathtext.Request` and `scale.SizeDesc` are comparable
+  today, and §3 would make that permanent. For a value — `ir.Point`,
+  `ir.Rect`, `ir.Surface` — that is the right promise. For a request that
+  exists to grow — `TickRequest`, `coord.FurnitureRequest`, the `render` info
+  structs — it forbids the slice or func field it may one day need. Each is
+  decided before v1, and a request type that should stay free to grow is made
+  non-comparable now with a leading `_ [0]func()` field, which costs no space
+  and is the one change that cannot be made later.
+
 ### Order of work
 
 1. This record, the amendment to CONCEPT §15, and the sentence on unkeyed
    struct literals.
-2. The growth-rule test, failing on the four methods; the four request structs,
-   making it pass.
+2. The growth-rule test, failing on the four methods and on `Handler`; the four
+   request structs and the two event structs, making it pass.
 3. `apicheck` — every configuration, comparability, both checks — and the
    committed manifest.
-4. The second audit, working from the manifest; its CHANGE BEFORE V1 rows, each
-   in its own commit.
+4. The second audit, working from the manifest and starting from §7; its
+   CHANGE BEFORE V1 rows, each in its own commit.
 5. The JSON corpus, written after the audit so that it records the dialect the
    audit left.
 6. The release tooling moved to `Major: 1` (§6), in its own commit.
@@ -255,6 +333,9 @@ no suffix on the module path, so no import changes.
   or the change waits for v2. That is a real constraint on `ir.Surface`,
   `ir.Point` and the like, and it is the one a caller using them as map keys is
   relying on.
+- An extension registered under an undotted name stops working. Nothing
+  outside this repository is known to register one, which is why it is done
+  now.
 - The zero-value rule for a new field stays a human judgement. The check makes
   every new field a visible line; it cannot make the reviewer read it.
 
