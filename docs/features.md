@@ -22,6 +22,15 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   line, labelled on the 0.1 / 1 / 5 … 95 / 99 / 99.9 % ladder. An ECDF on it is
   a normal probability plot; median ranks (`stat.MedianRank`) on `CLogLog`
   against a log axis are a Weibull plot.
+  `scale.Break` leaves an interval out of a linear axis and marks the gap, so
+  one tall bar and the short ones beside it can both be read; `scale.Fold`
+  takes many stretches out with a slash on the axis line instead. Nothing is
+  removed from the data, and a coord that cannot mark a break does not draw one
+  ([ADR 0083](adr/0083-an-axis-break-is-marked-or-not-drawn.md)).
+  A tick label is written by `scale.Format` (a Go function) or
+  `scale.NumberFormat` (a spec a document can hold), and `figure.Locale` sets
+  the separators, the percent sign and the month names every axis of a plot
+  writes in ([ADR 0035](adr/0035-label-format-and-locale.md)).
 - **Geoms** — `Line` (`geom.Curve` picks one of ten interpolation families —
   cardinal, monotone, natural, basis, bundle and their open and closed
   variants; monotone is the one that cannot overshoot), `Scatter` (six marker
@@ -31,13 +40,25 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   a baseline, which is what a heatmap, a gantt bar, a candle and a waterfall
   step all are. `geom.ProgressBy` fills a cell as far as a column says it has
   got — a gantt bar that reads as a status rather than as a plan.
+- **`Text`** — one label per row, read from a column by `geom.TextBy`: at the
+  row's point, or in the middle of the box the same options would draw as a
+  `Rect`, cut to fit it ([ADR 0032](adr/0032-text-as-a-mark.md)).
+  `geom.AvoidOverlap` moves colliding labels to one of eight nearby positions
+  before dropping them ([ADR 0040](adr/0040-label-collision-avoidance.md)), and
+  `geom.Callout` takes a label that does not fit a slice of a pie or a sunburst
+  out of the ring on a leader line — broken over lines or shrunk before it is
+  dropped ([ADR 0082](adr/0082-a-label-fits-its-box-or-is-called-out.md)).
+- **`ErrorBar`** — the interval a measurement is known to within, as two bounds
+  or as a half-width about the value, vertical or horizontal by which channels
+  it names. Its bounds train the axis, so an interval never runs off the plot
+  ([ADR 0036](adr/0036-error-bars.md)).
 - **`Depends`** — the arrows between spans that a schedule's constraints are.
   It reads two tables, the plan and a list of links over it, joins them by
   `geom.KeyBy`, and draws all four linkages (`"fs"`, `"ss"`, `"ff"`, `"sf"`).
   `geom.ColorBy` over the link table is how a critical path is drawn
   ([ADR 0068](adr/0068-gantt-charts.md)).
 - **Distribution marks** — **`Histogram`**, **`Violin`**, **`Ridgeline`**,
-  **`Hexbin`**, **`Beeswarm`**, **`ECDF`** and **`Trend`**. Each is a pure
+  **`Hexbin`**, **`Beeswarm`**, **`ECDF`**, **`QQ`** and **`Trend`**. Each is a pure
   function in [`stat/`](../stat) — a 1-D binner, a Gaussian KDE with Silverman's
   bandwidth rule, a hexagonal lattice, an empirical CDF, locally weighted
   regression, a running mean, a Savitzky-Golay fit that keeps the height of a
@@ -45,7 +66,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
-  **`Sankey`**, **`Arc`**, **`Tree`** and **`NodeLink`**, which read an edge table rather than a pair of
+  **`Sankey`**, **`Arc`**, **`Tree`**, **`Graph`** and **`NodeLink`**, which read an edge table rather than a pair of
   axes: `geom.From`/`geom.To` for a flow, `geom.ID`/`geom.Parent` for a
   hierarchy, and `geom.Value` for the magnitude of either. Each places its own
   layout in the unit square and hands it to the coordinate stage, so an
@@ -64,7 +85,12 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   number of majorization sweeps after it, each of which lowers a named quantity
   and never raises it, so the picture is a pure function of the table and the
   cost of the bound is quality rather than correctness
-  ([ADR 0077](adr/0077-a-node-link-layout.md)).
+  ([ADR 0077](adr/0077-a-node-link-layout.md)). **`Graph`** is the directed
+  graph in ranks — a state chart, a dependency graph, a layered flowchart —
+  with each node in a box carrying its name. Unlike a sankey it draws a cycle
+  rather than refusing it, because a state machine that cannot return to an
+  earlier state is not a state machine
+  ([ADR 0072](adr/0072-layered-graph-layout.md)).
 - **Set charts** — **`Intersections`** and **`SetMatrix`** are the two halves of
   an **UpSet plot**: a bar per combination of sets over a matrix saying which
   combination that is, read off a membership table — one row per (element, set)
@@ -224,6 +250,18 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   pan or a zoom moves it like any other chart. It ships no geography and
   computes no routes: a coastline and a great circle are both rows in the
   caller's table ([ADR 0081](adr/0081-a-map-projection.md)).
+- **Fields** — three marks for a value sampled over a grid, all reading
+  `geom.X`, `geom.Y` and `geom.Z` through one `stat.Lattice`, so a field and
+  the lines drawn over it come from one reading of the table.
+  **`Contour`** strokes its level sets
+  ([ADR 0064](adr/0064-a-contour-and-its-lattice.md)); **`Raster`** draws it as
+  one image with a colourbar, which is what a spectrogram of a million cells
+  needs where a `Rect` per cell would be a million paths
+  ([ADR 0066](adr/0066-a-raster-mark.md)). **`Horizon`** is the answer to many
+  series rather than many rows: it folds a series' own axis into bands drawn at
+  the full height of a short panel and tells them apart by colour, so forty
+  sensors fit on one screen, with a classed colourbar standing for the ladder
+  the fold gave up ([ADR 0065](adr/0065-horizon-charts.md)).
 - **A locus** — `geom.Locus` draws a family of curves given by a formula rather
   than by data, at the levels the caller names. It is what a Nichols diagram's
   closed-loop contours are and what a Smith chart's constant-VSWR circles and
@@ -303,7 +341,9 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0027](adr/0027-size-channel-and-the-guide-column.md)).
 - **Missing data** — one explicit policy per layer (gap, interpolate, error),
   covering both `NaN`/`Inf` and values a scale has no position for, such as zero
-  on a log axis.
+  on a log axis. A text or time column states its nulls beside its values,
+  because `""` is a string somebody may have measured and the zero time is an
+  instant ([ADR 0034](adr/0034-null-values.md)).
 - **Annotations** — `HLine`, `VLine`, `HBand`, `VBand`, `Segment`, `Region` and
   `Note`. They take values rather than a data source, because there is no column
   behind "the SLO is 200ms", and they extend the axis so the threshold is in
@@ -312,6 +352,13 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   plot by a column; `figure.NewGrid` puts different plots on one canvas. Both
   go through one constraint solver, so panels are the same size and their axes
   line up ([ADR 0010](adr/0010-panel-layout.md)).
+- **Second axes and tracks** — `Plot.Y2` and `Plot.X2` give a chart a second
+  scale on the far side and `geom.OnY2`/`geom.OnX2` bind a layer to it; it draws
+  no grid lines of its own, and a zoom moves both
+  ([ADR 0037](adr/0037-secondary-axis.md)). `Plot.Track` attaches a band to an
+  edge of the plot area that shares the panel's own scale object for the axis
+  it runs along, so a state strip, a dendrogram or an UpSet matrix pans with the
+  chart by construction ([ADR 0031](adr/0031-tracks.md)).
 - **Chart furniture** — axes, grid, tick labels with collision avoidance, chart
   and axis titles, and one guide column carrying a legend, **colourbars** and
   **size keys**, stacked in that order and measured by one solver. A layer
