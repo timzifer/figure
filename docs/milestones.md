@@ -1090,6 +1090,368 @@ writes in Go **draws but does not serialise**, which is
 [ADR 0041](adr/0041-qq-plots.md)'s rule for a quantile function applied to a
 curve. ✔
 
+### A ternary chart: three components on a triangle — **shipped**
+
+A ternary plot reads three components that sum to a constant — a soil's sand,
+silt and clay, a rock's three oxides, a classifier's three-class probability —
+as one point inside an equilateral triangle. It has been standard in petrology,
+metallurgy and soil science for over a century, the tooling for it is thin
+everywhere, and Go had none. Everything it wants apart from the coord had
+shipped between v0.1 and v0.9, so `coord.Ternary` is the whole milestone
+([ADR 0051](adr/0051-barycentric-coord.md)).
+
+**The third component is derived, not read.** X is the first component, Y the
+second and the third is `Sum − x − y`; `coord.TernarySum(100)` is the
+percentage spelling most tables arrive in. Three named columns were refused
+because a coord transforms a *mapped pair* — that is what the coordinate stage
+is built on — and because a row whose columns sum to 0.98 has to be normalised,
+refused or ignored, and every answer is wrong for somebody. Deriving the third
+makes the constraint hold by construction.
+
+**It is the cheapest coord in the package, because the map is affine.** A
+barycentric point is a 2×2 matrix and a translation, so `Straight()` is true and
+every geom draws what it drew under Cartesian; `Area` is four transformed
+corners, which makes a `geom.Rect` a parallelogram and a ternary heatmap over
+binned compositions cost no new mark; `Invert` is the inverse matrix, so a
+tooltip reports a composition. `Clip` is the triangle, the one thing it does not
+inherit. `Decimates()` is false by derivation rather than observation: a column
+of screen is a band of constant *b − a*, not of constant *a*, so a reduction
+over pixel columns does not measure what it was defined to. Both domains are
+pinned to `[0, Sum]`, as a Smith chart's are — a triangle autoscaled to a tight
+cluster is not the simplex — so a zoom relabels and moves nothing.
+
+**The third grid family is where the record earned its place.** A ternary has
+three labelled ladders and a panel has two tick lists, the constraint
+[ADR 0033](adr/0033-smith-charts.md) had named. The constant-c line at level v
+pairs with the X tick at v, so it was first drawn as a second subpath inside
+`GridX[i]`, taking grid ink, with `Furniture` unchanged — and its labels were
+declined, to be spent once on the general problem rather than on two thirds of
+it. [ADR 0070](adr/0070-a-third-labelled-family.md) spent them: the third
+family is now a family of its own with its own labels, and each component is
+read along its own edge, cyclically, which is how every printed ternary chart
+is arranged. `examples/ternary` draws a soil texture triangle and a QFL diagram.
+A `geom.Locus` was the alternative for that family and stays the escape hatch
+for a fourth one; it was not the default because it takes annotation ink and
+this is a grid line.
+
+Not in this milestone. **No ternary zoom**: three ranges have to stay mutually
+consistent or the region stops being a triangle, which is its own decision.
+**No three named columns and no normalisation**, per the argument above — a
+caller whose table carries three divides by their sum. **No quaternary
+diagram**: three free components is three dimensions, the 3D question and not
+this one. The corner labels naming the components are still `geom.Note`,
+because a ladder carries numbers and not a name. And a Piper diagram is two
+ternary panels and a Cartesian one in a `Grid` — a recipe, not a feature. ✔
+
+### A horizon chart: forty series in the room of one — **shipped**
+
+Every answer figure had to scale was an answer to *row count*: decimation, the
+density raster, the hexbin. None helped with forty sensors at a thousand samples
+each, which is not a big series but a lot of them, and the only answer in the
+tree was faceting, which divides the space rather than reusing it. A horizon
+chart cuts a series' range into bands of equal height, draws every band at the
+panel's full height and tells them apart by colour, negative values mirrored
+back from the other arm of the ramp; Heer, Kong and Agrawala measured it
+reading better than a filled line below about forty pixels
+([ADR 0065](adr/0065-horizon-charts.md)).
+
+**`geom.Horizon` is a mark, and the fold runs in `Train`.** `geom.Bands(k)`
+cuts the trained domain into k bands; `geom.BandHeight(h)` gives the band in
+the data's own units and wins where both are set, because 50 kW is the spelling
+an engineer has and "a third of the maximum" changes when tomorrow's data
+arrives. It is not a position adjustment: an adjustment *moves* a mark, where
+the fold cuts one row into up to k clipped spans, all occupying the same
+rectangle. And it runs in `Train` by [ADR 0028](adr/0028-distribution-stats.md)'s
+rule — the fold does not describe the Y axis, it replaces it — which also puts
+decimation after it, in the order that matters: LTTB dropping the sample that
+decided a band would change the *colour* of a stretch of chart.
+
+**The colourbar is the ladder the chart gives up.** The folded Y axis describes
+one band and is correct for every band on screen; what the reader is missing is
+*which* band, and that is a colour. So the layer's guide is a classed colourbar
+whose breaks are the fold's own boundaries, printed in the data's units — no new
+furniture, no new guide kind, no change to `render`. The implementation made it
+a `scale.Threshold` rather than the `Quantize` the record named, because a
+quantize scale derives its boundaries from its domain and that would be two
+computations of one fact; `geom.Horizon.breaks` is the single place the edges
+exist. The ramp is `palette.BlueOrange`.
+
+Three smaller things came out of building it. A band nothing reaches into is not
+drawn, so the fill count is a fact about the data rather than k empty runs per
+arm per frame. The mark reports one position per row, at the band the row ends
+in, which is where the reading stopped. And `Tension` is ignored, because a
+spline through a clamped fraction overshoots the only interval a band has; the
+floor is shared with `geom.Area` through `appendFloor` so the two cannot
+disagree. `examples/horizon` is sixteen meters faceted, with the band height
+pinned.
+
+Not in this milestone. **`GroupBy` is an error**, not an overlap: N series in
+one panel are N full-height bands painted over each other, and a wall of them is
+a facet or a `Plot.Track` per series. **No stacked horizon**: the fold destroys
+the position a stack speaks through. **No band count chosen from the data**,
+because a band that moves with the maximum makes two charts of one quantity
+incomparable, which is the one thing the form is for. **No `Plot.Horizons`
+sugar** until somebody has written the long form twice. ✔
+
+### A raster: a measured field as one image — **shipped**
+
+A heatmap is `geom.Rect` with `ColorBy` over two band scales, and that is enough
+for a few dozen categories by a few dozen. It stops being enough at the size a
+measured field comes in: a minute's spectrogram is two thousand frames by five
+hundred bins, and one `Rect` per cell is a million paths in an SVG no browser
+will open, to draw cells smaller than a pixel. `ir.Backend.Image` was already
+in every backend, `stat.Grid.Raster` already painted a grid into an
+`*image.NRGBA`, and `stat.Lattice` already resolved a long `(x, y, v)` table
+into a product grid. `geom.Raster` wires the three together
+([ADR 0066](adr/0066-a-raster-mark.md)).
+
+**It reads the channels `geom.Contour` reads, for the contour's reason.** A
+raster with isolines over it is the commonest form this mark takes, and two
+resolvers that agree today disagree at the first duplicated position. So both
+run `stat.Lattice`, and `geom.latticeError` is the one function both call to
+turn a fault into a sentence — a test compares the two word for word.
+
+**The image is built at the panel's resolution, with nearest neighbour.**
+Letting `Backend.Image` scale one pixel per cell was refused: a smooth upscale
+invents colours between measurements, and the backends do not agree on what
+scaling means. Downsampling is named rather than assumed — `geom.Resample` over
+`geom.Nearest`, `geom.Mean` and `geom.Max`, a small closed family that
+serialises. Nearest is the default because it never shows a number nobody
+measured; Max is what a spectrogram wants so a peak survives. The pixel-to-cell
+mapping is inverted through the scale per pixel column and row, so a log
+frequency axis gives the low bins more pixels, and the mark costs the panel's
+size rather than the field's.
+
+**A ramp read per pixel was the whole cost.** `palette.Lerp` blends in linear
+light and measured 640 ns a colour — 150 ms for a 600 by 400 panel. `geom.ink`
+reads the scale into a table once per domain, one colour per class or 1024
+samples along a continuous ramp, and the same panel costs 3.3 ms with no
+allocations. `examples/spectrogram` is 1322 frames by 128 bins and one `<image>`
+where a rect per cell would be 169,216 paths.
+
+**And it has a colourbar**, which the hexbin cannot: a raster's values are known
+in `Train`. It is the contour's `ColorGuide` rather than the shared helper, and
+a raster naming no `ColorBy` still takes `palette.DefaultRamp` and still draws
+its bar. Axes are trained to the cell edges, so the outer half cells are not
+clipped. A non-finite cell is transparent. A hit reports a row per cell only
+while a cell is at least a pixel across, because below that a pixel under
+`Mean` is no one cell.
+
+Not in this milestone. **An unequally spaced lattice is refused** and the fault
+names `Rect`, which draws it correctly one box per row. **A non-Cartesian coord
+is `ErrWarpedRaster`**: a blit is axis-aligned, and a square image in a round
+panel is a false chart. **`geom.Decimate` is an error**, because a raster's cell
+count is its resolution. **No interpolation of scattered points onto a grid**,
+which is an estimator rather than a way of drawing, **no bilinear upscaling**,
+**no image-as-data** and **no per-cell borders**. ✔
+
+### A colour that carries two readings — **shipped**
+
+Three charts wanted one missing piece and none was big enough to build it for
+alone: a value-suppressing uncertainty palette, which gives a quantity fewer
+distinguishable colours the less certain it is; a multi-class hexbin, coloured
+by which class dominates a bin and how purely; and the 3×3 bivariate
+choropleth. `scale.ColorScale` is one number in and one colour out, and
+[ADR 0036](adr/0036-error-bars.md)'s sentence — a measurement and a claim about
+how well it is known, whose second half had nowhere to go — applied to the
+colour channel with more force than anywhere, because a filled cell reads as a
+measurement whether or not anybody made one
+([ADR 0067](adr/0067-a-bivariate-colour-channel.md)).
+
+**A bivariate scale rides `ColorScale` rather than widening it.**
+`scale.BivariateColorScale` is the third rider, after `DiscreteColorScale` and
+`ClassedColorScale`: `Color(v)` stays and answers at full certainty, so every
+mark keeps working. The second column is `geom.UncertaintyBy(col)`, and naming
+one against a scale that reads one number is `ErrNotBivariate` rather than a
+column silently ignored. Building it added `TrainSecond`, which `geom` calls
+beside `Train` when a layer read a second column, and `KeyCells`, the key as
+rectangles in data space with a colour each — which is how one drawing function
+draws a VSUP's tree and a matrix's square without asking which it has.
+
+**VSUP is a classed scale whose class count is a function of the second
+reading.** `scale.VSUP(ramp, classes, layers)` is `layers` rows of `Quantize`,
+each halving the classes and mixing at most seven tenths of the way toward a
+light grey — resolution taken away, not the colour removed.
+`scale.BivariateMatrix` takes its colours rather than two ramps, because the
+record also refused blending two ramps and both cannot hold: a mixed colour
+names no value. `palette.BivariateBlueRed` is Joshua Stevens' published 3×3,
+registered by name. Both constructors are also `ClassedColorScale`s for the
+first reading, so a layer with no second column draws the classed bar it would
+have drawn, and only a layer naming both gets the square key — the fourth guide
+kind, a constant and two functions as [ADR 0027](adr/0027-size-channel-and-the-guide-column.md)
+priced it.
+
+**The multi-class hexbin is `geom.Hexbin` plus `geom.GroupBy`.** `stat.Hex`
+counts per class, classes are named by first appearance, and the cell's colour
+is the dominant class against impurity. Its classes are known in `Train` and its
+counts are not, so it contributes ordinary legend entries and says how pure a
+cell is through its colour. `examples/bivariate` draws all three charts.
+
+Not in this milestone. **A path given two readings is `ErrRampOnPath`**: a line
+changes colour where its reading crosses a class boundary, and two readings
+cross in different places. **No opacity as uncertainty**, the cheap version
+VSUP's authors measured as misleading. **No N-variate channel** — three readings
+have no key a reader can decode. **The key reports nothing to an observer**,
+because a position in a square is a pair and a drag across it is the
+two-dimensional brush left to the host. **The uncertainty is the caller's
+column**; `stat` does not compute it. ✔
+
+### Probability paper: the axis warps, not the sample — **shipped**
+
+Probability paper warps an axis so that one distribution's cumulative function
+plots as a straight line, and the line's slope and intercept *are* the fitted
+parameters. Weibull paper is the load-bearing kind — the standard method for
+lifetime data in reliability engineering — beside normal, Gumbel and logit, and
+no general-purpose plotting library draws it without an incantation or a
+third-party package. `geom.QQ` looked like the same thing and is its opposite:
+a QQ plot warps the *sample* and labels its axis in z-scores; probability paper
+warps the *axis* and labels it 0.1 %, 1 %, 50 %, 99.9 %, which is what the
+reader came for ([ADR 0052](adr/0052-probability-scales.md)).
+
+**One scale with four named links.** `scale.Probability` takes `scale.Probit`,
+`scale.Logit`, `scale.CLogLog` or `scale.Gumbel`, and the four share a domain of
+(0, 1) exclusive, a ladder, a `Definite` bound and every line of mapping but
+one call, so four types would have been the naming rule followed off a cliff.
+`scale.Link` is `Apply` and `Unapply`, open to a caller, and the named four
+round-trip through `scale.LinkName` and `scale.LinkNamed`. A link written in Go
+has an empty name in its `Desc`, which `scale.FromDesc` refuses with
+`ErrUnknownKind` rather than substituting probit. That rule is now three
+records old — a named member of a small closed family is written down, an
+arbitrary Go function is not.
+
+**The charts cost no marks.** `Definite` covers the ends exactly as a log scale
+covers zero, so `geom.ECDF` on a probit Y is a normal probability plot and on a
+Gumbel Y is extreme-value paper. What the ECDF did need was to stop handing the
+backend NaN: its staircase reaches 0 and 1, both unplaceable here — and the
+bottom one already was on a log Y — so it now leaves out a vertex its axis
+cannot place.
+
+**The ladder is a convention, and it is the scale's own.** 0.1 / 1 / 5 / 10 /
+20 / 30 / 50 / 70 / 80 / 90 / 95 / 99 / 99.9 is no search's answer. It extends a
+decade at a time into whichever tail the domain reaches, and thins by rank —
+the median, then the decades, then 5 / 20 / 80 / 95, then 30 / 70 — so a short
+axis loses rungs in mirrored pairs; a rung that loses its label stays a minor
+tick unless `ProbabilityMinorTicks(false)`. Labels are per cent at the shortest
+precision each rung needs, and `ProbabilityNumberFormat` replaces that outright.
+A pan stops at the sixth decade of a tail.
+
+**The plotting position closed on `stat.MedianRank`.** Benard's rank is one
+point per row and is read as points, where an ECDF is a staircase over distinct
+values, so an option on the ECDF would have made one mark draw two objects. A
+Weibull plot is `geom.Scatter` over median ranks on a `CLogLog` Y against a log
+X, and `examples/weibull` recovers β from the ranks by regression in its test.
+
+Not in this milestone. **No fitting**: a scale that fitted a distribution would
+assert the answer the chart exists to let a reader find, and the line is a
+`geom.Segment` a caller who knows the parameters draws. **No confidence bounds**
+on the plot, **no censored plotting positions** — that is
+[ADR 0054](adr/0054-statistical-instruments.md)'s territory — and **no
+probability colour scale**. `Nice` is not offered, because there is no round
+number to round to. ✔
+
+### A tidy tree, and the clustered heatmap it completes — **shipped**
+
+[ADR 0039](adr/0039-relational-layouts.md) had declined a node-link layout
+because a force simulation runs until it settles. That argument binds *force*
+layouts and not *tree* layouts, and a tree is where most of that category's
+charts live. The Reingold–Tilford tidy tree in Buchheim, Jünger and Leipert's
+linear form is O(n), deterministic, bounded and a pure function of its input —
+`stat.Squarify`'s shape — with published invariants for oracles: no two
+subtrees overlap, a parent is centred over its children, isomorphic subtrees
+are drawn alike ([ADR 0053](adr/0053-tidy-tree-layout.md)).
+
+**`geom.Tree` is a fifth relational mark, in the unit square, reading 0039's
+channels and adding none.** `geom.ID`, `geom.Parent` and `geom.Value` are what
+it reads. Under `coord.Cartesian` it is a dendrogram or an org chart; under
+`coord.Polar()` a radial dendrogram — the third time the unit square has turned
+one mark into two charts. An edge is an elbow by default and a segment on
+request, both as data-space points, so under a polar coord the bracket's
+cross-piece becomes the arc. Leaf order is first appearance in the table;
+reordering to reduce crossings is refused for 0039's reason, and `geom.Order`
+is how a caller asks for another.
+
+**There are two layouts, and the height column chooses.** A tidy tree compacts
+subtrees by depth, which is right only while depth is where a node is drawn. A
+dendrogram's leaves all sit at height zero, so compaction would tuck a shallow
+leaf above a deep neighbour's. `stat.Tidy` therefore has `Reset`, the tidy
+tree, and `ResetLeaves`, one slot per leaf with each parent centred — used
+exactly when `geom.Value` is present, which also lines a dendrogram up with a
+heatmap's columns. It is a struct because the walk keeps a dozen per-node
+buffers, runs without recursion, lays a forest out under a virtual root, and
+exports `Leaves` so a caller can order a heatmap by it. Its tests include a
+200 000-node chain and star.
+
+**The headline chart needed two things nobody had predicted.** A track shares
+the panel's axis and a heatmap's is ordinal, so the refusal of an ordinal
+breadth narrowed to the height axis: leaves are placed at their own names
+through `scale.Categorical.Encode`. And a dendrogram on the *left* edge needs its
+breadth on Y, which is `geom.Orient` with `geom.Vertical` and
+`geom.Horizontal` — named for the library rather than for the tree, so the next
+mark says it the same way. `Baseline(1)` mirrors the heights within their
+extent, one rule for a depth tree and a dendrogram, and a root at the hub wants
+`coord.Hole`, because the centre has no angle. `examples/dendrogram` draws a
+clustered heatmap with a dendrogram on two edges, and a radial tree.
+
+Not in this milestone. **No force-directed layout and no general graph**: 0039's
+refusal stands verbatim, and every property above depends on one parent per
+node. **A cycle is `ErrCyclic`**, naming the node, where the icicle beside it
+silently drops the nodes. **No optimal leaf ordering, no crossing minimisation,
+no edge bundling**, and **no clustering**: a dendrogram's heights are the
+caller's columns however they were produced. **A DAG** wants a layered layout
+whose crossing reduction is the heuristic sort both records refuse. ✔
+
+### The statistical instruments: survival, control, correlation, ranking — **shipped**
+
+Some charts had every mark they needed since v0.1 and none of the arithmetic: a
+Kaplan–Meier curve is `Step` and `Area`, an SPC chart `Line` and `HLine`, a
+correlogram `Bar`, ROC and Lorenz curves `Line`. Outside domain packages —
+`survminer`, `lifelines`, `qcc`, `statsmodels` — nobody draws them, and in Go
+nobody at all. The question [ADR 0054](adr/0054-statistical-instruments.md)
+answers is not whether they are pure but **where the line is**, because "put
+the field's arithmetic in `stat`" has no natural end.
+
+**The admission test: a reduction belongs in `stat` when its output is the
+chart's geometry and has no reading that is not the chart.** An ECDF is its
+staircase; a loess curve has no life off the chart. A hierarchical clustering,
+a regression model and a meta-analysis all fail it, and the test admits five.
+
+**`stat.KaplanMeier` gets a mark.** `geom.Survival` runs it in `Train`, reading
+X as the time and `geom.Event` as the indicator — a numeric column, non-zero
+for an event, because `data` has no boolean and a 0/1 column is how every
+survival dataset arrives. `stat.SurvivalPoint` carries the risk set and the
+running Greenwood sum, and `Band(z)` is the log-log interval, the default in R
+and lifelines because the plain one runs past 0 and 1 where a curve is read
+hardest. `geom.Confidence` and `geom.CensorMarks` are the opt-ins. The layer
+starts at time zero unless the axis is a time scale, where zero is an epoch.
+The numbers-at-risk table is a `Plot.Track`, which a mark cannot make —
+`examples/survival` is Freireich's remission trial with its table in one.
+
+**Control limits get no mark, and that is domain-correct.** Limits come from a
+baseline and are then frozen; a mark recomputing them from the points it was
+handed would be silently wrong for the principal use. So `stat.Limits` is the
+result and `LimitsIMR`, `LimitsXbarR`, `LimitsNP` and `LimitsC` return it,
+beside `AppendLimitsP` and `AppendLimitsU` for per-subgroup limits.
+`stat.AppendRunRules` is Nelson's eight rules returning a selection, flagging
+every point that completes a window so a derived column colours the whole run.
+`examples/spc` is an individuals chart whose drift the rules catch. It found two
+colourbar faults, fixed outside `stat`: a classed bar now labels a boundary with
+the decimals it needs, and `geom.Guide(false)` lets a layer decline its bar.
+
+**`stat.ACF`, `stat.PACF`, `stat.ROC` and `stat.Lorenz` are stat only.** The
+ACF is the biased estimator, which Durbin–Levinson needs, and a gap makes every
+lag NaN rather than silently shifting the ones after it. ROC walks tied scores
+as one diagonal step, so its area is the Mann–Whitney probability; a curve with
+nothing to rank is empty with a NaN area, not 0.5. `Lorenz` returns the Gini
+coefficient beside its curve.
+
+Not in this milestone. **No fitting, modelling or inference**, and **no
+recomputed control limits**. **No censoring beyond right-censoring**, which
+changes the estimator rather than the chart. **Forest, funnel, Pareto and
+Bland–Altman plots are recipes** in `docs/charts.md` — a forest plot's pooled
+estimate is a meta-analysis and fails the test on every clause. **No mark for
+the ACF**, because bars, stems and points are all conventions and no reading
+distinguishes them. ✔
+
 ### A schedule you can read: progress, constraints and milestones — **shipped**
 
 "Gantt / timeline" had been a row in [chart-types.md](chart-types.md) since
@@ -1139,6 +1501,777 @@ one needs to know where every bar in *other* layers is, and no mark has that.
 it would report belongs to the link table and `Source` hands out the other one —
 which is the first time in this library a layer has had two tables to be
 ambiguous about, and is ADR 0015's revisit clause rather than this record's. ✔
+
+### Hatching: the third redundant channel — **shipped**
+
+[ADR 0024](adr/0024-accessibility.md) quoted the promise of *"redundant
+encoding (patterns/dashes)"* and shipped the dashes. `theme.Redundant(true)`
+filled in a dash ladder and a marker ladder, and that was the whole of it. A
+dash needs a stroke and a marker needs a point, and **a bar has neither** — so
+the marks that fail hardest in greyscale, a stacked bar, a pie, a stacked area,
+a treemap, were exactly the marks the one option did nothing for. Turning
+`Redundant` on for a stacked bar chart changed nothing at all.
+
+**A hatch is an enumeration, like a marker.** `ir.Hatch` has fourteen values in
+four families — lines, dots, wavering lines and tilings — and `geom.Hatch`
+names one on a layer. An enumeration rather than a parameter struct because a
+redundant encoding needs a *ladder* a layer index walks, and a ladder of
+arbitrary angles is a ladder nobody can name a rung of. It is `ir.Marker`
+again, including the rule that makes that safe: the set grows at the end, and a
+value this release does not know leaves the mark with its plain fill.
+
+**The pattern says *different* and the period says *more*, and the two are kept
+apart.** `Redundant` installs `theme.DefaultSeriesHatches`, where every rung is
+a different shape and none is heavier than another, because a redundant
+encoding must not invent an order the data does not have.
+`theme.DensitySeriesHatches` is the other ladder, for a stack that really is an
+order — severities, age bands — and `theme.Hatches` installs it by asking, since
+guessing wrong means a chart that claims a magnitude nobody measured. How
+coarse every pattern is belongs to the chart rather than to a series, so it is
+`theme.HatchSize`.
+
+**It is drawn, not declared.** `ir.Backend` and `ir.Fill` are unchanged, and a
+hatch never reaches a backend at all: `ir.FillHatched` fills the path, pushes it
+as a clip and strokes the lines `ir.HatchPath` generates inside it. The frozen
+interface is the first reason — a `Fill.Hatch` field would be ignored in
+silence by every backend written before it, and a chart that quietly loses its
+pattern still looks finished. The second is that the GPU tier's SDF accelerator
+collapses any non-solid brush to a single colour, so a brush-based hatch would
+vanish the moment `backend/gg/gpu` was imported. The third is that an SVG
+`<pattern>`, a PDF tiling pattern, a canvas pattern and a gg brush are four
+rasterisations of one idea, and lowering once means every backend draws the
+same lines.
+
+**A hatch is not a mark.** `interact` indexes every stroked subpath, and hatch
+lines would put dozens of phantom targets inside every bar. `ir.Decoration` is
+the fix, in the shape every other extension of the backend contract has — an
+optional interface beside `Partial`, `Resizer` and `Semantics`. `FillHatched`
+brackets its pass in it, the probe stops indexing inside the bracket, and
+`ir.Recorder` records it so a parallel render hit-tests as a serial one does.
+
+Three finishes came with it, none needing a backend to learn anything.
+`geom.Corner` rounds rectangular marks, asking `Path.AsRect` whether a shape
+*has* corners rather than asking the coord. `geom.Inset` strokes a mark's own
+path at twice the border width clipped to itself, which is an inset outline
+exactly with no path offsetting. And `geom.Gradient` gives a geom the linear
+gradient `ir.Fill` had carried since v0.1, whose only caller had been the
+colourbar. The first rung of the hatch ladder is `HatchNone`, so every existing
+golden file is byte-identical, and `geom.Desc` carries `Hatch` beside
+`HatchSet` for the reason `Dash` and `DashSet` do.
+
+Not in this milestone. **No hatch scale**: no `geom.HatchBy`, no hatch guide —
+a pattern driven by data would be a fourth guide kind and a fifth scale
+interface, and this is about a chart surviving a photocopier rather than about
+a fifth variable. **An annotation is never hatched by a theme**, because a band
+that is deliberately quiet should not acquire a pattern by default. **A layer
+painted per row from a discrete colour scale wears one hatch**, since its marks
+are batched by colour. And **no drop shadows**: there is no blur in the IR, and
+an offset copy looks cheap in vector output. ✔
+
+### A third labelled family: the ternary's missing ladder — **shipped**
+
+Three records had deferred the same seam.
+[ADR 0033](adr/0033-smith-charts.md) declined the Smith chart's constant-|Γ|
+circles because `render.drawAxes` takes label text from `t.Label`, so *"a
+family with no tick behind it has nowhere to come from and nothing to be
+labelled by"*, and named the trigger: a second chart wanting a grid family its
+axes have no tick for. [ADR 0051](adr/0051-barycentric-coord.md) was that
+chart. A ternary panel has three labelled ladders and two tick lists; it drew
+the third family as a second subpath inside the X tick's shape and left it
+**unlabelled** — which is the one edge carrying the clay fraction or the third
+phase a reader is often after.
+
+**A family carries its own text, and that is the whole of the widening.**
+`coord.Furniture` gained `Families`, each a `coord.Family` with a name, one
+shape per level, a label position per level and the text each says. The
+constraint 0033 named was never that a family had nowhere to be *drawn*; it was
+that label text reached `render` only from `scale.Tick.Label`. A family that
+says what its own levels are called removes that for every customer at once.
+The slice is reset and regrown with the struct's other buffers, and a coord
+that raises none costs nothing.
+
+**`render` applies three rules, and each is the one it is for a reason.** Lines
+take grid ink and answer to `HideGrid` and the theme's grid stroke, but *not*
+to `ShowGridX` or `ShowGridY` — a family is neither axis, and taking it down
+with the horizontal grid would make the answer depend on which component the
+caller put on X. Labels take tick ink and the tick font, because a ladder's
+numbers are tick labels wherever they appear. And labels are **thinned last**:
+a family is a third reading of the chart, and where its number collides with an
+axis's the axis keeps it.
+
+`coord.Ternary` raises the constant-c family, and placing it made the one
+visible change to existing charts: **each component is now read along its own
+edge**, cyclically, which is how a soil texture triangle, a QFL diagram and a
+phase diagram are printed. Before, the first two ladders both ran out of one
+corner, which left the third nowhere to go but on top of them. The grid lines
+did not move.
+
+A later amendment, from [ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md),
+split "when the panel writes tick labels at all" into its two switches. A
+parallel-coordinates panel's families *are* its axes, and letting
+`theme.ShowTicksX` govern them took the numbers off every dimension. So a coord
+may set `Furniture.FamiliesAreTheAxes`; `coord.Parallel` does and
+`coord.Ternary` does not.
+
+Not in this milestone. **It is not a caller-facing seam** — a coord fills
+`Families` and `render` reads it; a fourth ladder is still `geom.Locus`, which
+is an annotation and a layer. **It is not a spec field**: a family is derived
+from the coord and its ticks, so a ternary chart serialises exactly as it did.
+**It is not a third side** — a side has an axis line, tick marks and three
+placement flags a family does not. **No hit-testing**, because furniture is not
+indexed, and **no minor levels**, because there is no tick generator behind a
+family. The Smith chart's families and Γ as input are each now a coord's own
+arithmetic; none of them is built here. ✔
+
+### A curve is chosen for the drawing, a smoother for the data — **shipped**
+
+A line had one smoothing knob. `geom.Tension` fitted a Catmull-Rom spline, and
+zero meant a polyline. That was wrong for some data — **a cardinal spline
+overshoots**, so through a cumulative total it dips below the previous reading
+between two samples, ink at a value nobody measured — and the JSON dialect
+already spoke Vega-Lite's `mark.interpolate`, writing `"cardinal"` beside the
+tension and throwing the word away on the way back in.
+
+**A curve is a drawing, fitted after the coord.** `geom.Curve` names a
+`CurveKind`, spelled as Vega-Lite spells them: linear, the cardinal three,
+monotone, natural, the basis three and bundle. The fit runs on device points in
+`geom/curve.go` and changes the path between the vertices and nothing else: no
+axis is trained on it and `stat` never hears of it, which is what lets it be
+chosen last, by whoever is looking at the picture.
+
+**Interpolating and approximating are two claims, and both are allowed.**
+Linear, cardinal, monotone and natural pass through every vertex, so the ink
+between two rows is a claim about what the quantity did between them. Basis and
+bundle do not — the vertices are control points — and their doc comments say
+they miss the data in those words. `CurveKind.Interpolating` makes the
+difference a value a caller can branch on. What does not change is what a row
+is: every family reports its vertices, so a basis curve that sails past a peak
+still hands a tooltip the peak.
+
+**Monotone falls back to the polyline, not to the spline.** The family takes
+whichever device axis is strictly monotone, so a series running down the page
+works as well as one running across it. When neither is, no monotone fit
+exists, and falling back to cardinal would silently deliver the overshoot the
+family exists to prevent. A bent coord still takes the edges over from every
+family, because a tangent fitted in device space under polar is smooth on the
+screen and wrong about the data, and `geom.Horizon` still draws straight edges
+through its clamped bands.
+
+**A smoother is a fit, and it lives in `stat`.** `stat.MovingAverage` and
+`stat.SavitzkyGolay` run in data space in `Train`, and the axis is trained on
+what they produce, beside `Loess` in `geom.Smoothing`. They are two because they
+fail differently: a running mean can be checked by hand and flattens every
+peak; a Savitzky-Golay fit keeps a peak's height and width, and the tests
+assert that a quadratic survives an order-two fit untouched. Both take `Span`
+as their width — a second knob spelling the same fraction in other units would
+be the thing to regret. And the two halves are **not one option**, because
+"what happened between two readings" and "what is happening under the noise"
+are different questions and a reader needs to know which was answered.
+
+`Tension` alone is still `CurveCardinal` at that tension, so every existing
+chart draws what it drew; `Desc` carries `CurveSet` because `CurveLinear` is
+both the zero value and a choice.
+
+Not in this milestone. **No curve under a bent coord** — a rounded radar is a
+reasonable thing to want, and it needs a spline fitted in scale space and
+mapped per sample, a different mechanism to be decided as such. **No family
+parameterised by arc length**, which `CurveCardinalClosed` approximates rather
+than solves. **No Savitzky-Golay order on a layer**: `geom.Trend` fixes it at
+two, the lowest degree with a curvature. And **no family may be spelled with a
+`step` prefix**, because that is how the document tells a staircase from a
+line. ✔
+
+### A label on a curve: contours that read without a colourbar — **shipped**
+
+`geom.Contour`'s own doc comment deferred it, [ADR 0050](adr/0050-locus-annotations.md)
+deferred it for "3 dB" along an M contour, and a contour chart was the one
+chart in the catalogue that could not be read without a second guide: it says
+*where* a crossing is, and which crossing it is came from a colourbar or from
+counting rings. `geom.LabelLevels(true)` writes the level on the line, for
+`Contour` and `Locus` both, and `geom.LevelFormat` says how
+([ADR 0073](adr/0073-labels-on-a-curve.md)).
+
+**It is placed after the coord, and that is the second exception.** The label
+is turned to the curve's tangent, and a tangent in data space is not the
+tangent on screen: under `coord.Polar` a constant-radius arc is straight in the
+scaled pair and bent on the panel, and under `coord.Smith` a straight sweep in
+impedance is a circle. So the placement reads only the device points the mark
+is about to stroke. It never sees a datum, which is why one helper serves a
+traced lattice and a formula.
+
+**The curve offers the candidates; the placer only says yes or no.** A label
+joins [ADR 0040](adr/0040-label-collision-avoidance.md)'s table with one
+difference: **`move` is false**. A text label may be nudged, because near its
+point it still names its point; a curve label moved off its curve names a level
+it is not on, and that is a chart that lies rather than one that is crowded.
+`curveLabelTries` positions spread along each run are scored by how far the
+curve sags from the chord under the label, one bending more than
+`curveLabelSag` font heights is no candidate at all, the flattest wins with ties
+to the start of the run, and a refusal tries the next. The list is bounded and
+the order total, so the picture is the same on one goroutine or eight.
+
+**A gap, not a halo.** A halo needs the background colour, which a layer does
+not know over a transparent panel or a raster; a knockout needs a text
+background, which would be the IR's first compositing decision. A gap is
+geometry: the run is stroked up to the label and resumed after it, as two
+subpaths of the path it was going to be anyway, with the ends interpolated so a
+coarse lattice is not gapped for half a ring. The text is turned upright and
+centred in its own gap, **once per run** — a level is many runs, each a separate
+statement, and repeating along one would need a spacing knob in device units.
+
+**The text is decoration and the geometry is data.** Levels are settled in
+`Train`; where a label sits is chosen in `Build` from what the backend says the
+string measures, so two backends may gap a curve a few pixels apart and neither
+moves a line. `ir`, `render`, `coord` and `scale` are unchanged, the gapped
+halves go into buffers the layer keeps, and a contour drawn earlier wins the
+label space from a later text layer, which is 0040's rule as written.
+
+Not in this milestone. **No text following the curve per glyph** — that is
+paragraph layout by another name. **No repeated labels along one run**, **no
+leader lines**, and **no thinning of which levels are written**: which levels a
+chart shows is `Levels`' question. `LevelFormat` **does not serialise**,
+[ADR 0041](adr/0041-qq-plots.md)'s rule for a Go function. **Filled bands
+between levels** are still a polygon where this is a path. And a labelled
+*furniture* family is not this: this labels a mark. ✔
+
+### A layered graph: state charts and pipelines — **shipped**
+
+[ADR 0039](adr/0039-relational-layouts.md) refused node-link layouts, and
+[ADR 0053](adr/0053-tidy-tree-layout.md) narrowed the refusal to force layouts,
+shipped `geom.Tree`, and left a clause for a DAG: layered layout is bounded
+too, but its crossing reduction is a heuristic sort, and *"a sort is where a
+layout stops being a pure function of its input."* The DAG that turned up was a
+state machine, and [ADR 0072](adr/0072-layered-graph-layout.md) is the answer.
+
+**A stable sort by a computed key, with the index as its tie-break, is a pure
+function.** Barycentre sweeps sort each rank by where its neighbours are, and
+equal keys are the common case — a node with one neighbour takes its position
+exactly. The fix is to make the key total: the sort is stable, the incoming
+order is the interning order and therefore the table's, the sweep count is the
+constant `stat.LayeredSweeps`, and nothing reads a map's iteration order. What
+does not survive is any claim to be optimal. Crossing minimisation is NP-hard;
+a different row order draws a different, equally valid picture, and that is
+written down as a documented input rather than smuggled in as quality.
+
+**Cycles are broken, not refused.** `geom.ErrCyclic` is right for a sankey and
+a hierarchy, but a state machine that cannot return is not one. A depth-first
+walk in index order marks the back edges, layering runs on what remains, and
+the marked edges are drawn in their true direction against the rank order,
+flagged by `stat.LayeredEdge.Back`. Five phases — break, longest-path rank,
+dummy-node routing, ordering sweeps, placement — each bounded by one pass or by
+the sweep constant. Longest-path rather than network simplex, whose pivot rule
+is a tie-break that would need justifying all over again.
+
+**The layout never sees a label.** Graphviz sizes nodes from their text; doing
+that here would give the SVG and the PNG of one document different geometry.
+`stat.Layered` places nodes in the unit square knowing only the graph, and
+`geom.Graph` sizes each box from `ir.Backend.Measure` at build time, as
+decoration. Building it sharpened that: nodes on the outer ranks need an inset
+of half the widest box, so a node's *position* does move with the font — as
+every mark already does when the panel is fitted round measured labels. What is
+a pure function of the graph is the **arrangement**, which node on which rank in
+which order, and `TestAGraphsArrangementDoesNotDependOnTheFont` holds it.
+
+It fills the unit square, so the orientations are free: ranks up the panel
+under Cartesian, down it with `geom.Baseline(1)`, concentric under
+`coord.Polar()` — which is why there is no `rankdir`. Edges are `geom.From` and
+`geom.To`, the flow channels unchanged. A node's box is a device rectangle built
+with `ir.Path.RoundRect`, not an area handed to the coord, because a labelled
+box must not become an annular sector. `stat.Layered` carries its own merge sort
+because `sort.SliceStable` allocates per call, and `TestLayeringAgainDoesNotAllocate`
+holds the gate.
+
+Not in this milestone. **No force-directed layout** — 0039's refusal stands.
+**No clusters or subgraphs**, which would be a second solver, and **no ports**.
+**No edge labels**: a transition's `event [guard] / action` needs the de-overlap
+pass [ADR 0032](adr/0032-text-as-a-mark.md) deferred. **No `geom.NodeSep`**:
+the record offered it, and in a layout that fills the unit square there is
+nothing for it to widen, so a long name can still crowd its neighbour. **No
+DOT frontend**, which is a separate record if it is ever written. And the cost
+is the ranks an edge crosses rather than the edges, so this mark is for graphs
+that are nearly layered already. ✔
+
+### Sets are counted: an UpSet plot, a Venn diagram and the set sizes — **shipped**
+
+[ADR 0039](adr/0039-relational-layouts.md) had refused Venn and UpSet in one
+sentence with two reasons in it, and the second was not a refusal at all: an
+UpSet plot is a matrix chart rather than a relational layout, which makes it
+cheaper than the neighbour it was refused beside. It has no geometry to solve.
+Its columns are the combinations of sets that occur, its bars are how many
+elements are in exactly each, its rows are the sets — a bar chart over a dot
+matrix, both of which figure drew on day one. What was missing was the
+arithmetic.
+
+**It is a count, and the count is a `stat`.** `stat.Intersections` counts a
+membership list by which sets each element is in; a combination is a bit per
+set in a `uint64`, so sixty-four sets (`stat.MaxSets`) is a mask rather than a
+limit anybody meets. It never sees a string: the geom interns, the stat counts
+indices. And it counts *exactly* — an element in A and B is counted once, under
+{A, B}, and not again under {A} — so the counts partition the elements and add
+up to how many there are, which is what a circle labelled with its own total is
+not. A membership row is a bipartite edge, so `geom.From` names the element and
+`geom.To` the set: 0039's channels, unchanged.
+
+**Two marks, one count, so the panels cannot disagree.** `geom.Intersections`
+draws the bars and `geom.SetMatrix` the dots; both read the same table and run
+the same count in `Train`, because a bar standing over the wrong column is the
+one way this form can lie. `geom.Order` and `geom.Top` decide which columns
+exist and must be handed to both, and ranked biggest-first is the default — the
+only place in the package where appearance order is not, because an UpSet plot
+*is* a ranking. That default is why `geom.Order` now records having been told.
+The panels themselves are the caller's, because a mark cannot make one: the
+two-panel form is `Plot.Track(figure.Bottom)` sharing the X scale object, and
+the three-panel form is a `figure.Grid`. Nothing was added to `figure`,
+`render`, `layout`, `coord`, `scale` or `ir` for either.
+
+**The third panel's count had been done by hand, and it was the wrong count.**
+`examples/sets` built the set-size bars with a map and a loop that counted
+*rows*, while the stat beside it counts *elements* — a join that hands back the
+same (element, set) pair twice made the left panel disagree with the two beside
+it, and the library held the right number with no way to ask for it.
+`geom.SetSizes` reads `stat.Intersections`' `Sizes` from the same table
+([ADR 0076](adr/0076-the-other-half-of-the-count.md)). It accepts `Order` and
+`Top` and ignores them, because a set's total is over the whole table, and it
+has no orientation option: which way its bars grow is the axis's business, which
+is the next section.
+
+**A Venn diagram of two or three sets is a table, not a solver.** `geom.Venn`
+draws one disc, two side by side, or three on the corners of an equilateral
+triangle — the arrangement every printed diagram uses — so 0039's objection to
+an optimiser does not reach it. See [ADR 0074](adr/0074-sets-are-counted.md).
+
+Not in this milestone. **No area-proportional diagram from three sets on**: two
+circles have three free numbers against three region areas and a bisection
+settles it, but three have six against seven, so a solver minimises an error it
+cannot drive to zero and fails subtly. The two-set case is not refused, only
+not built. **No fourth set** (`MaxVennSets` is 3): the reason first given was
+geometric and was wrong — four ellipses do show every region — so the amendment
+restates it as this mark's contract, a count written *into* its region at one
+type size in a fixed arrangement, which a four-set diagram's slivers cannot
+hold. **No row reported**, since a column and a region are aggregates. **No
+lane order by set size**, which would decide what two marks draw and so needs a
+record of its own. ✔
+
+### An axis has a direction — **shipped**
+
+The set-size bars of a printed UpSet plot grow *away* from the matrix they
+label, and `examples/sets` grew them towards it because there was no way to ask
+for the other direction. [ADR 0039](adr/0039-relational-layouts.md) had named
+the answer — a positional `scale.Reverse` that survives the round trip — and
+said in passing that a reversed domain would not have survived it anyway.
+
+**The refusal was measured before it was answered, and the round trip was never
+what stopped it.** Pinning `Domain(hi, lo)` mirrors `Map` and `Invert` exactly
+and writes `"domain": [12, 0]`, which reads back unchanged. What stopped it was
+three parts of one file, each right on its own terms: `Zero` and `Nice` handed
+back an ascending pair, the containment test in `Ticks` found no value between
+a descending `lo` and `hi` — so the axis drew its marks mirrored and carried *no
+numbers at all*, even a sequence pinned with `TickValues` — and the first pan
+turned it back round, because `Zoomer.SetDomain` orders what a drag hands it.
+So `Domain`, `LogDomain` and `SymLogDomain` now order their bounds, which keeps
+the invariant rather than patching it three times.
+
+**What reverses is the pixels, not the numbers.** `scale.Reverse()` sets one
+field on the linear scale, and `linear.device` hands `Map`, `Map64` and
+`Invert` their range the other way round. Everything that trains, frames,
+searches or filters a domain still sees a low number and then a high one, which
+is why a reversed axis pans, zooms, autoscales, clones, snapshots and describes
+itself without another line written for any of them; no branch was added to a
+drawing path. `Domain()` still reports ascending bounds and `Ticks` is still
+ascending **by value** — it is the positions that descend. The dialect spells
+it `"reverse"`, the word a colour scale already used, and it is written only by
+the kind that reads it back.
+
+**Drawing the chart found the fourth thing.** `render.selectXLabels` drops a
+label that would run into the one before it, and it swept in tick order — which
+on a reversed axis is right to left. A 400-pixel chart came out with `0` on its
+X axis and nothing else. The sweep now runs in screen order, and it is the only
+change outside `scale` and `spec`: reading the code had said the work was a
+comparison in `Ticks`. See [ADR 0075](adr/0075-an-axis-has-a-direction.md).
+
+Not in this milestone. **Log, symlog, time and probability axes** do not
+reverse yet — the flip is `device()` and three call sites in each, and what is
+missing is a chart asking and the tests with it; their pinned domains are
+ordered either way, so none half-works meanwhile. **No ordinal reverse**,
+because turning a band scale around is a question about category order, which
+is `geom.Order`'s. **A projected scene presumably inherits it**, and presumably
+is not a claim: nothing was tested against one. And writing a domain backwards
+is refused rather than supported. ✔
+
+### A node-link layout by stress majorization — **shipped**
+
+The last row of bucket E had been refused since
+[ADR 0039](adr/0039-relational-layouts.md) with a sentence welding two claims
+together: that a force layout cannot be a pure function at a bounded sweep
+count, and that it cannot be one "that also looks good". The first was too
+strong — a fixed start, step and count repeat exactly — and the second had never
+been tested. What is true is narrower. **Stress is a named objective, and
+majorization never goes uphill**, so the cost of stopping after
+`stat.StressSweeps` (fifty) can be stated and measured; a simulation stopped
+early is wherever it happened to be in its own swing.
+
+`stat.Stress` places the nodes and `geom.NodeLink` draws them, and three of the
+claims behind it are measurements.
+
+**The sweep is in place, and the order is load-bearing.** Each node's block of
+the majorizing quadratic is solved with the others held still and written back
+before the next node reads it, which is block coordinate descent and does not
+raise the stress. The first version computed every position from the previous
+sweep's and called that order-independence a virtue; two nodes a target of 1
+apart, placed 1.02 apart, cycled 0.98, 1.02 for ever at constant stress.
+`TestASweepNeverRaisesTheStress` and `TestTheSimultaneousSweepIsWhyThisOneIsNot`
+hold both halves.
+
+**The start is classical scaling, chosen by eigenvalue value.** A circle start
+folded a 4×4 grid in half. Power iteration finds the biggest eigenvalue by
+magnitude, and graph distances are often not Euclidean — K(5,5)'s centred table
+has a −5.5 that the iteration converged to and reported as 5.5 — so the
+spectrum is shifted non-negative first. A table of rank one is an answer rather
+than a failure: a path is a line, and keeping the one direction brought a
+five-node chain from bowed by a seventh of its span to under a percent.
+
+**A fixed spiral does a random start's real job.** Two nodes with the same
+neighbours sit on a saddle every sweep leaves alone; the gallery drew two team
+members as one dot with two names. `Stress.scatter` pushes every node a
+hundredth of the spread along its own direction, the golden angle apart.
+
+The layout runs in `Train` in the unit square, and `Build` fits it into the
+largest square the panel holds, because what it matched is a distance and a
+stretched axis would undo it. `stat.MaxStressNodes` is 250, where the hairball
+and the quadratic cost arrive together; a bigger graph is `ErrTooManyNodes`. See
+[ADR 0077](adr/0077-a-node-link-layout.md).
+
+Not in this milestone. **No force simulation** — not impossible, but it has no
+objective, so the cost of its bound cannot be said. **The row order picks the
+minimum**: the gallery's collaboration graph settles at a stress of 3.47 in its
+own order and 2.30 under one relabelling, and a cleverer start only moved which
+numbering was unlucky. **No multi-start**, because a trial was mixed — the
+gallery's order gained a third, the relabelled one lost — and a default changes
+on better evidence; fifty sweeps is a budget, not convergence. **No edge
+weights as distances, no multi-level coarsening, no arrowheads or bundling, no
+canonical rotation.** A node reports no row and an edge its own. ✔
+
+### Parallel coordinates: a coord with more than two axes — **shipped**
+
+[chart-types.md](chart-types.md) had called parallel coordinates the widest
+genuine gap on the page. A radar gets away with one scale because its spokes are
+one quantity measured several times; a parallel plot exists because its axes are
+*different* quantities, and squashing miles per gallon into the range of
+kilograms says something false. What it needed was per-axis scales inside one
+panel, and half of that had arrived unnoticed:
+[ADR 0070](adr/0070-a-third-labelled-family.md)'s `Furniture.Families` are
+ladders with their own lines and their own label text.
+
+**`coord.Parallel` is the first coord to hold scales.** Every other coord
+borrows the panel's two and re-ranges them; this one carries one per dimension,
+because N axes with N domains is what the panel *is*. `Frame` ranges each onto
+the unit interval and pins the panel's own X and Y to mean which axis and how
+far up it — `ternary.pin`'s move made N times. A dimension is a label and a
+scale and never a column name: `geom.Dims` names the columns, the two are
+matched in order, and a count mismatch is `geom.ErrDimensions` out of `Train`.
+A mark reaches the scales through `geom.Training.Dims`, filled via the optional
+`coord.Dimensions`, and at `Build` through `f.Coords()` — `Coord` gained no
+method and `geom.Frame` is unchanged.
+
+**The axes are furniture, and nothing in `render` knows how many there are.**
+Each dimension raises one `Family` — line, level marks, labels in its own units
+and its name at the top — stroked and written by code that has been there since
+0070. The panel's own ticks are silenced by the coord, since they would number
+an axis index. One of 0070's rules had to be amended: a theme's
+`theme.Ticks(false, false)` would have unlabelled the whole chart, so
+`Furniture.FamiliesAreTheAxes` keeps the dimensions' numbers through it, and a
+ternary chart, which does not set it, is unchanged. The labels sit inside the
+panel, over the lines, because there is nowhere outside to put N ladders.
+
+**A row is a line, reported at every axis it crosses**, batched by colour with a
+subpath per row so a thousand rows in three colours are three drawing calls. A
+row missing a value gaps there rather than being joined across. And which way
+up an axis reads is free: `scale.Linear(scale.Reverse())` gives the "better is
+up" arrangement with nothing from the coord or the mark. See
+[ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md).
+
+Not in this milestone. **No categorical axes**, which are a second placement
+rule and a half-step towards parallel sets. **No brushing or dragging axes**,
+which are the host's. **No chosen axis order**, since an order out of an
+optimiser is not a pure function of the input. **No curves between axes.** And
+a gutter is still sized from the panel's own tick labels, so a chart that
+leaves its theme alone reserves room it never writes into — `layout` knows
+nothing about coords, [ADR 0018](adr/0018-coordinate-systems.md)'s deliberate
+deferral, and this is the second chart to notice. ✔
+
+### Parallel sets: the count between categorical columns — **shipped**
+
+[ADR 0078](adr/0078-a-coord-with-more-than-two-axes.md) left the table with
+*categorical* columns drawn nowhere. A line per row is no answer: nine hundred
+tickets over three such columns have twelve distinct paths between them, so the
+picture shows which combinations occur and nothing about how many. And a caller
+crossing neighbouring columns by hand into a `geom.Sankey` edge list is the
+shape [ADR 0076](adr/0076-the-other-half-of-the-count.md) had just refused for
+the set sizes.
+
+**It is a count, and not a coord.** `geom.ParallelSets` shares `geom.Dims` with
+`geom.Parallel` and nothing else. A category has no value to place on a scale,
+and the ribbons lie *between* the axes, so a coord that drew them would be
+deciding a layout and drawing it. Both axes describe the unit square, as a
+treemap's do. The arithmetic is `stat.Crosstab` — indices in, counts out, names
+interned by the geom.
+
+**The layout is `stat.Sankey`'s, because the count is a flow.** The same total
+passes through every column, the strongest form of what a flow layout needs. In
+the busiest column the nodes fill the interval exactly, so the relaxation is a
+no-op there and the plain stacked partition comes out; a sparser column spends
+its slack standing nearer what it joins. One scale serves the diagram, so a
+ribbon's thickness means the same thing everywhere. The column each category
+stands in is *given*, through a new `Sankey.ResetColumns`: the longest-path rule
+would send a category nothing reaches to the far left among the sources, which
+`TestPinnedColumnsHoldWhereDerivedOnesWouldNot` pins.
+
+**The crossings are sorted once, and that is not the sort 0039 refuses.** A
+crossing is a count over rows, not a row, so the table has no opinion about its
+place; `Crosstab` orders by source category, target and class, a total order on
+distinct keys and one sort of the answer rather than one per sweep. It stacks
+ribbons in the order of the boxes at their far end, so they cross only where
+the data does. A `geom.ColorBy` column subdivides the ribbons rather than
+averaging a colour nobody named, and the boxes stay in the theme's label ink,
+because asking the discrete scale for a box's colour would put every category
+in a legend naming the classes.
+
+**A row missing a category is counted nowhere** — the one place an absent value
+costs a row. Each column partitions the same total, and skipping only the
+crossings beside a gap would leave one column adding up to less than the next.
+See [ADR 0079](adr/0079-parallel-sets.md).
+
+Not in this milestone. **No labels on the boxes and no column titles**: a mark
+that wrote text would need a policy for a box too small to hold its name. The
+legend names the categories — `channel: phone`, joined by
+`geom.DimensionSeparator`, so two columns' "yes" stay two — which makes this
+the form that usually wants `figure.Legend(true)`. **No reordering to reduce
+crossings**, the sankey's refusal unchanged. **No invented "missing"
+category**, **no crosstab of every pair**, and **no row behind a ribbon**. An
+alluvial diagram needs nothing that is not here. ✔
+
+### Nearest-neighbour cells: a partition cut where the reader measures it — **shipped**
+
+The sweep of unusual forms in [chart-types.md](chart-types.md) had one row left
+that was a decision rather than a recipe, and it had been left out for the
+weakest reason in the file: nobody had asked. What people draw with it is a
+rainfall map, a catchment, a coverage map of depots or gauges — and the only
+architectural objection had gone when [ADR 0077](adr/0077-a-node-link-layout.md)
+admitted a layout under a fixed budget. A nearest-neighbour partition is not
+even that: it is an intersection of half-planes, arithmetic with an answer
+rather than a search with a stopping rule.
+
+**The question no mark had answered is in what space a distance is measured.**
+`geom.Voronoi` reads `X` and `Y` like a scatter, trains them like a scatter and
+places its sites through `coord.Point` like a scatter. But a cell's whole
+content is that its boundary is *halfway* between two dots, and there is no
+distance between a millimetre of rain and a kilometre of easting. Cut in the
+scaled pair and stretched into the panel, the partition goes through an
+anisotropic map that takes perpendicular bisectors to lines that are not, and
+every boundary on screen would be halfway between nothing. So `stat.Voronoi`
+runs in `Build` against `Frame.Area` — the fourth stat to do so, after the
+hexagonal lattice, the beeswarm and the treemap's squarify. The cost is stated
+rather than hidden: the picture depends on the panel, and `examples/voronoi`
+draws the same table with and without a colourbar to show the cells move. Under
+`coord.Polar` the partition is clipped to the disc by the coord's own clip; the
+mark asks the coord nothing.
+
+**It intersects half-planes; it does not sweep.** Each cell is the panel
+rectangle clipped by one bisector per other site — quadratic where Fortune's
+sweep is O(n log n), and chosen anyway, because a convex clip has one branch and
+no topology to get wrong where a sweep decides its picture on circle-event
+predicates a rounding away from a different answer. A site farther than twice
+the cell's current radius is skipped with one distance. `stat.MaxVoronoiSites`
+is 1000 and `geom.ErrTooManySites` refuses past it in `Train`, in
+`geom.NodeLink`'s manner: a thousand cells in a 900×600 panel are twenty pixels
+a side, and past that the answer is a raster. The result is a pure function of
+its input in which even the row order does not matter, which no other layout
+here can say.
+
+**A cell is a row, and it reports one** — the first layout-shaped mark for which
+that is true. Two rows at the same device point have no bisector: the first
+keeps the cell, the second draws and reports nothing but still cuts every other
+cell. Colour is per cell, batched one call per colour with one subpath per
+cell, which keeps [ADR 0007](adr/0007-per-mark-colour.md) intact and lets a
+pointer land on the cell it is inside. Nothing below `geom` learned anything.
+See [ADR 0080](adr/0080-nearest-neighbour-cells.md).
+
+Not in this milestone. **No dots and no labels** — `geom.Scatter` and
+`geom.Text` over the same table do both. **`GroupBy` is ignored**, because one
+partition over every row has no series inside it. **An outline only when both
+`Fill` and `Color` are named**, `geom.Rect`'s rule for `interact`'s reason, and
+**no padding**, because an inset cell is no longer the set of points nearest its
+row. **No Lloyd relaxation, weighted diagram or Voronoi treemap** — each an
+optimiser [ADR 0039](adr/0039-relational-layouts.md) refuses — and **no
+Delaunay triangulation**, because interpolating between samples is a claim about
+values where a cell is a claim about nearness. ✔
+
+### A map projection: a coord handed degrees — **shipped**
+
+A geographic projection was deferred in one line in four places and argued in
+none. [ADR 0018](adr/0018-coordinate-systems.md) had set the terms: a
+projection has no linear interval underneath it and wants to be handed the data
+domain rather than a mapped position, and that wider seam should be argued on
+its own evidence. When the argument was finally written, both halves of the bill
+turned out to have been paid already, by charts nobody thought of as maps.
+
+**The axes are degrees, because the Smith chart already did this.** `coord.Geo`
+calls the same `identityRange` [ADR 0033](adr/0033-smith-charts.md) wrote for
+the reflection coefficient: each scale is given its own domain as its range, so
+`Map` is the identity and what reaches `Point` is a longitude and a latitude.
+The axes want a **linear** scale for the Smith chart's reason. And three things
+come free from the axes being ordinary: the graticule *is* the ticks —
+`scale.TickValues(-180, -120, …)` asks for an atlas's graticule — a regional
+map is a narrower domain, and a map **zooms**, because unlike a Smith chart its
+picture is derived from the domain every `Frame`.
+
+**The graticule had a tick behind it all along.** Four records had circled the
+claim that a graticule needs a labelled family with no tick behind it, and
+[ADR 0070](adr/0070-a-third-labelled-family.md) spent the seam partly for it.
+With degrees on the axes a meridian is a longitude tick's own shape, exactly as
+a polar ring is a Y tick's, and goes into `Furniture.GridX`. What has no tick
+behind it is the **edge of the map** — a globe's rim, a Mollweide's ellipse —
+and that one unlabelled line is the family. Each ladder of numbers is written
+along the longest line of the other, which reproduces the atlas on a
+rectangular map and puts a Mollweide's longitudes on the equator.
+
+**The projection is a name, and the default is the equal-area one.**
+`Mollweide`, `Mercator`, `PlateCarree` and `Orthographic` are a closed set of
+`coord.Projection` values, so a document can name one; an unknown name is
+`coord.ErrUnknownProjection` rather than the nearest guess. `DefaultProjection`
+is `Mollweide` because on a map how much ground a thing covers reads as how much
+of it there is — the other three are fine things to ask for and never a fine
+thing to get by not choosing. The map keeps its shape with one scale factor for
+both directions, fitted by walking a 33 × 33 lattice over the domain (plus the
+rim for a globe) rather than by four sets of extremal formulas. A place with no
+image is NaN, and the walk starts a new subpath where the image resumes;
+Mercator is cut at ±85.051129°, and `Extent` reports the cut. Everything the
+coord draws for itself is walked in longitudes measured from the centre
+meridian, or a Pacific-centred map would draw its parallels straight back across
+the world. Nothing in `geom`, `render` or `layout` changed. See
+[ADR 0081](adr/0081-a-map-projection.md).
+
+Not in this milestone. **No geography**: a coastline is rows in the caller's
+table, and a GeoJSON reader is a package allowed dependencies the core does not
+have. **No spherical arithmetic** — a great circle and a rhumb line are two
+claims about one pair of places, and `examples/map` draws both from its own
+rows. **No antimeridian wrapping**, because 179° and −179° are two degrees apart
+or three hundred and fifty-eight and the pair does not say which. **No filled
+ring of rows** for a choropleth, which is a mark with four questions of its own.
+**No conic projection**, whose two standard parallels `coord.Desc` has no field
+for. And **no decimation**, because a pixel column is a band of longitude under
+two projections and of nothing in particular under the other two. ✔
+
+### A label fits its box, or is called out of it — **shipped**
+
+`geom.Text` has always dropped a box label that does not fit, because an
+overrunning label reads as its neighbour's. What "fits" meant was one number,
+the width of the box — under a polar coord the chord across the middle of the
+slice — and a label is a width and a height laid out level in a box that is
+there a wedge of an annulus. Donut and sunburst labels were drawn over the
+edges of their slices, which is exactly what dropping exists to prevent. And a
+pie's thin slices are where the number is most wanted, which is the leader line
+[ADR 0040](adr/0040-label-collision-avoidance.md) deferred in its last line.
+
+**Fitting is decided on screen, by the coord.** The label's font box, laid out
+as it will be drawn with a pixel and a half of padding, must lie inside the box,
+and whether a device point does is what `coord.Coord.Invert` answers for every
+coord. The test walks the font box's edges four points to a side, because a
+donut's hole bows into a label whose corners are clear of it. Under Cartesian
+the only change is that height now counts.
+
+**A label is moved, broken and shrunk before it is dropped, in that order.**
+Under a coord with a middle — `coord.Exploder` again — it is also tried at a
+fifth, a third, two thirds and four fifths along each span, because a sunburst
+cell turns as it goes round; under Cartesian only the middle is tried and a bar
+chart pays nothing. `geom.Slide(false)` pins it to the middle. `geom.Wrap`
+breaks it at spaces over two or three lines, choosing the break whose widest
+line is narrowest, and comes before shrinking because two lines at the layer's
+size read better than one at three quarters of it. Then it is shrunk to the
+largest size that fits, down to `geom.MinFontSize`, three quarters of the
+layer's size by default — found by scaling metrics already measured and rounded
+down to a quarter of a unit, so a chart asks for a few fonts rather than one per
+label.
+
+**Below the floor, `geom.Callout` writes it outside.** The label leaves through
+the edge furthest out along the box's bisector, runs out past everything the
+coord draws, turns level on a short arm, and is stacked apart from its
+neighbours a side at a time so that thin slices write a column. A label that
+would overrun the panel is drawn in on a shorter arm first; the first version
+dropped it outright and the gallery's donut lost its thinnest slice's label by
+four pixels. The amendment went further: a called-out label is fitted to the
+room beside the chart the way a box label is fitted to its box — one line,
+then broken, then shrunk — because in a sunburst not much wider than its ring
+the labels being dropped were the long names, the ones a reader could not guess
+from the colour. A called-out label is outside the disc a polar panel clips to,
+so `geom.Overhanger` asks `render` for the panel rectangle instead. A text layer
+given `geom.ExplodeBy` moves with its slice, leader and all. See
+[ADR 0082](adr/0082-a-label-fits-its-box-or-is-called-out.md).
+
+Not in this milestone. **No callouts under Cartesian**, for `Exploder`'s
+reason: a bar has no outside that is not the next bar's inside, and a label
+above a short bar would be a named option rather than a default. **Called-out
+labels do not take part in `AvoidOverlap`** — they are stacked against each
+other, and a label from another layer is not an obstacle to them. **A leader out
+of an inner ring crosses the rings outside it**, which is the price of leaving
+by the shortest way. And **no labels turned along a ring**: the fit takes a
+rotation already, and what is missing is the rule that picks one. ✔
+
+### An axis break is marked or not drawn — **shipped**
+
+Two charts asked for the same thing from opposite ends. Six sites, one thirty
+times the others, where every other bar is a sliver unless the axis leaves out
+the empty stretch between 12 and 85 — and says so with a `//`. And a machine's
+state log, where the reader wants the time it was doing something and every
+idle stretch folded away: not one interval chosen by eye but dozens read out of
+the table the chart draws.
+
+**A break belongs to the scale, like a direction.** `scale.Break` and
+`scale.TimeBreak` change `Map`, `Invert` and `Ticks`, which is
+[ADR 0075](adr/0075-an-axis-has-a-direction.md)'s argument: every geom,
+`interact`'s inversion, a track sharing the panel's scale and every facet panel
+then agree by construction. It is configuration, so `Clone` keeps it,
+`Snapshot` shares it and `Describe` writes it down.
+
+**`Map` stays continuous, and a value inside a break is not missing.** The kept
+pieces share the range less the gaps, each through `place` with its own ends
+snapped and its offsets rounded explicitly against a fused multiply-add. A value
+in a cut maps linearly across the gap and the panel's clip hides it — so
+`Invert` stays exact, `Defined` is unchanged, no geom learns about breaks, and a
+bar from 0 to 95 across a break is one bar with its middle missing. Treating it
+as missing would cut the tall bar the break exists for.
+
+**An unmarked break is a lie, so a coord that cannot mark one does not get
+one.** The gap is a length on the page, which neither a scale nor a coord can
+know; `scale.Breaker.SetBreakGap` is called once per render from
+`theme.AxisBreakGap` and `theme.AxisFoldGap`, the way a size scale learns its
+range. The cuts are off until then, and switched on only under a coord that
+implements `coord.Breakable` — today only `Cartesian`, whose framed form clips
+to one rectangle per pair of kept pieces and splits its axis and grid lines
+into subpaths, with the marks in `Furniture.Breaks` stroked after the data. A
+second axis, which has no clip, stays whole; so does a break that would take
+more than half the axis. A cut reaching an end of the domain trims it instead.
+Ticks are chosen once for the length the axis still shows and walked per piece,
+so both sides read at one step and one precision.
+
+**A fold is a break of another kind.** `scale.Fold` and `scale.TimeFold` cut
+with a narrow gap and a small slash, never a zigzag — a zigzag per fold would be
+a hatch — and a binary search over running sums keeps a row at O(log n) with no
+allocation, gated by `BenchmarkFolded1k` against `BenchmarkFolded100k`.
+`figure.SpansWhere` reads the folds out of a table, living in the root package
+because it is the one place holding both a table and a scale; the document
+spells them `"cuts"` and `"folds"`, since `"breaks"` was taken, and writes the
+spans rather than the query. With no break, every golden file still matches.
+See [ADR 0083](adr/0083-an-axis-break-is-marked-or-not-drawn.md).
+
+Not in this milestone. **No breaks on a log, symlog or probability axis** —
+the same arithmetic per piece, and nobody asked. **No recurring breaks as a
+rule**, because a business-day axis is a calendar rather than an interval list,
+and a calendar's spans can already be passed as folds. **No folds a layer
+derives in `Train`**, because an axis would then change when a layer was added.
+**No folding a category**, which is filtering rows. **No different scale on each
+side of a break**: a break leaves an interval out of one axis and does not join
+two. ✔
 
 ---
 
