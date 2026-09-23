@@ -93,6 +93,7 @@ depends on.
 | [0081](0081-a-map-projection.md) | A map projection is a coord that is handed degrees, and its graticule is the two tick lists a panel already has | Accepted | — |
 | [0082](0082-a-label-fits-its-box-or-is-called-out.md) | A label fits the shape of its box on screen, is moved, broken or shrunk before it is dropped, and may be called out of it | Accepted | — |
 | [0083](0083-an-axis-break-is-marked-or-not-drawn.md) | An axis break belongs to the scale, and it is marked or it is not drawn | Accepted | — |
+| [0084](0084-what-v1-promises.md) | v1.0 is tagged when a machine can say the surface did not move, and a point counts as one value | Proposed | — |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
