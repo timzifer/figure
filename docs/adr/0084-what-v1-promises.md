@@ -23,9 +23,9 @@ the tag.
 **The surface grew after the audit.** Twenty-seven records have been written
 since 0056 — a third axis, a map, a coord with more axes than two, a dozen
 marks, axis breaks and folds, callouts, hatching, a bivariate channel — and
-none of them was read against the audit's verdicts. The core module now exports about a thousand
-declarations (`go doc -short`, summed over the public packages: `geom` 226,
-`scale` 137, `stat` 128, `.` 94, `coord` 73, `three` 68).
+none of them was read against the audit's verdicts. The core module now
+exports about a thousand declarations (`go doc -short`, summed over the public
+packages: `geom` 226, `scale` 137, `stat` 128, `.` 94, `coord` 73, `three` 68).
 
 **The growth rule is stated and not checked.** 0060 wrote it as enforceable:
 an interface a third party implements never gains a method, and a method on one
@@ -62,8 +62,9 @@ review burden; after it, it is a broken promise that ships.
 
 ## Decision
 
-**v1.0.0 is tagged when four checks are green and a second audit has no open
-CHANGE BEFORE V1 row — not when the surface feels settled.** Every check is
+**v1.0.0 is tagged when the checks below are green, a second audit has no open
+CHANGE BEFORE V1 row, and the release tooling has been unlocked for it — not
+when the surface feels settled.** Every check is
 stdlib-only, because the core's one rule applies to its tools as much as to its
 code.
 
@@ -101,23 +102,57 @@ The test reads **every** exported interface, not only the ones §15 lists as
 implemented by third parties. An optional interface such as `scale.Breaker` or
 `geom.LabelPlacer` is asserted rather than required, but anything exported can
 be implemented outside the module, and the day somebody does is not a day the
-signature can still change. A new interface that breaks the
-rule fails CI the day it is written, which is the only day it is free to fix.
+signature can still change. A new interface that breaks the rule fails CI the
+day it is written, which is the only day it is free to fix.
 
-### 3. The exported surface has a baseline, and CI diffs it
+### 3. The exported surface has a manifest, and CI checks it twice
 
 `internal/cmd/apicheck` writes one line per exported declaration of every
 public package in each module — the shape of Go's own `api/*.txt` — into
-`api/<module>.txt`, and CI fails when the file does not match the code. A
-function, a type, a method, **each method of an exported interface, each
-exported field of a struct and the value of each constant** is a line of its
-own, because each is something a caller can depend on separately.
+`api/<module>.txt`. A function, a type, a method, **each method of an exported
+interface, each exported field of a struct and the value of each constant** is a
+line of its own, because each is something a caller can depend on separately.
+It is a command of its own, beside `releasecheck`, rather than
+`golang.org/x/exp/apidiff`: that would be the first dependency of the core's
+tooling. It reads the code with `go/parser` and `go/types`, both standard
+library.
 
-Before v1 the diff is a review aid: a change to the surface is a change to a
-committed file, and a reviewer reads it. From v1 the check sorts a change into
-three kinds:
+**A struct's comparability is a line too.** A struct that `==` accepts can be a
+map key and can be compared by a caller, and adding a field of slice, map or
+func type takes both away without changing what a nil field does. `ir.Surface`
+is three numbers today and is exactly that case. So the manifest records, per
+exported struct, whether it is comparable, as its own line; a field that
+changes it changes that line, and a changed line is refused below.
 
-- **A removed or changed line is refused.** That is a major version.
+**The manifest covers every build configuration the module supports, not the
+one it was generated on.** `backend/canvas` exists only under `js && wasm`, and
+so does `Live.Bind` in the root package; a manifest written on a desktop would
+leave that surface out and nothing would protect it. `apicheck` therefore
+walks a named list of configurations — the default one, and `GOOS=js
+GOARCH=wasm` — and writes the union, each line marked with the configurations
+it exists under. A public file carrying a build constraint that no listed
+configuration satisfies fails the check, so a new platform-specific surface is
+either added to the list or noticed.
+
+It is checked twice, because one comparison cannot do both jobs:
+
+1. **The manifest matches the code.** Regenerated on every CI run and compared
+   with the committed file, before v1 and after. This is what makes a change to
+   the surface a change to a committed file, which a reviewer reads. It cannot
+   refuse anything, because a change that updates the code and the file together
+   passes it by construction.
+2. **The code is compatible with what was published.** From `v1.0.0`, the
+   reference is the manifest as it stands at the **latest release tag** of the
+   same major version, read with `git show <tag>:api/<module>.txt` — a file no
+   commit on the branch can edit. Since the reference moves with every release,
+   a declaration added in v1.3 is protected from v1.3 on exactly as one from
+   v1.0 is. `releasecheck` runs the same comparison against the tag it is about
+   to create.
+
+The second check sorts each difference into one of three kinds:
+
+- **A removed or changed line is refused** — including a struct's
+  comparability line and a constant's value. That is a major version.
 - **A method added to an exported interface is refused**, although it is an
   added line. Go has no default methods, so every implementation outside the
   module stops compiling whatever the method does; a new capability arrives as
@@ -125,9 +160,16 @@ three kinds:
 - **Anything else added passes** — a function, a type, a constant, a field. A
   new field is where the check stops and the reviewer starts: it is compatible
   only if its zero value leaves the behaviour as it was, which is §15's rule for
-  a struct and a question no text comparison can answer. It is a command of its own, beside `releasecheck`, rather than
-`golang.org/x/exp/apidiff`: that would be the first dependency of the core's
-tooling, and the check it performs is a sorted text comparison.
+  a struct and a question no text comparison can answer.
+
+**A struct literal written without field names is not covered by the
+promise**, and §15 says so. A positional literal of `ir.Surface` stops compiling
+the day a field is added, and no additive rule can avoid that; Go's own
+compatibility document draws the same line, and `go vet`'s composites check
+already warns about such a literal of another package's type. The first audit's
+rule 3 — "a struct with exported fields can gain fields" — was stated without
+this condition or the comparability one, and the second audit corrects it
+there rather than here.
 
 ### 4. The JSON dialect has a corpus that is never edited
 
@@ -151,7 +193,7 @@ The audit is repeated over what arrived since it was taken, with the same three
 verdicts and the same five rules, and its findings are appended to
 [v1-api-audit.md](../v1-api-audit.md) as a dated section rather than a second
 document — the two together are the reasoning behind one surface. It walks
-the `api/` baseline rather than `go doc`, so that nothing it reads can be
+the `api/` manifest rather than `go doc`, so that nothing it reads can be
 missing from what CI later checks. Three questions it has to answer, because the
 first audit could not ask them:
 
@@ -168,17 +210,32 @@ first audit could not ask them:
   through `spec` and is reachable by name — a kind that only its constructor can
   build is a chart that cannot be written down.
 
+### 6. The release tooling is unlocked on purpose, as its own step
+
+`internal/release` refuses a `v1` tag today: the three modules that tag with the
+core carry `Major: 0` in `release.Modules`, and `CheckVersion` rejects any other
+major. [ADR 0059](0059-renaming-and-restarting-the-version.md) set that lock so
+that nothing could publish a `v1` before the freeze it promises. Lifting it is
+therefore not a side effect of the tag but the step that says the freeze is
+done: `Major: 1` for the core, `backend/gg` and `backend/window`, in a commit of
+its own after every check above is green, with `releasecheck` run against the
+`v1.0.0` tags it would create before any is pushed. A major version of 1 needs
+no suffix on the module path, so no import changes.
+
 ### Order of work
 
-1. This record, and the amendment to CONCEPT §15.
+1. This record, the amendment to CONCEPT §15, and the sentence on unkeyed
+   struct literals.
 2. The growth-rule test, failing on the four methods; the four request structs,
    making it pass.
-3. `apicheck` and the committed baseline.
-4. The second audit, working from the baseline; its CHANGE BEFORE V1 rows, each
+3. `apicheck` — every configuration, comparability, both checks — and the
+   committed manifest.
+4. The second audit, working from the manifest; its CHANGE BEFORE V1 rows, each
    in its own commit.
 5. The JSON corpus, written after the audit so that it records the dialect the
    audit left.
-6. `releasecheck` over every module, the status lines in README and CONCEPT, and
+6. The release tooling moved to `Major: 1` (§6), in its own commit.
+7. `releasecheck` over every module, the status lines in README and CONCEPT, and
    the tag — `v1.0.0` for the core, `backend/gg` and `backend/window` together,
    as §15 already says.
 
@@ -194,6 +251,10 @@ first audit could not ask them:
   `Area`-shaped method needs no argument — and a method that is *not* one of
   those values cannot borrow the exception by resembling one, because the test
   names the methods it excuses.
+- A struct that is comparable today stays comparable for as long as v1 lasts,
+  or the change waits for v2. That is a real constraint on `ir.Surface`,
+  `ir.Point` and the like, and it is the one a caller using them as map keys is
+  relying on.
 - The zero-value rule for a new field stays a human judgement. The check makes
   every new field a visible line; it cannot make the reviewer read it.
 
@@ -219,7 +280,7 @@ first audit could not ask them:
 ## Revisit if
 
 - The growth-rule test wants a third kind of exception. Two — the ink and a
-  value of fixed arity — are a rule; three is a list, and the rule should be restated
-  rather than extended.
-- The baseline diff is routinely committed without being read. Then the check
+  value of fixed arity — are a rule; three is a list, and the rule should be
+  restated rather than extended.
+- The manifest diff is routinely committed without being read. Then the check
   is a formality, and the answer is to make the pre-v1 diff fail too.
