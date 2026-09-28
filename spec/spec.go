@@ -346,9 +346,9 @@ type Mark struct {
 	// figure's names.
 	Branch string `json:"branch,omitempty"`
 	// Orientation is which way round a mark reads its two axes: "vertical",
-	// the default and so left out, or "horizontal". Only a tree reads it
-	// today. Vega-Lite spells the same idea as two mark types, so this is
-	// figure's own name.
+	// the default and so left out, or "horizontal". A tree, a bar, a
+	// histogram and a boxplot read it. Vega-Lite infers the same idea from
+	// which channel is quantitative, so this is figure's own name.
 	Orientation string `json:"orientation,omitempty"`
 	// Confidence is the level of a survival curve's pointwise band, and
 	// CensorMarks whether it ticks its censored times. Both are figure's.

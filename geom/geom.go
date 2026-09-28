@@ -830,9 +830,10 @@ func Thickness(f float64) Option { return func(c *config) { c.thickness = f } }
 //
 // It is the library-wide question [Tree] asked first — ADR 0053's amendment —
 // and the answer lands here rather than in one mark's own option, so that the
-// second mark to want it says it the same way. Today [Tree] is the only mark
-// that reads it; [Orient] on any other is accepted and ignored, which is what
-// [Decimate] on a projected surface already is.
+// second mark to want it says it the same way. [Tree], [Bar], [Histogram] and
+// [Boxplot] read it; [Orient] on any other is accepted and ignored, which is
+// what [Decimate] on a projected surface already is. [Rect] and [ErrorBar]
+// need no option: which edges a row names already says which way they run.
 type Orientation uint8
 
 const (
@@ -849,6 +850,50 @@ const (
 // Orient sets which way round a mark reads its two axes. The default is
 // [Vertical]. See [Orientation] for which marks read it.
 func Orient(o Orientation) Option { return func(c *config) { c.orient = o } }
+
+// axes splits a panel's two scales into the one a mark's slots run along and
+// the one its measurement does: X and Y as the mark has always drawn them, and
+// the other way round under [Horizontal].
+func (c config) axes(x, y scale.Scale) (slot, value scale.Scale) {
+	if c.orient == Horizontal {
+		return y, x
+	}
+	return x, y
+}
+
+// roles is the config with its positional columns renamed for the roles they
+// play, so that a mark written for the vertical case reads a horizontal layer
+// unchanged: under [Horizontal] the slot is the [Y] column and its far edge
+// [Y2], and the measurement is the [X] column and its far end [X2]. It is used
+// only to read columns; the layer's own config is what it describes itself
+// with, because the document holds the columns the caller named.
+func (c config) roles() config {
+	if c.orient == Horizontal {
+		c.xcol, c.ycol = c.ycol, c.xcol
+		c.x2col, c.y2col = c.y2col, c.x2col
+	}
+	return c
+}
+
+// box is the rectangle a mark computed in slot and value space, in the space
+// the scales map into: the slot across X and the value up Y, or turned a
+// quarter under [Horizontal]. It is the one place a mark written for the
+// vertical case turns, which is why everything after it — the coord, explode,
+// extrude — needs to know nothing about orientation.
+func (c config) box(s0, v0, s1, v1 float32) ir.Rect {
+	if c.orient == Horizontal {
+		return ir.R(v0, s0, v1, s1)
+	}
+	return ir.R(s0, v0, s1, v1)
+}
+
+// point is [config.box] for a single position.
+func (c config) point(s, v float32) (x, y float32) {
+	if c.orient == Horizontal {
+		return v, s
+	}
+	return s, v
+}
 
 // Opacity scales the fill alpha, in [0, 1]. The default is 1 for an explicit
 // [Fill] colour and 0.25 for an area that takes its colour from the palette —
@@ -2133,6 +2178,15 @@ func slotOn(s scale.Scale, v, halfWidth float64) (float32, float32) {
 		a, b = b, a
 	}
 	return a, b
+}
+
+// baselineOn is [baselinePos] or [baselineAcross], whichever axis the value
+// runs along.
+func baselineOn(f Frame, c config, v float64) float32 {
+	if c.orient == Horizontal {
+		return baselineAcross(f, v)
+	}
+	return baselinePos(f, v)
 }
 
 // baselinePos maps the value a bar or area grows from.

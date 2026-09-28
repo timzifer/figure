@@ -727,6 +727,21 @@ func orientation(name string) geom.Orientation {
 	return geom.Vertical
 }
 
+// markOrientation is a layer's orientation: figure's own "orientation" where
+// the document wrote one, and otherwise Vega-Lite's "orient" on the two marks
+// whose orient means the same thing — a bar and a boxplot lying on their side.
+// A rule's and a rect's orient choose between two marks instead, and are read
+// where the mark is.
+func markOrientation(m Mark) geom.Orientation {
+	if m.Orientation != "" {
+		return orientation(m.Orientation)
+	}
+	if (m.Type == "bar" || m.Type == "boxplot") && m.Orient == "horizontal" {
+		return geom.Horizontal
+	}
+	return geom.Vertical
+}
+
 // branch is a tree's branch shape, read back from its name. Anything but
 // "straight" is the elbow, which is the default a document leaves out.
 func branch(name string) geom.Branch {

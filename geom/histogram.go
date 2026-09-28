@@ -25,6 +25,10 @@ import (
 // over the data's own extent with the Freedman–Diaconis rule, falling back to
 // Sturges's where the column has no interquartile range to measure.
 //
+// [Orient] with [Horizontal] bins the [Y] column instead and grows the bars
+// across X — the distribution drawn up a price axis, beside the price, is the
+// case it is for: a histogram in a right track shares the panel's Y.
+//
 // # Groups
 //
 // A histogram ignores [GroupBy]. Two distributions drawn as two overlapping
@@ -46,8 +50,8 @@ type histGeom struct {
 }
 
 func (g *histGeom) Train(t Training) error {
-	x, y := t.X, t.Y
-	g.vals, g.err = column(g.src, g.cfg.xcol, x)
+	x, y := g.cfg.axes(t.X, t.Y)
+	g.vals, g.err = column(g.src, g.cfg.roles().xcol, x)
 	if g.err != nil {
 		return g.err
 	}
@@ -103,21 +107,22 @@ func (g *histGeom) Build(b ir.Backend, f Frame) error {
 	defer sc.release()
 
 	cd := f.Coords()
-	base := baselinePos(f, g.cfg.baseline)
+	fs, fv := g.cfg.axes(f.X, f.Y)
+	base := baselineOn(f, g.cfg, g.cfg.baseline)
 	sc.fill.Reset()
 	for _, bu := range g.buckets {
 		if bu.Count == 0 {
 			continue
 		}
-		x0, x1 := f.X.Map(bu.Lo), f.X.Map(bu.Hi)
+		x0, x1 := fs.Map(bu.Lo), fs.Map(bu.Hi)
 		if x1 < x0 {
 			x0, x1 = x1, x0
 		}
-		y0, y1 := f.Y.Map(float64(bu.Count)), base
+		y0, y1 := fv.Map(float64(bu.Count)), base
 		if y1 < y0 {
 			y0, y1 = y1, y0
 		}
-		areaRound(&sc.fill, cd, ir.R(x0, y0, x1, y1), ir.Point{}, g.cfg.corner)
+		areaRound(&sc.fill, cd, g.cfg.box(x0, y0, x1, y1), ir.Point{}, g.cfg.corner)
 	}
 	if sc.fill.Empty() {
 		return nil
@@ -141,7 +146,7 @@ func (g *histGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.cfg.fill != nil {
 		col = *g.cfg.fill
 	}
-	return g.cfg.boxSwatch(f, g.cfg.labelForX(), col), true
+	return g.cfg.boxSwatch(f, g.cfg.roles().labelForX(), col), true
 }
 
 func (g *histGeom) Source() data.Source { return g.src }

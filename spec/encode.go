@@ -475,6 +475,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	density := func() {
 		m.Bandwidth = d.Bandwidth
 	}
+	// Written only by the marks that read it, for the same reason: a
+	// horizontal line would be a document claiming a line can lie down.
+	orientation := func() {
+		if d.Orient == geom.Horizontal {
+			m.Orientation = "horizontal"
+		}
+	}
 
 	// A contour that joins back to its start is a property of the connected
 	// marks and of nothing else, so it is written by those three and not by
@@ -530,6 +537,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.BarWidth, m.Origin = float64Ptr(d.BarWidth), d.Baseline
 		m.Explode = d.Explode
 		m.Extrude = d.Extrude
+		orientation()
 	case geom.MarkRect:
 		stroke()
 		fill()
@@ -561,11 +569,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		rows()
 		m.BarWidth = float64Ptr(d.BarWidth)
 		m.Extent, m.Outliers = d.Whisker, boolPtr(d.Outliers)
+		orientation()
 	case geom.MarkHistogram:
 		stroke()
 		fill()
 		binning()
 		m.Origin = d.Baseline
+		orientation()
 	case geom.MarkViolin:
 		stroke()
 		fill()
@@ -611,9 +621,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Branch == geom.Straight {
 			m.Branch = "straight"
 		}
-		if d.Orient == geom.Horizontal {
-			m.Orientation = "horizontal"
-		}
+		orientation()
 	case geom.MarkNodeLink:
 		// Dots and lines: a fill for the discs, a stroke for the edges, and the
 		// mark's size is a disc's diameter. There is no ranking, no direction
@@ -860,9 +868,15 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		// The stack is a property of the axis the groups are stacked along,
 		// which is the Y axis for every mark that has one — so it goes on the
-		// Y channel, where Vega-Lite puts it and where a reader will look.
-		if d.StackSet && enc.Y != nil {
-			enc.Y.Stack = stackName(d.Stack)
+		// Y channel, where Vega-Lite puts it and where a reader will look. A
+		// horizontal layer stacks across X, and Vega-Lite puts it there too.
+		if along := enc.Y; d.StackSet {
+			if d.Orient == geom.Horizontal {
+				along = enc.X
+			}
+			if along != nil {
+				along.Stack = stackName(d.Stack)
+			}
 		}
 		if enc.empty() {
 			return nil, nil

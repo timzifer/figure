@@ -323,7 +323,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		LevelCount:  l.Mark.LevelCount,
 		Resample:    resampling(l.Mark.Resample),
 		Branch:      branch(l.Mark.Branch),
-		Orient:      orientation(l.Mark.Orientation),
+		Orient:      markOrientation(l.Mark),
 		Bandwidth:   l.Mark.Bandwidth,
 		Span:        l.Mark.Span,
 		Smooth:      smoothing(l.Mark.Method),
