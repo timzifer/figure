@@ -205,7 +205,10 @@ By what a reader loses without it, as ADR 0058 ranks:
    slice; `ir.MarkerTriangleDown`; and `examples/market`, which draws every
    part of section 3 from the recipes above, so that each gap in this record is
    a line of that example rather than a claim.
-2. **A trading calendar**, as a record extending ADR 0083.
+2. **A trading calendar**, as a record extending ADR 0083. — **Proposed** as
+   [ADR 0086](0086-a-calendar-says-when-time-counts.md), and general rather
+   than a market's: a market is one calendar among working weeks, rosters and
+   terms.
 3. **`geom.Candle`**, as a record: its columns, its dialect word, its legend,
    and whether the OHLC bar is an option on it or a mark beside it.
 4. **Price autoscale and a replaceable last row**, as one record, because both

@@ -1,0 +1,261 @@
+# 0086 — A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does
+
+**Status:** Proposed · **Date:** 2026-09-28 · **Revisits:** [ADR 0083](0083-an-axis-break-is-marked-or-not-drawn.md)'s business-day deferral · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 1
+
+## Context
+
+[ADR 0083](0083-an-axis-break-is-marked-or-not-drawn.md) gave a time axis
+folds and left the calendar out of scope: *"Recurring breaks as a rule — every
+weekend, market hours, a business-day axis. That is a calendar rather than an
+interval list."* [ADR 0085](0085-what-a-market-chart-needs.md) ranked it first
+among the gaps of a market chart. But a market is only the loudest customer.
+The same question — *which stretches of time count, and which are left out* —
+is asked by:
+
+- a factory running Monday to Saturday in three shifts, with a maintenance
+  window every second Sunday;
+- an office in Tel Aviv or Riyadh, whose working week is Sunday to Thursday;
+- a hospital ward that never closes, and a school that closes for its terms;
+- a support desk on 09:00–17:00 in three time zones;
+- a machine log whose idle nights are read out of a table
+  (`figure.SpansWhere`, 0083 §6);
+- and an exchange, with sessions, holidays and early closes.
+
+A design that fits the exchange and asks the others to pretend to be one fails
+most of them. "Weekdays" means Monday to Friday in one country and Monday to
+Saturday in another; a week starts on Monday under ISO 8601 and in most of
+Europe, on Sunday in the United States, Canada, Japan and Israel, and on
+Saturday in much of the Middle East. And some calendars are not a rule at all:
+a shift plan is a roster, a school year is a list of terms, a holiday falls on
+a date only another calendar system can compute.
+
+Two things in the code make it more than a list of spans.
+
+- **The labels.** 0083 §5 walks one tick step through each kept piece and
+  forbids a tick strictly inside a cut. With the nights folded, every day tick
+  is at midnight, and midnight is inside a fold: the axis is correct and has
+  no dates on it.
+- **The week.** A week tick today is `Truncate(7 * 24h)` in the scale's
+  zone (`scale/time.go`, `walk`). Go truncates from its zero time, 1 January
+  of year 1, which was a Monday — so every weekly axis in the library starts
+  its weeks on a Monday, in every locale, by an accident of the standard
+  library rather than by a decision. It is the ISO answer, and it cannot be
+  changed: an American or an Israeli week has no way to start on a Sunday.
+  A calendar makes the week step the common case — twelve weeks of daily data
+  is exactly where `pick` chooses it — so the accident becomes visible.
+
+## Decision
+
+**A calendar is an interface with one question — when is this day open — and a
+configurable value implements it for every rule-shaped calendar. Its closed
+time becomes the axis's folds, its week start becomes the axis's weeks, and a
+tick that lands in a fold moves to where time next counts.** Seven claims.
+
+### 1. A calendar is an interface, and anyone can write one
+
+```go
+// A Calendar says when time counts.
+type Calendar interface {
+	// Location is the zone the calendar's days and hours are in.
+	Location() *time.Location
+	// WeekStart is the day a week begins on.
+	WeekStart() time.Weekday
+	// Open appends the stretches of the day that count, as offsets from its
+	// local midnight, ascending and inside [0, 24h]. day is that midnight,
+	// in Location. A closed day appends nothing.
+	Open(dst []Span, day time.Time) []Span
+}
+
+type Span struct{ From, To time.Duration }
+```
+
+It lives in `scale`, beside `TimeSpan`, because what it produces is a time
+axis's folds and a time axis's weeks, and `scale` already owns both.
+
+The question is *per day* because that is the one granularity every calendar
+answers without translation: a roster says who works on the 14th, a term list
+says whether the 14th is in term, a lunar holiday is a date, a rule says what
+Tuesdays look like. A calendar asked instead for "every closed span between two
+instants" would make each implementation redo the walk over days, the time
+zone arithmetic and the merging — which are the parts that are easy to get
+wrong and identical everywhere. The day is given as its local midnight in the
+calendar's own location, so an implementation never adds 24 hours to anything.
+
+A stretch that runs past midnight — a night shift from 22:00 to 06:00 — is two
+answers, 22:00–24:00 on one day and 00:00–06:00 on the next, and the walk
+joins them. That keeps the contract to one day without making overnight
+calendars second-class.
+
+`Open` takes a destination slice for the reason every Append form in `stat`
+does: a live chart refolds, and refolding must not allocate per day.
+
+### 2. The value that implements it is a working week, not a market
+
+```go
+cal := scale.Workweek(time.Local, time.Monday, time.Tuesday, time.Wednesday,
+	time.Thursday, time.Friday, time.Saturday).    // which days are open
+	Hours(6*time.Hour, 22*time.Hour).               // and when, on every open day
+	On(time.Saturday, scale.Span{From: 6 * time.Hour, To: 14 * time.Hour}).
+	WeekStarts(time.Monday).
+	Closed(christmas, newYear).                     // whole days
+	Except(inventory, scale.Span{From: 6 * time.Hour, To: 10 * time.Hour})
+```
+
+- `scale.Workweek(loc, days...)` opens the named weekdays all day and closes
+  the others. It has no default set of days, because there is no global one:
+  Monday to Friday, Monday to Saturday and Sunday to Thursday are all spelled
+  out, and the code says which one the chart means. `scale.Always(loc)` is the
+  calendar that is never closed — the hospital, and the identity a caller can
+  add `Closed` dates to.
+- `Hours(from, to, ...)` sets the stretches of every open day; `On(day,
+  spans...)` sets one weekday's, which is how a short Saturday or a lunch break
+  is written. `Hours` with `from > to` is the overnight shift of claim 1,
+  written the way a person says it.
+- `WeekStarts(d)` sets the week start. The default is Monday, ISO 8601's, and it
+  is a default of the value rather than of a locale: `scale.Locale` names days,
+  it does not decide which one a week begins on, and deriving one from the
+  other would make a German chart and a German chart about an American
+  company's weeks disagree for no reason the code shows.
+- `Closed(dates...)` closes whole dates, and `Except(date, spans...)` replaces
+  one date's stretches — an early close, a late start, a Saturday worked. A
+  date is a year, month and day in the calendar's location; the time of day of
+  the argument is ignored.
+
+The value is immutable: each method returns a new calendar, so one base week
+can be shared by several charts and specialised per chart.
+
+No holiday table ships with the library, for any country or any exchange.
+Holidays are announced rather than derived, differ by region inside one
+country, and change; a table here would be wrong by the release after the one
+that shipped it, and a closed day drawn open is a gap nobody notices. A
+caller already has the list, because the same list decides when their data
+arrives. A calendar whose holidays *are* a rule — a lunar or a solar-hijri
+one — is an implementation of the interface, which is what it is for.
+
+### 3. The calendar produces folds, and the caller names the interval
+
+```go
+p.X(scale.Time(scale.TimeCalendar(cal), scale.TimeFold(scale.Folds(cal, from, to)...)))
+```
+
+`scale.Folds(cal, from, to)` walks the days of `[from, to)` in the calendar's
+location, asks `Open` for each, and returns the complement as `TimeSpan`s,
+sorted and merged — a Friday night, a weekend and a Monday morning are one
+fold. It is a function over the interface rather than a method, so every
+calendar, written here or by a caller, gets the same walk.
+
+The interval is the caller's, not derived from whatever domain the scale
+trains to, for 0083's reason: *the document holds the spans, not the query*.
+In the JSON dialect a folded axis is a list of `"folds"` any consumer reads,
+and a document that held a calendar would need every consumer to agree on
+what the calendar is — which a caller-written implementation makes impossible.
+So the calendar is a Go value that writes folds, and the folds are what is
+serialised. A live chart folds ahead or refolds when its stream passes the end;
+see *Revisit if*.
+
+### 4. A week starts where the calendar says, and nowhere else by accident
+
+`scale.WeekStart(d)` is a new time-scale option: week ticks are aligned to
+local midnight on that weekday, by walking from the weekday rather than by
+truncating a duration. Without it the default is Monday — what every weekly
+axis already draws, now as a decision rather than as Go's zero time — so no
+golden file changes.
+
+`scale.TimeCalendar(cal)` applies a calendar to a time axis's own conventions:
+it sets the week start from `cal.WeekStart()` and the location from
+`cal.Location()` unless `scale.In` names another. It does not fold: folding is
+claim 3's, with its interval. The dialect writes `"weekStart"` on a time scale
+when it is not Monday.
+
+### 5. A tick that lands in a fold moves to where time next counts
+
+This amends 0083 §5 for one case. When the step chosen for the kept length is
+a calendar unit of a day or longer — a day, a week, a month, a year — and a
+tick of that step lands strictly inside a fold, it moves to the fold's upper
+edge and is labelled for where it now stands, in the step's own layout. A day
+tick at midnight becomes a tick at the day's first open hour labelled with the
+day; a Sunday-start week tick on a closed Sunday becomes a tick at Monday's
+open labelled with Monday's date; a month tick on a closed first of the month
+moves to the first open day and still reads as the month.
+
+It is only for calendar units, because only they name a day rather than an
+instant: a tick labelled 12:00 moved to 09:30 would have to say 09:30, and then
+it is a tick nobody asked for. A moved tick never passes the next tick of its
+own step; two that land in one fold become one, the later winning — a closed
+week that swallowed a month boundary is labelled with the new month. 0083's
+rule that no tick stands strictly inside a cut still holds; this chooses where
+the tick goes instead of dropping it. It is a property of folded time axes,
+not of calendars, so a machine log folded from `SpansWhere` gets day labels
+too.
+
+### 6. A calendar is also where a period starts
+
+`stat.OHLC` buckets by a fixed width from an origin, which is right for a
+minute and an hour and wrong for a day across a daylight saving change, where
+the day is 23 or 25 hours long — and wrong for a shift, which is whatever the
+roster says. `scale.Opens(cal, from, to)` returns the start of every open
+stretch as a column of edges, and `stat.OHLCAt(ts, ps, vs, edges)` buckets
+between consecutive edges: one candle per session, one bar per shift, however
+long each was. `stat` stays numbers in, numbers out: it takes edges, not a
+calendar.
+
+### 7. Where it is refused
+
+- **On an axis that is not a time axis.** A calendar is days.
+- **On a log time axis**, for 0083's reason that no coord yet cuts one.
+- **An `Open` answer out of order, overlapping, or outside `[0, 24h]`** is an
+  error from `Folds`, naming the date: a calendar that cannot say when a day is
+  open is a bug in the calendar, and silently merging its answer would draw
+  someone's bug as their data.
+
+## Consequences
+
+- A chart of Monday-to-Saturday production, of a Sunday-to-Thursday office and
+  of an exchange with its nights folded are the same two lines with different
+  arguments, and none of them is a special case of another.
+- A calendar the library could not anticipate — a roster, a term list, a
+  calendar computed in another calendar system — is a type with three methods.
+- A weekly axis can start its weeks on any day. The default stays Monday, so
+  nothing drawn today moves.
+- An intraday axis with folded nights has dates on it.
+- The dialect gains `"weekStart"` on a time scale and nothing else; a document
+  drawn from a calendar reads in any consumer that reads folds.
+- A year of intraday folds is about three hundred cuts after merging, which is
+  0083's `BenchmarkFolded1k` territory, and the walk that produces them is one
+  `Open` call per day into a reused slice.
+
+## Not in scope
+
+- **Holiday tables**, for any country or exchange. Claim 2.
+- **A calendar in the dialect.** Claim 3.
+- **Tick labels in another calendar system** — months that begin at the
+  Hijri or Hebrew month rather than the Gregorian one. The folds of such a
+  calendar are expressible now, through the interface; its *labels* are a
+  second tick walk and a locale question, and a record of their own.
+- **An index axis** — every open stretch the same width regardless of its
+  length. That is an ordinal axis over period numbers, buildable on
+  `scale.Ordinal` today; it gives up the property that an hour is an hour,
+  which is what makes a short day visible.
+- **Colouring the calendar** — pre-market, overtime, weekends drawn as tinted
+  bands rather than folded. That is `VBand` over `Folds` of a second calendar.
+
+## Revisit if
+
+- A live chart needs folds that follow its stream without the caller refolding
+  — a scale that derives cuts from its trained domain, which reopens 0083's
+  reason for fixing cuts at construction.
+- Someone draws a calendar system other than the Gregorian one and needs its
+  months on the axis.
+
+## Order of work
+
+1. `scale.Calendar`, `scale.Span`, `scale.Folds`, `scale.Opens`, and the
+   `Workweek` / `Always` value with `Hours`, `On`, `WeekStarts`, `Closed` and
+   `Except`. Tested across both daylight saving changes of one location, an
+   overnight shift, a Sunday-to-Thursday week, and a caller-written calendar.
+2. `scale.WeekStart` and `scale.TimeCalendar`, with the week-tick walk aligned
+   to a weekday instead of to Go's zero time, and a test that the default is
+   still Monday.
+3. Claim 5 in the time scale's tick walk, with a golden of an intraday week.
+4. `stat.OHLCAt` and its Append pair.
+5. `examples/market` folds from a calendar instead of its own loop.
