@@ -27,6 +27,13 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   takes many stretches out with a slash on the axis line instead. Nothing is
   removed from the data, and a coord that cannot mark a break does not draw one
   ([ADR 0083](adr/0083-an-axis-break-is-marked-or-not-drawn.md)).
+  A `scale.Calendar` says which stretches of each day count — a working week
+  of whichever days, a shift pattern, a roster, a market's sessions — composed
+  from `scale.Weekdays`, `Dates`, `EveryNth`, `And` and `Not`, or written as a
+  function; `scale.Folds` turns its closed time into the axis's folds,
+  `scale.WeekStart` starts the axis's weeks on any day, and a day tick that
+  lands in a fold moves to the next open with that day's date
+  ([ADR 0086](adr/0086-a-calendar-says-when-time-counts.md)).
   A tick label is written by `scale.Format` (a Go function) or
   `scale.NumberFormat` (a spec a document can hold), and `figure.Locale` sets
   the separators, the percent sign and the month names every axis of a plot
@@ -74,7 +81,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `RollingStdDev`, `RollingMin`/`RollingMax`, `Cumsum` — so appending a row
   never moves a value already drawn; `stat.OHLC` resamples ticks into candles
   and `stat.BinWeighted` sums volume by price. `examples/market` draws all of
-  it, with the weekends folded
+  it, with the weekends and a holiday folded from one calendar
   ([ADR 0085](adr/0085-what-a-market-chart-needs.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
   **`Sankey`**, **`Arc`**, **`Tree`**, **`Graph`** and **`NodeLink`**, which read an edge table rather than a pair of

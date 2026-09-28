@@ -10,7 +10,8 @@
 // time axis; the profile is a horizontal bar in a right track that shares the
 // price axis. What the recipe costs the caller is visible below and is the
 // list that record ranks: the direction of each candle is a column computed by
-// hand, and the weekends are spans computed by hand.
+// hand. The calendar is not: which days the market trades is a scale.Calendar,
+// and the axis folds what it says is closed (docs/adr/0086).
 //
 // It is executed by a test so that it cannot silently stop compiling or stop
 // producing a chart.
@@ -64,12 +65,16 @@ func run(out string) error {
 
 	p := figure.New(
 		figure.Size(1000, 560),
-		figure.Title("FIG — daily, weekends folded"),
+		figure.Title("FIG — daily, weekends and holidays folded"),
 	)
-	// The weekends are left out of the axis rather than drawn empty. A trading
-	// calendar is a list of spans until the library has a calendar; see the
-	// record's first gap.
-	p.X(scale.Time(scale.TimeFold(weekends(start, start.AddDate(0, 0, calendarDays))...)))
+	// The days the market is closed are left out of the axis rather than
+	// drawn empty: the weekends and the holiday, from the calendar that also
+	// decided which days were simulated.
+	closed, err := scale.Folds(trading, start, end)
+	if err != nil {
+		return err
+	}
+	p.X(scale.Time(scale.TimeCalendar(trading), scale.TimeFold(closed...)))
 	p.Y(scale.Linear(scale.Nice()))
 
 	// The band first, so everything else is drawn over it.
@@ -125,6 +130,19 @@ var start = time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 // calendarDays is how long the chart runs: twelve weeks.
 const calendarDays = 7 * 12
 
+// end is the day after the chart's last.
+var end = start.AddDate(0, 0, calendarDays)
+
+// holiday is the one weekday the market is closed on in the chart: the Friday
+// Independence Day is observed on in 2026.
+var holiday = time.Date(2026, time.July, 3, 0, 0, 0, 0, time.UTC)
+
+// trading is the market's calendar: Monday to Friday, all day — a daily chart
+// needs the days, not the hours — without the holiday.
+var trading = scale.Closed(
+	scale.Workweek(time.UTC, scale.Weekdays(time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday)),
+	scale.Dates(holiday))
+
 // market is the ticks of the simulated trading: a time, a price, and the
 // volume bought and sold at it.
 type market struct {
@@ -141,7 +159,7 @@ func simulate() market {
 	price := 100.0
 	for d := range calendarDays {
 		day := start.AddDate(0, 0, d)
-		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+		if len(trading.Open(nil, day)) == 0 {
 			continue
 		}
 		// A drift that changes sign every few weeks, so the averages cross.
@@ -254,18 +272,6 @@ func profile(m market) *data.Table {
 	return figure.NewTable().
 		Float64("price", price).Float64("volume", volume).
 		String("side", side)
-}
-
-// weekends is every Saturday-to-Monday span between from and to, as the folds
-// of a time axis.
-func weekends(from, to time.Time) []scale.TimeSpan {
-	var out []scale.TimeSpan
-	for d := from; d.Before(to); d = d.AddDate(0, 0, 1) {
-		if d.Weekday() == time.Saturday {
-			out = append(out, scale.TimeSpan{From: d, To: d.AddDate(0, 0, 2)})
-		}
-	}
-	return out
 }
 
 func ys(ps []stat.Point) []float64 {

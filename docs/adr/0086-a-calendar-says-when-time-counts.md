@@ -1,6 +1,6 @@
 # 0086 — A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Revisits:** [ADR 0083](0083-an-axis-break-is-marked-or-not-drawn.md)'s business-day deferral · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 1
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-28 · **Revisits:** [ADR 0083](0083-an-axis-break-is-marked-or-not-drawn.md)'s business-day deferral · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 1
 
 ## Context
 
@@ -308,14 +308,52 @@ calendar.
 
 ## Order of work
 
+Every step is built.
+
 1. `scale.Calendar`, `scale.Span`, `scale.Folds`, `scale.Opens`; the
    constructors `Workweek`, `Days`, `CalendarFunc` and `Always`; the rules
    `Weekdays`, `Dates`, `EveryNth`, `Between`, `And`, `Or`, `Not`; and the
-   wrappers `Closed`, `Special` and `StartWeek`. Tested across both daylight saving changes of one location, an
-   overnight shift, a Sunday-to-Thursday week, and a caller-written calendar.
+   wrappers `Closed`, `Special` and `StartWeek` — `scale/calendar.go`, tested
+   across both of New York's daylight saving changes, an overnight shift, a
+   Sunday-to-Thursday week in Jerusalem and a caller-written roster.
 2. `scale.WeekStart` and `scale.TimeCalendar`, with the week-tick walk aligned
-   to a weekday instead of to Go's zero time, and a test that the default is
-   still Monday.
-3. Claim 5 in the time scale's tick walk, with a golden of an intraday week.
-4. `stat.OHLCAt` and its Append pair.
-5. `examples/market` folds from a calendar instead of its own loop.
+   to a weekday by date instead of truncated from Go's zero time; the default
+   is still Monday and no golden file moved.
+3. Claim 5 in the time scale's tick walk, and `calendar-fortnight`, a golden of
+   two weeks of sessions with nights and weekend folded.
+4. `stat.OHLCAt` and its Append pair, allocation-free into a warm slice.
+5. `examples/market` takes its trading days and its folds from one calendar,
+   Monday to Friday with 3 July closed.
+
+## Amendment — what building it decided
+
+- **A span is wall clock.** `Span` offsets are read through `time.Date` as the
+  hour, minute and second of the day, not added to midnight as elapsed time.
+  That is what keeps an 09:30 open at 09:30 on the morning the clocks changed
+  at 02:00, and why `Span.To` of 24h is the next midnight on a 23- or 25-hour
+  day alike.
+- **`Dates` reads a date as written.** Its year, month and day in whatever
+  location the argument was built in, rather than converted to the calendar's:
+  `time.Date(2026, 12, 25, 12, 0, 0, 0, elsewhere)` is Christmas in every
+  calendar. Converting would make a holiday list built in UTC close the wrong
+  day in any zone west of Greenwich.
+- **A closed day is closed from midnight to midnight.** `Closed` cannot know
+  which morning belongs to which evening's shift, so a night shift that began
+  on the evening before a holiday stops at midnight; a calendar that must
+  finish its shifts is a `CalendarFunc`. `Special` replaces a whole day the
+  same way, and its stretches stop at midnight.
+- **`Opens` returns the start of every uninterrupted open stretch**, merged
+  across midnight. A night shift is one period, and so is a week open all day
+  from Monday to Friday — which is why the market example, daily and open all
+  day, keeps `stat.OHLC` with a width of a day and uses the calendar for its
+  folds only. `OHLCAt` is for calendars with hours.
+- **A tick moves out of a fold and is dropped from a break.** Claim 5 is about
+  folds; a break is a stretch the reader was told is missing, and a tick on
+  its far edge would be a date nobody chose standing against the break's
+  mark. `axis-break-time`'s golden says so by not changing.
+- **The day step is rarer than the record assumed.** The tick search chooses a
+  step for the *kept* length, and on a fortnight of 6½-hour sessions at an
+  ordinary width that is twelve hours, whose labels carry the date already.
+  Claim 5 is what an axis narrow or long enough to choose a day step needs —
+  without it such an axis has no ticks at all — and the test asks for exactly
+  that case.

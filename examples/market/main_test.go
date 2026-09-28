@@ -24,7 +24,7 @@ func TestExampleRuns(t *testing.T) {
 	}
 	got := string(b)
 	for _, want := range []string{
-		"<svg", "weekends folded", "Bollinger", "EMA 9", "SMA 20", "buy", "sell", "</svg>",
+		"<svg", "holidays folded", "Bollinger", "EMA 9", "SMA 20", "buy", "sell", "</svg>",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output is missing %q", want)
@@ -33,14 +33,21 @@ func TestExampleRuns(t *testing.T) {
 }
 
 // Every candle falls on a trading day, so none of them is inside a fold — a
-// candle drawn into a weekend would be drawn into a gap the axis took out.
+// candle drawn into a weekend or the holiday would be drawn into a gap the
+// axis took out.
 func TestNoCandleFallsInAWeekend(t *testing.T) {
 	m := simulate()
 	days := stat.OHLC(m.ts, m.ps, m.vs, scale.Nanos(start), float64(24*time.Hour))
-	if len(days) != calendarDays*5/7 {
-		t.Fatalf("%d candles, want one per weekday of %d calendar days", len(days), calendarDays)
+	if len(days) != calendarDays*5/7-1 {
+		t.Fatalf("%d candles, want one per weekday of %d calendar days but the holiday", len(days), calendarDays)
 	}
-	folds := weekends(start, start.AddDate(0, 0, calendarDays))
+	folds, err := scale.Folds(trading, start, end)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(folds) != 12 {
+		t.Errorf("%d folds, want twelve weekends with the holiday joined to one", len(folds))
+	}
 	for _, d := range days {
 		at := scale.FromNanos(d.Start + float64(12*time.Hour))
 		for _, f := range folds {

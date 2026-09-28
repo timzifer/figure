@@ -95,7 +95,7 @@ depends on.
 | [0083](0083-an-axis-break-is-marked-or-not-drawn.md) | An axis break belongs to the scale, and it is marked or it is not drawn | Accepted | — |
 | [0084](0084-what-v1-promises.md) | v1.0 is tagged when a machine can say the surface did not move, and a point counts as one value | Proposed | — |
 | [0085](0085-what-a-market-chart-needs.md) | A market chart is a recipe over marks that exist, and what it lacks is a calendar, a candle and statistics that only look back | Proposed | 0083's business-day deferral, as a catalogue |
-| [0086](0086-a-calendar-says-when-time-counts.md) | A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does | Proposed | 0083's business-day deferral |
+| [0086](0086-a-calendar-says-when-time-counts.md) | A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does | Accepted, amended | 0083's business-day deferral |
 | [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
@@ -347,7 +347,7 @@ EMA, a rolling spread, OHLC resampling and a weighted bin, with a downward
 triangle for the sell. Each ranked mechanism gets a record of its own.
 
 **0086 and 0087 follow from 0085.** 0086 is the calendar 0085 ranked first,
-*Proposed*, and it is not a market's: a calendar is an interface that says
+*Accepted, amended* and built, and it is not a market's: a calendar is an interface that says
 which stretches of each day count — a working week of any days, a roster, a
 term list, a calendar computed in another calendar system — with a
 calendar composed from rules about days the library ships — `Weekdays`,
