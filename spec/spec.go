@@ -678,6 +678,10 @@ type Scale struct {
 	Domain []any  `json:"domain,omitempty"`
 	Nice   bool   `json:"nice,omitempty"`
 	Zero   bool   `json:"zero,omitempty"`
+	// Fit is "view" for a value axis that fits the rows its panel's other axis
+	// shows, and left out for one trained on every row. It is figure's; see
+	// [github.com/timzifer/figure/scale.FitView].
+	Fit string `json:"fit,omitempty"`
 	// TickValues pins a linear axis's tick positions. Vega-Lite spells this
 	// `axis.values`; figure has no axis object on a channel, and `values` on a
 	// scale would read as a domain, so it is named for what it pins.

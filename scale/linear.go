@@ -111,6 +111,7 @@ type linear struct {
 	fixed   bool
 	pinned  bool
 	reverse bool
+	fit     bool // see [FitView]
 	format  func(float64) string
 	// ticks is the sequence [TickValues] pinned, ascending, or nil for an axis
 	// that chooses its own. It is written once at construction and never

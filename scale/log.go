@@ -67,6 +67,7 @@ type logScale struct {
 	domainRange
 	base   float64
 	nice   bool
+	fit    bool // see [LogFitView]
 	fixed  bool
 	pinned bool
 	minor  bool

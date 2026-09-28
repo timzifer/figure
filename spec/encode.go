@@ -142,6 +142,9 @@ func channelType(k scale.Kind) string {
 
 func encodeScale(d scale.Desc) *Scale {
 	out := &Scale{Nice: d.Nice, Zero: d.Zero, Format: d.Format, Locale: d.Locale}
+	if d.Fit {
+		out.Fit = "view"
+	}
 	switch d.Kind {
 	case scale.KindLinear:
 		// Reverse is written only for the kind that reads it back. On a
