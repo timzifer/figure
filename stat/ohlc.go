@@ -1,6 +1,9 @@
 package stat
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 // Candle is one interval of a price column: where it opened and closed, how
 // far it ranged, and how much traded in it.
@@ -79,6 +82,81 @@ func AppendOHLC(dst []Candle, ts, ps, vs []float64, origin, width float64) []Can
 				dst = append(dst, cur)
 			}
 			cur, open = Candle{Start: start, Open: p, High: p, Low: p}, true
+		}
+		cur.High = max(cur.High, p)
+		cur.Low = min(cur.Low, p)
+		cur.Close = p
+		cur.Volume += v
+		cur.Count++
+	}
+	if open {
+		dst = append(dst, cur)
+	}
+	return dst
+}
+
+// OHLCAt summarises a price column into candles between consecutive edges:
+// the k-th candle covers [edges[k], edges[k+1]) and the last one everything
+// from the last edge on.
+//
+// It is [OHLC] for periods that are not a fixed width — a session, a shift,
+// a day across a daylight saving change, which is 23 or 25 hours long. The
+// edges are the caller's, typically the opens of a calendar:
+//
+//	opens, _ := scale.Opens(cal, from, to)
+//	edges := make([]float64, len(opens))
+//	for i, o := range opens {
+//		edges[i] = scale.Nanos(o)
+//	}
+//	candles := stat.OHLCAt(ts, ps, vs, edges)
+//
+// edges must be ascending; rows before the first edge are not counted. Each
+// candle's Start is its edge. As in OHLC, a period nobody traded in has no
+// candle, rows that are not finite are skipped, and vs may be nil.
+func OHLCAt(ts, ps, vs, edges []float64) []Candle {
+	return AppendOHLCAt(nil, ts, ps, vs, edges)
+}
+
+// AppendOHLCAt is [OHLCAt] writing into a caller-owned slice. dst is truncated
+// first.
+//
+// Each row finds its period by a binary search over the edges, so a column out
+// of order is still bucketed correctly, one candle per run of rows in the
+// same period.
+func AppendOHLCAt(dst []Candle, ts, ps, vs, edges []float64) []Candle {
+	dst = dst[:0]
+	if len(edges) == 0 {
+		return dst
+	}
+	n := min(len(ts), len(ps))
+	if vs != nil {
+		n = min(n, len(vs))
+	}
+	var cur Candle
+	at, open := -1, false
+	for i := range n {
+		t, p := ts[i], ps[i]
+		if !finite(t) || !finite(p) {
+			continue
+		}
+		v := 1.0
+		if vs != nil {
+			if v = vs[i]; !finite(v) {
+				continue
+			}
+		}
+		k := sort.SearchFloat64s(edges, t)
+		if k == len(edges) || edges[k] != t {
+			k--
+		}
+		if k < 0 {
+			continue
+		}
+		if !open || k != at {
+			if open {
+				dst = append(dst, cur)
+			}
+			cur, at, open = Candle{Start: edges[k], Open: p, High: p, Low: p}, k, true
 		}
 		cur.High = max(cur.High, p)
 		cur.Low = min(cur.Low, p)

@@ -78,3 +78,28 @@ func TestTwoWeightedBinsOverOneIntervalLineUp(t *testing.T) {
 		}
 	}
 }
+
+// Periods of different lengths, as a calendar's opens give them: a row falls
+// in the period its edge starts, and one before the first edge in none.
+func TestOHLCAtBucketsBetweenEdges(t *testing.T) {
+	edges := []float64{10, 13, 30}
+	ts := []float64{5, 10, 12, 13, 29, 31, 100}
+	ps := []float64{9, 1, 3, 4, 2, 7, 8}
+	got := stat.OHLCAt(ts, ps, nil, edges)
+	want := []stat.Candle{
+		{Start: 10, Open: 1, High: 3, Low: 1, Close: 3, Volume: 2, Count: 2},
+		{Start: 13, Open: 4, High: 4, Low: 2, Close: 2, Volume: 2, Count: 2},
+		{Start: 30, Open: 7, High: 8, Low: 7, Close: 8, Volume: 2, Count: 2},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("candle %d: %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	if got := stat.OHLCAt(ts, ps, nil, nil); len(got) != 0 {
+		t.Errorf("no edges gave %v", got)
+	}
+}

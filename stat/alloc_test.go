@@ -107,6 +107,7 @@ func TestTheTrailingFormsDoNotAllocateIntoAWarmSlice(t *testing.T) {
 	dst := make([]stat.Point, 0, n)
 	candles := make([]stat.Candle, 0, n)
 	buckets := make([]stat.WeightedBucket, 0, 32)
+	edges := []float64{0, 100, 250, 400}
 	for name, f := range map[string]func(){
 		"mean":   func() { dst = stat.AppendTrailingMean(dst, xs, ys, 20) },
 		"ema":    func() { dst = stat.AppendEMA(dst, xs, ys, 20) },
@@ -115,6 +116,7 @@ func TestTheTrailingFormsDoNotAllocateIntoAWarmSlice(t *testing.T) {
 		"max":    func() { dst = stat.AppendRollingMax(dst, xs, ys, 20) },
 		"cumsum": func() { dst = stat.AppendCumsum(dst, xs, ys) },
 		"ohlc":   func() { candles = stat.AppendOHLC(candles, xs, ys, nil, 0, 10) },
+		"ohlcAt": func() { candles = stat.AppendOHLCAt(candles, xs, ys, nil, edges) },
 		"bin":    func() { buckets = stat.AppendBinWeighted(buckets, ys, xs, 0, 0, 24) },
 	} {
 		if got := testing.AllocsPerRun(10, f); got != 0 {
