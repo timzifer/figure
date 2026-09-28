@@ -1,0 +1,280 @@
+// Command market renders a price chart the way a trading screen draws one:
+// candles on a calendar with the weekends taken out, two moving averages and a
+// Bollinger band over them, the crossings marked as buys and sells, the volume
+// traded each day underneath, and the volume traded at each price beside.
+//
+// Every part of it is a recipe over marks that already exist, which is what
+// docs/adr/0085-what-a-market-chart-needs.md catalogues. A candle is a rect for
+// the body and an error bar without caps for the wick; the band is an area
+// between two columns; the volume is a bar in a bottom track that shares the
+// time axis; the profile is a rect in a right track that shares the price
+// axis. What the recipe costs the caller is visible below and is the list that
+// record ranks: the direction of each candle is a column computed by hand, the
+// weekends are spans computed by hand, and the profile's bars are rects because
+// a bar does not lie on its side.
+//
+// It is executed by a test so that it cannot silently stop compiling or stop
+// producing a chart.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"math"
+	"math/rand/v2"
+	"os"
+	"time"
+
+	"github.com/timzifer/figure"
+	"github.com/timzifer/figure/data"
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/figure/palette"
+	"github.com/timzifer/figure/scale"
+	"github.com/timzifer/figure/stat"
+)
+
+func main() {
+	out := flag.String("o", "market.svg", "output SVG path")
+	flag.Parse()
+	if err := run(*out); err != nil {
+		fmt.Fprintln(os.Stderr, "market:", err)
+		os.Exit(1)
+	}
+}
+
+// up and down are the two candle colours. Blue and vermilion rather than green
+// and red, because the pair a trading screen uses is the pair the most common
+// colour deficiency cannot tell apart; the body's position against the wick
+// says the same thing a second time.
+var (
+	up   = palette.Blue
+	down = palette.Vermilion
+)
+
+// The indicator windows, in trading days.
+const (
+	fast = 9  // the EMA
+	slow = 20 // the simple mean the band is drawn about
+)
+
+func run(out string) error {
+	m := simulate()
+	days := stat.OHLC(m.ts, m.ps, m.vs, scale.Nanos(start), float64(24*time.Hour))
+	candles := candleTable(days)
+
+	p := figure.New(
+		figure.Size(1000, 560),
+		figure.Title("FIG — daily, weekends folded"),
+	)
+	// The weekends are left out of the axis rather than drawn empty. A trading
+	// calendar is a list of spans until the library has a calendar; see the
+	// record's first gap.
+	p.X(scale.Time(scale.TimeFold(weekends(start, start.AddDate(0, 0, calendarDays))...)))
+	p.Y(scale.Linear(scale.Nice()))
+
+	// The band first, so everything else is drawn over it.
+	p.Add(geom.Area(candles, geom.X("t"), geom.Y("lower"), geom.Y2("upper"),
+		geom.Color(palette.Gray), geom.Opacity(0.18), geom.Label("Bollinger 20, 2σ")))
+
+	// A candle is two marks on the same rows: the wick from low to high, and
+	// the body from open to close over it. The body is a rect because its two
+	// ends are two columns; which one is higher is the direction, and the
+	// colour is a column because a mark cannot compute one from two others.
+	dir := scale.Named(map[string]ir.Color{"up": up, "down": down})
+	p.Add(geom.ErrorBar(candles, geom.X("t"), geom.Y("low"), geom.Y2("high"),
+		geom.Caps(false), geom.ColorBy("dir", dir)))
+	p.Add(geom.Rect(candles, geom.X("t"), geom.Y("open"), geom.Y2("close"),
+		geom.BarWidth(0.7), geom.ColorBy("dir", dir)))
+
+	p.Add(geom.Line(candles, geom.X("t"), geom.Y("ema"),
+		geom.Color(palette.Orange), geom.Label(fmt.Sprintf("EMA %d", fast))))
+	p.Add(geom.Line(candles, geom.X("t"), geom.Y("mid"),
+		geom.Color(palette.Purple), geom.Label(fmt.Sprintf("SMA %d", slow))))
+
+	// Where the fast average crosses the slow one: a buy under the candle, a
+	// sell over it, pointing the way the price is expected to go.
+	buys, sells := signals(days)
+	p.Add(geom.Scatter(buys, geom.X("t"), geom.Y("at"),
+		geom.Shape(ir.MarkerTriangle), geom.Size(10), geom.Color(up), geom.Label("buy")))
+	p.Add(geom.Scatter(sells, geom.X("t"), geom.Y("at"),
+		geom.Shape(ir.MarkerTriangleDown), geom.Size(10), geom.Color(down), geom.Label("sell")))
+
+	// The volume each day, under the price and on the same time axis: one
+	// scale object, so a zoom on a live chart moves both.
+	p.Track(figure.Bottom, figure.TrackFraction(0.2), figure.TrackScale(scale.Linear(scale.Zero())), figure.TrackAxis(true)).
+		Add(geom.Bar(candles, geom.X("t"), geom.Y("volume"),
+			geom.BarWidth(0.7), geom.ColorBy("dir", dir), geom.Opacity(0.6)))
+
+	// The volume traded at each price, beside the price and on the same price
+	// axis. Buys from zero out, sells stacked after them, so the bar's length
+	// is the total and its split is the balance. They are rects rather than
+	// bars because a bar grows up its Y axis and this one has to grow across.
+	p.Track(figure.Right, figure.TrackSize(140), figure.TrackScale(scale.Linear(scale.Zero())), figure.TrackAxis(true)).
+		Add(geom.Rect(profile(m), geom.X("from"), geom.X2("to"), geom.Y("lo"), geom.Y2("hi"),
+			geom.ColorBy("side", scale.Named(map[string]ir.Color{"buy": up, "sell": down})),
+			geom.Opacity(0.7)))
+
+	return p.Render(figure.SVG(out))
+}
+
+// start is the first calendar day of the chart: a Monday, so that the weeks
+// line up with the folds and the picture is the same every run.
+var start = time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+// calendarDays is how long the chart runs: twelve weeks.
+const calendarDays = 7 * 12
+
+// market is the ticks of the simulated trading: a time, a price, and the
+// volume bought and sold at it.
+type market struct {
+	ts, ps, vs  []float64
+	buys, sells []float64
+}
+
+// simulate is a seeded random walk, traded between 09:30 and 16:00 on
+// weekdays. It is a walk rather than a recorded series so that the example
+// needs no data file and draws the same picture every time.
+func simulate() market {
+	r := rand.New(rand.NewPCG(7, 85))
+	var m market
+	price := 100.0
+	for d := range calendarDays {
+		day := start.AddDate(0, 0, d)
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		// A drift that changes sign every few weeks, so the averages cross.
+		drift := 0.04 * math.Sin(float64(d)/9)
+		for tick := range 40 {
+			at := day.Add(9*time.Hour + 30*time.Minute + time.Duration(tick)*585*time.Second)
+			price *= 1 + drift/40 + r.NormFloat64()*0.004
+			v := 100 + r.Float64()*900
+			bought := v * (0.5 + drift*4 + r.NormFloat64()*0.1)
+			bought = min(max(bought, 0), v)
+			m.ts = append(m.ts, scale.Nanos(at))
+			m.ps = append(m.ps, price)
+			m.vs = append(m.vs, v)
+			m.buys = append(m.buys, bought)
+			m.sells = append(m.sells, v-bought)
+		}
+	}
+	return m
+}
+
+// candleTable is the day candles as the columns the layers read, with the
+// indicators beside them. A candle is drawn at the middle of its day, so that
+// its slot is the day rather than straddling midnight into a fold.
+func candleTable(days []stat.Candle) *data.Table {
+	n := len(days)
+	t := make([]time.Time, n)
+	xs := make([]float64, n)
+	closes := make([]float64, n)
+	o, h, l, c, v := make([]float64, n), make([]float64, n), make([]float64, n), make([]float64, n), make([]float64, n)
+	dir := make([]string, n)
+	for i, d := range days {
+		t[i] = scale.FromNanos(d.Start + float64(12*time.Hour))
+		xs[i] = float64(i)
+		closes[i] = d.Close
+		o[i], h[i], l[i], c[i], v[i] = d.Open, d.High, d.Low, d.Close, d.Volume
+		dir[i] = "down"
+		if d.Up() {
+			dir[i] = "up"
+		}
+	}
+
+	// The indicators run over the row index rather than the time: a trading
+	// day is a row, and the weekend between two of them is not two days of
+	// average.
+	ema := ys(stat.EMA(xs, closes, fast))
+	mid := ys(stat.TrailingMean(xs, closes, slow))
+	sd := ys(stat.RollingStdDev(xs, closes, slow))
+	lower, upper := make([]float64, n), make([]float64, n)
+	for i := range n {
+		lower[i], upper[i] = mid[i]-2*sd[i], mid[i]+2*sd[i]
+	}
+
+	return figure.NewTable().
+		Time("t", t).
+		Float64("open", o).Float64("high", h).Float64("low", l).Float64("close", c).
+		Float64("volume", v).
+		String("dir", dir).
+		Float64("ema", ema).Float64("mid", mid).
+		Float64("lower", lower).Float64("upper", upper)
+}
+
+// signals is where the EMA crosses the simple mean: upwards is a buy, drawn
+// under the day's low, and downwards a sell, drawn over its high. The first
+// slow window is skipped — the mean is over fewer rows there than its name
+// says, and a signal from it is a signal from a different indicator.
+func signals(days []stat.Candle) (buys, sells *data.Table) {
+	xs := make([]float64, len(days))
+	closes := make([]float64, len(days))
+	for i, d := range days {
+		xs[i], closes[i] = float64(i), d.Close
+	}
+	ema := ys(stat.EMA(xs, closes, fast))
+	mid := ys(stat.TrailingMean(xs, closes, slow))
+
+	var bt, st []time.Time
+	var ba, sa []float64
+	for i := slow; i < len(days); i++ {
+		at := scale.FromNanos(days[i].Start + float64(12*time.Hour))
+		pad := (days[i].High - days[i].Low) * 0.4
+		switch {
+		case ema[i-1] <= mid[i-1] && ema[i] > mid[i]:
+			bt, ba = append(bt, at), append(ba, days[i].Low-pad)
+		case ema[i-1] >= mid[i-1] && ema[i] < mid[i]:
+			st, sa = append(st, at), append(sa, days[i].High+pad)
+		}
+	}
+	return figure.NewTable().Time("t", bt).Float64("at", ba),
+		figure.NewTable().Time("t", st).Float64("at", sa)
+}
+
+// profile is the volume at each price, bought and sold, as the rects of a
+// stacked horizontal bar. The two sides are binned over one interval — the
+// whole price column's — so that their buckets line up.
+func profile(m market) *data.Table {
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for _, p := range m.ps {
+		lo, hi = min(lo, p), max(hi, p)
+	}
+	const bins = 28
+	b := stat.BinWeighted(m.ps, m.buys, lo, hi, bins)
+	s := stat.BinWeighted(m.ps, m.sells, lo, hi, bins)
+
+	var from, to, blo, bhi []float64
+	var side []string
+	for i := range b {
+		from = append(from, 0, b[i].Sum)
+		to = append(to, b[i].Sum, b[i].Sum+s[i].Sum)
+		blo = append(blo, b[i].Lo, s[i].Lo)
+		bhi = append(bhi, b[i].Hi, s[i].Hi)
+		side = append(side, "buy", "sell")
+	}
+	return figure.NewTable().
+		Float64("from", from).Float64("to", to).
+		Float64("lo", blo).Float64("hi", bhi).
+		String("side", side)
+}
+
+// weekends is every Saturday-to-Monday span between from and to, as the folds
+// of a time axis.
+func weekends(from, to time.Time) []scale.TimeSpan {
+	var out []scale.TimeSpan
+	for d := from; d.Before(to); d = d.AddDate(0, 0, 1) {
+		if d.Weekday() == time.Saturday {
+			out = append(out, scale.TimeSpan{From: d, To: d.AddDate(0, 0, 2)})
+		}
+	}
+	return out
+}
+
+func ys(ps []stat.Point) []float64 {
+	out := make([]float64, len(ps))
+	for i, p := range ps {
+		out[i] = p.Y
+	}
+	return out
+}
