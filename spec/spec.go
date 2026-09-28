@@ -682,6 +682,10 @@ type Scale struct {
 	// shows, and left out for one trained on every row. It is figure's; see
 	// [github.com/timzifer/figure/scale.FitView].
 	Fit string `json:"fit,omitempty"`
+	// HighWater is a linear axis that keeps its extent across renders, the
+	// monitor's "most it has ever been". It is figure's; see
+	// [github.com/timzifer/figure/scale.HighWater].
+	HighWater bool `json:"highWater,omitempty"`
 	// TickValues pins a linear axis's tick positions. Vega-Lite spells this
 	// `axis.values`; figure has no axis object on a channel, and `values` on a
 	// scale would read as a domain, so it is named for what it pins.

@@ -134,7 +134,7 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 			typ = "linear"
 		}
 	}
-	d := scale.Desc{Nice: s.Nice, Zero: s.Zero, Fit: s.Fit == "view", Base: s.Base, Threshold: s.Constant, Locale: s.Locale}
+	d := scale.Desc{Nice: s.Nice, Zero: s.Zero, Fit: s.Fit == "view", HighWater: s.HighWater, Base: s.Base, Threshold: s.Constant, Locale: s.Locale}
 	d.MinorTicks = true
 	if s.MinorTicks != nil {
 		d.MinorTicks = *s.MinorTicks

@@ -145,6 +145,7 @@ func encodeScale(d scale.Desc) *Scale {
 	if d.Fit {
 		out.Fit = "view"
 	}
+	out.HighWater = d.HighWater
 	switch d.Kind {
 	case scale.KindLinear:
 		// Reverse is written only for the kind that reads it back. On a

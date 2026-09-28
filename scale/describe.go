@@ -58,6 +58,9 @@ type Desc struct {
 	// Nice and Zero are the linear and log framing options, and Fit whether
 	// the axis fits the rows its panel's other axis shows. See [FitView].
 	Nice, Zero, Fit bool
+	// HighWater reports a linear axis that keeps its trained extent across
+	// renders. See [HighWater].
+	HighWater bool
 	// Reverse reports a positional scale drawn the other way round: the low
 	// end of the domain at the high end of the range. It is a linear scale's
 	// [Reverse], and it is not the colour reversal in [ColorDesc] — that one
@@ -163,6 +166,9 @@ func FromDesc(d Desc) (Scale, error) {
 		}
 		if d.Fit {
 			opts = append(opts, FitView())
+		}
+		if d.HighWater {
+			opts = append(opts, HighWater())
 		}
 		if d.Fixed {
 			opts = append(opts, Domain(d.Min, d.Max))
@@ -279,7 +285,7 @@ func FromDesc(d Desc) (Scale, error) {
 
 func (l *linear) Describe() Desc {
 	d := Desc{
-		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Fit: l.fit, Reverse: l.reverse, Fixed: l.fixed,
+		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Fit: l.fit, HighWater: l.highWater, Reverse: l.reverse, Fixed: l.fixed,
 		Formatted: l.format != nil, Format: l.numFormat.spec, Locale: localeName(l.loc),
 	}
 	if l.fixed {

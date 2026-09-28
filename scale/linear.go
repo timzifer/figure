@@ -112,7 +112,9 @@ type linear struct {
 	pinned  bool
 	reverse bool
 	fit     bool // see [FitView]
-	format  func(float64) string
+	// highWater keeps the trained extent across renders. See [HighWater].
+	highWater bool
+	format    func(float64) string
 	// ticks is the sequence [TickValues] pinned, ascending, or nil for an axis
 	// that chooses its own. It is written once at construction and never
 	// afterwards, which is why Clone and Snapshot share it rather than copying
