@@ -184,21 +184,29 @@ func (g *candleGeom) Train(t Training) error {
 	}
 	g.up = g.directions(ok)
 
+	g.gap, g.gaps = smallestGap(g.gaps, g.s.x)
+	half := g.gap * g.widthFraction() / 2
+	w := t.Within
 	for i, fine := range ok {
 		if !fine {
 			continue
 		}
 		x.Train(g.s.x[i])
+		a, b := g.s.x[i]-half, g.s.x[i]+half
 		if g.x2 != nil {
 			x.Train(g.x2[i])
+			a, b = min(g.s.x[i], g.x2[i]), max(g.s.x[i], g.x2[i])
+		}
+		// A candle is in view when any of its period is, so one half in view
+		// still fits.
+		if w != nil && (b < w.Lo || a > w.Hi) {
+			continue
 		}
 		// All four, so that a row whose data contradicts itself still has its
 		// whole drawing inside the axis.
 		y.Train(g.o[i], g.h[i], g.l[i], g.s.y[i])
 	}
 	g.cfg.trainColors(g.s)
-
-	g.gap, g.gaps = smallestGap(g.gaps, g.s.x)
 	if _, band := x.(scale.Band); band || g.x2 != nil {
 		return nil
 	}

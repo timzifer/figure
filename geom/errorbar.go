@@ -128,15 +128,6 @@ func (g *errorGeom) Train(t Training) error {
 		return g.err
 	}
 
-	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
-	trainColumn(along, g.lo)
-	trainColumn(along, g.hi)
-	if g.mid != nil {
-		trainColumn(along, g.mid)
-	}
-	g.cfg.trainColors(g.s)
-
 	// A cap has width the domain does not know about, so the outermost ones
 	// would be clipped in half by an axis that stops at the data. A band scale
 	// reserves its slot already; a continuous one is widened, exactly as a
@@ -146,6 +137,23 @@ func (g *errorGeom) Train(t Training) error {
 		across, at = y, g.s.y
 	}
 	g.half = g.halfSlot(across, at)
+
+	trainColumn(x, g.s.x)
+	if g.vertical {
+		// A vertical interval is in view when its cap is: its value axis is Y,
+		// which is the axis a fit narrows.
+		trainSpans(y, t.Within, len(g.s.x), func(i int) (float64, float64) {
+			return g.s.x[i] - g.half, g.s.x[i] + g.half
+		}, g.s.y, g.lo, g.hi, g.mid)
+	} else {
+		trainColumn(y, g.s.y)
+		trainColumn(along, g.lo)
+		trainColumn(along, g.hi)
+		if g.mid != nil {
+			trainColumn(along, g.mid)
+		}
+	}
+	g.cfg.trainColors(g.s)
 	widen(across, at, g.half)
 
 	// The series index is what paints and dodges the rows; nothing here is

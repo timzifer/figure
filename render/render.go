@@ -417,6 +417,7 @@ func Draw(b ir.Backend, c Chart) error {
 	// 1. Train the scales. Tick labels depend on the domain, and the layout
 	//    depends on the tick labels, so this has to happen before anything is
 	//    measured.
+	refit(panels)
 	for _, p := range panels {
 		// A panel with more axes than two hands its layers the scales of all
 		// of them: a parallel-coordinates panel has one per dimension, and the
@@ -426,7 +427,7 @@ func Draw(b ir.Backend, c Chart) error {
 		dims := coord.Scales(coord.Dimensions(c.coordOf(p)))
 		for _, g := range p.Layers {
 			x, y := p.axesOf(g)
-			if err := g.Train(geom.Training{X: x, Y: y, Dims: dims}); err != nil {
+			if err := g.Train(geom.Training{X: x, Y: y, Dims: dims, Within: within(x, y)}); err != nil {
 				return err
 			}
 		}
@@ -1650,5 +1651,39 @@ func drawSwatch(b ir.Backend, e geom.LegendEntry, th theme.Theme, x, cy float32)
 			Cap:   ir.CapRound,
 			Dash:  e.Dash,
 		})
+	}
+}
+
+// within is the interval of x a layer's y is fitted to: x's domain, when y
+// fits its view and x's is pinned, and nil otherwise. A pinned domain is known
+// before any layer trains, so the fit costs no second pass; an unpinned one is
+// trained from the same rows, so every row is in view and there is nothing to
+// fit. See docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+func within(x, y scale.Scale) *scale.Interval {
+	if !scale.FitsView(y) || !scale.Pinned(x) {
+		return nil
+	}
+	lo, hi := x.Domain()
+	return &scale.Interval{Lo: lo, Hi: hi}
+}
+
+// refit forgets what every fitting axis was trained on last frame, before any
+// layer trains it again. A trained domain only ever widens, so an axis fitted
+// to last frame's view would keep it after the view moved on; a fitting axis
+// is derived from its view every frame, and this is where each frame starts.
+// It runs once for all panels rather than per panel, because panels that share
+// an axis share one scale, and resetting it between them would forget the
+// first panel's rows.
+func refit(panels []Panel) {
+	for _, p := range panels {
+		for _, g := range p.Layers {
+			x, y := p.axesOf(g)
+			if within(x, y) == nil {
+				continue
+			}
+			if z, ok := y.(scale.Zoomer); ok {
+				z.Autoscale()
+			}
+		}
 	}
 }

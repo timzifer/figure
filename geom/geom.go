@@ -162,6 +162,21 @@ type Training struct {
 	// mark that never heard of a third axis reads X and Y and is right to.
 	// See docs/adr/0078-a-coord-with-more-than-two-axes.md.
 	Dims []scale.Scale
+
+	// Within is the interval of X a layer's Y should be trained on, and the
+	// third field this struct has been widened by. It is nil unless Y fits
+	// its panel's view ([scale.FitView]) and X's domain is pinned, which is
+	// the one case in which some rows are out of view before training
+	// starts.
+	//
+	// It is a request, not a filter: render does not know which of a layer's
+	// columns are positions. A layer that reads it trains Y on the rows in
+	// view — for a mark with width, those whose span overlaps it; for a
+	// connected one, also the value interpolated at each edge — and still
+	// trains X on every row. A layer that does not read it trains Y on every
+	// row, and the fitted axis is wider than the view, never narrower. See
+	// docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+	Within *scale.Interval
 }
 
 // Geom is a layer of marks.

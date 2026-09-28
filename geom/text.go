@@ -137,13 +137,18 @@ func (g *textGeom) Train(t Training) error {
 		return err
 	}
 	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
 	if g.x2 != nil {
 		trainColumn(x, g.x2)
 	}
-	if g.s.y2 != nil {
-		trainColumn(y, g.s.y2)
+	// A label with a box is in view when its box is; one at a point, when the
+	// point is.
+	span := func(i int) (float64, float64) {
+		if g.x2 != nil {
+			return g.s.x[i], g.x2[i]
+		}
+		return g.s.x[i], g.s.x[i]
 	}
+	trainSpans(y, t.Within, len(g.s.x), span, g.s.y, g.s.y2)
 	if g.pull, g.err = g.cfg.trainBreakOut(g.src, len(g.s.x)); g.err != nil {
 		return g.err
 	}

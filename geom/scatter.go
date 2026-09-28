@@ -39,7 +39,7 @@ func (g *scatterGeom) Train(t Training) error {
 		return err
 	}
 	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
+	trainPoints(y, t.Within, g.s.x, g.s.y)
 	g.cfg.trainColors(g.s)
 	g.cfg.trainSizes(g.s)
 	// Independent marks have nothing to stack: two points at one X are two

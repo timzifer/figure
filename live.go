@@ -839,7 +839,16 @@ func (l *Live) panelIndex(pt ir.Point) int {
 // is what makes one implementation cover every scale: the pointer stays over
 // the same value on a log axis and a time axis for the same reason it does on
 // a linear one, without this knowing which it has.
+// fitted reports an axis a gesture must leave alone: one that fits the rows
+// its panel's other axis shows, and is derived from that axis every frame
+// rather than moved by the reader. A wheel over a price chart zooms time, and
+// the price axis follows. See docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+func fitted(s scale.Scale) bool { return scale.FitsView(s) }
+
 func zoomAxis(s scale.Scale, lo, hi, at float32, factor float64) {
+	if fitted(s) {
+		return
+	}
 	z, ok := s.(scale.Zoomer)
 	if !ok {
 		return
@@ -849,6 +858,9 @@ func zoomAxis(s scale.Scale, lo, hi, at float32, factor float64) {
 }
 
 func panAxis(s scale.Scale, lo, hi, delta float32) {
+	if fitted(s) {
+		return
+	}
 	z, ok := s.(scale.Zoomer)
 	if !ok {
 		return
@@ -857,6 +869,9 @@ func panAxis(s scale.Scale, lo, hi, delta float32) {
 }
 
 func setDomain(s scale.Scale, a, b float32) {
+	if fitted(s) {
+		return
+	}
 	z, ok := s.(scale.Zoomer)
 	if !ok {
 		return

@@ -36,11 +36,12 @@ const areaFillOpacity = 0.25
 const stackedFillOpacity = 1
 
 type areaGeom struct {
-	src data.Source
-	cfg config
-	s   series
-	gs  groups
-	err error
+	src  data.Source
+	cfg  config
+	s    series
+	gs   groups
+	gaps []float64 // the buffer a fitted stack's spacing is measured out of
+	err  error
 }
 
 func (g *areaGeom) Train(t Training) error {
@@ -53,15 +54,24 @@ func (g *areaGeom) Train(t Training) error {
 		return err
 	}
 	trainColumn(x, g.s.x)
+	// A stacked area's totals are trained on the rows in view and one spacing
+	// either side, which reaches the rows its edges are drawn towards.
+	g.gs.within = nil
+	if t.Within != nil {
+		gap, buf := smallestGap(g.gaps, g.s.x)
+		g.gaps = buf
+		g.gs.within = viewPadded(t.Within, gap)
+	}
 	if g.err = g.gs.train(g.src, g.s, g.cfg, x, y, g.cfg.stackFor(StackZero)); g.err != nil {
 		return g.err
 	}
 	if g.gs.stacked() {
 		return nil
 	}
-	trainColumn(y, g.s.y)
+	of := g.gs.ofRows()
+	trainConnected(y, t.Within, g.s.x, g.s.y, of, false)
 	if g.s.y2 != nil {
-		trainColumn(y, g.s.y2)
+		trainConnected(y, t.Within, g.s.x, g.s.y2, of, false)
 		return nil
 	}
 	// The baseline is part of the shape, so it has to be inside the domain or

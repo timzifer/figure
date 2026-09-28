@@ -91,11 +91,24 @@ func (g *barGeom) Train(t Training) error {
 	// axis has to describe what will be drawn: a stacked bar reaches the
 	// cumulative total, and an axis trained on the individual values would let
 	// the tallest stack run off the top of it.
+	// A horizontal bar's value runs across X, and a fit is Y fitting X, so
+	// only a vertical bar reads the view.
+	within := t.Within
+	if g.cfg.orient == Horizontal {
+		within = nil
+	}
+	g.gs.within = viewPadded(within, g.slot()*g.widthFraction()/2)
 	if g.err = g.gs.train(g.src, g.s, rc, x, y, g.cfg.stackFor(StackZero)); g.err != nil {
 		return g.err
 	}
 	if !g.gs.stacked() {
-		trainColumn(y, g.s.y)
+		trainSpans(y, within, len(g.s.x), func(i int) (float64, float64) {
+			if g.x2 != nil {
+				return g.s.x[i], g.x2[i]
+			}
+			h := g.halfWidth(i)
+			return g.s.x[i] - h, g.s.x[i] + h
+		}, g.s.y)
 		// A bar is read as the area between the baseline and the value, so the
 		// baseline must be in the domain or the chart lies about magnitude.
 		y.Train(g.cfg.baseline)
