@@ -417,7 +417,7 @@ func Draw(b ir.Backend, c Chart) error {
 	// 1. Train the scales. Tick labels depend on the domain, and the layout
 	//    depends on the tick labels, so this has to happen before anything is
 	//    measured.
-	refit(panels)
+	retrain(panels)
 	for _, p := range panels {
 		// A panel with more axes than two hands its layers the scales of all
 		// of them: a parallel-coordinates panel has one per dimension, and the
@@ -1667,22 +1667,30 @@ func within(x, y scale.Scale) *scale.Interval {
 	return &scale.Interval{Lo: lo, Hi: hi}
 }
 
-// refit forgets what every fitting axis was trained on last frame, before any
-// layer trains it again. A trained domain only ever widens, so an axis fitted
-// to last frame's view would keep it after the view moved on; a fitting axis
-// is derived from its view every frame, and this is where each frame starts.
-// It runs once for all panels rather than per panel, because panels that share
-// an axis share one scale, and resetting it between them would forget the
-// first panel's rows.
-func refit(panels []Panel) {
+// retrain forgets every trained range the coming training will set: each
+// panel's axes and the colour and size scales its layers describe. A trained
+// domain only widens and a plot keeps its scales between renders, so without
+// this an axis describes every row it has ever been shown rather than the rows
+// this render draws. Pinned domains, discovered categories and discrete
+// colour keys are not forgotten — see [scale.Retrainer] for why.
+//
+// It runs over every panel before any layer trains, so an axis shared by
+// several panels is forgotten, perhaps more than once, before the first of
+// them trains it; forgetting twice is forgetting once. See
+// docs/adr/0090-an-axis-describes-the-frame-it-is-drawn-in.md.
+func retrain(panels []Panel) {
 	for _, p := range panels {
 		for _, g := range p.Layers {
 			x, y := p.axesOf(g)
-			if within(x, y) == nil {
-				continue
-			}
-			if z, ok := y.(scale.Zoomer); ok {
-				z.Autoscale()
+			scale.Retrain(x)
+			scale.Retrain(y)
+			if d, ok := geom.Describe(g); ok {
+				if d.ColorScale != nil {
+					scale.Retrain(d.ColorScale)
+				}
+				if d.SizeScale != nil {
+					scale.Retrain(d.SizeScale)
+				}
 			}
 		}
 	}
