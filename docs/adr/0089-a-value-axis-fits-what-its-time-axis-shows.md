@@ -248,7 +248,8 @@ Every step is built.
   fit is derived from scratch. Once, for all panels, because panels that share
   an axis share its scale. An axis that does not fit keeps the old behaviour;
   whether an unpinned axis should forget last frame's rows too is a question
-  about every live chart, not this record's.
+  about every live chart, not this record's — and
+  [ADR 0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) asks it.
 - **Following the newest data is shown, not built.** The example's host keeps
   the width the reader zoomed to and moves its right-hand edge to the open
   candle with `Zoomer.SetDomain` each frame — one line, as *Not in scope*

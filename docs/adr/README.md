@@ -99,6 +99,7 @@ depends on.
 | [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
 | [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Accepted, amended | 0085's second rank |
 | [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Accepted, amended | 0085's third rank |
+| [0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) | An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered | Proposed | 0089's open question |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -379,3 +380,13 @@ rather than clipping — and `Live`'s wheel, rubber band and pan leave a fitting
 axis alone. `data.Stream.ReplaceLast` is the one revision a stream admits, the
 newest row, and `stat.Resampler` is `stat.OHLC` turned inside out for a feed
 that arrives a tick at a time.
+
+**0090 is the question 0089 left open**, *Proposed*: a trained domain only
+widens and render keeps its scales between renders, so a windowed stream's
+axes never shrank — its time axis kept the history the window had dropped,
+and `examples/stream`'s claim that a full window slides was never true. Every
+render now derives a trained range again, once per scale, before its layers
+train; a pinned domain is kept, so a zoom survives as before; and a set of
+discovered names — a category's slot, a series' colour — is remembered,
+because it is identity rather than measurement. `scale.HighWater` is the
+opt-in for an axis that should remember its extent.
