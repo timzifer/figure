@@ -95,6 +95,8 @@ depends on.
 | [0083](0083-an-axis-break-is-marked-or-not-drawn.md) | An axis break belongs to the scale, and it is marked or it is not drawn | Accepted | — |
 | [0084](0084-what-v1-promises.md) | v1.0 is tagged when a machine can say the surface did not move, and a point counts as one value | Proposed | — |
 | [0085](0085-what-a-market-chart-needs.md) | A market chart is a recipe over marks that exist, and what it lacks is a calendar, a candle and statistics that only look back | Proposed | 0083's business-day deferral, as a catalogue |
+| [0086](0086-a-trading-calendar-is-a-value-that-produces-folds.md) | A trading calendar is a value that produces folds, and a tick that lands in one moves to the next open | Proposed | 0083's business-day deferral |
+| [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -343,3 +345,13 @@ the case the refusal fits best — numbers in, numbers out, drawn by an ordinary
 mark — and it landed the functions that case needs: the trailing windows, an
 EMA, a rolling spread, OHLC resampling and a weighted bin, with a downward
 triangle for the sell. Each ranked mechanism gets a record of its own.
+
+**0086 and 0087 follow from 0085.** 0086 is the trading calendar 0085 ranked
+first, *Proposed*: a calendar is a value in `scale` that produces folds for an
+interval, so the dialect and the time scale are untouched, and the one change
+to 0083 is where a tick goes when a day step lands in a fold — to the next
+open, with its date, because on an intraday axis with the nights folded every
+midnight is inside one. 0087 is 0085's fourth rank, *Accepted*: `geom.Orient`
+now lays a bar, a histogram and a boxplot on their side, with the roles of the
+columns swapped along with the axes and the turn made once, where each mark
+emits.

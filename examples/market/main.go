@@ -7,11 +7,10 @@
 // docs/adr/0085-what-a-market-chart-needs.md catalogues. A candle is a rect for
 // the body and an error bar without caps for the wick; the band is an area
 // between two columns; the volume is a bar in a bottom track that shares the
-// time axis; the profile is a rect in a right track that shares the price
-// axis. What the recipe costs the caller is visible below and is the list that
-// record ranks: the direction of each candle is a column computed by hand, the
-// weekends are spans computed by hand, and the profile's bars are rects because
-// a bar does not lie on its side.
+// time axis; the profile is a horizontal bar in a right track that shares the
+// price axis. What the recipe costs the caller is visible below and is the
+// list that record ranks: the direction of each candle is a column computed by
+// hand, and the weekends are spans computed by hand.
 //
 // It is executed by a test so that it cannot silently stop compiling or stop
 // producing a chart.
@@ -107,11 +106,12 @@ func run(out string) error {
 			geom.BarWidth(0.7), geom.ColorBy("dir", dir), geom.Opacity(0.6)))
 
 	// The volume traded at each price, beside the price and on the same price
-	// axis. Buys from zero out, sells stacked after them, so the bar's length
-	// is the total and its split is the balance. They are rects rather than
-	// bars because a bar grows up its Y axis and this one has to grow across.
+	// axis: a bar lying on its side per price bucket, buys stacked first and
+	// sells after them, so the bar's length is the total and its split is the
+	// balance. The buckets are contiguous, so the bars fill their slots.
 	p.Track(figure.Right, figure.TrackSize(140), figure.TrackScale(scale.Linear(scale.Zero())), figure.TrackAxis(true)).
-		Add(geom.Rect(profile(m), geom.X("from"), geom.X2("to"), geom.Y("lo"), geom.Y2("hi"),
+		Add(geom.Bar(profile(m), geom.Y("price"), geom.X("volume"),
+			geom.Orient(geom.Horizontal), geom.BarWidth(1), geom.GroupBy("side"),
 			geom.ColorBy("side", scale.Named(map[string]ir.Color{"buy": up, "sell": down})),
 			geom.Opacity(0.7)))
 
@@ -232,9 +232,9 @@ func signals(days []stat.Candle) (buys, sells *data.Table) {
 		figure.NewTable().Time("t", st).Float64("at", sa)
 }
 
-// profile is the volume at each price, bought and sold, as the rects of a
-// stacked horizontal bar. The two sides are binned over one interval — the
-// whole price column's — so that their buckets line up.
+// profile is the volume at each price, bought and sold, one row per bucket
+// and side, for a stacked horizontal bar. The two sides are binned over one
+// interval — the whole price column's — so that their buckets line up.
 func profile(m market) *data.Table {
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for _, p := range m.ps {
@@ -244,18 +244,15 @@ func profile(m market) *data.Table {
 	b := stat.BinWeighted(m.ps, m.buys, lo, hi, bins)
 	s := stat.BinWeighted(m.ps, m.sells, lo, hi, bins)
 
-	var from, to, blo, bhi []float64
+	var price, volume []float64
 	var side []string
 	for i := range b {
-		from = append(from, 0, b[i].Sum)
-		to = append(to, b[i].Sum, b[i].Sum+s[i].Sum)
-		blo = append(blo, b[i].Lo, s[i].Lo)
-		bhi = append(bhi, b[i].Hi, s[i].Hi)
+		price = append(price, b[i].Mid(), s[i].Mid())
+		volume = append(volume, b[i].Sum, s[i].Sum)
 		side = append(side, "buy", "sell")
 	}
 	return figure.NewTable().
-		Float64("from", from).Float64("to", to).
-		Float64("lo", blo).Float64("hi", bhi).
+		Float64("price", price).Float64("volume", volume).
 		String("side", side)
 }
 

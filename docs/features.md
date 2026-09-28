@@ -38,7 +38,9 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   **`Step`** (pre/mid/post), **`Boxplot`** (Tukey whiskers, type-7 quartiles,
   outliers), and **`Rect`** — one box per row, bounded by the row rather than by
   a baseline, which is what a heatmap, a gantt bar, a candle and a waterfall
-  step all are. `geom.ProgressBy` fills a cell as far as a column says it has
+  step all are. `geom.Orient(geom.Horizontal)` lays a `Bar`, a `Histogram` or a
+  `Boxplot` on its side, with the categories on Y
+  ([ADR 0087](adr/0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md)). `geom.ProgressBy` fills a cell as far as a column says it has
   got — a gantt bar that reads as a status rather than as a plan.
 - **`Text`** — one label per row, read from a column by `geom.TextBy`: at the
   row's point, or in the middle of the box the same options would draw as a
@@ -67,7 +69,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   ([ADR 0028](adr/0028-distribution-stats.md)).
 - **Market charts** — a candle is a `Rect` body over an `ErrorBar` wick,
   volume is a `Bar` in a bottom track sharing time, and a volume profile is a
-  `Rect` per price bucket in a right track sharing price. The indicators are
+  horizontal `Bar` per price bucket in a right track sharing price. The indicators are
   functions in `stat` that look only backwards — `TrailingMean`, `EMA`,
   `RollingStdDev`, `RollingMin`/`RollingMax`, `Cumsum` — so appending a row
   never moves a value already drawn; `stat.OHLC` resamples ticks into candles

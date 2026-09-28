@@ -95,15 +95,16 @@ of the axis it runs along:
   tracks.
 - **The volume profile, or an order book, beside the price** is
   `Track(figure.Right, …)`, which shares the price axis. The buys and the sells
-  at each price are two rects per bucket, stacked across, from
-  `stat.BinWeighted` over one interval.
+  at each price are a horizontal `Bar` grouped by side and stacked across,
+  from `stat.BinWeighted` over one interval.
 
 **Missing.**
 
-- **A bar on its side.** `geom.Orient` is read by the tree and by the gradient,
-  not by `geom.Bar`, so the profile's bars are rects with a hand-stacked
-  `X`/`X2`. It works, and it is the one place the example is more code than
-  the chart deserves.
+- **A bar on its side.** `geom.Orient` was read by the tree and by the
+  gradient, not by `geom.Bar`, so the profile's bars were rects with a
+  hand-stacked `X`/`X2`. — **Landed since**, as
+  [ADR 0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md):
+  the profile is now a stacked horizontal `Bar`.
 - **Tracks the reader resizes.** A track's size is the caller's; dragging the
   boundary between price and volume is a host concern today.
 - **`Grid` panels that are live and linked.** `grid.go` says tracks are the
@@ -192,7 +193,7 @@ By what a reader loses without it, as ADR 0058 ranks:
    column and two legend entries for one thing.
 3. **Zoom on time, autoscale on price, and replacing the last row** — the two
    halves of a live chart.
-4. **A bar on its side.** The profile works as rects; this is convenience.
+4. **A bar on its side.** — **Landed**, as ADR 0087.
 5. **Named indicators** (RSI, MACD, VWAP), the last-price label, the snapping
    crosshair, the OHLC bar.
 
