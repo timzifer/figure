@@ -419,9 +419,10 @@ func curveOf(name string) (geom.CurveKind, bool) {
 	return geom.CurveLinear, false
 }
 
-// Marker shapes. The first five are Vega-Lite's own shape names; "plus" is
+// Marker shapes. All but "plus" are Vega-Lite's own shape names; "plus" is
 // figure's, because Vega-Lite's "cross" is already the shape figure calls a
-// cross and there is no second name to borrow.
+// cross and there is no second name to borrow. "triangle" stays the spelling
+// of the upward one, which Vega-Lite also accepts as "triangle-up".
 var shapes = []struct {
 	marker ir.Marker
 	name   string
@@ -432,6 +433,7 @@ var shapes = []struct {
 	{ir.MarkerTriangle, "triangle"},
 	{ir.MarkerCross, "cross"},
 	{ir.MarkerPlus, "plus"},
+	{ir.MarkerTriangleDown, "triangle-down"},
 }
 
 // Hatch patterns. There is no Vega-Lite vocabulary to borrow — Vega-Lite has

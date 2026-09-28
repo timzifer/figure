@@ -27,6 +27,12 @@ func MarkerPath(p *Path, m Marker, size float32) {
 		h := r * 1.5
 		w := r * 1.2990381 // r * 1.5 * sqrt(3)/2
 		p.MoveTo(0, -h*2/3).LineTo(w, h/3).LineTo(-w, h/3).Close()
+	case MarkerTriangleDown:
+		// The same triangle mirrored through its centroid, so a pair sits on
+		// the same point rather than one of them a third of its height off.
+		h := r * 1.5
+		w := r * 1.2990381
+		p.MoveTo(0, h*2/3).LineTo(-w, -h/3).LineTo(w, -h/3).Close()
 	case MarkerCross:
 		arm := r * 0.28
 		d := (r - arm) * 0.7071068

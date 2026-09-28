@@ -81,6 +81,7 @@ func TestEveryMarkSurvivesTheRoundTrip(t *testing.T) {
 	}{
 		{"line", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Tension(0.4), geom.Dash(4, 2))},
 		{"scatter", geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Shape(ir.MarkerDiamond), geom.Size(9))},
+		{"scatter-triangle-down", geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Shape(ir.MarkerTriangleDown))},
 		{"bar", geom.Bar(src, geom.X("x"), geom.Y("y"), geom.BarWidth(0.5), geom.Baseline(1))},
 		{"area", geom.Area(src, geom.X("x"), geom.Y("y"), geom.Y2("z"), geom.Opacity(0.4))},
 		{"step", geom.Step(src, geom.X("x"), geom.Y("y"), geom.Steps(geom.StepPre))},
