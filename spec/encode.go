@@ -402,6 +402,17 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	if d.HideGuide {
 		m.Guide = boolPtr(false)
 	}
+	// A direction's colours and labels are the candle's properties, written for
+	// any mark that carries one (ADR 0091).
+	if d.DirectionTo != "" {
+		if d.Rising != nil {
+			m.Rising = colorHex(*d.Rising)
+		}
+		if d.Falling != nil {
+			m.Falling = colorHex(*d.Falling)
+		}
+		m.RisingLabel, m.FallingLabel = d.RisingLabel, d.FallingLabel
+	}
 	stroke := func() {
 		m.StrokeWidth = d.Width
 		if d.DashSet {
@@ -856,6 +867,12 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.ErrorXCol != "" {
 			enc.ErrorX = &Channel{Field: d.ErrorXCol}
+		}
+		if d.DirectionTo != "" {
+			enc.Direction = &Channel{Field: d.DirectionTo, Type: "quantitative"}
+			if d.DirectionFrom != "" {
+				enc.DirectionFrom = &Channel{Field: d.DirectionFrom, Type: "quantitative"}
+			}
 		}
 		if d.Mark == geom.MarkCandle {
 			ch := func(f string) *Channel {

@@ -636,6 +636,13 @@ type Encoding struct {
 	High  *Channel `json:"high,omitempty"`
 	Low   *Channel `json:"low,omitempty"`
 	Close *Channel `json:"close,omitempty"`
+
+	// Direction and DirectionFrom are a direction's two columns: a row rises
+	// when Direction is at or above DirectionFrom, or — DirectionFrom left out
+	// — above the previous row's Direction. Both are figure's; see
+	// [github.com/timzifer/figure/geom.DirectionBy].
+	Direction     *Channel `json:"direction,omitempty"`
+	DirectionFrom *Channel `json:"directionFrom,omitempty"`
 }
 
 // Channel is one encoding: a column, or a literal value, and the scale behind

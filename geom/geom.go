@@ -275,6 +275,10 @@ type config struct {
 	hollowSet   bool
 	candleStyle CandleStyleKind
 
+	// The two columns a [DirectionBy] layer compares, from empty for the
+	// previous row.
+	dirFrom, dirTo string
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 
@@ -1315,6 +1319,12 @@ func newConfig(opts []Option) config {
 	for _, o := range opts {
 		o(&c)
 	}
+	// A direction is a colour channel with a scale of its own, built once the
+	// options that name its colours have all been applied. A layer that also
+	// named a colour column keeps that one, and resolve refuses the pair.
+	if c.dirTo != "" && c.colorCol == "" {
+		c.colorScale = newDirectionScale(c)
+	}
 	return c
 }
 
@@ -1600,6 +1610,9 @@ func resolve(src data.Source, c config, x, y scale.Scale) (series, error) {
 		}
 		s.y2 = v
 	}
+	if c.colorCol != "" && c.dirTo != "" {
+		return series{}, ErrColorAndDirection
+	}
 	if c.colorCol != "" {
 		v, err := colorColumn(src, c)
 		if err != nil {
@@ -1607,6 +1620,13 @@ func resolve(src data.Source, c config, x, y scale.Scale) (series, error) {
 		}
 		if len(v) != len(xs) {
 			return series{}, fmt.Errorf("figure/geom: columns %q and %q differ in length (%d vs %d)", c.xcol, c.colorCol, len(xs), len(v))
+		}
+		s.c = v
+	}
+	if c.dirTo != "" {
+		v, err := c.directionCodes(src, len(xs))
+		if err != nil {
+			return series{}, err
 		}
 		s.c = v
 	}

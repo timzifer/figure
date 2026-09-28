@@ -85,3 +85,25 @@ func TestACandleSurvivesTheDocument(t *testing.T) {
 		t.Errorf("a candle spent y on one of its values: %+v %+v", enc.Y, enc.Y2)
 	}
 }
+
+// A direction survives the document on the marks that take it, with and
+// without a from column and with the colours it was given.
+func TestADirectionSurvivesTheDocument(t *testing.T) {
+	src := candleTable()
+	for name, layer := range map[string]geom.Geom{
+		"bar":      geom.Bar(src, geom.X("t"), geom.Y("h"), geom.DirectionBy("o", "c")),
+		"previous": geom.Bar(src, geom.X("t"), geom.Y("h"), geom.DirectionBy("", "c")),
+		"named":    geom.Scatter(src, geom.X("t"), geom.Y("c"), geom.DirectionBy("o", "c"), geom.Rising(ir.RGB(1, 2, 3), "up"), geom.Falling(ir.RGB(4, 5, 6), "down")),
+		"line":     geom.Line(src, geom.X("t"), geom.Y("c"), geom.DirectionBy("", "c")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := chartOf(layer)
+			want, got := draw(t, c), draw(t, roundTrip(t, c))
+			if strings.Join(want, "\n") != strings.Join(got, "\n") {
+				s, _ := spec.Of(c)
+				b, _ := s.Marshal()
+				t.Errorf("the direction did not survive the round trip\n%s", b)
+			}
+		})
+	}
+}

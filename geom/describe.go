@@ -439,12 +439,16 @@ type Desc struct {
 	// options. Rising and Falling are the colours the layer named, nil for the
 	// theme's, with the labels beside them; HollowSet is whether the layer
 	// chose hollow bodies rather than taking the theme's redundant encoding.
-	OHLC                      [4]string
-	Direction                 CandleDirection
-	Rising, Falling           *ir.Color
-	RisingLabel, FallingLabel string
-	Hollow, HollowSet         bool
-	CandleStyle               CandleStyleKind
+	OHLC [4]string
+	// DirectionFrom and DirectionTo are the columns a [DirectionBy] layer
+	// compares, DirectionFrom empty for the previous row. Its colours and
+	// labels are Rising, Falling, RisingLabel and FallingLabel.
+	DirectionFrom, DirectionTo string
+	Direction                  CandleDirection
+	Rising, Falling            *ir.Color
+	RisingLabel, FallingLabel  string
+	Hollow, HollowSet          bool
+	CandleStyle                CandleStyleKind
 
 	// Extra is what a third-party mark's own options set — see [Extra]. It is
 	// nil for a layer configured entirely from this package's options, and
@@ -777,6 +781,9 @@ func (d Desc) options() []Option {
 	if d.ColorCol != "" && d.ColorScale != nil {
 		opts = append(opts, ColorBy(d.ColorCol, d.ColorScale))
 	}
+	if d.DirectionTo != "" {
+		opts = append(opts, DirectionBy(d.DirectionFrom, d.DirectionTo))
+	}
 	if d.SizeCol != "" && d.SizeScale != nil {
 		opts = append(opts, SizeBy(d.SizeCol, d.SizeScale))
 	}
@@ -889,6 +896,8 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		ErrorXCol:     c.errXCol,
 		Caps:          c.caps,
 		OHLC:          c.ohlc,
+		DirectionFrom: c.dirFrom,
+		DirectionTo:   c.dirTo,
 		Direction:     c.direction,
 		Rising:        c.rising.color,
 		Falling:       c.falling.color,

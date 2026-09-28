@@ -417,7 +417,7 @@ func Draw(b ir.Backend, c Chart) error {
 	// 1. Train the scales. Tick labels depend on the domain, and the layout
 	//    depends on the tick labels, so this has to happen before anything is
 	//    measured.
-	retrain(panels)
+	retrain(panels, th)
 	for _, p := range panels {
 		// A panel with more axes than two hands its layers the scales of all
 		// of them: a parallel-coordinates panel has one per dimension, and the
@@ -1672,13 +1672,15 @@ func within(x, y scale.Scale) *scale.Interval {
 // domain only widens and a plot keeps its scales between renders, so without
 // this an axis describes every row it has ever been shown rather than the rows
 // this render draws. Pinned domains, discovered categories and discrete
-// colour keys are not forgotten — see [scale.Retrainer] for why.
+// colour keys are not forgotten — see [scale.Retrainer] for why. A colour
+// scale whose colours are the theme's — a direction's (ADR 0091) — is given
+// this render's theme in the same pass.
 //
 // It runs over every panel before any layer trains, so an axis shared by
 // several panels is forgotten, perhaps more than once, before the first of
 // them trains it; forgetting twice is forgetting once. See
 // docs/adr/0090-an-axis-describes-the-frame-it-is-drawn-in.md.
-func retrain(panels []Panel) {
+func retrain(panels []Panel, th theme.Theme) {
 	for _, p := range panels {
 		for _, g := range p.Layers {
 			x, y := p.axesOf(g)
@@ -1687,6 +1689,11 @@ func retrain(panels []Panel) {
 			if d, ok := geom.Describe(g); ok {
 				if d.ColorScale != nil {
 					scale.Retrain(d.ColorScale)
+					// A scale whose colours come from the theme — a
+					// direction's — takes this render's.
+					if b, ok := d.ColorScale.(interface{ BindTheme(theme.Theme) }); ok {
+						b.BindTheme(th)
+					}
 				}
 				if d.SizeScale != nil {
 					scale.Retrain(d.SizeScale)

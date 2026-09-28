@@ -472,6 +472,7 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.ExplodeCol = fieldOf(enc.Explode)
 	d.MidCol, d.ErrorCol, d.ErrorXCol = fieldOf(enc.Mid), fieldOf(enc.Error), fieldOf(enc.ErrorX)
 	d.OHLC = [4]string{fieldOf(enc.Open), fieldOf(enc.High), fieldOf(enc.Low), fieldOf(enc.Close)}
+	d.DirectionTo, d.DirectionFrom = fieldOf(enc.Direction), fieldOf(enc.DirectionFrom)
 	d.From, d.To = fieldOf(enc.From), fieldOf(enc.To)
 	for i := range enc.Dims {
 		d.Dims = append(d.Dims, enc.Dims[i].Field)
