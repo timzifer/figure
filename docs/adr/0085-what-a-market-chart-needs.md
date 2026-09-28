@@ -211,7 +211,7 @@ By what a reader loses without it, as ADR 0058 ranks:
    terms. `examples/market` folds from one.
 3. **`geom.Candle`**, as a record: its columns, its dialect word, its legend,
    and whether the OHLC bar is an option on it or a mark beside it. —
-   **Proposed** as
+   **Landed** as
    [ADR 0088](0088-a-candle-is-one-mark-that-reads-four-values.md): one option
    for the four columns, and the OHLC bar a style of the same mark.
 4. **Price autoscale and a replaceable last row**, as one record, because both

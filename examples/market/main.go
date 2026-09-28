@@ -3,15 +3,15 @@
 // Bollinger band over them, the crossings marked as buys and sells, the volume
 // traded each day underneath, and the volume traded at each price beside.
 //
-// Every part of it is a recipe over marks that already exist, which is what
-// docs/adr/0085-what-a-market-chart-needs.md catalogues. A candle is a rect for
-// the body and an error bar without caps for the wick; the band is an area
+// docs/adr/0085-what-a-market-chart-needs.md catalogues what such a chart is
+// made of, and each part is one layer here: geom.Candle reads the four values
+// and decides each day's direction itself (docs/adr/0088); the band is an area
 // between two columns; the volume is a bar in a bottom track that shares the
 // time axis; the profile is a horizontal bar in a right track that shares the
-// price axis. What the recipe costs the caller is visible below and is the
-// list that record ranks: the direction of each candle is a column computed by
-// hand. The calendar is not: which days the market trades is a scale.Calendar,
-// and the axis folds what it says is closed (docs/adr/0086).
+// price axis. Which days the market trades is a scale.Calendar, and the axis
+// folds what it says is closed (docs/adr/0086). The one column still computed
+// by hand is the direction the volume bars are coloured by: a candle decides
+// its direction for itself, not for the layer beside it.
 //
 // It is executed by a test so that it cannot silently stop compiling or stop
 // producing a chart.
@@ -81,15 +81,11 @@ func run(out string) error {
 	p.Add(geom.Area(candles, geom.X("t"), geom.Y("lower"), geom.Y2("upper"),
 		geom.Color(palette.Gray), geom.Opacity(0.18), geom.Label("Bollinger 20, 2σ")))
 
-	// A candle is two marks on the same rows: the wick from low to high, and
-	// the body from open to close over it. The body is a rect because its two
-	// ends are two columns; which one is higher is the direction, and the
-	// colour is a column because a mark cannot compute one from two others.
+	// One layer per candle chart: the mark reads the four values and draws the
+	// wick and the body in the direction it decides.
+	p.Add(geom.Candle(candles, geom.X("t"), geom.OHLC("open", "high", "low", "close"),
+		geom.Rising(up, "up"), geom.Falling(down, "down")))
 	dir := scale.Named(map[string]ir.Color{"up": up, "down": down})
-	p.Add(geom.ErrorBar(candles, geom.X("t"), geom.Y("low"), geom.Y2("high"),
-		geom.Caps(false), geom.ColorBy("dir", dir)))
-	p.Add(geom.Rect(candles, geom.X("t"), geom.Y("open"), geom.Y2("close"),
-		geom.BarWidth(0.7), geom.ColorBy("dir", dir)))
 
 	p.Add(geom.Line(candles, geom.X("t"), geom.Y("ema"),
 		geom.Color(palette.Orange), geom.Label(fmt.Sprintf("EMA %d", fast))))

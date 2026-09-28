@@ -1,6 +1,6 @@
 # 0088 — A candle is one mark that reads four values and decides its own direction
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 2
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-28 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 2
 
 ## Context
 
@@ -103,8 +103,8 @@ mark (claim 8).
 ### 5. It draws in four calls, whatever the row count
 
 The wicks of one direction are one stroked path and the bodies of one
-direction one filled path: two calls per direction, four for the layer, and
-two more for the outlines of hollow bodies. A thousand candles are the same
+direction one filled path — or, hollow, one stroked outline: two calls per
+direction, four for the layer. A thousand candles are the same
 four calls as ten. That is the batching `geom.Rect` does by colour, for the
 reason [ADR 0007](0007-per-mark-colour.md) refuses a colour per mark in the IR.
 A layer coloured by `ColorBy` batches by its colours instead, as `Rect` does.
@@ -197,11 +197,40 @@ defaults, and the rising and falling colours and labels.
 
 ## Order of work
 
+Every step is built.
+
 1. `stat.Candle.End`, set by `OHLC` and `OHLCAt`; `figure.CandleTable`.
-2. `geom.Candle` with `OHLC`, `Direction`, `Rising`, `Falling`, `Hollow` and
-   `CandleStyle`; the theme's `Rising` and `Falling`; tests that it draws in
-   four calls, that a doji is visible, that inconsistent data is drawn as given
-   and that the row is reported at its close.
-3. The dialect's `"candlestick"` mark and its four channels, with a round trip.
-4. `examples/market` draws its candles with the mark, and a golden of both
-   styles.
+2. `geom.Candle` in `geom/candle.go`, with `OHLC`, `Direction`, `Rising`,
+   `Falling`, `Hollow` and `CandleStyle`, and the theme's `Rising` and
+   `Falling`; tested for four calls over a thousand rows, a visible doji,
+   inconsistent data drawn as given, the row at its close, a period's share
+   and the Desc round trip.
+3. The dialect's `"candlestick"` with its four channels, round-tripped in
+   three configurations.
+4. `examples/market` draws its candles with the mark; `candles` and
+   `candles-ticks` are goldens of both styles over a folded fortnight.
+
+## Amendment — what building it decided
+
+- **The mark is `geom.MarkCandle`, `"candle"`, and the document's word is
+  `"candlestick"`.** The package's names are its own and the dialect
+  translates them, as it does for every other mark.
+- **A hollow batch is its own batch.** Batches are keyed by colour and by
+  whether the body is drawn hollow, so a layer coloured by a column under
+  `Hollow` still strokes its rising bodies and fills its falling ones. A
+  hollow batch strokes its bodies instead of filling them, so every batch is
+  still two calls — a direction-coloured layer is four, hollow or not — and a
+  layer coloured by a column is two per colour, never one per row.
+- **The legend is two box swatches**, one per direction, or the colour
+  column's own entries under `ColorBy`. A hollow swatch would need a swatch
+  kind the legend does not have; the direction's label says what the outline
+  says.
+- **A tick on the edge where a fold starts moves too.** Building the goldens
+  found the one case ADR 0086's claim 5 missed: a weekend fold starts at
+  Saturday midnight, a two-day tick landed exactly there, and it stood on the
+  end of Friday labelled with Saturday. A tick at a fold's lower edge now
+  moves to its upper one like a tick inside it; 0086's amendment records it.
+- **A candle reaches the edge of its axis.** The value axis is trained on the
+  lowest low and the highest high and nothing more, so the extreme wicks touch
+  the panel's edge — the same fit a bar gets, and `scale.Nice` rounds the
+  ticks rather than the domain.

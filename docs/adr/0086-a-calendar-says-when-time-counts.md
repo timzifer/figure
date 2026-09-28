@@ -357,3 +357,8 @@ Every step is built.
   Claim 5 is what an axis narrow or long enough to choose a day step needs —
   without it such an axis has no ticks at all — and the test asks for exactly
   that case.
+- **The lower edge of a fold counts as inside it** for claim 5. A weekend fold
+  starts at Saturday midnight, and a tick landing exactly there stands on the
+  end of Friday labelled with a day the axis took out. Found by ADR 0088's
+  goldens; the tick now moves to Monday with Monday's date. A tick at a
+  break's lower edge is still dropped, as any tick in a break is.

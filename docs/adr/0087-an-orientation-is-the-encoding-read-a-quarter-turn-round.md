@@ -87,7 +87,8 @@ draws one in.
   value swap at its emit points; and `Area`, whose decimation reduces by pixel
   column along X and so has to be told which axis is the independent one.
   `Ridgeline` is already the horizontal density.
-- **Not ever:** `Line` and `Scatter`, which have no slot — a line lying down is
+- **Not ever:** `Candle` ([ADR 0088](0088-a-candle-is-one-mark-that-reads-four-values.md)),
+  which nobody draws on its side. `Line` and `Scatter`, which have no slot — a line lying down is
   a line with its columns exchanged. `Trend`, where a horizontal fit is a
   regression of X on Y, a different statistic rather than the same one turned.
   `Horizon`, whose fold replaces its vertical axis. `Step`, until someone needs

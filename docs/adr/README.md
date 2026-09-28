@@ -97,7 +97,7 @@ depends on.
 | [0085](0085-what-a-market-chart-needs.md) | A market chart is a recipe over marks that exist, and what it lacks is a calendar, a candle and statistics that only look back | Proposed | 0083's business-day deferral, as a catalogue |
 | [0086](0086-a-calendar-says-when-time-counts.md) | A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does | Accepted, amended | 0083's business-day deferral |
 | [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
-| [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Proposed | 0085's second rank |
+| [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Accepted, amended | 0085's second rank |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -362,7 +362,7 @@ now lays a bar, a histogram and a boxplot on their side, with the roles of the
 columns swapped along with the axes and the turn made once, where each mark
 emits.
 
-**0088 is 0085's second rank**, *Proposed*: `geom.Candle` reads a position and
+**0088 is 0085's second rank**, *Accepted, amended* and built: `geom.Candle` reads a position and
 the four values through one option, `geom.OHLC`, decides each row's direction
 itself, and draws the wick and the body as one mark with one legend — in four
 calls whatever the row count. The OHLC bar is a style of it rather than a

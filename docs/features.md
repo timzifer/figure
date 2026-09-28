@@ -74,7 +74,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   peak — with a determinism test, drawn by a mark that trains its axis on
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
-- **Market charts** — a candle is a `Rect` body over an `ErrorBar` wick,
+- **Market charts** — `geom.Candle` reads open, high, low and close through
+  one option and decides each row's direction itself, drawing wick and body —
+  or the OHLC bar — in a handful of calls whatever the row count
+  ([ADR 0088](adr/0088-a-candle-is-one-mark-that-reads-four-values.md)); the
+  recipe under it is a `Rect` body over an `ErrorBar` wick,
   volume is a `Bar` in a bottom track sharing time, and a volume profile is a
   horizontal `Bar` per price bucket in a right track sharing price. The indicators are
   functions in `stat` that look only backwards — `TrailingMean`, `EMA`,
