@@ -9,9 +9,9 @@
 // between two columns; the volume is a bar in a bottom track that shares the
 // time axis; the profile is a horizontal bar in a right track that shares the
 // price axis. Which days the market trades is a scale.Calendar, and the axis
-// folds what it says is closed (docs/adr/0086). The one column still computed
-// by hand is the direction the volume bars are coloured by: a candle decides
-// its direction for itself, not for the layer beside it.
+// folds what it says is closed (docs/adr/0086). The volume bars are coloured
+// by the same direction through geom.DirectionBy, in the candles' own colours
+// (docs/adr/0091), so no column in the table is computed for the chart's sake.
 //
 // It is executed by a test so that it cannot silently stop compiling or stop
 // producing a chart.
@@ -92,7 +92,6 @@ func run(out string) error {
 	// wick and the body in the direction it decides.
 	p.Add(geom.Candle(candles, geom.X("t"), geom.OHLC("open", "high", "low", "close"),
 		geom.Rising(up, "up"), geom.Falling(down, "down")))
-	dir := scale.Named(map[string]ir.Color{"up": up, "down": down})
 
 	p.Add(geom.Line(candles, geom.X("t"), geom.Y("ema"),
 		geom.Color(palette.Orange), geom.Label(fmt.Sprintf("EMA %d", fast))))
@@ -108,10 +107,13 @@ func run(out string) error {
 		geom.Shape(ir.MarkerTriangleDown), geom.Size(10), geom.Color(down), geom.Label("sell")))
 
 	// The volume each day, under the price and on the same time axis: one
-	// scale object, so a zoom on a live chart moves both.
+	// scale object, so a zoom on a live chart moves both. Coloured by the day's
+	// direction with the candles' options, so the two agree and the legend
+	// names up and down once.
 	p.Track(figure.Bottom, figure.TrackFraction(0.2), figure.TrackScale(scale.Linear(scale.Zero())), figure.TrackAxis(true)).
-		Add(geom.Bar(candles, geom.X("t"), geom.Y("volume"),
-			geom.BarWidth(0.7), geom.ColorBy("dir", dir), geom.Opacity(0.6)))
+		Add(geom.Bar(candles, geom.X("t"), geom.Y("volume"), geom.BarWidth(0.7),
+			geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down"),
+			geom.Opacity(0.6)))
 
 	// The volume traded at each price, beside the price and on the same price
 	// axis: a bar lying on its side per price bucket, buys stacked first and
@@ -192,16 +194,11 @@ func candleTable(days []stat.Candle) *data.Table {
 	xs := make([]float64, n)
 	closes := make([]float64, n)
 	o, h, l, c, v := make([]float64, n), make([]float64, n), make([]float64, n), make([]float64, n), make([]float64, n)
-	dir := make([]string, n)
 	for i, d := range days {
 		t[i] = scale.FromNanos(d.Start + float64(12*time.Hour))
 		xs[i] = float64(i)
 		closes[i] = d.Close
 		o[i], h[i], l[i], c[i], v[i] = d.Open, d.High, d.Low, d.Close, d.Volume
-		dir[i] = "down"
-		if d.Up() {
-			dir[i] = "up"
-		}
 	}
 
 	// The indicators run over the row index rather than the time: a trading
@@ -219,7 +216,6 @@ func candleTable(days []stat.Candle) *data.Table {
 		Time("t", t).
 		Float64("open", o).Float64("high", h).Float64("low", l).Float64("close", c).
 		Float64("volume", v).
-		String("dir", dir).
 		Float64("ema", ema).Float64("mid", mid).
 		Float64("lower", lower).Float64("upper", upper)
 }

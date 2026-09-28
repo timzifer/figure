@@ -1,6 +1,6 @@
 # 0091 — A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Revisits:** [ADR 0088](0088-a-candle-is-one-mark-that-reads-four-values.md)'s *Revisit if*
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-28 · **Revisits:** [ADR 0088](0088-a-candle-is-one-mark-that-reads-four-values.md)'s *Revisit if*
 
 ## Context
 
@@ -142,10 +142,38 @@ defined, now written for any mark that carries a direction.
 
 ## Order of work
 
-1. `geom.DirectionBy`, feeding the colour channel, with the `ColorBy`
-   exclusion; the candle's `Rising` and `Falling` read by it. Tests: a bar, a
-   line and a scatter take it; a tie rises; the previous-row form matches a
-   candle's `SincePrevious`; a dark theme repaints it; the legend merges with a
-   candle's.
-2. The dialect's `"direction"` and `"directionFrom"`, with a round trip.
-3. `examples/market` drops its `dir` column; `-live` colours its volume track.
+Every step is built.
+
+1. `geom.DirectionBy` in `geom/direction.go`, with `ErrColorAndDirection`;
+   tested on a bar, a line and a scatter, for a tie, for the previous-row form,
+   against a candle in both directions, for the legend's two labels and for the
+   Desc round trip. At chart level: a volume track under candles adds nothing
+   to the legend, and a theme's `Rising` and `Falling` repaint the bars.
+2. `"direction"` and `"directionFrom"` in the dialect, round-tripped on a bar,
+   a scatter with named colours and a line.
+3. `examples/market` drops its `dir` column and its `scale.Named`; `-live`
+   colours its volume track from the stream's numbers.
+
+## Amendment — what building it decided
+
+- **A direction is a discrete colour scale of two labels.** `DirectionBy`
+  installs a scale whose labels are rising and falling and whose values are
+  each row's direction, so everything already written for a discrete colour —
+  batching bars by colour, a path coloured in stretches, one legend entry per
+  label, the undefined colour for a row with none — works unchanged. No mark
+  has a line of direction code.
+- **The theme is bound in render's retrain pass.** The scale's colours are the
+  layer's options where given and the theme's otherwise, and a layer trains
+  without a theme — so render hands each colour scale that asks for one the
+  theme of the render it is in, in the same pass that retrains
+  ([ADR 0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md)). A scale
+  never bound falls back to the shipped themes' blue and vermilion.
+- **A row with no direction is not drawn.** The undefined colour of a colour
+  scale is transparent, so a row missing either value leaves a gap, which is
+  what claim 3 meant by "drawn in the colour a colour scale gives an undefined
+  value".
+- **The first row of the previous-row form rises.** A candle under
+  `SincePrevious` falls back to its own open for its first row, so the two
+  agree there only when that first candle rose. The test compares them on data
+  where it did; a chart whose first candle fell sees its first volume bar in
+  the other colour.

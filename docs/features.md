@@ -84,7 +84,10 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   functions in `stat` that look only backwards — `TrailingMean`, `EMA`,
   `RollingStdDev`, `RollingMin`/`RollingMax`, `Cumsum` — so appending a row
   never moves a value already drawn; `stat.OHLC` resamples ticks into candles
-  and `stat.BinWeighted` sums volume by price. `examples/market` draws all of
+  and `stat.BinWeighted` sums volume by price. `geom.DirectionBy(from, to)`
+  colours any mark by which way its row went, in the candles' colours — the
+  volume bars under them, a line drawn rising and falling
+  ([ADR 0091](adr/0091-a-direction-is-a-colour-channel-any-mark-can-take.md)). `examples/market` draws all of
   it, with the weekends and a holiday folded from one calendar, and with
   `-live` a tick feed folded into minute candles by `stat.Resampler`, the open
   candle revised in place with `data.Stream.ReplaceLast`, and a price axis that

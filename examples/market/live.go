@@ -42,7 +42,10 @@ func runLive(out string, ticks int) (x, y scale.Scale, err error) {
 	// scale of the last half hour.
 	p.Track(figure.Bottom, figure.TrackFraction(0.2),
 		figure.TrackScale(scale.Linear(scale.Zero(), scale.FitView())), figure.TrackAxis(true)).
-		Add(geom.Bar(st.Source(), geom.X("start"), geom.Y("volume"), geom.BarWidth(0.7), geom.Opacity(0.6)))
+		Add(geom.Bar(st.Source(), geom.X("start"), geom.Y("volume"), geom.BarWidth(0.7), geom.Opacity(0.6),
+			// The stream carries numbers only, and the direction needs none
+			// other: it is read from the open and the close the candle has.
+			geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down")))
 
 	live, err := p.Live(figure.SVGWriter(io.Discard))
 	if err != nil {
