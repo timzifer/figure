@@ -215,8 +215,9 @@ By what a reader loses without it, as ADR 0058 ranks:
    [ADR 0088](0088-a-candle-is-one-mark-that-reads-four-values.md): one option
    for the four columns, and the OHLC bar a style of the same mark.
 4. **Price autoscale and a replaceable last row**, as one record, because both
-   are what a live market chart is and neither is useful alone. — **Proposed**
-   as [ADR 0089](0089-a-value-axis-fits-what-its-time-axis-shows.md).
+   are what a live market chart is and neither is useful alone. — **Landed**
+   as [ADR 0089](0089-a-value-axis-fits-what-its-time-axis-shows.md);
+   `examples/market -live` draws it.
 5. The rest, as asked for.
 
 ## Consequences

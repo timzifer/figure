@@ -36,8 +36,15 @@ import (
 
 func main() {
 	out := flag.String("o", "market.svg", "output SVG path")
+	live := flag.Bool("live", false, "draw the live chart: a tick feed into minute candles, zoomed halfway")
 	flag.Parse()
-	if err := run(*out); err != nil {
+	var err error
+	if *live {
+		_, _, err = runLive(*out, 7200)
+	} else {
+		err = run(*out)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "market:", err)
 		os.Exit(1)
 	}

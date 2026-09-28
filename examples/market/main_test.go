@@ -68,3 +68,24 @@ func TestTheWalkCrossesBothWays(t *testing.T) {
 		t.Errorf("%d buys and %d sells, want at least one of each", buys.Len(), sells.Len())
 	}
 }
+
+// The live chart ends zoomed into its last candles, with the price axis
+// fitted to them rather than zoomed: unpinned, and inside the full session's
+// range.
+func TestTheLiveChartFitsItsPriceAxisToTheZoom(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "live.svg")
+	x, y, err := runLive(out, 7200)
+	if err != nil {
+		t.Fatalf("runLive: %v", err)
+	}
+	if !scale.Pinned(x) {
+		t.Error("the time axis is not zoomed")
+	}
+	if scale.Pinned(y) {
+		t.Error("the price axis was zoomed rather than fitted")
+	}
+	b, err := os.ReadFile(out)
+	if err != nil || !strings.Contains(string(b), "live, one-minute candles") {
+		t.Errorf("no live chart was written: %v", err)
+	}
+}

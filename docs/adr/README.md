@@ -98,7 +98,7 @@ depends on.
 | [0086](0086-a-calendar-says-when-time-counts.md) | A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does | Accepted, amended | 0083's business-day deferral |
 | [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
 | [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Accepted, amended | 0085's second rank |
-| [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Proposed | 0085's third rank |
+| [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Accepted, amended | 0085's third rank |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -371,7 +371,7 @@ mark beside it, direction is drawn twice (colour, and hollow or filled), and
 the dialect gains `"candlestick"` with four channels of its own rather than
 spending `y` and `y2` on two of the four values.
 
-**0089 is 0085's third rank**, *Proposed*: the two halves of a live market
+**0089 is 0085's third rank**, *Accepted, amended* and built: the two halves of a live market
 chart. `scale.FitView` makes a value axis fit the rows its panel's pinned X
 axis shows, handed to each layer as `Training.Within` in the one training pass
 there already is — a layer that cannot restrict its training fits loosely

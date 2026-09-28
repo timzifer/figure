@@ -95,6 +95,11 @@ in.Wheel(x, y, deltaY)                      // zoom about the pointer
 in.Resize(w, h)                             // lay out again at a new size
 ```
 
+A zoom moves every axis of the panel except one built with `scale.FitView()`:
+that axis is fitted, every frame, to the rows the zoomed axis leaves in view —
+the price axis of a chart zoomed in time
+([ADR 0089](adr/0089-a-value-axis-fits-what-its-time-axis-shows.md)).
+
 A runnable version is [`backend/window/cmd/demo`](../backend/window/cmd/demo):
 
 ```sh

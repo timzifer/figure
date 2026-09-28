@@ -1,6 +1,6 @@
 # 0089 — A value axis can fit what the other axis shows, and a stream can revise its last row
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 3
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-28 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 3
 
 ## Context
 
@@ -218,15 +218,49 @@ as a stream never was.
 
 ## Order of work
 
-1. `scale.FitView`, `scale.LogFitView`, `scale.Pinner`, and `"fit"` in the
-   dialect.
-2. `geom.Training.Within`; render passes it for a fitting panel with a pinned
-   X; `Line`, `Area`, `Step`, `Scatter`, `Text`, `Bar`, `Rect`, `ErrorBar` and
-   `Candle` read it. A test that a layer which does not read it still fits
-   loosely rather than clipping.
-3. `Live.Wheel`, `ZoomTo` and `PanBy` skip a fitting axis; a test that a wheel
-   over a price chart moves time only and the next frame's price axis fits.
-4. `data.Stream.ReplaceLast`, race-tested beside `Append`.
-5. `stat.Resampler`, with a test that it produces `stat.OHLC`'s candles.
-6. `examples/market` gains a live mode — a seeded tick feed through a
-   resampler into a stream, drawn on a fitted price axis.
+Every step is built.
+
+1. `scale.FitView`, `scale.LogFitView`, `scale.Fitter`, `scale.Pinner` and
+   `"fit": "view"` — `scale/fit.go`.
+2. `geom.Training.Within`, passed by render; `Line`, `Area`, `Step`, `Scatter`,
+   `Text`, `Bar`, `Rect`, `ErrorBar` and `Candle` read it through three
+   helpers in `geom/fit.go` — points, spans, and connected paths with their edge
+   values — and a stack trains its totals in the view. A boxplot, which does
+   not read it, is tested to fit loosely rather than clip.
+3. `Live.Wheel`, `ZoomTo` and `PanBy` skip a fitting axis, and a `View` does not
+   record one; tested end to end: a wheel zooms X only, the next frame's Y fits
+   it, a pan slides both, `Autoscale` returns to every row.
+4. `data.Stream.ReplaceLast`, tested unbounded, filling, full and wrapped, and
+   under `-race` beside `Append`.
+5. `stat.Resampler`, tested to produce `stat.OHLC`'s and `stat.OHLCAt`'s
+   candles over the same ticks.
+6. `examples/market -live`: a seeded tick feed through a resampler into a
+   stream, one-minute candles and a volume track, both on fitted axes, wheeled
+   into the last half hour at the midpoint.
+
+## Amendment — what building it decided
+
+- **A fitting axis is reset every frame.** A trained domain only ever widens,
+  and render keeps a panel's scales across frames, so an axis fitted to last
+  frame's view kept it after the view moved on — the first end-to-end test
+  found a wheel that zoomed X and left Y where it was. Render now releases
+  every fitting axis whose X is pinned once, before any layer trains, and the
+  fit is derived from scratch. Once, for all panels, because panels that share
+  an axis share its scale. An axis that does not fit keeps the old behaviour;
+  whether an unpinned axis should forget last frame's rows too is a question
+  about every live chart, not this record's.
+- **Following the newest data is shown, not built.** The example's host keeps
+  the width the reader zoomed to and moves its right-hand edge to the open
+  candle with `Zoomer.SetDomain` each frame — one line, as *Not in scope*
+  predicted. Without it the view stays where the reader left it while the
+  stream's window moves on, and the chart ends showing one candle.
+- **A stack fits a padded view.** A stacked area's totals are trained on the
+  rows within one spacing of the view, and a stacked bar's within half a
+  bar — looser than a line's edge interpolation, and in the direction a fit
+  may err.
+- **Only a vertical value axis narrows.** A horizontal bar and a horizontal
+  error bar measure along X, so a fit of Y leaves them trained on every row, as
+  claim 1 said of horizontal value axes.
+- **A floating bar still trains its value only.** `Bar` trained its Y and not
+  its Y2 before this record, and the fit keeps that rather than change what a
+  floating bar's axis covers as a side effect.

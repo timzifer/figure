@@ -85,7 +85,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   `RollingStdDev`, `RollingMin`/`RollingMax`, `Cumsum` — so appending a row
   never moves a value already drawn; `stat.OHLC` resamples ticks into candles
   and `stat.BinWeighted` sums volume by price. `examples/market` draws all of
-  it, with the weekends and a holiday folded from one calendar
+  it, with the weekends and a holiday folded from one calendar, and with
+  `-live` a tick feed folded into minute candles by `stat.Resampler`, the open
+  candle revised in place with `data.Stream.ReplaceLast`, and a price axis that
+  fits the zoomed time axis through `scale.FitView`
+  ([ADR 0089](adr/0089-a-value-axis-fits-what-its-time-axis-shows.md))
   ([ADR 0085](adr/0085-what-a-market-chart-needs.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
   **`Sankey`**, **`Arc`**, **`Tree`**, **`Graph`** and **`NodeLink`**, which read an edge table rather than a pair of
