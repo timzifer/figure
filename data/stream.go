@@ -165,6 +165,44 @@ func (s *Stream) Append(vals ...float64) error {
 	return nil
 }
 
+// ErrEmptyStream reports a [Stream.ReplaceLast] on a stream with no rows.
+var ErrEmptyStream = fmt.Errorf("figure/data: no row to replace")
+
+// ReplaceLast overwrites the most recent row with new values, positional in
+// the order [NewStream] was given. It is the one revision a stream admits,
+// because it is the one a live source makes: the newest row — a candle whose
+// period has not closed, a reading still settling — is the only one still
+// being measured. A row further back is history, and a chart whose past
+// changed between two frames is one whose reader cannot trust what the first
+// frame showed. A producer that revises older rows owns a table, not a stream.
+//
+// It is safe to call from any goroutine, under the lock [Stream.Append]
+// takes, and allocates nothing. The row count does not change, so a window is
+// unaffected. The new values reach the renderer on the next
+// [Stream.Snapshot], as an appended row would. See
+// docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+func (s *Stream) ReplaceLast(vals ...float64) error {
+	if len(vals) != len(s.names) {
+		return fmt.Errorf("%w: %d values for %d columns", ErrColumnCount, len(vals), len(s.names))
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.n == 0 {
+		return ErrEmptyStream
+	}
+	last := s.n - 1
+	if s.limit > 0 {
+		// While a window fills, head is n mod limit; once it wraps, head is
+		// the slot the next row goes in. Either way the last row is the slot
+		// before it.
+		last = (s.head - 1 + s.limit) % s.limit
+	}
+	for i, v := range vals {
+		s.ring[i][last] = v
+	}
+	return nil
+}
+
 // AppendTime is [Stream.Append] with the first column given as a timestamp,
 // which is what the first column of a live chart almost always is. The
 // timestamp becomes its Unix nanoseconds, the domain a

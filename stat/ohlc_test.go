@@ -103,3 +103,60 @@ func TestOHLCAtBucketsBetweenEdges(t *testing.T) {
 		t.Errorf("no edges gave %v", got)
 	}
 }
+
+// Over the same ticks in the same order, the resampler's candles are exactly
+// OHLC's and OHLCAt's: the last candle each tick returns, collected at every
+// fresh one.
+func TestAResamplerProducesTheSameCandles(t *testing.T) {
+	ts := []float64{5, 7, 9, 14.9, 35, 36, 44.99, 45}
+	ps := []float64{10, 12, 8, 11, 20, 19, 22, 18}
+	vs := []float64{1, 2, 3, 4, 5, 6, 7, 8}
+	run := func(r *stat.Resampler) []stat.Candle {
+		var out []stat.Candle
+		for i := range ts {
+			c, fresh, err := r.Add(ts[i], ps[i], vs[i])
+			if err != nil {
+				t.Fatalf("tick %d: %v", i, err)
+			}
+			if fresh {
+				out = append(out, c)
+			} else {
+				out[len(out)-1] = c
+			}
+		}
+		return out
+	}
+	check := func(name string, got, want []stat.Candle) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("%s: %d candles, want %d", name, len(got), len(want))
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("%s candle %d: %+v, want %+v", name, i, got[i], want[i])
+			}
+		}
+	}
+	check("width", run(&stat.Resampler{Origin: 5, Width: 10}), stat.OHLC(ts, ps, vs, 5, 10))
+	edges := []float64{5, 13, 30, 45}
+	check("edges", run(&stat.Resampler{Edges: edges}), stat.OHLCAt(ts, ps, vs, edges))
+}
+
+func TestAResamplerRefusesALateTickAndChangesNothing(t *testing.T) {
+	r := stat.Resampler{Width: 10}
+	r.Add(25, 1, 1)
+	before, _ := r.Current()
+	if _, _, err := r.Add(15, 99, 1); err != stat.ErrLateTick {
+		t.Errorf("err = %v, want ErrLateTick", err)
+	}
+	if after, _ := r.Current(); after != before {
+		t.Errorf("a late tick changed the open candle: %+v", after)
+	}
+	if _, _, err := (&stat.Resampler{}).Add(1, 1, 1); err != stat.ErrNoPeriod {
+		t.Errorf("a resampler with no width: err = %v", err)
+	}
+	r.Reset()
+	if _, open := r.Current(); open {
+		t.Error("Reset kept the open candle")
+	}
+}

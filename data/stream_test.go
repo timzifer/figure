@@ -273,3 +273,80 @@ func TestTheStreamAndItsViewAgreeAboutColumns(t *testing.T) {
 		t.Errorf("the view holds %d rows", got)
 	}
 }
+
+// The newest row is revised in place, unbounded, while a window fills, and
+// once it has wrapped — the three places the last row can be.
+func TestReplaceLastRevisesTheNewestRow(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		window int
+		rows   int
+		want   []float64
+	}{
+		{"unbounded", 0, 3, []float64{0, 1, 99}},
+		{"filling", 5, 3, []float64{0, 1, 99}},
+		{"wrapped", 4, 10, []float64{6, 7, 8, 99}},
+		{"exactly full", 4, 4, []float64{0, 1, 2, 99}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := data.NewStream("i").Window(tc.window)
+			for i := range tc.rows {
+				s.Append(float64(i))
+			}
+			if err := s.ReplaceLast(99); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.Len(); got != len(tc.want) {
+				t.Errorf("%d rows after a replace, want %d", got, len(tc.want))
+			}
+			s.Snapshot()
+			col, _ := data.Float64Column(s.Source(), "i")
+			if !equal(col, tc.want) {
+				t.Errorf("rows = %v, want %v", col, tc.want)
+			}
+			// And the next row is appended after it, not over it.
+			s.Append(100)
+			s.Snapshot()
+			col, _ = data.Float64Column(s.Source(), "i")
+			if col[len(col)-1] != 100 || col[len(col)-2] != 99 {
+				t.Errorf("after a further append: %v", col)
+			}
+		})
+	}
+}
+
+func TestReplaceLastRefusesAnEmptyStreamAndAWrongRow(t *testing.T) {
+	s := data.NewStream("a", "b")
+	if err := s.ReplaceLast(1, 2); err != data.ErrEmptyStream {
+		t.Errorf("err = %v, want ErrEmptyStream", err)
+	}
+	s.Append(1, 2)
+	if err := s.ReplaceLast(1); err == nil {
+		t.Error("a row of the wrong length was accepted")
+	}
+}
+
+// The producer may revise the open row while another goroutine appends; run
+// under -race.
+func TestReplaceLastIsSafeBesideAppend(t *testing.T) {
+	s := data.NewStream("y").Window(100)
+	s.Append(0)
+	var wg sync.WaitGroup
+	for g := range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 200 {
+				if g%2 == 0 {
+					s.Append(float64(i))
+				} else {
+					s.ReplaceLast(float64(-i))
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if got := s.Len(); got != 100 {
+		t.Errorf("%d rows, want the window's 100", got)
+	}
+}

@@ -1,6 +1,7 @@
 package stat
 
 import (
+	"errors"
 	"math"
 	"sort"
 )
@@ -179,4 +180,111 @@ func AppendOHLCAt(dst []Candle, ts, ps, vs, edges []float64) []Candle {
 		dst = append(dst, cur)
 	}
 	return dst
+}
+
+// Resampler is [OHLC] for a feed that arrives a tick at a time: each tick
+// either revises the open candle or opens the next, and Add says which.
+//
+//	r := stat.Resampler{Origin: scale.Nanos(open), Width: float64(time.Minute)}
+//	for tick := range ticks {
+//		c, fresh, err := r.Add(scale.Nanos(tick.At), tick.Price, tick.Size)
+//		if err != nil {
+//			continue // a tick for a candle that has already closed
+//		}
+//		row := []float64{c.Start, c.End, c.Open, c.High, c.Low, c.Close, c.Volume}
+//		if fresh {
+//			stream.Append(row...)
+//		} else {
+//			stream.ReplaceLast(row...)
+//		}
+//	}
+//
+// The periods are Width wide from Origin, as OHLC's are, or — when Edges is
+// set — between consecutive edges, as [OHLCAt]'s are; Edges wins. Over the
+// same ticks in the same order, the candles it produces are exactly those
+// functions'. The zero value has no width and no edges and refuses every
+// tick.
+//
+// It is a struct with state because the state is the point: the open candle.
+// [Resampler.Reset] forgets it, so a chart restarting its feed reuses the
+// value. See docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+type Resampler struct {
+	Origin, Width float64
+	Edges         []float64
+
+	cur  Candle
+	at   int // the open candle's period: its index among Edges, or its multiple of Width
+	open bool
+}
+
+// ErrLateTick is returned by [Resampler.Add] for a tick that belongs before
+// the open candle — to a period that has closed.
+var ErrLateTick = errors.New("figure/stat: tick belongs to a candle that has closed")
+
+// ErrNoPeriod is returned by [Resampler.Add] for a tick with no period: not
+// finite, before the first edge, or on a resampler with no width and no edges.
+var ErrNoPeriod = errors.New("figure/stat: tick has no period")
+
+// Add folds one tick into the candles and returns the candle it is now part
+// of, and whether that candle is new. A tick for a period that has closed is
+// [ErrLateTick] and changes nothing: that candle is history. v is the tick's
+// volume; pass 1 to count ticks.
+func (r *Resampler) Add(t, p, v float64) (Candle, bool, error) {
+	if !finite(t) || !finite(p) || !finite(v) {
+		return r.cur, false, ErrNoPeriod
+	}
+	k, start, end, ok := r.period(t)
+	if !ok {
+		return r.cur, false, ErrNoPeriod
+	}
+	if r.open && k < r.at {
+		return r.cur, false, ErrLateTick
+	}
+	fresh := !r.open || k != r.at
+	if fresh {
+		r.cur = Candle{Start: start, End: end, Open: p, High: p, Low: p}
+		r.at, r.open = k, true
+	}
+	r.cur.High = max(r.cur.High, p)
+	r.cur.Low = min(r.cur.Low, p)
+	r.cur.Close = p
+	r.cur.Volume += v
+	r.cur.Count++
+	if len(r.Edges) > 0 && k == len(r.Edges)-1 {
+		// The last period has no edge after it, so it ends where its data
+		// does — OHLCAt's rule.
+		r.cur.End = max(r.cur.End, t)
+	}
+	return r.cur, fresh, nil
+}
+
+// Current is the open candle, and false before the first tick.
+func (r *Resampler) Current() (Candle, bool) { return r.cur, r.open }
+
+// Reset forgets the open candle, keeping the periods.
+func (r *Resampler) Reset() { r.cur, r.at, r.open = Candle{}, 0, false }
+
+// period is the period t falls in: an index that orders periods, and its
+// start and end.
+func (r *Resampler) period(t float64) (int, float64, float64, bool) {
+	if n := len(r.Edges); n > 0 {
+		k := sort.SearchFloat64s(r.Edges, t)
+		if k == n || r.Edges[k] != t {
+			k--
+		}
+		if k < 0 {
+			return 0, 0, 0, false
+		}
+		end := t
+		if k+1 < n {
+			end = r.Edges[k+1]
+		}
+		return k, r.Edges[k], end, true
+	}
+	if !(r.Width > 0) || !finite(r.Width) || !finite(r.Origin) {
+		return 0, 0, 0, false
+	}
+	m := math.Floor((t - r.Origin) / r.Width)
+	start := r.Origin + m*r.Width
+	return int(m), start, start + r.Width, true
 }
