@@ -191,7 +191,9 @@ defaults, and the rising and falling colours and labels.
 - Charts colour their volume bars by direction often enough that computing the
   column is the recipe's cost all over again — which would be a `geom.Bar`
   option reading the same four columns, or a `stat` function writing the
-  direction.
+  direction. — Revisited in
+  [ADR 0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md), as a
+  colour channel any mark can take.
 - A chart of more candles than its width can hold asks for the exact merge
   above.
 

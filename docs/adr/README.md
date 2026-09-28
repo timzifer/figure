@@ -100,6 +100,7 @@ depends on.
 | [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Accepted, amended | 0085's second rank |
 | [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Accepted, amended | 0085's third rank |
 | [0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) | An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered | Accepted, amended | 0089's open question |
+| [0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md) | A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours | Proposed | 0088's volume-bar revisit |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -390,3 +391,11 @@ train; a pinned domain is kept, so a zoom survives as before; and a set of
 discovered names — a category's slot, a series' colour — is remembered,
 because it is identity rather than measurement. `scale.HighWater` is the
 opt-in for an axis that should remember its extent.
+
+**0091 answers 0088's *Revisit if***, *Proposed*: volume bars coloured by
+direction were a hand-computed column again, and impossible on a stream, which
+carries numbers only. `geom.DirectionBy(from, to)` is a colour channel any
+mark with `ColorBy` takes — a row rises when `to` is at or above `from`, or
+above the previous row's `to` — painted in the candle's `Rising` and `Falling`
+colours, so a volume track agrees with its candles without being told to, and
+the legend's merge by label says rising and falling once.
