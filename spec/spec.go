@@ -754,6 +754,9 @@ type Scale struct {
 	Center     *float64 `json:"center,omitempty"`
 	Undefined  string   `json:"undefined,omitempty"`
 	TimeZone   string   `json:"timeZone,omitempty"`
+	// WeekStart is the weekday a time scale's weeks begin on — "sunday" —
+	// left out for Monday. It is figure's; Vega-Lite's weeks are its locale's.
+	WeekStart string `json:"weekStart,omitempty"`
 
 	// Origin is the instant a time scale measures its domain from, written as
 	// a timestamp. It is figure's own — Vega-Lite has no equivalent because

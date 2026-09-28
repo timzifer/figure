@@ -161,7 +161,7 @@ func encodeScale(d scale.Desc) *Scale {
 		out.Type, out.Link = "probability", d.Link
 		out.MinorTicks = boolPtr(d.MinorTicks)
 	case scale.KindTime:
-		out.Type, out.TimeZone = "time", d.Location
+		out.Type, out.TimeZone, out.WeekStart = "time", d.Location, d.WeekStart
 		// A time scale's declarative format is a layout, and it travels in
 		// the same field a numeric scale's number format does: the type says
 		// which of the two this is.

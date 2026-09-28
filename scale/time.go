@@ -15,7 +15,37 @@ type TimeOption func(*timeScale)
 func In(loc *time.Location) TimeOption {
 	return func(t *timeScale) {
 		if loc != nil {
-			t.loc = loc
+			t.loc, t.locSet = loc, true
+		}
+	}
+}
+
+// WeekStart sets the day a week tick falls on: weeks are walked from local
+// midnight on that weekday. The default is Monday, ISO 8601's — which is what
+// every weekly axis drew before this option existed, as an accident of Go
+// truncating from its zero time, a Monday, rather than as a decision.
+func WeekStart(d time.Weekday) TimeOption {
+	return func(t *timeScale) { t.week, t.weekSet = d, true }
+}
+
+// TimeCalendar applies a calendar's conventions to a time axis: its week start,
+// and its location unless [In] names another. It does not fold anything — the
+// closed time is [Folds] of the calendar over an interval the caller names,
+// given to [TimeFold]:
+//
+//	p.X(scale.Time(scale.TimeCalendar(cal), scale.TimeFold(folds...)))
+//
+// See docs/adr/0086-a-calendar-says-when-time-counts.md.
+func TimeCalendar(cal Calendar) TimeOption {
+	return func(t *timeScale) {
+		if cal == nil {
+			return
+		}
+		if !t.weekSet {
+			t.week = cal.WeekStart()
+		}
+		if !t.locSet {
+			t.loc = zone(cal.Location())
 		}
 	}
 }
@@ -55,7 +85,7 @@ func TimeFormat(fn func(t time.Time, unit time.Duration) string) TimeOption {
 // Scale interface as every other scale and geoms need no special case. Use
 // [Nanos] and [FromNanos] to convert.
 func Time(opts ...TimeOption) Scale {
-	t := &timeScale{loc: time.UTC}
+	t := &timeScale{loc: time.UTC, week: time.Monday}
 	for _, o := range opts {
 		o(t)
 	}
@@ -121,9 +151,14 @@ func InstantOf(s Scale, v float64) time.Time {
 type timeScale struct {
 	domainRange
 	loc    *time.Location
+	locSet bool
 	fixed  bool
-	origin int64 // the instant the domain is measured from, in Unix nanoseconds
-	format func(time.Time, time.Duration) string
+	// week is the day a week tick falls on, and weekSet whether [WeekStart]
+	// named it rather than a calendar.
+	week    time.Weekday
+	weekSet bool
+	origin  int64 // the instant the domain is measured from, in Unix nanoseconds
+	format  func(time.Time, time.Duration) string
 
 	// layout is the declarative half of the same choice and locale the
 	// language the names in it are written in. See [TimeLayout] and [Locale].
@@ -203,6 +238,10 @@ func (s *timeScale) Invert(pos float32) float64 {
 	return lo + float64((pos-rlo)/(rhi-rlo))*(hi-lo)
 }
 
+// week is the week tick's nominal step. It is walked by date rather than by
+// this duration; see [timeScale.walk].
+const week = 7 * 24 * time.Hour
+
 // timeUnit is a candidate tick spacing, with the label format that suits it.
 type timeUnit struct {
 	every  time.Duration // 0 for calendar units handled specially
@@ -232,7 +271,7 @@ var timeUnits = []timeUnit{
 	{every: 12 * time.Hour, layout: "Jan 2 15:04"},
 	{every: 24 * time.Hour, layout: "Jan 2"},
 	{every: 48 * time.Hour, layout: "Jan 2"},
-	{every: 7 * 24 * time.Hour, layout: "Jan 2"},
+	{every: week, layout: "Jan 2"},
 	{months: 1, layout: "Jan 2006"},
 	{months: 3, layout: "Jan 2006"},
 	{months: 6, layout: "Jan 2006"},
@@ -280,6 +319,9 @@ func (s *timeScale) Ticks(req TickRequest) []Tick {
 // axis still shows, walked through each kept piece.
 func (s *timeScale) brokenTicks(b *broken, want int) []Tick {
 	u := s.pick(time.Duration(b.kept()), want)
+	if u.calendar() {
+		return s.movedTicks(b, u)
+	}
 	var out []Tick
 	b.pieces(func(a, z float64) {
 		for _, t := range s.walk(s.Instant(a).In(s.loc), s.Instant(z).In(s.loc), u) {
@@ -292,6 +334,46 @@ func (s *timeScale) brokenTicks(b *broken, want int) []Tick {
 	})
 	return out
 }
+
+// movedTicks is the tick walk of a broken axis whose step names a day rather
+// than an instant — a day, a week, a month, a year. Walked per piece, such a
+// step loses every tick that falls in a cut, and on an axis with its nights
+// folded that is every midnight: the axis would have no dates on it. So the
+// step is walked across the whole domain instead, and a tick that lands
+// strictly inside a cut moves to the cut's upper edge — where time next
+// counts — and is labelled for where it now stands. A tick in a break is
+// still dropped. Two that land in one cut
+// become one, the later winning, so a closed week that swallowed the first of
+// a month is labelled with the new month. See ADR 0086, claim 5.
+func (s *timeScale) movedTicks(b *broken, u timeUnit) []Tick {
+	var out []Tick
+	for _, t := range s.walk(s.Instant(b.lo).In(s.loc), s.Instant(b.hi).In(s.loc), u) {
+		v := s.Value(t)
+		// A tick in a fold moves on; one in a break is dropped, as 0083 has
+		// it. A break is a stretch the reader was told is missing, and a tick
+		// on its far edge would be a date nobody chose, standing against the
+		// break's mark.
+		if hi, fold, in := b.past(v); in {
+			if !fold {
+				continue
+			}
+			v, t = hi, s.Instant(hi).In(s.loc)
+		}
+		if v < b.lo || v > b.hi {
+			continue
+		}
+		tk := Tick{Value: v, Pos: s.Map(v), Label: s.label(t, u)}
+		if n := len(out); n > 0 && out[n-1].Value == v {
+			out[n-1] = tk
+			continue
+		}
+		out = append(out, tk)
+	}
+	return out
+}
+
+// calendar reports whether a unit names a day rather than an instant.
+func (u timeUnit) calendar() bool { return u.years > 0 || u.months > 0 || u.every >= 24*time.Hour }
 
 // approx reports a unit's nominal duration, used only to tell a custom
 // formatter how coarse the axis is.
@@ -338,6 +420,20 @@ func (s *timeScale) walk(start, end time.Time, u timeUnit) []time.Time {
 			if !t.Before(start) {
 				out = append(out, t)
 			}
+		}
+	case u.every == week:
+		// A week is walked from a weekday rather than truncated from a
+		// duration: truncating aligns to whatever day Go's zero time was, and
+		// steps of seven times 24 hours drift an hour off midnight at every
+		// daylight saving change.
+		y, m, d := start.Date()
+		back := (int(start.Weekday()) - int(s.week) + 7) % 7
+		for t := time.Date(y, m, d-back, 0, 0, 0, 0, s.loc); !t.After(end) && len(out) < guard; {
+			if !t.Before(start) {
+				out = append(out, t)
+			}
+			ty, tm, td := t.Date()
+			t = time.Date(ty, tm, td+7, 0, 0, 0, 0, s.loc)
 		}
 	case u.months > 0:
 		m := (int(start.Month()) - 1) / u.months * u.months

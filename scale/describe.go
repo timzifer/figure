@@ -2,6 +2,7 @@ package scale
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/timzifer/figure/ir"
@@ -95,6 +96,9 @@ type Desc struct {
 
 	// Location is a time scale's zone, by IANA name.
 	Location string
+	// WeekStart is the weekday a time scale's weeks begin on, by its English
+	// name in lower case — "sunday" — and empty for Monday, the default.
+	WeekStart string
 
 	// Formatted reports a scale carrying a formatter that a Desc cannot hold.
 	Formatted bool
@@ -236,6 +240,13 @@ func FromDesc(d Desc) (Scale, error) {
 		if d.Layout != "" {
 			opts = append(opts, TimeLayout(d.Layout))
 		}
+		if d.WeekStart != "" {
+			wd, ok := weekdayNamed(d.WeekStart)
+			if !ok {
+				return nil, fmt.Errorf("figure/scale: week start %q is not a weekday", d.WeekStart)
+			}
+			opts = append(opts, WeekStart(wd))
+		}
 		opts = append(opts, func(t *timeScale) {
 			t.locale = localeNamed(d.Locale)
 			t.cuts = t.cuts.with(false, d.Cuts...).with(true, d.Folds...)
@@ -305,6 +316,9 @@ func (s *timeScale) Describe() Desc {
 	}
 	if s.loc != nil {
 		d.Location = s.loc.String()
+	}
+	if s.week != time.Monday {
+		d.WeekStart = strings.ToLower(s.week.String())
 	}
 	if s.fixed {
 		d.Min, d.Max = s.dmin, s.dmax
@@ -561,3 +575,14 @@ func (c *colorScale) DescribeColor() ColorDesc {
 }
 
 var _ ColorDescriber = (*colorScale)(nil)
+
+// weekdayNamed reads a weekday back from the name [timeScale.Describe] writes,
+// in any case.
+func weekdayNamed(name string) (time.Weekday, bool) {
+	for d := time.Sunday; d <= time.Saturday; d++ {
+		if strings.EqualFold(d.String(), name) {
+			return d, true
+		}
+	}
+	return 0, false
+}

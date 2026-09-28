@@ -161,7 +161,7 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 			d.Link = "probit"
 		}
 	case "time", "utc":
-		d.Kind, d.Location = scale.KindTime, s.TimeZone
+		d.Kind, d.Location, d.WeekStart = scale.KindTime, s.TimeZone, s.WeekStart
 		if typ == "utc" && d.Location == "" {
 			d.Location = "UTC"
 		}
