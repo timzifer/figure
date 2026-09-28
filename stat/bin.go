@@ -75,6 +75,80 @@ func AppendBin(dst []Bucket, vs []float64, lo, hi float64, n int) []Bucket {
 	return dst
 }
 
+// WeightedBucket is one bin of a weighted histogram: the interval it covers
+// and the sum of the weights that fell in it.
+//
+// It is a type of its own rather than a float Count on [Bucket] because a
+// count is a number of observations and a sum of weights is not: a volume
+// profile's bar is shares traded, and a caller who reads Count expecting rows
+// should not get shares.
+type WeightedBucket struct {
+	Lo, Hi float64
+	Sum    float64
+}
+
+// Mid is the bucket's centre, where a histogram bar is positioned.
+func (b WeightedBucket) Mid() float64 { return b.Lo + (b.Hi-b.Lo)/2 }
+
+// BinWeighted is [Bin] summing ws rather than counting vs: each value adds its
+// weight to the bucket it falls in.
+//
+// It is the volume profile's summary — prices binned, volumes summed — and the
+// buckets are exactly Bin's, over the same interval and with the same edges,
+// so two calls over the same lo, hi and n (the buys, then the sells) give two
+// profiles whose bars line up. Pass lo >= hi to take the interval from vs, as
+// Bin does; a caller splitting one column into two should take it once, from
+// the whole column, and pass it to both, or the two halves bin differently.
+//
+// A value is skipped when it or its weight is not finite. n <= 0 chooses the
+// count by [Sturges] over the values, as Bin does. The shorter column wins.
+func BinWeighted(vs, ws []float64, lo, hi float64, n int) []WeightedBucket {
+	return AppendBinWeighted(nil, vs, ws, lo, hi, n)
+}
+
+// AppendBinWeighted is [BinWeighted] writing into a caller-owned slice. dst is
+// truncated first.
+func AppendBinWeighted(dst []WeightedBucket, vs, ws []float64, lo, hi float64, n int) []WeightedBucket {
+	dst = dst[:0]
+	m := min(len(vs), len(ws))
+	vs, ws = vs[:m], ws[:m]
+	if lo >= hi {
+		var ok bool
+		lo, hi, ok = finiteExtent(vs)
+		if !ok {
+			return dst
+		}
+	}
+	if n <= 0 {
+		n = Sturges(countFinite(vs))
+	}
+	if n <= 0 || !finite(lo) || !finite(hi) {
+		return dst
+	}
+	if lo == hi {
+		pad := math.Abs(lo) * 0.05
+		if pad == 0 {
+			pad = 0.5
+		}
+		lo, hi, n = lo-pad, hi+pad, 1
+	}
+
+	w := (hi - lo) / float64(n)
+	for i := range n {
+		dst = append(dst, WeightedBucket{Lo: lo + float64(i)*w, Hi: lo + float64(i+1)*w})
+	}
+	dst[n-1].Hi = hi
+
+	for i, v := range vs {
+		if !finite(v) || !finite(ws[i]) || v < lo || v > hi {
+			continue
+		}
+		j := int((v - lo) / w)
+		dst[min(max(j, 0), n-1)].Sum += ws[i]
+	}
+	return dst
+}
+
 func countFinite(vs []float64) int {
 	n := 0
 	for _, v := range vs {
