@@ -46,8 +46,8 @@ Two things in the code make it more than a list of spans.
 
 ## Decision
 
-**A calendar is an interface with one question — when is this day open — and a
-configurable value implements it for every rule-shaped calendar. Its closed
+**A calendar is an interface with one question — when is this day open — and
+it is composed from rules about days that the library ships. Its closed
 time becomes the axis's folds, its week start becomes the axis's weeks, and a
 tick that lands in a fold moves to where time next counts.** Seven claims.
 
@@ -89,40 +89,97 @@ calendars second-class.
 `Open` takes a destination slice for the reason every Append form in `stat`
 does: a live chart refolds, and refolding must not allocate per day.
 
-### 2. The value that implements it is a working week, not a market
+### 2. A calendar is composed from rules about days, and the library ships the rules
+
+The calendars a caller writes are almost all one of two shapes: *which days
+are open*, with the same hours on each, or *which hours each weekday has*. So
+those are the two constructors, and the question of which days is a function
+the caller composes rather than a builder the library anticipates:
 
 ```go
-cal := scale.Workweek(time.Local, time.Monday, time.Tuesday, time.Wednesday,
-	time.Thursday, time.Friday, time.Saturday).    // which days are open
-	Hours(6*time.Hour, 22*time.Hour).               // and when, on every open day
-	On(time.Saturday, scale.Span{From: 6 * time.Hour, To: 14 * time.Hour}).
-	WeekStarts(time.Monday).
-	Closed(christmas, newYear).                     // whole days
-	Except(inventory, scale.Span{From: 6 * time.Hour, To: 10 * time.Hour})
+// A rule says whether a date is open. day is its local midnight.
+type DayRule func(day time.Time) bool
+
+// Open on the days the rule accepts, for the given stretches of each — all
+// day when none are given.
+func Workweek(loc *time.Location, open DayRule, hours ...Span) Calendar
+
+// Each weekday named with its own stretches; a weekday not named is closed.
+func Days(loc *time.Location, days ...Day) Calendar
+type Day struct {
+	Weekday time.Weekday
+	Hours   []Span
+}
+
+// Anything else: the whole per-day question, as a function.
+func CalendarFunc(loc *time.Location, open func(dst []Span, day time.Time) []Span) Calendar
 ```
 
-- `scale.Workweek(loc, days...)` opens the named weekdays all day and closes
-  the others. It has no default set of days, because there is no global one:
-  Monday to Friday, Monday to Saturday and Sunday to Thursday are all spelled
-  out, and the code says which one the chart means. `scale.Always(loc)` is the
-  calendar that is never closed — the hospital, and the identity a caller can
-  add `Closed` dates to.
-- `Hours(from, to, ...)` sets the stretches of every open day; `On(day,
-  spans...)` sets one weekday's, which is how a short Saturday or a lunch break
-  is written. `Hours` with `from > to` is the overnight shift of claim 1,
-  written the way a person says it.
-- `WeekStarts(d)` sets the week start. The default is Monday, ISO 8601's, and it
-  is a default of the value rather than of a locale: `scale.Locale` names days,
-  it does not decide which one a week begins on, and deriving one from the
-  other would make a German chart and a German chart about an American
-  company's weeks disagree for no reason the code shows.
-- `Closed(dates...)` closes whole dates, and `Except(date, spans...)` replaces
-  one date's stretches — an early close, a late start, a Saturday worked. A
-  date is a year, month and day in the calendar's location; the time of day of
-  the argument is ignored.
+The rules are ordinary functions, and the library ships the ones every
+calendar is made of:
 
-The value is immutable: each method returns a new calendar, so one base week
-can be shared by several charts and specialised per chart.
+- `scale.Weekdays(days ...time.Weekday) DayRule` — open on the named weekdays.
+  There is no rule called "weekdays" without arguments, because there is no
+  global answer: Monday to Friday, Monday to Saturday and Sunday to Thursday
+  are all spelled out, and the code says which one the chart means.
+- `scale.Dates(dates ...time.Time) DayRule` — the named dates, by year, month
+  and day in the calendar's location; the time of day of an argument is
+  ignored.
+- `scale.EveryNth(n int, from time.Time) DayRule` — every n-th day counted from
+  a date: a fortnightly maintenance Sunday is
+  `scale.And(scale.Weekdays(time.Sunday), scale.EveryNth(14, first))`, a
+  four-on-four-off shift is `scale.EveryNth` over an eight-day cycle.
+- `scale.Between(from, to time.Time) DayRule` — the dates of a term, a season,
+  a campaign.
+- `scale.And`, `scale.Or`, `scale.Not` — the rest.
+
+Two wrappers change any calendar, the caller's included, rather than being
+methods of one type:
+
+- `scale.Closed(cal, rule)` closes the days the rule accepts — the holidays.
+- `scale.Special(cal, rule, spans...)` gives the days the rule accepts those
+  stretches instead — an early close, a late start, a Saturday worked.
+
+```go
+// A plant: Monday to Saturday, 06:00 to 22:00, closed on public holidays and
+// every other Saturday, short on the day before a holiday.
+cal := scale.Workweek(berlin,
+	scale.And(scale.Weekdays(time.Monday, time.Tuesday, time.Wednesday,
+		time.Thursday, time.Friday, time.Saturday),
+		scale.Not(scale.And(scale.Weekdays(time.Saturday), scale.EveryNth(14, firstSaturday)))),
+	scale.Span{From: 6 * time.Hour, To: 22 * time.Hour})
+cal = scale.Closed(cal, scale.Dates(holidays...))
+cal = scale.Special(cal, scale.Dates(eves...), scale.Span{From: 6 * time.Hour, To: 14 * time.Hour})
+
+// An exchange: the same two constructors, nothing of its own.
+nyse := scale.Closed(scale.Workweek(newYork,
+	scale.Weekdays(time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday),
+	scale.Span{From: 9*time.Hour + 30*time.Minute, To: 16 * time.Hour}),
+	scale.Dates(closed...))
+```
+
+**The rule is asked about a day, not about an instant.** A `func(time.Time)
+bool` over instants is the more obvious signature and cannot work: the axis
+needs the exact edges of every closed stretch, and a predicate over instants
+only answers yes or no at the instants it is asked about, so the edges would
+have to be found by sampling or bisection — approximate, and a search per
+edge. A rule about a day is exact because a day is discrete, and the hours of
+the day are then data, `[]Span`, rather than a second question.
+
+A span with `From > To` is an overnight stretch written the way a person says
+it, 22:00 to 06:00, and is split at midnight into the two answers claim 1
+requires. `scale.Always(loc)` is `Workweek(loc, nil)` — nil accepts every day —
+the ward that never closes, and the base a caller closes dates on.
+
+**The week start** is `scale.StartWeek(cal, d)`, a third wrapper. Every
+constructor defaults to Monday, ISO 8601's, and it is a default of the
+calendar rather than of a locale: `scale.Locale` names days, it does not decide
+which one a week begins on, and deriving one from the other would make a German
+chart and a German chart about an American company's weeks disagree for no
+reason the code shows.
+
+Every calendar is immutable and every wrapper returns a new one, so one base
+week is shared by several charts and specialised per chart.
 
 No holiday table ships with the library, for any country or any exchange.
 Holidays are announced rather than derived, differ by region inside one
@@ -214,7 +271,9 @@ calendar.
   of an exchange with its nights folded are the same two lines with different
   arguments, and none of them is a special case of another.
 - A calendar the library could not anticipate — a roster, a term list, a
-  calendar computed in another calendar system — is a type with three methods.
+  calendar computed in another calendar system — is a `DayRule` if its days are
+  all alike, a `CalendarFunc` if they are not, and a type with three methods if
+  it wants to be a type.
 - A weekly axis can start its weeks on any day. The default stays Monday, so
   nothing drawn today moves.
 - An intraday axis with folded nights has dates on it.
@@ -249,9 +308,10 @@ calendar.
 
 ## Order of work
 
-1. `scale.Calendar`, `scale.Span`, `scale.Folds`, `scale.Opens`, and the
-   `Workweek` / `Always` value with `Hours`, `On`, `WeekStarts`, `Closed` and
-   `Except`. Tested across both daylight saving changes of one location, an
+1. `scale.Calendar`, `scale.Span`, `scale.Folds`, `scale.Opens`; the
+   constructors `Workweek`, `Days`, `CalendarFunc` and `Always`; the rules
+   `Weekdays`, `Dates`, `EveryNth`, `Between`, `And`, `Or`, `Not`; and the
+   wrappers `Closed`, `Special` and `StartWeek`. Tested across both daylight saving changes of one location, an
    overnight shift, a Sunday-to-Thursday week, and a caller-written calendar.
 2. `scale.WeekStart` and `scale.TimeCalendar`, with the week-tick walk aligned
    to a weekday instead of to Go's zero time, and a test that the default is

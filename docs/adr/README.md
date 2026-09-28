@@ -350,7 +350,8 @@ triangle for the sell. Each ranked mechanism gets a record of its own.
 *Proposed*, and it is not a market's: a calendar is an interface that says
 which stretches of each day count — a working week of any days, a roster, a
 term list, a calendar computed in another calendar system — with a
-configurable `Workweek` value for the rule-shaped ones and no holiday tables.
+calendar composed from rules about days the library ships — `Weekdays`,
+`Dates`, `EveryNth`, `And`, `Not` — and no holiday tables.
 Its closed time becomes folds for an interval the caller names, so the dialect
 only gains a week start; the week start becomes the axis's, which until now
 was Monday by an accident of Go's zero time; and a day tick that lands in a
