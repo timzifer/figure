@@ -33,7 +33,7 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   writes in ([ADR 0035](adr/0035-label-format-and-locale.md)).
 - **Geoms** — `Line` (`geom.Curve` picks one of ten interpolation families —
   cardinal, monotone, natural, basis, bundle and their open and closed
-  variants; monotone is the one that cannot overshoot), `Scatter` (six marker
+  variants; monotone is the one that cannot overshoot), `Scatter` (seven marker
   shapes), `Bar`, **`Area`** (to a baseline, or a band between two series),
   **`Step`** (pre/mid/post), **`Boxplot`** (Tukey whiskers, type-7 quartiles,
   outliers), and **`Rect`** — one box per row, bounded by the row rather than by
@@ -65,6 +65,15 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   peak — with a determinism test, drawn by a mark that trains its axis on
   the summary rather than on the rows
   ([ADR 0028](adr/0028-distribution-stats.md)).
+- **Market charts** — a candle is a `Rect` body over an `ErrorBar` wick,
+  volume is a `Bar` in a bottom track sharing time, and a volume profile is a
+  `Rect` per price bucket in a right track sharing price. The indicators are
+  functions in `stat` that look only backwards — `TrailingMean`, `EMA`,
+  `RollingStdDev`, `RollingMin`/`RollingMax`, `Cumsum` — so appending a row
+  never moves a value already drawn; `stat.OHLC` resamples ticks into candles
+  and `stat.BinWeighted` sums volume by price. `examples/market` draws all of
+  it, with the weekends folded
+  ([ADR 0085](adr/0085-what-a-market-chart-needs.md)).
 - **Relational and hierarchical marks** — **`Treemap`**, **`Icicle`**,
   **`Sankey`**, **`Arc`**, **`Tree`**, **`Graph`** and **`NodeLink`**, which read an edge table rather than a pair of
   axes: `geom.From`/`geom.To` for a flow, `geom.ID`/`geom.Parent` for a

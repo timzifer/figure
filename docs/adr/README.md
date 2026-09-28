@@ -94,6 +94,7 @@ depends on.
 | [0082](0082-a-label-fits-its-box-or-is-called-out.md) | A label fits the shape of its box on screen, is moved, broken or shrunk before it is dropped, and may be called out of it | Accepted | — |
 | [0083](0083-an-axis-break-is-marked-or-not-drawn.md) | An axis break belongs to the scale, and it is marked or it is not drawn | Accepted | — |
 | [0084](0084-what-v1-promises.md) | v1.0 is tagged when a machine can say the surface did not move, and a point counts as one value | Proposed | — |
+| [0085](0085-what-a-market-chart-needs.md) | A market chart is a recipe over marks that exist, and what it lacks is a calendar, a candle and statistics that only look back | Proposed | 0083's business-day deferral, as a catalogue |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -329,3 +330,16 @@ implementation sharpened it, chiefly that the guide is a `scale.Threshold` over
 the fold's own boundaries rather than a `Quantize` asked to re-derive them, and
 that a row is reported at the band it ends in so that a hit test has one
 position per row to index.
+
+**0085 is a catalogue, the second after 0058**, and it is *Proposed* with its
+first step built. It answers whether figure can draw a trading screen's chart
+— candles on a calendar, volume under the price, the volume at each price
+beside it, indicators over it — and the answer is that every part composes
+from marks that exist, which `examples/market` draws. What it cannot compose it
+ranks: a trading calendar first, which is 0083's deferred business-day axis;
+a candle as one mark second; a live chart's price autoscale and replaceable
+last row third. It keeps the Stat interface refused, because an indicator is
+the case the refusal fits best — numbers in, numbers out, drawn by an ordinary
+mark — and it landed the functions that case needs: the trailing windows, an
+EMA, a rolling spread, OHLC resampling and a weighted bin, with a downward
+triangle for the sell. Each ranked mechanism gets a record of its own.

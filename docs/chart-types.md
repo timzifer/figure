@@ -71,7 +71,9 @@ and it turns eight charts into recipes.
 | Status timeline | `Step` + `ColorBy` over `scale.Named` — see `examples/status` |
 | Calendar heatmap | `Rect` + a date→(week, weekday) helper |
 | Gantt / timeline | `Rect` on a time X against an ordinal Y; `ProgressBy` fills each bar, `Depends` draws the constraints, a `Scatter` of diamonds the milestones and a `VLine` today — see [ADR 0068](adr/0068-gantt-charts.md) and `examples/gantt` |
-| Candlestick / OHLC | `Rect` for open..close, a rule for low..high, colour by sign |
+| Candlestick / OHLC | `Rect` for open..close, an `ErrorBar` with `Caps(false)` for low..high, colour by `stat.Candle.Up`; `stat.OHLC` resamples ticks into candles, `scale.TimeFold` takes the weekends out — see [ADR 0085](adr/0085-what-a-market-chart-needs.md) and `examples/market` |
+| Volume under a price / volume profile beside it | a `Bar` in a bottom `Track` sharing time; a `Rect` per bucket in a right `Track` sharing price, from `stat.BinWeighted` — see `examples/market` |
+| Bollinger band / Donchian channel | `Area` between `Y` and `Y2`, from `stat.TrailingMean` ± k·`stat.RollingStdDev`, or `stat.RollingMin` / `RollingMax` |
 | Waterfall | `Rect` with per-row `y0`/`y1` from a running total, through `Y` and `Y2` |
 | Bullet | `Rect` bands, a measure bar and a target rule |
 | Waffle | a `Rect` grid from counts |
