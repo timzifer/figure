@@ -116,6 +116,9 @@ func Build(t Tokens) Theme {
 		TickCountHintX: 6,
 		TickCountHintY: 5,
 
+		Rising:  palette.Blue,
+		Falling: palette.Vermilion,
+
 		AxisBreakGap:  1.5 * u,
 		AxisBreakSize: 2 * u,
 		AxisBreakMark: BreakSlash,

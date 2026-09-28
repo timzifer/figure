@@ -672,6 +672,27 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
+	case geom.MarkCandle:
+		stroke()
+		fill()
+		rows()
+		m.BarWidth = float64Ptr(d.BarWidth)
+		if d.Direction == geom.SincePrevious {
+			m.Direction = "previous"
+		}
+		if d.HollowSet {
+			m.Hollow = boolPtr(d.Hollow)
+		}
+		if d.CandleStyle == geom.Ticks {
+			m.CandleStyle = "ticks"
+		}
+		if d.Rising != nil {
+			m.Rising = colorHex(*d.Rising)
+		}
+		if d.Falling != nil {
+			m.Falling = colorHex(*d.Falling)
+		}
+		m.RisingLabel, m.FallingLabel = d.RisingLabel, d.FallingLabel
 	case geom.MarkErrorBar:
 		stroke()
 		rows()
@@ -831,6 +852,15 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		if d.ErrorXCol != "" {
 			enc.ErrorX = &Channel{Field: d.ErrorXCol}
+		}
+		if d.Mark == geom.MarkCandle {
+			ch := func(f string) *Channel {
+				if f == "" {
+					return nil
+				}
+				return &Channel{Field: f, Type: "quantitative"}
+			}
+			enc.Open, enc.High, enc.Low, enc.Close = ch(d.OHLC[0]), ch(d.OHLC[1]), ch(d.OHLC[2]), ch(d.OHLC[3])
 		}
 		if d.From != "" {
 			enc.From = &Channel{Field: d.From, Type: "nominal"}

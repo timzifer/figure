@@ -250,6 +250,16 @@ type config struct {
 
 	secondCol string
 
+	// A candle's four value columns and how it reads and draws them. See
+	// [Candle].
+	ohlc        [4]string
+	direction   CandleDirection
+	rising      candleSide
+	falling     candleSide
+	hollow      bool
+	hollowSet   bool
+	candleStyle CandleStyleKind
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 

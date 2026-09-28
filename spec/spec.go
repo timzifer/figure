@@ -214,6 +214,21 @@ type Mark struct {
 	// is the point-range look.
 	Caps *bool `json:"caps,omitempty"`
 
+	// Direction, Hollow, CandleStyle, Rising and Falling are a candlestick's:
+	// what its direction is measured against ("previous", or left out for its
+	// own open), whether rising bodies are outlines — a pointer, because the
+	// default follows the theme and a document that says nothing must keep
+	// that — its style ("ticks" for the OHLC bar, or left out for bodies), and
+	// each direction's colour and legend label when the layer named them. All
+	// are figure's; Vega-Lite has no candle mark.
+	Direction    string `json:"direction,omitempty"`
+	Hollow       *bool  `json:"hollow,omitempty"`
+	CandleStyle  string `json:"candleStyle,omitempty"`
+	Rising       string `json:"rising,omitempty"`
+	Falling      string `json:"falling,omitempty"`
+	RisingLabel  string `json:"risingLabel,omitempty"`
+	FallingLabel string `json:"fallingLabel,omitempty"`
+
 	// XAxis and YAxis name the scales this layer's values are read against:
 	// "x2" and "y2" for the chart's secondary axes, and empty for its primary
 	// ones. They are two fields rather than one because the two directions are
@@ -612,6 +627,15 @@ type Encoding struct {
 	Mid    *Channel `json:"mid,omitempty"`
 	Error  *Channel `json:"error,omitempty"`
 	ErrorX *Channel `json:"errorX,omitempty"`
+
+	// Open, High, Low and Close are a candlestick's four values. They are
+	// figure's own channels rather than y and y2, because a consumer reading
+	// y as the value of a row would read a candle as its open and nothing
+	// else.
+	Open  *Channel `json:"open,omitempty"`
+	High  *Channel `json:"high,omitempty"`
+	Low   *Channel `json:"low,omitempty"`
+	Close *Channel `json:"close,omitempty"`
 }
 
 // Channel is one encoding: a column, or a literal value, and the scale behind

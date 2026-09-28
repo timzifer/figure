@@ -349,8 +349,8 @@ func (s *timeScale) movedTicks(b *broken, u timeUnit) []Tick {
 	var out []Tick
 	for _, t := range s.walk(s.Instant(b.lo).In(s.loc), s.Instant(b.hi).In(s.loc), u) {
 		v := s.Value(t)
-		// A tick in a fold moves on; one in a break is dropped, as 0083 has
-		// it. A break is a stretch the reader was told is missing, and a tick
+		// A tick in a fold — or on the edge where one starts — moves on; one
+		// in a break is dropped, as 0083 has it. A break is a stretch the reader was told is missing, and a tick
 		// on its far edge would be a date nobody chose, standing against the
 		// break's mark.
 		if hi, fold, in := b.past(v); in {

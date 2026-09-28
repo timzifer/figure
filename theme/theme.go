@@ -124,6 +124,13 @@ type Theme struct {
 	Sequential palette.Ramp
 	Diverging  palette.Ramp
 
+	// Rising and Falling are the colours a candle is drawn in by which way its
+	// row went. They are blue and vermilion rather than a trading screen's
+	// green and red, because that pair is the one the most common colour
+	// deficiency cannot tell apart. See docs/adr/0088.
+	Rising  ir.Color
+	Falling ir.Color
+
 	// SeriesDashes and SeriesMarkers are the redundant encoding: a second and
 	// a third channel a layer is told apart by, so that colour is not the only
 	// one. A layer that set neither [github.com/timzifer/figure/geom.Dash]

@@ -132,6 +132,10 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		// Both are a rect and neither is oriented, so the type does not tell
 		// them apart — the encoding does. See [geomMark].
 		return "rect", "", nil
+	case geom.MarkCandle:
+		// Vega-Lite has no candle mark and draws one as a rule and a bar, so
+		// the word is figure's.
+		return "candlestick", "", nil
 	case geom.MarkErrorBar:
 		// Vega-Lite spells it "errorbar" too, and reaches it with an aggregate
 		// transform; figure's reads the bounds from columns, so the name is
@@ -198,6 +202,8 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkLocus, nil
 	case "errorbar":
 		return geom.MarkErrorBar, nil
+	case "candlestick":
+		return geom.MarkCandle, nil
 	case "voronoi":
 		return geom.MarkVoronoi, nil
 	case "treemap":
