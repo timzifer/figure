@@ -47,22 +47,7 @@ const window = 600
 
 func run(out string, frames int) (stats, error) {
 	st := data.NewStream("t", "y", "load").Window(window)
-
-	p := figure.New(
-		figure.Theme(theme.Dark),
-		figure.Size(900, 400),
-		figure.Title("Live throughput"),
-		figure.YTitle("rows/s"),
-	)
-	p.X(scale.Time())
-	// A pinned Y axis is what makes a live chart readable: an axis that
-	// rescales itself every frame turns every change into a redraw of
-	// everything, and makes two frames impossible to compare by eye.
-	p.Y(scale.Linear(scale.Domain(0, 120)))
-	p.Add(
-		geom.Line(st.Source(), geom.X("t"), geom.Y("y"), geom.Color(palette.SkyBlue), geom.Label("throughput")),
-		geom.HLine(100, geom.Label("capacity"), geom.Dash(6, 4)),
-	)
+	p, _ := chart(st)
 
 	// A tooltip's worth of wiring: what the pointer is over, whenever it moves.
 	p.On(figure.Hover, func(ev figure.Event) {
@@ -121,6 +106,29 @@ func run(out string, frames int) (stats, error) {
 		return stats{}, err
 	}
 	return surface.stats(frames), nil
+}
+
+// chart is the plot over the stream, and its time axis — which slides as the
+// window does, because every render derives an axis's trained range from the
+// rows it draws (docs/adr/0090).
+func chart(st *data.Stream) (*figure.Plot, scale.Scale) {
+	p := figure.New(
+		figure.Theme(theme.Dark),
+		figure.Size(900, 400),
+		figure.Title("Live throughput"),
+		figure.YTitle("rows/s"),
+	)
+	x := scale.Time()
+	p.X(x)
+	// A pinned Y axis is what makes a live chart readable: an axis that
+	// rescales itself every frame turns every change into a redraw of
+	// everything, and makes two frames impossible to compare by eye.
+	p.Y(scale.Linear(scale.Domain(0, 120)))
+	p.Add(
+		geom.Line(st.Source(), geom.X("t"), geom.Y("y"), geom.Color(palette.SkyBlue), geom.Label("throughput")),
+		geom.HLine(100, geom.Label("capacity"), geom.Dash(6, 4)),
+	)
+	return p, x
 }
 
 // seed fills the window with history, so that the first frame is the frame a

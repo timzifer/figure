@@ -249,7 +249,8 @@ Every step is built.
   an axis share its scale. An axis that does not fit keeps the old behaviour;
   whether an unpinned axis should forget last frame's rows too is a question
   about every live chart, not this record's — and
-  [ADR 0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) asks it.
+  [ADR 0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) asks it, and
+  answers it for every axis; `refit` is folded into its `retrain` pass.
 - **Following the newest data is shown, not built.** The example's host keeps
   the width the reader zoomed to and moves its right-hand edge to the open
   candle with `Zoomer.SetDomain` each frame — one line, as *Not in scope*

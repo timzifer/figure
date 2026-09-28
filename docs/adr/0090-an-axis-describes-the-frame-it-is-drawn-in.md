@@ -1,6 +1,6 @@
 # 0090 — An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Revisits:** [ADR 0016](0016-streaming-and-damage.md) · **Follows from:** [ADR 0089](0089-a-value-axis-fits-what-its-time-axis-shows.md)'s amendment
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-28 · **Revisits:** [ADR 0016](0016-streaming-and-damage.md) · **Follows from:** [ADR 0089](0089-a-value-axis-fits-what-its-time-axis-shows.md)'s amendment
 
 ## Context
 
@@ -161,10 +161,34 @@ that answers it should say that it does, which a default cannot.
 
 ## Order of work
 
-1. `scale.Retrainer` on linear, log, symlog, time, probability, the continuous
-   colour scales and the size scales; a no-op when pinned. `scale.HighWater`.
-2. Render retrains every reachable scale once before training; `refit` from
-   0089 is removed. A test with a windowed stream: X slides, Y describes the
-   window, a zoom survives, a series keeps its colour, a discovered category
-   keeps its slot.
-3. `examples/stream` gains a test that its time axis slides.
+Every step is built.
+
+1. `scale.Retrainer` and `scale.Retrain` in `scale/retrain.go`, on linear, log,
+   symlog, time, probability, the continuous and classed colour scales, both
+   bivariate scales and the size scale; a no-op when pinned. `scale.HighWater`,
+   written `"highWater": true`.
+2. Render's `retrain` pass before training, replacing 0089's `refit`. Tested
+   with the probe's stream: X slides to the window, Y drops the peak, a zoom
+   survives, `HighWater` remembers, a series keeps its colour and a category
+   its slot, and a continuous ramp describes the frame.
+3. `examples/stream` gains `TestAFullWindowSlides`, deterministic rather than
+   raced against its producer, and its chart is built by a function the test
+   shares.
+
+## Amendment — what building it decided
+
+- **No identity check.** Render forgets every reachable scale, shared ones
+  perhaps several times, before any layer trains; forgetting is idempotent, so
+  there is no set of scales to build and no interface comparison — which would
+  panic on a third-party scale whose dynamic type is not comparable.
+- **A classed scale forgets its sample, not its classes.** A quantile scale's
+  boundaries are cut from the values it was trained on, so they are forgotten
+  with the range and cut again; a threshold scale's boundaries are given and
+  stay.
+- **A flat window is still padded.** A window whose values are all 5 trains a
+  domain of [4.75, 5.25], the padding every degenerate linear domain gets; what
+  the record promised is that the peak it dropped is gone, and that is what the
+  test checks.
+- **Nothing else moved.** No golden file changed and every existing test
+  passed unchanged: a single render on fresh scales forgets nothing that was
+  trained, and a zoom was already a pinned domain.
