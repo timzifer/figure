@@ -101,6 +101,7 @@ depends on.
 | [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Accepted, amended | 0085's third rank |
 | [0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) | An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered | Accepted, amended | 0089's open question |
 | [0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md) | A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours | Accepted, amended | 0088's volume-bar revisit |
+| [0092](0092-what-a-trading-screen-reads-off-its-edges.md) | A value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong | Proposed | 0085's fifth rank |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -399,3 +400,14 @@ mark with `ColorBy` takes — a row rises when `to` is at or above `from`, or
 above the previous row's `to` — painted in the candle's `Rising` and `Falling`
 colours, so a volume track agrees with its candles without being told to, and
 the legend's merge by label says rising and falling once.
+
+**0092 is 0085's fifth rank**, *Proposed*, and it found that two of its three
+items are one mechanism: the last price and a crosshair's readout are both a
+value written on an axis, and nothing drew outside a panel but the axes. An
+`AxisTag` is furniture a layer (`geom.Tagger`) or an overlay asks for, drawn in
+the gutter over the tick labels it covers; `geom.LastValue` is the mark that
+asks for one; `Crosshair` snaps to the row nearest the pointer along X through
+a new `Index.NearestAlong` and tags its own position. Of the indicators, RSI
+and VWAP earn functions — Wilder's smoothing and the session reset are what a
+composition gets wrong — and MACD stays a recipe, because composing it is its
+definition.
