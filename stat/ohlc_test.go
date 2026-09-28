@@ -14,8 +14,8 @@ func TestOHLCSummarisesEachInterval(t *testing.T) {
 	vs := []float64{1, 2, 3, 4, 5, 6}
 	got := stat.OHLC(ts, ps, vs, 5, 10)
 	want := []stat.Candle{
-		{Start: 5, Open: 10, High: 12, Low: 8, Close: 11, Volume: 10, Count: 4},
-		{Start: 35, Open: 20, High: 20, Low: 19, Close: 19, Volume: 11, Count: 2},
+		{Start: 5, End: 15, Open: 10, High: 12, Low: 8, Close: 11, Volume: 10, Count: 4},
+		{Start: 35, End: 45, Open: 20, High: 20, Low: 19, Close: 19, Volume: 11, Count: 2},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d candles %v, want %d — the empty interval between gets none", len(got), got, len(want))
@@ -87,9 +87,9 @@ func TestOHLCAtBucketsBetweenEdges(t *testing.T) {
 	ps := []float64{9, 1, 3, 4, 2, 7, 8}
 	got := stat.OHLCAt(ts, ps, nil, edges)
 	want := []stat.Candle{
-		{Start: 10, Open: 1, High: 3, Low: 1, Close: 3, Volume: 2, Count: 2},
-		{Start: 13, Open: 4, High: 4, Low: 2, Close: 2, Volume: 2, Count: 2},
-		{Start: 30, Open: 7, High: 8, Low: 7, Close: 8, Volume: 2, Count: 2},
+		{Start: 10, End: 13, Open: 1, High: 3, Low: 1, Close: 3, Volume: 2, Count: 2},
+		{Start: 13, End: 30, Open: 4, High: 4, Low: 2, Close: 2, Volume: 2, Count: 2},
+		{Start: 30, End: 100, Open: 7, High: 8, Low: 7, Close: 8, Volume: 2, Count: 2},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %+v", got)

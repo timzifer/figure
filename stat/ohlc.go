@@ -12,7 +12,11 @@ import (
 // candle is drawn at the interval it summarises, and two candles for adjacent
 // minutes should sit a minute apart whichever second their first trade fell in.
 type Candle struct {
-	Start                  float64
+	Start float64
+	// End is where the interval stops: the start of the next one for [OHLC]
+	// and [OHLCAt], and for the last candle of OHLCAt — whose period the data
+	// has not closed — the time of its last row.
+	End                    float64
 	Open, High, Low, Close float64
 	// Volume is the sum of the weights the rows in it carried, or their count
 	// when the call had no weights.
@@ -81,7 +85,7 @@ func AppendOHLC(dst []Candle, ts, ps, vs []float64, origin, width float64) []Can
 			if open {
 				dst = append(dst, cur)
 			}
-			cur, open = Candle{Start: start, Open: p, High: p, Low: p}, true
+			cur, open = Candle{Start: start, End: start + width, Open: p, High: p, Low: p}, true
 		}
 		cur.High = max(cur.High, p)
 		cur.Low = min(cur.Low, p)
@@ -156,7 +160,14 @@ func AppendOHLCAt(dst []Candle, ts, ps, vs, edges []float64) []Candle {
 			if open {
 				dst = append(dst, cur)
 			}
-			cur, at, open = Candle{Start: edges[k], Open: p, High: p, Low: p}, k, true
+			end := t
+			if k+1 < len(edges) {
+				end = edges[k+1]
+			}
+			cur, at, open = Candle{Start: edges[k], End: end, Open: p, High: p, Low: p}, k, true
+		}
+		if k+1 == len(edges) {
+			cur.End = max(cur.End, t)
 		}
 		cur.High = max(cur.High, p)
 		cur.Low = min(cur.Low, p)
