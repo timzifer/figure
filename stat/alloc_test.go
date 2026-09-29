@@ -117,6 +117,8 @@ func TestTheTrailingFormsDoNotAllocateIntoAWarmSlice(t *testing.T) {
 		"cumsum": func() { dst = stat.AppendCumsum(dst, xs, ys) },
 		"ohlc":   func() { candles = stat.AppendOHLC(candles, xs, ys, nil, 0, 10) },
 		"ohlcAt": func() { candles = stat.AppendOHLCAt(candles, xs, ys, nil, edges) },
+		"rsi":    func() { dst = stat.AppendRSI(dst, xs, ys, 14) },
+		"vwap":   func() { dst = stat.AppendVWAP(dst, xs, ys, xs, edges) },
 		"bin":    func() { buckets = stat.AppendBinWeighted(buckets, ys, xs, 0, 0, 24) },
 	} {
 		if got := testing.AllocsPerRun(10, f); got != 0 {
