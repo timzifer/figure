@@ -38,12 +38,14 @@ func (g *lineGeom) Train(t Training) error {
 		return g.err
 	}
 	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
 	g.cfg.trainColors(g.s)
 	// A line does not stack: two series drawn on top of each other are two
 	// readings, and adding them would invent a third nobody measured.
-	g.err = g.gs.train(g.src, g.s, g.cfg, x, y, NoStack)
-	return g.err
+	if g.err = g.gs.train(g.src, g.s, g.cfg, x, y, NoStack); g.err != nil {
+		return g.err
+	}
+	trainConnected(y, t.Within, g.s.x, g.s.y, g.gs.ofRows(), false)
+	return nil
 }
 
 func (g *lineGeom) Build(b ir.Backend, f Frame) error {

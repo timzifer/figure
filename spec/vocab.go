@@ -132,6 +132,12 @@ func markType(m geom.Mark) (typ, orient string, err error) {
 		// Both are a rect and neither is oriented, so the type does not tell
 		// them apart — the encoding does. See [geomMark].
 		return "rect", "", nil
+	case geom.MarkCandle:
+		// Vega-Lite has no candle mark and draws one as a rule and a bar, so
+		// the word is figure's.
+		return "candlestick", "", nil
+	case geom.MarkLastValue:
+		return "lastValue", "", nil
 	case geom.MarkErrorBar:
 		// Vega-Lite spells it "errorbar" too, and reaches it with an aggregate
 		// transform; figure's reads the bounds from columns, so the name is
@@ -198,6 +204,10 @@ func geomMark(m Mark, enc *Encoding) (geom.Mark, error) {
 		return geom.MarkLocus, nil
 	case "errorbar":
 		return geom.MarkErrorBar, nil
+	case "candlestick":
+		return geom.MarkCandle, nil
+	case "lastValue":
+		return geom.MarkLastValue, nil
 	case "voronoi":
 		return geom.MarkVoronoi, nil
 	case "treemap":
@@ -419,9 +429,10 @@ func curveOf(name string) (geom.CurveKind, bool) {
 	return geom.CurveLinear, false
 }
 
-// Marker shapes. The first five are Vega-Lite's own shape names; "plus" is
+// Marker shapes. All but "plus" are Vega-Lite's own shape names; "plus" is
 // figure's, because Vega-Lite's "cross" is already the shape figure calls a
-// cross and there is no second name to borrow.
+// cross and there is no second name to borrow. "triangle" stays the spelling
+// of the upward one, which Vega-Lite also accepts as "triangle-up".
 var shapes = []struct {
 	marker ir.Marker
 	name   string
@@ -432,6 +443,7 @@ var shapes = []struct {
 	{ir.MarkerTriangle, "triangle"},
 	{ir.MarkerCross, "cross"},
 	{ir.MarkerPlus, "plus"},
+	{ir.MarkerTriangleDown, "triangle-down"},
 }
 
 // Hatch patterns. There is no Vega-Lite vocabulary to borrow — Vega-Lite has
@@ -720,6 +732,21 @@ func resampling(name string) geom.Resampling {
 // "horizontal" is vertical, which is the default a document leaves out.
 func orientation(name string) geom.Orientation {
 	if name == "horizontal" {
+		return geom.Horizontal
+	}
+	return geom.Vertical
+}
+
+// markOrientation is a layer's orientation: figure's own "orientation" where
+// the document wrote one, and otherwise Vega-Lite's "orient" on the two marks
+// whose orient means the same thing — a bar and a boxplot lying on their side.
+// A rule's and a rect's orient choose between two marks instead, and are read
+// where the mark is.
+func markOrientation(m Mark) geom.Orientation {
+	if m.Orientation != "" {
+		return orientation(m.Orientation)
+	}
+	if (m.Type == "bar" || m.Type == "boxplot") && m.Orient == "horizontal" {
 		return geom.Horizontal
 	}
 	return geom.Vertical

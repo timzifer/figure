@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300">
+<defs>
+<clipPath id="c1"><path d="M39.348,12 L264.419,12 L264.419,268.825 L39.348,268.825 Z M266.419,12 L491.489,12 L491.489,268.825 L266.419,268.825 Z"/></clipPath>
+</defs>
+<path d="M0,0 L520,0 L520,300 L0,300 Z" fill="#ffffff"/>
+<polyline fill="none" points="84.362,12 84.362,268.825" stroke="#dddddd"/>
+<polyline fill="none" points="174.39,12 174.39,268.825" stroke="#dddddd"/>
+<polyline fill="none" points="266.419,12 266.419,268.825" stroke="#dddddd"/>
+<polyline fill="none" points="356.447,12 356.447,268.825" stroke="#dddddd"/>
+<polyline fill="none" points="446.475,12 446.475,268.825" stroke="#dddddd"/>
+<path fill="none" d="M39.348,267.469 L264.419,267.469 M266.419,267.469 L491.489,267.469" stroke="#dddddd"/>
+<path fill="none" d="M39.348,206.355 L264.419,206.355 M266.419,206.355 L491.489,206.355" stroke="#dddddd"/>
+<path fill="none" d="M39.348,145.24 L264.419,145.24 M266.419,145.24 L491.489,145.24" stroke="#dddddd"/>
+<path fill="none" d="M39.348,84.126 L264.419,84.126 M266.419,84.126 L491.489,84.126" stroke="#dddddd"/>
+<path fill="none" d="M39.348,23.011 L264.419,23.011 M266.419,23.011 L491.489,23.011" stroke="#dddddd"/>
+<path fill="none" d="M39.348,268.825 L264.419,268.825 M266.419,268.825 L491.489,268.825" stroke="#333333"/>
+<polyline fill="none" points="39.348,12 39.348,268.825" stroke="#333333"/>
+<polyline fill="none" points="84.362,268.825 84.362,273.825" stroke="#333333"/>
+<text x="84.362" y="277.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Jun 2</text>
+<polyline fill="none" points="174.39,268.825 174.39,273.825" stroke="#333333"/>
+<text x="174.39" y="277.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Jun 4</text>
+<polyline fill="none" points="266.419,268.825 266.419,273.825" stroke="#333333"/>
+<text x="266.419" y="277.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Jun 8</text>
+<polyline fill="none" points="356.447,268.825 356.447,273.825" stroke="#333333"/>
+<text x="356.447" y="277.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Jun 10</text>
+<polyline fill="none" points="446.475,268.825 446.475,273.825" stroke="#333333"/>
+<text x="446.475" y="277.825" font-family="sans-serif" font-size="11" text-anchor="middle" dominant-baseline="hanging" fill="#555555">Jun 12</text>
+<polyline fill="none" points="34.348,267.469 39.348,267.469" stroke="#333333"/>
+<text x="30.348" y="267.469" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">90</text>
+<polyline fill="none" points="34.348,206.355 39.348,206.355" stroke="#333333"/>
+<text x="30.348" y="206.355" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">95</text>
+<polyline fill="none" points="34.348,145.24 39.348,145.24" stroke="#333333"/>
+<text x="30.348" y="145.24" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">100</text>
+<polyline fill="none" points="34.348,84.126 39.348,84.126" stroke="#333333"/>
+<text x="30.348" y="84.126" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">105</text>
+<polyline fill="none" points="34.348,23.011 39.348,23.011" stroke="#333333"/>
+<text x="30.348" y="23.011" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="central" fill="#555555">110</text>
+<g clip-path="url(#c1)">
+<path fill="none" d="M61.855,64.388 L61.855,99.292 M61.855,145.24 L61.855,147.194 M106.869,13.54 L106.869,34.74 M106.869,37.82 L106.869,92.861 M288.926,121.324 L288.926,163.856 M333.94,39.665 L333.94,89.076" stroke="#0072b2"/>
+<path d="M46.1,99.292 L77.61,99.292 L77.61,145.24 L46.1,145.24 Z M91.114,34.74 L122.624,34.74 L122.624,37.82 L91.114,37.82 Z M273.171,70.658 L304.681,70.658 L304.681,121.324 L273.171,121.324 Z M318.185,12 L349.695,12 L349.695,39.665 L318.185,39.665 Z" fill="#0072b2"/>
+<path fill="none" d="M151.883,55.019 L151.883,107.891 M196.897,96.957 L196.897,99.035 M196.897,150.583 L196.897,183.269 M241.911,168.523 L241.911,215.287 M241.911,247.845 L241.911,255.843 M378.954,23.094 L378.954,44.031 M378.954,60.288 L378.954,102.301 M423.968,81.308 L423.968,124.296 M468.982,168.867 L468.982,213.174" stroke="#d55e00"/>
+<path d="M136.128,17.303 L167.638,17.303 L167.638,55.019 L136.128,55.019 Z M181.142,99.035 L212.652,99.035 L212.652,150.583 L181.142,150.583 Z M226.157,215.287 L257.666,215.287 L257.666,247.845 L226.157,247.845 Z M363.199,44.031 L394.709,44.031 L394.709,60.288 L363.199,60.288 Z M408.213,124.296 L439.723,124.296 L439.723,177.562 L408.213,177.562 Z M453.227,213.174 L484.737,213.174 L484.737,268.825 L453.227,268.825 Z" fill="#d55e00"/>
+</g>
+<path fill="none" d="M262.419,271.825 L266.018,265.825 M264.819,271.825 L268.419,265.825" stroke="#333333"/>
+</svg>

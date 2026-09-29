@@ -95,6 +95,18 @@ in.Wheel(x, y, deltaY)                      // zoom about the pointer
 in.Resize(w, h)                             // lay out again at a new size
 ```
 
+A zoom moves every axis of the panel except one built with `scale.FitView()`:
+that axis is fitted, every frame, to the rows the zoomed axis leaves in view —
+the price axis of a chart zoomed in time
+([ADR 0089](adr/0089-a-value-axis-fits-what-its-time-axis-shows.md)).
+
+Every frame describes the rows it draws: an axis that is not pinned is trained
+again from them, so a windowed stream's time axis slides with the window and
+its value axis forgets a peak the window dropped. A zoom is a pinned domain and
+survives; a category keeps its slot and a series its colour; `scale.HighWater()`
+keeps an axis's extent on purpose
+([ADR 0090](adr/0090-an-axis-describes-the-frame-it-is-drawn-in.md)).
+
 A runnable version is [`backend/window/cmd/demo`](../backend/window/cmd/demo):
 
 ```sh

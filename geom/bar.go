@@ -19,6 +19,13 @@ import (
 // pair is a slice's inner and outer radius: a donut whose slices reach
 // different distances is this layer with one more column, not another mark.
 // [Explode] and [ExplodeBy] then break a slice out of the ring.
+//
+// [Orient] with [Horizontal] lays the bar on its side: the categories or
+// positions are the [Y] column, the value is the [X] one, and the bar grows
+// from the baseline across X. [X2] is then the value's far end and [Y2] the
+// slot's far edge — the roles swap with the axes, so a horizontal bar is the
+// vertical one's encoding read a quarter turn round. Stacking, dodging,
+// explode and extrude follow; a dodged group's first series is the top one.
 func Bar(src data.Source, opts ...Option) Geom {
 	return &barGeom{src: src, cfg: newConfig(opts)}
 }
@@ -37,12 +44,13 @@ type barGeom struct {
 }
 
 func (g *barGeom) Train(t Training) error {
-	x, y := t.X, t.Y
-	g.s, g.err = resolve(g.src, g.cfg, x, y)
+	x, y := g.cfg.axes(t.X, t.Y)
+	rc := g.cfg.roles()
+	g.s, g.err = resolve(g.src, rc, x, y)
 	if g.err != nil {
 		return g.err
 	}
-	if err := g.s.checkMissing(g.cfg, x, y); err != nil {
+	if err := g.s.checkMissing(rc, x, y); err != nil {
 		return err
 	}
 	if g.cfg.widthCol != "" {
@@ -51,17 +59,17 @@ func (g *barGeom) Train(t Training) error {
 			return g.err
 		}
 		if len(g.width) != len(g.s.x) {
-			g.err = errLength(g.cfg.xcol, g.cfg.widthCol, len(g.s.x), len(g.width))
+			g.err = errLength(rc.xcol, rc.widthCol, len(g.s.x), len(g.width))
 			return g.err
 		}
 	}
-	if g.cfg.x2col != "" {
-		g.x2, g.err = column(g.src, g.cfg.x2col, x)
+	if rc.x2col != "" {
+		g.x2, g.err = column(g.src, rc.x2col, x)
 		if g.err != nil {
 			return g.err
 		}
 		if len(g.x2) != len(g.s.x) {
-			g.err = errLength(g.cfg.xcol, g.cfg.x2col, len(g.s.x), len(g.x2))
+			g.err = errLength(rc.xcol, rc.x2col, len(g.s.x), len(g.x2))
 			return g.err
 		}
 	}
@@ -83,11 +91,24 @@ func (g *barGeom) Train(t Training) error {
 	// axis has to describe what will be drawn: a stacked bar reaches the
 	// cumulative total, and an axis trained on the individual values would let
 	// the tallest stack run off the top of it.
-	if g.err = g.gs.train(g.src, g.s, g.cfg, x, y, g.cfg.stackFor(StackZero)); g.err != nil {
+	// A horizontal bar's value runs across X, and a fit is Y fitting X, so
+	// only a vertical bar reads the view.
+	within := t.Within
+	if g.cfg.orient == Horizontal {
+		within = nil
+	}
+	g.gs.within = viewPadded(within, g.slot()*g.widthFraction()/2)
+	if g.err = g.gs.train(g.src, g.s, rc, x, y, g.cfg.stackFor(StackZero)); g.err != nil {
 		return g.err
 	}
 	if !g.gs.stacked() {
-		trainColumn(y, g.s.y)
+		trainSpans(y, within, len(g.s.x), func(i int) (float64, float64) {
+			if g.x2 != nil {
+				return g.s.x[i], g.x2[i]
+			}
+			h := g.halfWidth(i)
+			return g.s.x[i] - h, g.s.x[i] + h
+		}, g.s.y)
 		// A bar is read as the area between the baseline and the value, so the
 		// baseline must be in the domain or the chart lies about magnitude.
 		y.Train(g.cfg.baseline)
@@ -146,12 +167,13 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 
 	cd := f.Coords()
 	brk := g.cfg.breaking(cd, g.pull)
-	base := baselinePos(f, g.cfg.baseline)
+	fs, fv := g.cfg.axes(f.X, f.Y)
+	base := baselineOn(f, g.cfg, g.cfg.baseline)
 	// A stacked layer draws the bounds the adjustment gave it rather than the
 	// column, and every traversal below — including which rows are holes —
 	// then reads the adjusted series.
 	s := g.gs.bounds(g.s)
-	ok := sc.plottable(s, f.X, f.Y)
+	ok := sc.plottable(s, fs, fv)
 
 	// Collect the bars first, so that a layer coloured from a scale can batch
 	// them by colour and one coloured uniformly can still emit a single path.
@@ -161,18 +183,18 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 	rects := sc.rects[:0]
 	rows := sc.rows[:0]
 	for i := range s.x {
-		if !ok[i] || (g.x2 != nil && !defined(f.X, g.x2[i])) {
+		if !ok[i] || (g.x2 != nil && !defined(fs, g.x2[i])) {
 			continue
 		}
 		// A row that named both of its edges gets exactly those; one that named
 		// a single position gets its share of the slot around it.
-		x0, x1 := spanOn(f.X, s.x, g.x2, i, g.halfWidth(i), true)
+		x0, x1 := spanOn(fs, s.x, g.x2, i, g.halfWidth(i), true)
 		if g.cfg.dodge {
 			x0, x1 = dodgeSpan(x0, x1, g.gs.slotIndex(i), g.gs.count(), g.cfg.dodgePad)
 		}
-		y0, y1 := f.Y.Map(s.y[i]), base
+		y0, y1 := fv.Map(s.y[i]), base
 		if s.y2 != nil {
-			y1 = f.Y.Map(s.y2[i])
+			y1 = fv.Map(s.y2[i])
 		}
 		if y1 < y0 {
 			y0, y1 = y1, y0
@@ -180,7 +202,7 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 		// The pair is the mark's extent in the space the scales map into. Under
 		// a Cartesian coord that is the rectangle it draws; under a polar one
 		// it is the angles and radii the coord turns into an annular sector.
-		rects = append(rects, ir.R(x0, y0, x1, y1))
+		rects = append(rects, g.cfg.box(x0, y0, x1, y1))
 		rows = append(rows, i)
 	}
 	sc.rects, sc.rows = rects, rows
@@ -197,16 +219,22 @@ func (g *barGeom) Build(b ir.Backend, f Frame) error {
 	if f.tracking() {
 		sc.pts = grow(sc.pts, len(rects))
 		for i, r := range rects {
-			at := barTop(r, base)
+			// Read the rectangle back in slot and value space, so the row is
+			// found the same way either way round.
+			sv := r
+			if g.cfg.orient == Horizontal {
+				sv = ir.R(r.Min.Y, r.Min.X, r.Max.Y, r.Max.X)
+			}
+			at := barTop(sv, base)
 			if s.y2 != nil {
-				at = (r.Min.Y + r.Max.Y) / 2
+				at = (sv.Min.Y + sv.Max.Y) / 2
 			}
 			// The position is worked out in the space the scales map into and
 			// placed by the coord, so a slice of a pie reports the middle of
 			// its arc rather than a point the transform never visited — and
 			// then moves with the mark, because a broken-out slice's row is
 			// where the slice is rather than where it would have been.
-			p := cd.Point((r.Min.X+r.Max.X)/2, at)
+			p := cd.Point(g.cfg.point((sv.Min.X+sv.Max.X)/2, at))
 			d := offsetAt(offs, i)
 			sc.pts[i] = ir.Point{X: p.X + d.X, Y: p.Y + d.Y}
 		}
@@ -338,5 +366,5 @@ func (g *barGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.cfg.fill != nil {
 		col = *g.cfg.fill
 	}
-	return g.cfg.boxSwatch(f, g.cfg.labelFor(), col), true
+	return g.cfg.boxSwatch(f, g.cfg.roles().labelFor(), col), true
 }

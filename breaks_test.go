@@ -210,3 +210,34 @@ func TestABrokenFacetDrawsTheSameInParallel(t *testing.T) {
 		t.Error("a broken facet drew differently on the parallel path")
 	}
 }
+
+// A fortnight of a session calendar, nights and weekend folded: the axis has
+// its dates at each morning's open rather than none at all (ADR 0086, claim 5).
+func TestGoldenCalendarFortnight(t *testing.T) {
+	cal := scale.Workweek(time.UTC,
+		scale.Weekdays(time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday),
+		scale.Span{From: 9*time.Hour + 30*time.Minute, To: 16 * time.Hour})
+	from := time.Date(2026, 6, 1, 9, 30, 0, 0, time.UTC)
+	to := time.Date(2026, 6, 12, 16, 0, 0, 0, time.UTC)
+	folds, err := scale.Folds(cal, from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ts []time.Time
+	var vs []float64
+	opens, err := scale.Opens(cal, from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, o := range opens {
+		for k := 0; k <= 13; k++ {
+			ts = append(ts, o.Add(time.Duration(k)*30*time.Minute))
+			vs = append(vs, float64(i)+float64(k%5)/4)
+		}
+	}
+	p := figure.New(figure.Size(420, 240))
+	p.X(scale.Time(scale.TimeCalendar(cal), scale.TimeFold(folds...)))
+	p.Y(scale.Linear(scale.Nice()))
+	p.Add(geom.Line(figure.NewTable().Time("t", ts).Float64("v", vs), geom.X("t"), geom.Y("v")))
+	golden(t, "calendar-fortnight", p)
+}

@@ -2,12 +2,12 @@
 
 **A grammar-driven plotting library for Go: one model, many backends, runs everywhere — built on the GoGPU stack.**
 
-> Status: **`v0.x`.** The model is settled and the API is not frozen: three
-> seams that take positional scale arguments are being reshaped so that a chart
-> can gain a dimension additively
+> Status: **`v0.x`.** The model is settled and the API is not frozen. The
+> three seams that took positional scale arguments have been reshaped so that a
+> chart can gain a dimension additively
 > ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
-> [ADR 0060](docs/adr/0060-parameter-structs-at-every-seam.md)), and `v1.0.0`
-> returns when they are done. [§14](#14-what-is-built-and-what-is-next) says
+> [ADR 0060](docs/adr/0060-parameter-structs-at-every-seam.md)); `v1.0.0`
+> returns when the surface settles. [§14](#14-what-is-built-and-what-is-next) says
 > what exists and what is next.
 
 > **Implementation note.** Where this document and the code disagree, the code
@@ -578,150 +578,112 @@ first sketched: Go has no sum types, and a handler signature per kind means
 Rendering is delegated to gg, so effort concentrates on the model, the data
 layer and interaction.
 
-**What exists.** Linear, time, log, symlog and ordinal scales; the marks,
+**What exists.** Linear, time, log, symlog, probability and ordinal scales, an
+axis that runs either way and an axis that is broken and says so; the marks,
 coordinate systems, colour and size channels, facets and guides listed in
 [docs/features.md](docs/features.md); SVG, PDF, PNG, JPEG, a browser canvas, a
 native window and an opt-in GPU tier behind one `ir.Backend`; hit-testing,
 overlays, clickable guides, linked views, keyed transitions and streaming;
 typeset notation in labels; a described chart with a data table for a reader
-that is not an eye; a JSON dialect a chart writes itself down as and reads
-itself back from; and, in `figure/three`, a chart whose x, y and z are all
-data — a surface, a trajectory, a field of bars and the contours of a field on
-the floor beneath them, projected above the IR so that every backend draws one,
-turned at a camera the host holds
-([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
-[ADR 0057](docs/adr/0057-orbiting-a-chart.md),
-[ADR 0064](docs/adr/0064-a-contour-and-its-lattice.md)); a contour plot of a
-sampled field, whose lines are the same tracing whether they are drawn flat or
-on a surface's floor; an overlay a host paints a selection over, in one
-view or in every view of a scene at once
-([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)); and a locus — a family
-of curves given by a formula rather than by data, of which `geom.HLine` is the
-degenerate member, which is what a Nichols diagram's closed-loop contours are
-and what the VSWR circles and constant-Q arcs
-[ADR 0033](docs/adr/0033-smith-charts.md) declined are: not furniture, but
-annotations defined in data space, so the coordinate stage draws them and
-`render` keeps its two tick lists
-([ADR 0050](docs/adr/0050-locus-annotations.md)).
-A map: `coord.Geo` places a longitude and a latitude by one of four named
-projections — Mollweide, where equal areas of the world cover equal ink, which
-is the default because size on a map reads as quantity; Mercator for a bearing;
-the equirectangular one a table of degrees is already in; and the orthographic
-globe whose far side has no image at all — and every
-mark draws on it unchanged, so a scatter is a point map, a line is a route and
-a rect is a cell of a gridded field. It ships no geography and computes no
-routes: a coastline and a great circle are rows in the caller's table
-([ADR 0081](docs/adr/0081-a-map-projection.md)).
-A schedule that is a schedule rather than a picture of one: a span filled as far
-as the work has got, the constraints between spans drawn in all four linkages
-from a link table of their own, and a critical path that is a column of that
-table rather than a feature of the library
-([ADR 0068](docs/adr/0068-gantt-charts.md)).
-And a filled mark that is told apart by more than its colour: a hatch is what a
-bar, a slice or a band has instead of the dash a line has and the shape a point
-has, so `theme.Redundant` finally reaches the marks that fail hardest in
-greyscale — with a ladder of patterns where the series are categories and a
-ladder of densities where they are an order, drawn as clipped strokes rather
-than declared to a backend, so that every backend and the GPU tier draw the
-same thing ([ADR 0069](docs/adr/0069-hatching-as-the-third-redundant-channel.md)).
+that is not an eye; and a JSON dialect a chart writes itself down as and reads
+itself back from. Grouped by the question each answers:
+
+- **A third axis.** In `figure/three`, a chart whose x, y and z are all data —
+  a surface, a trajectory, a field of bars and the contours of a field on the
+  floor beneath them, projected above the IR so that every backend draws one,
+  turned at a camera the host holds, with the spherical scene that makes one
+  projection into antenna patterns, Poincaré and Bloch spheres, a stereonet and
+  the Smith sphere
+  ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
+  [ADR 0057](docs/adr/0057-orbiting-a-chart.md),
+  [ADR 0058](docs/adr/0058-what-3d-is-for.md)); an overlay a host paints a
+  selection over, in one view or in every view of a scene at once
+  ([ADR 0063](docs/adr/0063-an-overlay-over-a-scene.md)).
+- **Coordinates.** Cartesian, polar, Smith, barycentric, parallel and
+  geographic. A map places a longitude and a latitude by one of four named
+  projections — Mollweide, where equal areas of the world cover equal ink,
+  which is the default because size on a map reads as quantity; Mercator for a
+  bearing; the equirectangular one a table of degrees is already in; and the
+  orthographic globe whose far side has no image at all — and every mark draws
+  on it unchanged. It ships no geography and computes no routes
+  ([ADR 0081](docs/adr/0081-a-map-projection.md)).
+- **Curves given by a formula rather than by data.** A locus, of which
+  `geom.HLine` is the degenerate member: a Nichols diagram's closed-loop
+  contours, and the VSWR circles and constant-Q arcs
+  [ADR 0033](docs/adr/0033-smith-charts.md) declined — annotations defined in
+  data space, so the coordinate stage draws them and `render` keeps its two
+  tick lists ([ADR 0050](docs/adr/0050-locus-annotations.md)). A family drawn
+  as a mark writes its own levels along its curves
+  ([ADR 0073](docs/adr/0073-labels-on-a-curve.md)).
+- **Fields.** A contour plot of a sampled field, whose lines are the same
+  tracing flat or on a surface's floor
+  ([ADR 0064](docs/adr/0064-a-contour-and-its-lattice.md)); a raster that draws
+  a spectrogram as one image rather than a million rectangles
+  ([ADR 0066](docs/adr/0066-a-raster-mark.md)); a horizon chart that fits forty
+  sensors on one screen ([ADR 0065](docs/adr/0065-horizon-charts.md)); and a
+  bivariate colour channel for a value and how well it is known
+  ([ADR 0067](docs/adr/0067-a-bivariate-colour-channel.md)).
+- **Relations.** Treemap, icicle, sunburst, sankey, chord, a tidy tree
+  ([ADR 0053](docs/adr/0053-tidy-tree-layout.md)), a layered graph
+  ([ADR 0072](docs/adr/0072-layered-graph-layout.md)), a node-link diagram
+  placed by stress majorization
+  ([ADR 0077](docs/adr/0077-a-node-link-layout.md)), parallel sets
+  ([ADR 0079](docs/adr/0079-parallel-sets.md)), sets counted as an UpSet plot
+  or a Venn diagram of two or three
+  ([ADR 0074](docs/adr/0074-sets-are-counted.md),
+  [ADR 0076](docs/adr/0076-the-other-half-of-the-count.md)) and the
+  nearest-neighbour partition of a panel
+  ([ADR 0080](docs/adr/0080-nearest-neighbour-cells.md)).
+- **Instruments.** Probability paper
+  ([ADR 0052](docs/adr/0052-probability-scales.md)); the Kaplan–Meier
+  estimator, SPC control limits, ACF and PACF, ROC and Lorenz
+  ([ADR 0054](docs/adr/0054-statistical-instruments.md)); and a schedule that
+  is a schedule rather than a picture of one
+  ([ADR 0068](docs/adr/0068-gantt-charts.md)).
+- **Reading.** A filled mark told apart by more than its colour, hatched in a
+  ladder of patterns or densities
+  ([ADR 0069](docs/adr/0069-hatching-as-the-third-redundant-channel.md)); a
+  label that fits the shape of its box, or is moved, broken, shrunk or called
+  out of it before it is dropped
+  ([ADR 0040](docs/adr/0040-label-collision-avoidance.md),
+  [ADR 0082](docs/adr/0082-a-label-fits-its-box-or-is-called-out.md)); and an
+  axis break that is marked where it is drawn
+  ([ADR 0083](docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md)).
 
 The record of how each of those arrived, and the argument that shaped it, is in
 [docs/milestones.md](docs/milestones.md).
 
 ### What is next
 
-- Harden the GPU tier as GoGPU matures.
-- **More coordinate systems.** A **barycentric coord** is the fourth, on the
-  same seam as Cartesian, polar and Smith and cheaper than any of them: the map
-  is affine, so an edge stays a straight line and only the clip changes
-  ([ADR 0051](docs/adr/0051-barycentric-coord.md)). A **geographic projection**
-  was the wider one, and it has been argued on its own evidence and built:
-  both objections against it — no linear interval underneath the transform, no
-  tick behind the graticule — turned out to have been paid for by charts nobody
-  thought of as maps, the first by the Smith chart's identity range and the
-  second by the ternary chart's third ladder. `coord.Geo` reads a panel's axes
-  as degrees, so the graticule *is* the two tick lists, and the only furniture
-  with no tick behind it is the edge of the map
+The roadmap this section used to carry is drawn. What is left is short, and
+most of it is waiting for a reason rather than for time.
+
+- **`v1.0.0`.** The seams that took positional arguments are parameter structs
+  ([ADR 0060](docs/adr/0060-parameter-structs-at-every-seam.md)), so what
+  remains is the audit §15 implies: every exported name, the JSON dialect and
+  the `Backend` interface read once more as surfaces that will not change,
+  before they are promised not to.
+- **A mark that fills a closed ring of rows.** This is what a choropleth of
+  country shapes wants now that `coord.Geo` exists, and it has four questions
+  of its own — which row a region reports, how a ring is named, what a hole is,
+  whether a vertex is a mark — so it arrives with a record of its own.
+- **A conic projection.** Albers and Lambert are configured by two standard
+  parallels, and `coord.Desc` carries no such field yet; adding one is additive
   ([ADR 0081](docs/adr/0081-a-map-projection.md)).
-- **A tidy tree.** Reingold–Tilford in Buchheim's linear-time form is O(n),
-  deterministic, bounded and a pure function of its input, which is
-  `stat.Squarify`'s shape exactly — so a dendrogram, a phylogram, an org chart
-  and, under a polar coord, a radial dendrogram are one mark reading the
-  channels the relational family already defines
-  ([ADR 0053](docs/adr/0053-tidy-tree-layout.md)). The clustered heatmap falls
-  out of it.
-- **Node-link diagrams** were the last of the relational family, and they are
-  drawn ([ADR 0077](docs/adr/0077-a-node-link-layout.md)). What draws them is
-  stress majorization: a named quantity — how far the drawn distances are from
-  the graph's own — descended one node at a time, where each step solves that
-  node's block of a quadratic sitting above the objective. The descent never
-  goes uphill, so a fixed count of sweeps costs quality and cannot cost
-  correctness, and [ADR 0012](docs/adr/0012-parallel-panels.md) is answered the
-  way `stat.Squarify` answers it. A force simulation could be made repeatable
-  too, with a fixed start and a fixed budget; what it has not got is an
-  objective, so the cost of its bound cannot be stated.
-- **Sets are counted rather than laid out.** The other half of that sentence has
-  been answered: an UpSet plot is a matrix chart, so it needed a count in `stat`
-  and two ordinary marks, and a Venn diagram of two or three sets is a fixed
-  arrangement rather than the optimiser 0039 declined — which is still declined
-  from three sets on, where it has more region areas to hit than free numbers to
-  hit them with, and a fourth set with it, because that mark writes each count inside
-  its own region at one type size and a four-set diagram has regions that will
-  not hold one
-  ([ADR 0074](docs/adr/0074-sets-are-counted.md)).
-- **A bucket of domain reductions** — the
-  Kaplan–Meier estimator, the SPC control-limit family, ACF and PACF, ROC and
-  Lorenz — none of which needs a shape figure does not already draw. The record
-  is mostly about where the line is, because "put the field's arithmetic in
-  `stat`" has no natural end: a reduction belongs there when its output is the
-  chart's geometry and there is no reading of it that is not the chart
-  ([ADR 0054](docs/adr/0054-statistical-instruments.md)).
-- **A probability scale**, beside `Log` and `SymLog`: an axis warped by Φ⁻¹, the
-  logit, the complementary log-log or the Gumbel link, so that a distribution's
-  cumulative function plots straight. It is `geom.QQ` turned round — that mark
-  warps the sample and leaves the axis linear; this warps the axis and leaves
-  the sample alone — and both are worth having because a mark does one job and a
-  scale composes with every mark there is. Weibull, normal and extreme-value
-  probability paper cost no new mark at all: each is `geom.ECDF` on a warped
-  axis ([ADR 0052](docs/adr/0052-probability-scales.md)).
-- **Automatic label avoidance** for every kind of mark. The opt-in, panel-local
-  form exists ([ADR 0040](docs/adr/0040-label-collision-avoidance.md)).
+- **Labels that avoid other layers' labels.** The placer is opt-in and
+  panel-local, and a called-out label is placed beside it rather than through
+  it; routing callouts through the placer is ADR 0082's first "Revisit if".
 - **A keyframe timeline**, over more than two states. A sequence is a list of
   two-state transitions and building one is a host-side loop; an API that owned
   the sequence would be a real addition rather than sugar, and would be argued
   on the evidence of people writing that loop.
-- **The rest of 3D.** The third axis and its camera are built
-  ([ADR 0056](docs/adr/0056-three-dimensional-charts.md),
-  [ADR 0057](docs/adr/0057-orbiting-a-chart.md)), and so is the spherical
-  scene that turns one projection into antenna patterns, Poincaré and Bloch
-  spheres, a stereonet and the Smith sphere
-  ([ADR 0058](docs/adr/0058-what-3d-is-for.md)). Nothing of the four records
-  is left.
-- **A raster mark.** A heatmap is a recipe over `geom.Rect` and stops being one
-  at the size a measured field comes in: a spectrogram is two thousand frames
-  by five hundred bins, and one rectangle per cell is a million primitives
-  drawing cells smaller than a pixel. `ir.Backend.Image` is in the interface,
-  `stat.Grid.Raster` paints a grid into a reusable buffer and `stat.Lattice`
-  already resolves the table, so the mark is those three wired together —
-  reading the channels `geom.Contour` reads, so that a field and its own
-  isolines cannot disagree ([ADR 0066](docs/adr/0066-a-raster-mark.md)).
-- **A horizon chart.** Every answer to scale here is an answer about rows;
-  this is the one about series. It folds the value range into bands drawn at
-  the panel's full height and tells them apart by colour, so forty sensors fit
-  on one screen at the resolution of one. The part that needed deciding is the
-  axis it gives up: after the fold the scale still describes one band honestly,
-  and *which* band is a classed colourbar rather than new furniture
-  ([ADR 0065](docs/adr/0065-horizon-charts.md)).
-- **A bivariate colour channel.** `geom.ErrorBar` exists because a measurement
-  carries a claim about how well it is known and that half had nowhere to go;
-  the colour channel is where the omission misleads most, because a filled cell
-  reads as a measurement whether or not one was taken. One optional interface
-  beside `ColorScale` — the move `ClassedColorScale` already makes — gives a
-  value-suppressing uncertainty palette, a multi-class hexbin and the bivariate
-  square, the second of which is the missing half of the overplotting story:
-  decimation, the raster and the bin all report how many and none reports who
-  ([ADR 0067](docs/adr/0067-a-bivariate-colour-channel.md)).
+- Harden the GPU tier as GoGPU matures.
 - A community plugin ecosystem.
+
+Smaller additions that are recorded as not yet done rather than refused: a
+horizontal colourbar under the plot, a PDF of more than one page, the combined
+ZY overlay on a Smith chart, and Arrow's `float16`, decimal and extension
+types. What is refused, and why, is listed in [AGENTS.md](AGENTS.md#scope).
 
 ---
 

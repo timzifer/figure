@@ -214,6 +214,26 @@ type Mark struct {
 	// is the point-range look.
 	Caps *bool `json:"caps,omitempty"`
 
+	// Direction, Hollow, CandleStyle, Rising and Falling are a candlestick's:
+	// what its direction is measured against ("previous", or left out for its
+	// own open), whether rising bodies are outlines — a pointer, because the
+	// default follows the theme and a document that says nothing must keep
+	// that — its style ("ticks" for the OHLC bar, or left out for bodies), and
+	// each direction's colour and legend label when the layer named them. All
+	// are figure's; Vega-Lite has no candle mark.
+	Direction    string `json:"direction,omitempty"`
+	Hollow       *bool  `json:"hollow,omitempty"`
+	CandleStyle  string `json:"candleStyle,omitempty"`
+	Rising       string `json:"rising,omitempty"`
+	Falling      string `json:"falling,omitempty"`
+	RisingLabel  string `json:"risingLabel,omitempty"`
+	FallingLabel string `json:"fallingLabel,omitempty"`
+
+	// Rule is whether a last-value layer draws its line across the panel: a
+	// pointer, because the default is true and a document that says nothing
+	// must keep it. It is figure's.
+	Rule *bool `json:"rule,omitempty"`
+
 	// XAxis and YAxis name the scales this layer's values are read against:
 	// "x2" and "y2" for the chart's secondary axes, and empty for its primary
 	// ones. They are two fields rather than one because the two directions are
@@ -346,9 +366,9 @@ type Mark struct {
 	// figure's names.
 	Branch string `json:"branch,omitempty"`
 	// Orientation is which way round a mark reads its two axes: "vertical",
-	// the default and so left out, or "horizontal". Only a tree reads it
-	// today. Vega-Lite spells the same idea as two mark types, so this is
-	// figure's own name.
+	// the default and so left out, or "horizontal". A tree, a bar, a
+	// histogram and a boxplot read it. Vega-Lite infers the same idea from
+	// which channel is quantitative, so this is figure's own name.
 	Orientation string `json:"orientation,omitempty"`
 	// Confidence is the level of a survival curve's pointwise band, and
 	// CensorMarks whether it ticks its censored times. Both are figure's.
@@ -612,6 +632,22 @@ type Encoding struct {
 	Mid    *Channel `json:"mid,omitempty"`
 	Error  *Channel `json:"error,omitempty"`
 	ErrorX *Channel `json:"errorX,omitempty"`
+
+	// Open, High, Low and Close are a candlestick's four values. They are
+	// figure's own channels rather than y and y2, because a consumer reading
+	// y as the value of a row would read a candle as its open and nothing
+	// else.
+	Open  *Channel `json:"open,omitempty"`
+	High  *Channel `json:"high,omitempty"`
+	Low   *Channel `json:"low,omitempty"`
+	Close *Channel `json:"close,omitempty"`
+
+	// Direction and DirectionFrom are a direction's two columns: a row rises
+	// when Direction is at or above DirectionFrom, or — DirectionFrom left out
+	// — above the previous row's Direction. Both are figure's; see
+	// [github.com/timzifer/figure/geom.DirectionBy].
+	Direction     *Channel `json:"direction,omitempty"`
+	DirectionFrom *Channel `json:"directionFrom,omitempty"`
 }
 
 // Channel is one encoding: a column, or a literal value, and the scale behind
@@ -654,6 +690,14 @@ type Scale struct {
 	Domain []any  `json:"domain,omitempty"`
 	Nice   bool   `json:"nice,omitempty"`
 	Zero   bool   `json:"zero,omitempty"`
+	// Fit is "view" for a value axis that fits the rows its panel's other axis
+	// shows, and left out for one trained on every row. It is figure's; see
+	// [github.com/timzifer/figure/scale.FitView].
+	Fit string `json:"fit,omitempty"`
+	// HighWater is a linear axis that keeps its extent across renders, the
+	// monitor's "most it has ever been". It is figure's; see
+	// [github.com/timzifer/figure/scale.HighWater].
+	HighWater bool `json:"highWater,omitempty"`
 	// TickValues pins a linear axis's tick positions. Vega-Lite spells this
 	// `axis.values`; figure has no axis object on a channel, and `values` on a
 	// scale would read as a domain, so it is named for what it pins.
@@ -754,6 +798,9 @@ type Scale struct {
 	Center     *float64 `json:"center,omitempty"`
 	Undefined  string   `json:"undefined,omitempty"`
 	TimeZone   string   `json:"timeZone,omitempty"`
+	// WeekStart is the weekday a time scale's weeks begin on — "sunday" —
+	// left out for Monday. It is figure's; Vega-Lite's weeks are its locale's.
+	WeekStart string `json:"weekStart,omitempty"`
 
 	// Origin is the instant a time scale measures its domain from, written as
 	// a timestamp. It is figure's own — Vega-Lite has no equivalent because

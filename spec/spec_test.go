@@ -81,6 +81,10 @@ func TestEveryMarkSurvivesTheRoundTrip(t *testing.T) {
 	}{
 		{"line", geom.Line(src, geom.X("x"), geom.Y("y"), geom.Tension(0.4), geom.Dash(4, 2))},
 		{"scatter", geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Shape(ir.MarkerDiamond), geom.Size(9))},
+		{"bar-horizontal", geom.Bar(src, geom.Y("x"), geom.X("y"), geom.Orient(geom.Horizontal))},
+		{"histogram-horizontal", geom.Histogram(src, geom.Y("y"), geom.Bins(4), geom.Orient(geom.Horizontal))},
+		{"boxplot-horizontal", geom.Boxplot(src, geom.Y("region"), geom.X("y"), geom.Orient(geom.Horizontal))},
+		{"scatter-triangle-down", geom.Scatter(src, geom.X("x"), geom.Y("y"), geom.Shape(ir.MarkerTriangleDown))},
 		{"bar", geom.Bar(src, geom.X("x"), geom.Y("y"), geom.BarWidth(0.5), geom.Baseline(1))},
 		{"area", geom.Area(src, geom.X("x"), geom.Y("y"), geom.Y2("z"), geom.Opacity(0.4))},
 		{"step", geom.Step(src, geom.X("x"), geom.Y("y"), geom.Steps(geom.StepPre))},
@@ -121,13 +125,16 @@ func TestEveryMarkSurvivesTheRoundTrip(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			x := scale.Linear(scale.Nice())
-			if tc.name == "boxplot" {
+			x, y := scale.Scale(scale.Linear(scale.Nice())), scale.Scale(scale.Linear(scale.Nice()))
+			switch tc.name {
+			case "boxplot":
 				x = scale.Ordinal()
+			case "boxplot-horizontal":
+				y = scale.Ordinal()
 			}
 			c := spec.Chart{
 				Width: 400, Height: 300, DPR: 1, Theme: theme.Light,
-				X: x, Y: scale.Linear(scale.Nice()),
+				X: x, Y: y,
 				Layers: []geom.Geom{tc.layer},
 			}
 			want := draw(t, c)

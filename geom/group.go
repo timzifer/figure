@@ -209,6 +209,12 @@ type groups struct {
 	lo, hi []float64 // the stacked bounds per row, NaN for a row not drawn
 	stack  Stacking
 
+	// within is the view a stack trains its totals on, already widened by
+	// whatever its layer's marks reach past a row's position; nil trains on
+	// every row. It is set by the layer before train, per
+	// [Training.Within].
+	within *scale.Interval
+
 	// The working buffers. They are reused, never handed out.
 	at      map[string]int
 	posAt   map[float64]int
@@ -232,6 +238,15 @@ type groups struct {
 // ungrouped case and every reader here tolerates it, which is what keeps an
 // ordinary layer's code path exactly what it was.
 func (gs *groups) grouped() bool { return gs != nil && len(gs.keys) > 0 }
+
+// ofRows is each row's group, or nil for an ungrouped layer — the answer a
+// path joins its rows by.
+func (gs *groups) ofRows() []int {
+	if !gs.grouped() {
+		return nil
+	}
+	return gs.of
+}
 
 // stacked reports whether the rows carry adjusted bounds.
 func (gs *groups) stacked() bool { return gs.grouped() && gs.stack != NoStack }
@@ -313,8 +328,7 @@ func (gs *groups) train(src data.Source, s series, c config, x, y scale.Scale, s
 	// The axis has to describe the totals, so it is trained on the bounds
 	// rather than on the column. The baseline goes in as well: a stack that
 	// starts at zero is read as the distance from zero.
-	trainColumn(y, gs.lo)
-	trainColumn(y, gs.hi)
+	trainPoints(y, gs.within, s.x, gs.lo, gs.hi)
 	y.Train(0)
 	return nil
 }

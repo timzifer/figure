@@ -129,6 +129,10 @@ const (
 	MarkerTriangle
 	MarkerCross
 	MarkerPlus
+	// MarkerTriangleDown is [MarkerTriangle] turned over. It is the second
+	// half of a pair rather than a shape of its own: a buy and a sell, a rise
+	// and a fall, read as one mark pointing two ways.
+	MarkerTriangleDown
 )
 
 // MarkerStyle is the paint applied to every instance of a Markers call.

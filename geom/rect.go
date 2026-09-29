@@ -81,13 +81,21 @@ func (g *rectGeom) Train(t Training) error {
 		return err
 	}
 	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
 	if g.x2 != nil {
 		trainColumn(x, g.x2)
 	}
-	if g.s.y2 != nil {
-		trainColumn(y, g.s.y2)
+	// A cell is in view when any of it is: its own edges, or its share of the
+	// slot around its position.
+	var half float64
+	if t.Within != nil && g.x2 == nil {
+		half = g.halfWidth(g.s.x)
 	}
+	trainSpans(y, t.Within, len(g.s.x), func(i int) (float64, float64) {
+		if g.x2 != nil {
+			return g.s.x[i], g.x2[i]
+		}
+		return g.s.x[i] - half, g.s.x[i] + half
+	}, g.s.y, g.s.y2)
 	g.cfg.trainColors(g.s)
 
 	// An edge that comes from the slot rather than from a column has width the

@@ -23,6 +23,11 @@ import (
 // Whiskers stop at an observation, never at the theoretical fence. A whisker
 // drawn out to 1.5·IQR when the data stops well short of it would be claiming
 // a reading that does not exist.
+//
+// [Orient] with [Horizontal] groups by the [Y] column and summarises the [X]
+// one, so the boxes lie across the panel: the form a long list of named
+// categories reads best in, because their names are written along the axis
+// rather than under it.
 func Boxplot(src data.Source, opts ...Option) Geom {
 	return &boxGeom{src: src, cfg: newConfig(opts)}
 }
@@ -46,12 +51,13 @@ type boxGroup struct {
 }
 
 func (g *boxGeom) Train(t Training) error {
-	x, y := t.X, t.Y
-	g.s, g.err = resolve(g.src, g.cfg, x, y)
+	x, y := g.cfg.axes(t.X, t.Y)
+	rc := g.cfg.roles()
+	g.s, g.err = resolve(g.src, rc, x, y)
 	if g.err != nil {
 		return g.err
 	}
-	if err := g.s.checkMissing(g.cfg, x, y); err != nil {
+	if err := g.s.checkMissing(rc, x, y); err != nil {
 		return err
 	}
 	g.groups = summarise(g.s, x, y, g.cfg.whisker)
@@ -103,18 +109,20 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 	fill := g.cfg.fillFor(f, boxFillOpacity)
 	half := g.slot() * g.widthFraction() / 2
 	cd := f.Coords()
+	fs, fv := g.cfg.axes(f.X, f.Y)
+	// at places a point given in slot and value space, whichever way round
+	// the layer is drawn.
+	at := func(s, v float32) ir.Point { return cd.Point(g.cfg.point(s, v)) }
 	var box, run ir.Path
 
 	for _, grp := range g.groups {
-		x0, x1 := markSpan(f, grp.at, half)
+		x0, x1 := slotOn(fs, grp.at, half)
 		mid := (x0 + x1) / 2
-		q1, q3 := f.Y.Map(grp.q1), f.Y.Map(grp.q3)
-		if q3 > q1 {
-			q1, q3 = q3, q1
-		}
+		q1, q3 := fv.Map(grp.q1), fv.Map(grp.q3)
+		lo, hi := min(q1, q3), max(q1, q3)
 
 		box.Reset()
-		areaRound(&box, cd, ir.R(x0, q3, x1, q1), ir.Point{}, g.cfg.corner)
+		areaRound(&box, cd, g.cfg.box(x0, lo, x1, hi), ir.Point{}, g.cfg.corner)
 		if fill.A != 0 {
 			g.cfg.fillMark(b, &box, f, 0, fill)
 		}
@@ -125,7 +133,7 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 
 		// The median is the one number a reader takes off a boxplot without
 		// measuring, so it is drawn heavier than the box around it.
-		med := f.Y.Map(grp.median)
+		med := fv.Map(grp.median)
 		g.span(b, cd, &run, x0, x1, med, ir.Stroke{
 			Color: stroke.Color,
 			Width: stroke.Width * 2,
@@ -135,12 +143,12 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 		// Whiskers, each with a cap a quarter of the box wide on each side.
 		cap0, cap1 := mid-(x1-x0)/4, mid+(x1-x0)/4
 		for _, w := range [2]float64{grp.loWhisker, grp.hiWhisk} {
-			end := f.Y.Map(w)
+			end := fv.Map(w)
 			from := q1
 			if w > grp.median {
 				from = q3
 			}
-			strokeRun(b, cd, &run, []ir.Point{cd.Point(mid, from), cd.Point(mid, end)}, stroke, false)
+			strokeRun(b, cd, &run, []ir.Point{at(mid, from), at(mid, end)}, stroke, false)
 			g.span(b, cd, &run, cap0, cap1, end, stroke)
 		}
 
@@ -149,7 +157,7 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 		}
 		pts := make([]ir.Point, 0, len(grp.outliers))
 		for _, v := range grp.outliers {
-			pts = append(pts, cd.Point(mid, f.Y.Map(v)))
+			pts = append(pts, at(mid, fv.Map(v)))
 		}
 		b.Markers(g.cfg.marker, pts, ir.MarkerStyle{
 			Size: pick(g.cfg.size, f.Theme.MarkerSize*0.7),
@@ -159,11 +167,11 @@ func (g *boxGeom) Build(b ir.Backend, f Frame) error {
 	return nil
 }
 
-// span strokes the run from x0 to x1 at a constant y, which is what a median
-// line and a whisker cap both are. It goes through the coord because a run at a
-// constant y is a straight line only where the coord says so.
-func (g *boxGeom) span(b ir.Backend, cd coord.Coord, p *ir.Path, x0, x1, y float32, st ir.Stroke) {
-	strokeRun(b, cd, p, []ir.Point{cd.Point(x0, y), cd.Point(x1, y)}, st, false)
+// span strokes the run from s0 to s1 across the slot at a constant value,
+// which is what a median line and a whisker cap both are. It goes through the
+// coord because such a run is a straight line only where the coord says so.
+func (g *boxGeom) span(b ir.Backend, cd coord.Coord, p *ir.Path, s0, s1, v float32, st ir.Stroke) {
+	strokeRun(b, cd, p, []ir.Point{cd.Point(g.cfg.point(s0, v)), cd.Point(g.cfg.point(s1, v))}, st, false)
 }
 
 // boxFillOpacity is how much of the layer's colour an inherited box fill
@@ -175,7 +183,7 @@ func (g *boxGeom) Legend(f Frame) (LegendEntry, bool) {
 	if g.err != nil {
 		return LegendEntry{}, false
 	}
-	return g.cfg.boxSwatch(f, g.cfg.labelFor(), g.cfg.colorFor(f)), true
+	return g.cfg.boxSwatch(f, g.cfg.roles().labelFor(), g.cfg.colorFor(f)), true
 }
 
 // summarise groups the rows by X value and reduces each group to its

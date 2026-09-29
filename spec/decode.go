@@ -134,7 +134,7 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 			typ = "linear"
 		}
 	}
-	d := scale.Desc{Nice: s.Nice, Zero: s.Zero, Base: s.Base, Threshold: s.Constant, Locale: s.Locale}
+	d := scale.Desc{Nice: s.Nice, Zero: s.Zero, Fit: s.Fit == "view", HighWater: s.HighWater, Base: s.Base, Threshold: s.Constant, Locale: s.Locale}
 	d.MinorTicks = true
 	if s.MinorTicks != nil {
 		d.MinorTicks = *s.MinorTicks
@@ -161,7 +161,7 @@ func decodeScale(s Scale, channelType string) (scale.Desc, error) {
 			d.Link = "probit"
 		}
 	case "time", "utc":
-		d.Kind, d.Location = scale.KindTime, s.TimeZone
+		d.Kind, d.Location, d.WeekStart = scale.KindTime, s.TimeZone, s.WeekStart
 		if typ == "utc" && d.Location == "" {
 			d.Location = "UTC"
 		}
@@ -323,7 +323,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 		LevelCount:  l.Mark.LevelCount,
 		Resample:    resampling(l.Mark.Resample),
 		Branch:      branch(l.Mark.Branch),
-		Orient:      orientation(l.Mark.Orientation),
+		Orient:      markOrientation(l.Mark),
 		Bandwidth:   l.Mark.Bandwidth,
 		Span:        l.Mark.Span,
 		Smooth:      smoothing(l.Mark.Method),
@@ -353,6 +353,30 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.Caps != nil {
 		d.Caps = *l.Mark.Caps
 	}
+	d.Rule = l.Mark.Rule == nil || *l.Mark.Rule
+	if l.Mark.Direction == "previous" {
+		d.Direction = geom.SincePrevious
+	}
+	if l.Mark.Hollow != nil {
+		d.Hollow, d.HollowSet = *l.Mark.Hollow, true
+	}
+	if l.Mark.CandleStyle == "ticks" {
+		d.CandleStyle = geom.Ticks
+	}
+	for _, side := range []struct {
+		hex string
+		to  **ir.Color
+	}{{l.Mark.Rising, &d.Rising}, {l.Mark.Falling, &d.Falling}} {
+		if side.hex == "" {
+			continue
+		}
+		c, err := parseColor(side.hex)
+		if err != nil {
+			return nil, err
+		}
+		*side.to = &c
+	}
+	d.RisingLabel, d.FallingLabel = l.Mark.RisingLabel, l.Mark.FallingLabel
 	d.Confidence, d.CensorMarks = l.Mark.Confidence, l.Mark.CensorMarks
 	d.HideGuide = l.Mark.Guide != nil && !*l.Mark.Guide
 	d.Extrude = l.Mark.Extrude
@@ -448,6 +472,8 @@ func decodeLayerEncoding(d *geom.Desc, enc *Encoding) error {
 	d.Key = fieldOf(enc.Key)
 	d.ExplodeCol = fieldOf(enc.Explode)
 	d.MidCol, d.ErrorCol, d.ErrorXCol = fieldOf(enc.Mid), fieldOf(enc.Error), fieldOf(enc.ErrorX)
+	d.OHLC = [4]string{fieldOf(enc.Open), fieldOf(enc.High), fieldOf(enc.Low), fieldOf(enc.Close)}
+	d.DirectionTo, d.DirectionFrom = fieldOf(enc.Direction), fieldOf(enc.DirectionFrom)
 	d.From, d.To = fieldOf(enc.From), fieldOf(enc.To)
 	for i := range enc.Dims {
 		d.Dims = append(d.Dims, enc.Dims[i].Field)

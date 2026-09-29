@@ -121,6 +121,16 @@ const (
 	// at each end and a marker at the measurement.
 	MarkErrorBar Mark = "errorbar"
 
+	// MarkCandle is the candlestick: a wick from low to high and a body from
+	// open to close, one per row, told apart by which way the row went. See
+	// docs/adr/0088-a-candle-is-one-mark-that-reads-four-values.md.
+	MarkCandle Mark = "candle"
+
+	// MarkLastValue is the newest value of a column written on its axis, with
+	// a rule across the panel to it — a trading screen's last price. See
+	// docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+	MarkLastValue Mark = "last-value"
+
 	// MarkLocus is a family of curves given by a formula rather than by a tick:
 	// a Nichols chart's M and N contours, a Smith chart's VSWR circles. It is
 	// an annotation because none of those is at a value of either axis — see
@@ -429,6 +439,24 @@ type Desc struct {
 	Rotation float64
 	Extend   bool
 
+	// OHLC names a [Candle]'s open, high, low and close columns, and
+	// Direction, Rising, Falling, Hollow and CandleStyle are its other
+	// options. Rising and Falling are the colours the layer named, nil for the
+	// theme's, with the labels beside them; HollowSet is whether the layer
+	// chose hollow bodies rather than taking the theme's redundant encoding.
+	OHLC [4]string
+	// DirectionFrom and DirectionTo are the columns a [DirectionBy] layer
+	// compares, DirectionFrom empty for the previous row. Its colours and
+	// labels are Rising, Falling, RisingLabel and FallingLabel.
+	DirectionFrom, DirectionTo string
+	// Rule is whether a [LastValue] draws its line across the panel.
+	Rule                      bool
+	Direction                 CandleDirection
+	Rising, Falling           *ir.Color
+	RisingLabel, FallingLabel string
+	Hollow, HollowSet         bool
+	CandleStyle               CandleStyleKind
+
 	// Extra is what a third-party mark's own options set — see [Extra]. It is
 	// nil for a layer configured entirely from this package's options, and
 	// what the JSON spec carries as the mark's own properties for a mark this
@@ -506,6 +534,10 @@ func FromDesc(d Desc) (Geom, error) {
 		return Scatter(d.Source, opts...), nil
 	case MarkBar:
 		return Bar(d.Source, opts...), nil
+	case MarkCandle:
+		return Candle(d.Source, opts...), nil
+	case MarkLastValue:
+		return LastValue(d.Source, append(opts, Rule(d.Rule))...), nil
 	case MarkArea:
 		return Area(d.Source, opts...), nil
 	case MarkStep:
@@ -635,6 +667,14 @@ func (d Desc) options() []Option {
 		Wrap(d.Wrap),
 		Slide(!d.Pinned),
 		Link(d.Linkage),
+		Direction(d.Direction),
+		CandleStyle(d.CandleStyle),
+		func(c *config) {
+			c.ohlc = d.OHLC
+			c.rising = candleSide{d.Rising, d.RisingLabel}
+			c.falling = candleSide{d.Falling, d.FallingLabel}
+			c.hollow, c.hollowSet = d.Hollow, d.HollowSet
+		},
 	}
 	if d.StackSet {
 		opts = append(opts, Stack(d.Stack))
@@ -750,6 +790,9 @@ func (d Desc) options() []Option {
 	if d.ColorCol != "" && d.ColorScale != nil {
 		opts = append(opts, ColorBy(d.ColorCol, d.ColorScale))
 	}
+	if d.DirectionTo != "" {
+		opts = append(opts, DirectionBy(d.DirectionFrom, d.DirectionTo))
+	}
 	if d.SizeCol != "" && d.SizeScale != nil {
 		opts = append(opts, SizeBy(d.SizeCol, d.SizeScale))
 	}
@@ -861,6 +904,18 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		ErrorCol:      c.errCol,
 		ErrorXCol:     c.errXCol,
 		Caps:          c.caps,
+		OHLC:          c.ohlc,
+		DirectionFrom: c.dirFrom,
+		Rule:          c.rule,
+		DirectionTo:   c.dirTo,
+		Direction:     c.direction,
+		Rising:        c.rising.color,
+		Falling:       c.falling.color,
+		RisingLabel:   c.rising.label,
+		FallingLabel:  c.falling.label,
+		Hollow:        c.hollow,
+		HollowSet:     c.hollowSet,
+		CandleStyle:   c.candleStyle,
 		Decimate:      c.decimate,
 		Budget:        c.budget,
 		CellSize:      c.cellSize,

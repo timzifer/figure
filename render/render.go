@@ -417,6 +417,7 @@ func Draw(b ir.Backend, c Chart) error {
 	// 1. Train the scales. Tick labels depend on the domain, and the layout
 	//    depends on the tick labels, so this has to happen before anything is
 	//    measured.
+	retrain(panels, th)
 	for _, p := range panels {
 		// A panel with more axes than two hands its layers the scales of all
 		// of them: a parallel-coordinates panel has one per dimension, and the
@@ -426,7 +427,7 @@ func Draw(b ir.Backend, c Chart) error {
 		dims := coord.Scales(coord.Dimensions(c.coordOf(p)))
 		for _, g := range p.Layers {
 			x, y := p.axesOf(g)
-			if err := g.Train(geom.Training{X: x, Y: y, Dims: dims}); err != nil {
+			if err := g.Train(geom.Training{X: x, Y: y, Dims: dims, Within: within(x, y)}); err != nil {
 				return err
 			}
 		}
@@ -485,11 +486,28 @@ func Draw(b ir.Backend, c Chart) error {
 
 	fur := acquireFurniture()
 	axesOver := false
+	// The tags the layers write on their axes, per panel. They are placed
+	// before the axes are drawn, so the tick labels they cover can be left out,
+	// and painted after the data, over the gutter. See
+	// docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+	var tags [][]placedTag
 	for i, p := range panels {
 		area := lay.Areas[i]
 		cd, xTicks, yTicks := p.rangeTo(c.coordOf(p), area, th)
 		if coords != nil {
 			coords[i] = cd
+		}
+		if cd.Straight() {
+			if placed := placeTags(b, th, area, TagScales{X: p.X, Y: p.Y, X2: p.X2, Y2: p.Y2},
+				layerTags(p, area, cd, th, c.Hidden)); len(placed) > 0 {
+				if tags == nil {
+					tags = make([][]placedTag, len(panels))
+				}
+				tags[i] = placed
+				half := float32(th.TickSize) / 2
+				xTicks = hideCovered(xTicks, placed, geom.TagX, half)
+				yTicks = hideCovered(yTicks, placed, geom.TagY, half)
+			}
 		}
 		fur.Reset()
 		cd.Furniture(fur, coord.FurnitureRequest{Area: area, Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
@@ -520,6 +538,9 @@ func Draw(b ir.Backend, c Chart) error {
 	}
 	if axesOver {
 		drawAxesOverData(b, c, panels, lay.Areas, th)
+	}
+	for _, placed := range tags {
+		drawTags(b, th, placed)
 	}
 
 	// The solver reserves one box per guide, in order, so these are parallel.
@@ -1650,5 +1671,54 @@ func drawSwatch(b ir.Backend, e geom.LegendEntry, th theme.Theme, x, cy float32)
 			Cap:   ir.CapRound,
 			Dash:  e.Dash,
 		})
+	}
+}
+
+// within is the interval of x a layer's y is fitted to: x's domain, when y
+// fits its view and x's is pinned, and nil otherwise. A pinned domain is known
+// before any layer trains, so the fit costs no second pass; an unpinned one is
+// trained from the same rows, so every row is in view and there is nothing to
+// fit. See docs/adr/0089-a-value-axis-fits-what-its-time-axis-shows.md.
+func within(x, y scale.Scale) *scale.Interval {
+	if !scale.FitsView(y) || !scale.Pinned(x) {
+		return nil
+	}
+	lo, hi := x.Domain()
+	return &scale.Interval{Lo: lo, Hi: hi}
+}
+
+// retrain forgets every trained range the coming training will set: each
+// panel's axes and the colour and size scales its layers describe. A trained
+// domain only widens and a plot keeps its scales between renders, so without
+// this an axis describes every row it has ever been shown rather than the rows
+// this render draws. Pinned domains, discovered categories and discrete
+// colour keys are not forgotten — see [scale.Retrainer] for why. A colour
+// scale whose colours are the theme's — a direction's (ADR 0091) — is given
+// this render's theme in the same pass.
+//
+// It runs over every panel before any layer trains, so an axis shared by
+// several panels is forgotten, perhaps more than once, before the first of
+// them trains it; forgetting twice is forgetting once. See
+// docs/adr/0090-an-axis-describes-the-frame-it-is-drawn-in.md.
+func retrain(panels []Panel, th theme.Theme) {
+	for _, p := range panels {
+		for _, g := range p.Layers {
+			x, y := p.axesOf(g)
+			scale.Retrain(x)
+			scale.Retrain(y)
+			if d, ok := geom.Describe(g); ok {
+				if d.ColorScale != nil {
+					scale.Retrain(d.ColorScale)
+					// A scale whose colours come from the theme — a
+					// direction's — takes this render's.
+					if b, ok := d.ColorScale.(interface{ BindTheme(theme.Theme) }); ok {
+						b.BindTheme(th)
+					}
+				}
+				if d.SizeScale != nil {
+					scale.Retrain(d.SizeScale)
+				}
+			}
+		}
 	}
 }

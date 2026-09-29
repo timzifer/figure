@@ -38,12 +38,14 @@ func (g *stepGeom) Train(t Training) error {
 		return g.err
 	}
 	trainColumn(x, g.s.x)
-	trainColumn(y, g.s.y)
 	g.cfg.trainColors(g.s)
 	// A staircase is a reading held over time, and two of them do not add up
 	// any more than two lines do.
-	g.err = g.gs.train(g.src, g.s, g.cfg, x, y, NoStack)
-	return g.err
+	if g.err = g.gs.train(g.src, g.s, g.cfg, x, y, NoStack); g.err != nil {
+		return g.err
+	}
+	trainConnected(y, t.Within, g.s.x, g.s.y, g.gs.ofRows(), true)
+	return nil
 }
 
 func (g *stepGeom) Build(b ir.Backend, f Frame) error {

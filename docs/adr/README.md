@@ -93,6 +93,16 @@ depends on.
 | [0081](0081-a-map-projection.md) | A map projection is a coord that is handed degrees, and its graticule is the two tick lists a panel already has | Accepted | — |
 | [0082](0082-a-label-fits-its-box-or-is-called-out.md) | A label fits the shape of its box on screen, is moved, broken or shrunk before it is dropped, and may be called out of it | Accepted | — |
 | [0083](0083-an-axis-break-is-marked-or-not-drawn.md) | An axis break belongs to the scale, and it is marked or it is not drawn | Accepted | — |
+| [0084](0084-what-v1-promises.md) | v1.0 is tagged when a machine can say the surface did not move, and a point counts as one value | Proposed | — |
+| [0085](0085-what-a-market-chart-needs.md) | A market chart is a recipe over marks that exist, and what it lacks is a calendar, a candle and statistics that only look back | Proposed | 0083's business-day deferral, as a catalogue |
+| [0086](0086-a-calendar-says-when-time-counts.md) | A calendar says when time counts; the axis takes the rest as folds and starts its weeks where the calendar does | Accepted, amended | 0083's business-day deferral |
+| [0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md) | An orientation is the encoding read a quarter turn round, and a mark turns only where it emits | Accepted | 0053's "bars and boxplots still have none" |
+| [0088](0088-a-candle-is-one-mark-that-reads-four-values.md) | A candle is one mark that reads four values and decides its own direction | Accepted, amended | 0085's second rank |
+| [0089](0089-a-value-axis-fits-what-its-time-axis-shows.md) | A value axis can fit what the other axis shows, and a stream can revise its last row | Accepted, amended | 0085's third rank |
+| [0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) | An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered | Accepted, amended | 0089's open question |
+| [0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md) | A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours | Accepted, amended | 0088's volume-bar revisit |
+| [0092](0092-what-a-trading-screen-reads-off-its-edges.md) | A value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong | Accepted, amended | 0085's fifth rank |
+| [0093](0093-several-symbols-are-a-facet-whose-panels-carry-their-tracks.md) | Several symbols are a facet whose panels carry their own tracks, and a comparison divides each series by its value where the view begins | Proposed | `ErrTrackWithFacet` |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -328,3 +338,85 @@ implementation sharpened it, chiefly that the guide is a `scale.Threshold` over
 the fold's own boundaries rather than a `Quantize` asked to re-derive them, and
 that a row is reported at the band it ends in so that a hit test has one
 position per row to index.
+
+**0085 is a catalogue, the second after 0058**, and it is *Proposed* with its
+first step built. It answers whether figure can draw a trading screen's chart
+— candles on a calendar, volume under the price, the volume at each price
+beside it, indicators over it — and the answer is that every part composes
+from marks that exist, which `examples/market` draws. What it cannot compose it
+ranks: a trading calendar first, which is 0083's deferred business-day axis;
+a candle as one mark second; a live chart's price autoscale and replaceable
+last row third. It keeps the Stat interface refused, because an indicator is
+the case the refusal fits best — numbers in, numbers out, drawn by an ordinary
+mark — and it landed the functions that case needs: the trailing windows, an
+EMA, a rolling spread, OHLC resampling and a weighted bin, with a downward
+triangle for the sell. Each ranked mechanism gets a record of its own.
+
+**0086 and 0087 follow from 0085.** 0086 is the calendar 0085 ranked first,
+*Accepted, amended* and built, and it is not a market's: a calendar is an interface that says
+which stretches of each day count — a working week of any days, a roster, a
+term list, a calendar computed in another calendar system — with a
+calendar composed from rules about days the library ships — `Weekdays`,
+`Dates`, `EveryNth`, `And`, `Not` — and no holiday tables.
+Its closed time becomes folds for an interval the caller names, so the dialect
+only gains a week start; the week start becomes the axis's, which until now
+was Monday by an accident of Go's zero time; and a day tick that lands in a
+fold moves to where time next counts, because with the nights folded every
+midnight is inside one. 0087 is 0085's fourth rank, *Accepted*: `geom.Orient`
+now lays a bar, a histogram and a boxplot on their side, with the roles of the
+columns swapped along with the axes and the turn made once, where each mark
+emits.
+
+**0088 is 0085's second rank**, *Accepted, amended* and built: `geom.Candle` reads a position and
+the four values through one option, `geom.OHLC`, decides each row's direction
+itself, and draws the wick and the body as one mark with one legend — in four
+calls whatever the row count. The OHLC bar is a style of it rather than a
+mark beside it, direction is drawn twice (colour, and hollow or filled), and
+the dialect gains `"candlestick"` with four channels of its own rather than
+spending `y` and `y2` on two of the four values.
+
+**0089 is 0085's third rank**, *Accepted, amended* and built: the two halves of a live market
+chart. `scale.FitView` makes a value axis fit the rows its panel's pinned X
+axis shows, handed to each layer as `Training.Within` in the one training pass
+there already is — a layer that cannot restrict its training fits loosely
+rather than clipping — and `Live`'s wheel, rubber band and pan leave a fitting
+axis alone. `data.Stream.ReplaceLast` is the one revision a stream admits, the
+newest row, and `stat.Resampler` is `stat.OHLC` turned inside out for a feed
+that arrives a tick at a time.
+
+**0090 is the question 0089 left open**, *Accepted, amended* and built: a trained domain only
+widens and render keeps its scales between renders, so a windowed stream's
+axes never shrank — its time axis kept the history the window had dropped,
+and `examples/stream`'s claim that a full window slides was never true. Every
+render now derives a trained range again, once per scale, before its layers
+train; a pinned domain is kept, so a zoom survives as before; and a set of
+discovered names — a category's slot, a series' colour — is remembered,
+because it is identity rather than measurement. `scale.HighWater` is the
+opt-in for an axis that should remember its extent.
+
+**0091 answers 0088's *Revisit if***, *Accepted, amended* and built: volume bars coloured by
+direction were a hand-computed column again, and impossible on a stream, which
+carries numbers only. `geom.DirectionBy(from, to)` is a colour channel any
+mark with `ColorBy` takes — a row rises when `to` is at or above `from`, or
+above the previous row's `to` — painted in the candle's `Rising` and `Falling`
+colours, so a volume track agrees with its candles without being told to, and
+the legend's merge by label says rising and falling once.
+
+**0092 is 0085's fifth rank**, *Accepted, amended* and built, and it found that two of its three
+items are one mechanism: the last price and a crosshair's readout are both a
+value written on an axis, and nothing drew outside a panel but the axes. An
+`AxisTag` is furniture a layer (`geom.Tagger`) or an overlay asks for, drawn in
+the gutter over the tick labels it covers; `geom.LastValue` is the mark that
+asks for one; `Crosshair` snaps to the row nearest the pointer along X through
+a new `Index.NearestAlong` and tags its own position. Of the indicators, RSI
+and VWAP earn functions — Wilder's smoothing and the session reset are what a
+composition gets wrong — and MACD stays a recipe, because composing it is its
+definition.
+
+**0093 takes the market chart past one symbol**, *Proposed*. A watchlist is
+a facet by symbol whose panels each carry the plot's tracks — repeated, not
+spanning, which is why `ErrTrackWithFacet`'s refusal of a spanning band never
+applied to it — with a track free where its panel is and a fixed block order
+for panel indices. A comparison is `geom.Relative()`: each series divided by
+its first value in view, so the zero follows a pan, written by a percent axis
+that gains a `+` flag for the sign a comparison is read by.

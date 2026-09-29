@@ -96,8 +96,10 @@ func readAxis(s scale.Scale) axisView {
 		return axisView{}
 	}
 	// Only a scale that can be pinned is worth reading: a domain nothing can
-	// put back is a number with no use.
-	if _, ok := s.(scale.Zoomer); !ok {
+	// put back is a number with no use. Nor is one that fits its view — it is
+	// derived every frame from the axis that is steered, and putting its
+	// domain back would pin it (ADR 0089).
+	if _, ok := s.(scale.Zoomer); !ok || scale.FitsView(s) {
 		return axisView{}
 	}
 	min, max := s.Domain()

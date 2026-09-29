@@ -94,3 +94,35 @@ func TestLayeringAgainDoesNotAllocate(t *testing.T) {
 		t.Errorf("layering again allocated %.0f times, want none", got)
 	}
 }
+
+// The market forms are redrawn every frame of a live chart, so their Append
+// forms must fit into the slice they were given.
+func TestTheTrailingFormsDoNotAllocateIntoAWarmSlice(t *testing.T) {
+	const n = 500
+	xs := make([]float64, n)
+	ys := make([]float64, n)
+	for i := range n {
+		xs[i], ys[i] = float64(i), 100+math.Sin(float64(i)/9)*5
+	}
+	dst := make([]stat.Point, 0, n)
+	candles := make([]stat.Candle, 0, n)
+	buckets := make([]stat.WeightedBucket, 0, 32)
+	edges := []float64{0, 100, 250, 400}
+	for name, f := range map[string]func(){
+		"mean":   func() { dst = stat.AppendTrailingMean(dst, xs, ys, 20) },
+		"ema":    func() { dst = stat.AppendEMA(dst, xs, ys, 20) },
+		"sd":     func() { dst = stat.AppendRollingStdDev(dst, xs, ys, 20) },
+		"min":    func() { dst = stat.AppendRollingMin(dst, xs, ys, 20) },
+		"max":    func() { dst = stat.AppendRollingMax(dst, xs, ys, 20) },
+		"cumsum": func() { dst = stat.AppendCumsum(dst, xs, ys) },
+		"ohlc":   func() { candles = stat.AppendOHLC(candles, xs, ys, nil, 0, 10) },
+		"ohlcAt": func() { candles = stat.AppendOHLCAt(candles, xs, ys, nil, edges) },
+		"rsi":    func() { dst = stat.AppendRSI(dst, xs, ys, 14) },
+		"vwap":   func() { dst = stat.AppendVWAP(dst, xs, ys, xs, edges) },
+		"bin":    func() { buckets = stat.AppendBinWeighted(buckets, ys, xs, 0, 0, 24) },
+	} {
+		if got := testing.AllocsPerRun(10, f); got != 0 {
+			t.Errorf("%s allocated %.0f times, want none", name, got)
+		}
+	}
+}

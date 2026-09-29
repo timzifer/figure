@@ -213,7 +213,8 @@ written no mark in `geom` had an orientation to borrow. `geom.Orient` is that
 option, with `geom.Vertical` and `geom.Horizontal`, and it is named for the
 library rather than for the tree so that the second mark to want it says it the
 same way — bars and boxplots still have none, and this is where that answer
-will land. `geom.Tree` reads it by laying the tree out once and hanging it on
+will land. (They have it now: see
+[ADR 0087](0087-an-orientation-is-the-encoding-read-a-quarter-turn-round.md).) `geom.Tree` reads it by laying the tree out once and hanging it on
 the other pair of axes: `Value`, `Baseline` and `Branches` all mean what they
 meant, and the ordinal breadth and the continuous height swap which axis they
 are checked on. `examples/dendrogram` now draws the record's headline chart

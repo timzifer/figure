@@ -142,6 +142,10 @@ func channelType(k scale.Kind) string {
 
 func encodeScale(d scale.Desc) *Scale {
 	out := &Scale{Nice: d.Nice, Zero: d.Zero, Format: d.Format, Locale: d.Locale}
+	if d.Fit {
+		out.Fit = "view"
+	}
+	out.HighWater = d.HighWater
 	switch d.Kind {
 	case scale.KindLinear:
 		// Reverse is written only for the kind that reads it back. On a
@@ -161,7 +165,7 @@ func encodeScale(d scale.Desc) *Scale {
 		out.Type, out.Link = "probability", d.Link
 		out.MinorTicks = boolPtr(d.MinorTicks)
 	case scale.KindTime:
-		out.Type, out.TimeZone = "time", d.Location
+		out.Type, out.TimeZone, out.WeekStart = "time", d.Location, d.WeekStart
 		// A time scale's declarative format is a layout, and it travels in
 		// the same field a numeric scale's number format does: the type says
 		// which of the two this is.
@@ -398,6 +402,17 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	if d.HideGuide {
 		m.Guide = boolPtr(false)
 	}
+	// A direction's colours and labels are the candle's properties, written for
+	// any mark that carries one (ADR 0091).
+	if d.DirectionTo != "" {
+		if d.Rising != nil {
+			m.Rising = colorHex(*d.Rising)
+		}
+		if d.Falling != nil {
+			m.Falling = colorHex(*d.Falling)
+		}
+		m.RisingLabel, m.FallingLabel = d.RisingLabel, d.FallingLabel
+	}
 	stroke := func() {
 		m.StrokeWidth = d.Width
 		if d.DashSet {
@@ -475,6 +490,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	density := func() {
 		m.Bandwidth = d.Bandwidth
 	}
+	// Written only by the marks that read it, for the same reason: a
+	// horizontal line would be a document claiming a line can lie down.
+	orientation := func() {
+		if d.Orient == geom.Horizontal {
+			m.Orientation = "horizontal"
+		}
+	}
 
 	// A contour that joins back to its start is a property of the connected
 	// marks and of nothing else, so it is written by those three and not by
@@ -530,6 +552,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.BarWidth, m.Origin = float64Ptr(d.BarWidth), d.Baseline
 		m.Explode = d.Explode
 		m.Extrude = d.Extrude
+		orientation()
 	case geom.MarkRect:
 		stroke()
 		fill()
@@ -561,11 +584,13 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		rows()
 		m.BarWidth = float64Ptr(d.BarWidth)
 		m.Extent, m.Outliers = d.Whisker, boolPtr(d.Outliers)
+		orientation()
 	case geom.MarkHistogram:
 		stroke()
 		fill()
 		binning()
 		m.Origin = d.Baseline
+		orientation()
 	case geom.MarkViolin:
 		stroke()
 		fill()
@@ -611,9 +636,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.Branch == geom.Straight {
 			m.Branch = "straight"
 		}
-		if d.Orient == geom.Horizontal {
-			m.Orientation = "horizontal"
-		}
+		orientation()
 	case geom.MarkNodeLink:
 		// Dots and lines: a fill for the discs, a stroke for the edges, and the
 		// mark's size is a disc's diameter. There is no ranking, no direction
@@ -664,6 +687,35 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
+	case geom.MarkLastValue:
+		stroke()
+		if d.Color != nil {
+			m.Color = colorHex(*d.Color)
+		}
+		if !d.Rule {
+			m.Rule = boolPtr(false)
+		}
+	case geom.MarkCandle:
+		stroke()
+		fill()
+		rows()
+		m.BarWidth = float64Ptr(d.BarWidth)
+		if d.Direction == geom.SincePrevious {
+			m.Direction = "previous"
+		}
+		if d.HollowSet {
+			m.Hollow = boolPtr(d.Hollow)
+		}
+		if d.CandleStyle == geom.Ticks {
+			m.CandleStyle = "ticks"
+		}
+		if d.Rising != nil {
+			m.Rising = colorHex(*d.Rising)
+		}
+		if d.Falling != nil {
+			m.Falling = colorHex(*d.Falling)
+		}
+		m.RisingLabel, m.FallingLabel = d.RisingLabel, d.FallingLabel
 	case geom.MarkErrorBar:
 		stroke()
 		rows()
@@ -824,6 +876,21 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		if d.ErrorXCol != "" {
 			enc.ErrorX = &Channel{Field: d.ErrorXCol}
 		}
+		if d.DirectionTo != "" {
+			enc.Direction = &Channel{Field: d.DirectionTo, Type: "quantitative"}
+			if d.DirectionFrom != "" {
+				enc.DirectionFrom = &Channel{Field: d.DirectionFrom, Type: "quantitative"}
+			}
+		}
+		if d.Mark == geom.MarkCandle {
+			ch := func(f string) *Channel {
+				if f == "" {
+					return nil
+				}
+				return &Channel{Field: f, Type: "quantitative"}
+			}
+			enc.Open, enc.High, enc.Low, enc.Close = ch(d.OHLC[0]), ch(d.OHLC[1]), ch(d.OHLC[2]), ch(d.OHLC[3])
+		}
 		if d.From != "" {
 			enc.From = &Channel{Field: d.From, Type: "nominal"}
 		}
@@ -860,9 +927,15 @@ func encodeLayerEncoding(d geom.Desc, axes axisKinds) (*Encoding, error) {
 		}
 		// The stack is a property of the axis the groups are stacked along,
 		// which is the Y axis for every mark that has one — so it goes on the
-		// Y channel, where Vega-Lite puts it and where a reader will look.
-		if d.StackSet && enc.Y != nil {
-			enc.Y.Stack = stackName(d.Stack)
+		// Y channel, where Vega-Lite puts it and where a reader will look. A
+		// horizontal layer stacks across X, and Vega-Lite puts it there too.
+		if along := enc.Y; d.StackSet {
+			if d.Orient == geom.Horizontal {
+				along = enc.X
+			}
+			if along != nil {
+				along.Stack = stackName(d.Stack)
+			}
 		}
 		if enc.empty() {
 			return nil, nil

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/timzifer/figure/data"
 )
 
 // TestExampleRuns drives the documented streaming example, which is also the
@@ -51,5 +54,38 @@ func TestSteadyFramesRepaintLess(t *testing.T) {
 	}
 	if f := got.Fraction(); f > 0.85 {
 		t.Errorf("frames repainted %.0f%% of the canvas on average, want less than a full repaint", 100*f)
+	}
+}
+
+// TestAFullWindowSlides is the claim run's comment makes about a full window:
+// once rows fall out of it, the time axis starts where the window does rather
+// than where the series did. It appends deterministically, without the
+// producer goroutine, so the answer does not depend on a race.
+func TestAFullWindowSlides(t *testing.T) {
+	st := data.NewStream("t", "y", "load").Window(window)
+	p, x := chart(st)
+	live, err := p.Live(&surface{w: 900, h: 400})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+	seed(st, window)
+	st.Snapshot()
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+	r := rand.New(rand.NewPCG(1, 2))
+	for i := window; i < window+100; i++ {
+		st.Append(sample(r, i))
+	}
+	st.Snapshot()
+	if err := live.Draw(); err != nil {
+		t.Fatal(err)
+	}
+	lo, hi := x.Domain()
+	want, _, _ := sample(r, 100)
+	last, _, _ := sample(r, window+99)
+	if lo != want || hi != last {
+		t.Errorf("the time axis is [%v, %v], want the window's [%v, %v]", lo, hi, want, last)
 	}
 }

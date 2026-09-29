@@ -49,6 +49,10 @@ func TestTheV07MarksAndOptionsSurviveTheRoundTrip(t *testing.T) {
 			geom.GroupBy("series"), geom.Stack(geom.StackFill))},
 		{"dodged-bar", geom.Bar(src, geom.X("t"), geom.Y("v"),
 			geom.GroupBy("series"), geom.Dodge(0.25))},
+		{"horizontal-filled-bar", geom.Bar(src, geom.Y("t"), geom.X("v"),
+			geom.GroupBy("series"), geom.Stack(geom.StackFill), geom.Orient(geom.Horizontal))},
+		{"horizontal-dodged-bar", geom.Bar(src, geom.Y("t"), geom.X("v"),
+			geom.GroupBy("series"), geom.Dodge(0.25), geom.Orient(geom.Horizontal))},
 		{"marimekko", geom.Bar(src, geom.X("t"), geom.Y("v"),
 			geom.GroupBy("series"), geom.WidthBy("w"), geom.Stack(geom.StackFill))},
 		{"streamgraph", geom.Area(src, geom.X("t"), geom.Y("v"),
@@ -174,5 +178,59 @@ func TestAQualitativeColourScaleIsNamedInTheDocument(t *testing.T) {
 	}
 	if len(ch.Scale.Domain) != 0 {
 		t.Error("a discovered category set was written down as a domain")
+	}
+}
+
+// A horizontal stack is written on the X channel, which is where Vega-Lite
+// looks for it on a bar lying down.
+func TestAHorizontalStackIsWrittenOnX(t *testing.T) {
+	c := chartOf(geom.Bar(longTable(), geom.Y("t"), geom.X("v"),
+		geom.GroupBy("series"), geom.Stack(geom.StackFill), geom.Orient(geom.Horizontal)))
+	s, err := spec.Of(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Layer) != 1 || s.Layer[0].Encoding == nil {
+		t.Fatalf("the document has %d layers", len(s.Layer))
+	}
+	l := s.Layer[0]
+	if l.Mark.Orientation != "horizontal" {
+		t.Errorf("mark orientation %q, want horizontal", l.Mark.Orientation)
+	}
+	enc := l.Encoding
+	if enc.X == nil || enc.X.Stack == "" {
+		t.Errorf("the stack is not on the x channel: x = %+v", enc.X)
+	}
+	if enc.Y != nil && enc.Y.Stack != "" {
+		t.Errorf("the y channel carries the stack %q too", enc.Y.Stack)
+	}
+}
+
+// A Vega-Lite document lays a bar down with the mark's own "orient", and that
+// is read as the same thing figure writes as "orientation".
+func TestVegaLitesOrientLaysABarDown(t *testing.T) {
+	doc := `{
+	  "data": {"values": [{"n": 3, "fruit": "apple"}, {"n": 7, "fruit": "pear"}]},
+	  "layer": [{
+	    "mark": {"type": "bar", "orient": "horizontal"},
+	    "encoding": {
+	      "x": {"field": "n", "type": "quantitative"},
+	      "y": {"field": "fruit", "type": "nominal"}
+	    }
+	  }]
+	}`
+	s, err := spec.Parse([]byte(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.Chart()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Layers) != 1 {
+		t.Fatalf("%d layers", len(c.Layers))
+	}
+	if d := c.Layers[0].(geom.Describer).Describe(); d.Orient != geom.Horizontal {
+		t.Errorf("the bar reads back with orientation %v, want horizontal", d.Orient)
 	}
 }

@@ -2,6 +2,7 @@ package scale
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/timzifer/figure/ir"
@@ -54,8 +55,12 @@ type Desc struct {
 	// or [SymLogDomain], or afterwards by [Zoomer.SetDomain].
 	Fixed bool
 
-	// Nice and Zero are the linear and log framing options.
-	Nice, Zero bool
+	// Nice and Zero are the linear and log framing options, and Fit whether
+	// the axis fits the rows its panel's other axis shows. See [FitView].
+	Nice, Zero, Fit bool
+	// HighWater reports a linear axis that keeps its trained extent across
+	// renders. See [HighWater].
+	HighWater bool
 	// Reverse reports a positional scale drawn the other way round: the low
 	// end of the domain at the high end of the range. It is a linear scale's
 	// [Reverse], and it is not the colour reversal in [ColorDesc] — that one
@@ -95,6 +100,9 @@ type Desc struct {
 
 	// Location is a time scale's zone, by IANA name.
 	Location string
+	// WeekStart is the weekday a time scale's weeks begin on, by its English
+	// name in lower case — "sunday" — and empty for Monday, the default.
+	WeekStart string
 
 	// Formatted reports a scale carrying a formatter that a Desc cannot hold.
 	Formatted bool
@@ -156,6 +164,12 @@ func FromDesc(d Desc) (Scale, error) {
 		if d.Reverse {
 			opts = append(opts, Reverse())
 		}
+		if d.Fit {
+			opts = append(opts, FitView())
+		}
+		if d.HighWater {
+			opts = append(opts, HighWater())
+		}
 		if d.Fixed {
 			opts = append(opts, Domain(d.Min, d.Max))
 		}
@@ -176,6 +190,9 @@ func FromDesc(d Desc) (Scale, error) {
 		}
 		if d.Nice {
 			opts = append(opts, LogNice())
+		}
+		if d.Fit {
+			opts = append(opts, LogFitView())
 		}
 		if d.Fixed {
 			opts = append(opts, LogDomain(d.Min, d.Max))
@@ -236,6 +253,13 @@ func FromDesc(d Desc) (Scale, error) {
 		if d.Layout != "" {
 			opts = append(opts, TimeLayout(d.Layout))
 		}
+		if d.WeekStart != "" {
+			wd, ok := weekdayNamed(d.WeekStart)
+			if !ok {
+				return nil, fmt.Errorf("figure/scale: week start %q is not a weekday", d.WeekStart)
+			}
+			opts = append(opts, WeekStart(wd))
+		}
 		opts = append(opts, func(t *timeScale) {
 			t.locale = localeNamed(d.Locale)
 			t.cuts = t.cuts.with(false, d.Cuts...).with(true, d.Folds...)
@@ -261,7 +285,7 @@ func FromDesc(d Desc) (Scale, error) {
 
 func (l *linear) Describe() Desc {
 	d := Desc{
-		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Reverse: l.reverse, Fixed: l.fixed,
+		Kind: KindLinear, Nice: l.nice, Zero: l.zero, Fit: l.fit, HighWater: l.highWater, Reverse: l.reverse, Fixed: l.fixed,
 		Formatted: l.format != nil, Format: l.numFormat.spec, Locale: localeName(l.loc),
 	}
 	if l.fixed {
@@ -276,7 +300,7 @@ func (l *linear) Describe() Desc {
 
 func (l *logScale) Describe() Desc {
 	d := Desc{
-		Kind: KindLog, Base: l.base, Nice: l.nice, Fixed: l.fixed,
+		Kind: KindLog, Base: l.base, Nice: l.nice, Fit: l.fit, Fixed: l.fixed,
 		MinorTicks: l.minor, Formatted: l.format != nil,
 		Format: l.numFormat.spec, Locale: localeName(l.loc),
 	}
@@ -305,6 +329,9 @@ func (s *timeScale) Describe() Desc {
 	}
 	if s.loc != nil {
 		d.Location = s.loc.String()
+	}
+	if s.week != time.Monday {
+		d.WeekStart = strings.ToLower(s.week.String())
 	}
 	if s.fixed {
 		d.Min, d.Max = s.dmin, s.dmax
@@ -561,3 +588,14 @@ func (c *colorScale) DescribeColor() ColorDesc {
 }
 
 var _ ColorDescriber = (*colorScale)(nil)
+
+// weekdayNamed reads a weekday back from the name [timeScale.Describe] writes,
+// in any case.
+func weekdayNamed(name string) (time.Weekday, bool) {
+	for d := time.Sunday; d <= time.Saturday; d++ {
+		if strings.EqualFold(d.String(), name) {
+			return d, true
+		}
+	}
+	return 0, false
+}

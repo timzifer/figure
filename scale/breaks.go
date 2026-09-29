@@ -343,6 +343,21 @@ func (b *broken) kept() float64 {
 	return (b.hi - b.lo) - (b.cs.width[b.i1] - b.cs.width[b.i0])
 }
 
+// past reports the cut v falls in, counting its lower edge but not its upper
+// one: its upper edge, whether it is a fold, and false when v falls in none.
+//
+// The lower edge counts because it is where open time ends. A day tick at the
+// Saturday midnight a weekend fold starts on stands on the end of Friday and
+// is labelled with Saturday, a day the axis has taken out.
+func (b *broken) past(v float64) (hi float64, fold, in bool) {
+	cs := b.cs
+	j := b.i0 + sort.Search(b.i1-b.i0, func(k int) bool { return cs.c[b.i0+k].hi > v })
+	if j < b.i1 && v >= cs.c[j].lo {
+		return cs.c[j].hi, cs.c[j].fold, true
+	}
+	return 0, false, false
+}
+
 // inside reports whether v falls strictly inside one of the active cuts,
 // where no tick may stand.
 func (b *broken) inside(v float64) bool {
