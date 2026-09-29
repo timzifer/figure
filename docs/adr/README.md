@@ -102,6 +102,7 @@ depends on.
 | [0090](0090-an-axis-describes-the-frame-it-is-drawn-in.md) | An axis describes the frame it is drawn in: a trained range is derived again every render, and a set of names is remembered | Accepted, amended | 0089's open question |
 | [0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md) | A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours | Accepted, amended | 0088's volume-bar revisit |
 | [0092](0092-what-a-trading-screen-reads-off-its-edges.md) | A value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong | Accepted, amended | 0085's fifth rank |
+| [0093](0093-several-symbols-are-a-facet-whose-panels-carry-their-tracks.md) | Several symbols are a facet whose panels carry their own tracks, and a comparison divides each series by its value where the view begins | Proposed | `ErrTrackWithFacet` |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -411,3 +412,11 @@ a new `Index.NearestAlong` and tags its own position. Of the indicators, RSI
 and VWAP earn functions — Wilder's smoothing and the session reset are what a
 composition gets wrong — and MACD stays a recipe, because composing it is its
 definition.
+
+**0093 takes the market chart past one symbol**, *Proposed*. A watchlist is
+a facet by symbol whose panels each carry the plot's tracks — repeated, not
+spanning, which is why `ErrTrackWithFacet`'s refusal of a spanning band never
+applied to it — with a track free where its panel is and a fixed block order
+for panel indices. A comparison is `geom.Relative()`: each series divided by
+its first value in view, so the zero follows a pan, written by a percent axis
+that gains a `+` flag for the sign a comparison is read by.
