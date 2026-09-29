@@ -218,7 +218,7 @@ By what a reader loses without it, as ADR 0058 ranks:
    are what a live market chart is and neither is useful alone. — **Landed**
    as [ADR 0089](0089-a-value-axis-fits-what-its-time-axis-shows.md);
    `examples/market -live` draws it.
-5. The rest, as asked for. — **Proposed** as
+5. The rest, as asked for. — **Landed** as
    [ADR 0092](0092-what-a-trading-screen-reads-off-its-edges.md): axis tags
    for the last price and the crosshair readout, a snapping crosshair, and RSI
    and VWAP as functions.

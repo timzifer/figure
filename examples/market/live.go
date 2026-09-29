@@ -9,6 +9,7 @@ import (
 	"github.com/timzifer/figure"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/stat"
 )
@@ -47,11 +48,22 @@ func runLive(out string, ticks int) (x, y scale.Scale, err error) {
 			// other: it is read from the open and the close the candle has.
 			geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down")))
 
+	// The last price, tagged on the price axis in the open candle's direction.
+	// On a stream it follows the candle being revised, because that candle is
+	// the stream's last row.
+	p.Add(geom.LastValue(st.Source(), geom.X("start"), geom.Y("close"), geom.Dash(3, 3),
+		geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down")))
+
 	live, err := p.Live(figure.SVGWriter(io.Discard))
 	if err != nil {
 		return nil, nil, err
 	}
 	defer live.Close()
+	// Rows are tracked so that a crosshair can snap to the candle under the
+	// pointer's time.
+	live.TrackRows(true)
+	cross := &figure.Crosshair{Snap: live.Index(), Tags: true, Panel: -1}
+	live.Overlay(cross)
 
 	r := stat.Resampler{Origin: scale.Nanos(liveOpen), Width: float64(time.Minute)}
 	rng := rand.New(rand.NewPCG(3, 89))
@@ -100,10 +112,27 @@ func runLive(out string, ticks int) (x, y scale.Scale, err error) {
 			}
 			lo, hi := x.Domain()
 			width, zoomed = hi-lo, true
+			// The reader's pointer rests two thirds of the way across the
+			// panel; each frame the crosshair snaps to the candle there.
+			cross.At = ir.Point{X: area.Min.X + (area.Max.X-area.Min.X)*2/3, Y: (area.Min.Y + area.Max.Y) / 2}
+			cross.Show = true
 		}
 	}
 	st.Snapshot()
-	return x, y, p.Render(figure.SVG(out))
+
+	// The artefact is the frame the reader ended on, crosshair and all, drawn
+	// once more to a file. One Draw is enough to snap: the overlay paints last,
+	// after the frame has reported its rows.
+	final, err := p.Live(figure.SVG(out))
+	if err != nil {
+		return nil, nil, err
+	}
+	final.TrackRows(true)
+	final.Overlay(&figure.Crosshair{Snap: final.Index(), Tags: true, Show: true, Panel: -1, At: cross.At})
+	if err := final.Draw(); err != nil {
+		return nil, nil, err
+	}
+	return x, y, final.Close()
 }
 
 // liveOpen is when the simulated session opens.

@@ -71,7 +71,7 @@ func run(out string) error {
 	candles := candleTable(days)
 
 	p := figure.New(
-		figure.Size(1000, 560),
+		figure.Size(1000, 660),
 		figure.Title("FIG — daily, weekends and holidays folded"),
 	)
 	// The days the market is closed are left out of the axis rather than
@@ -114,6 +114,19 @@ func run(out string) error {
 		Add(geom.Bar(candles, geom.X("t"), geom.Y("volume"), geom.BarWidth(0.7),
 			geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down"),
 			geom.Opacity(0.6)))
+
+	// The fourteen-day RSI, in a track of its own under the volume, with the
+	// band between 30 and 70 that the two thresholds a reader looks for bound.
+	// It is a function rather than a composition of EMAs because its averages
+	// are Wilder's (docs/adr/0092).
+	p.Track(figure.Bottom, figure.TrackFraction(0.16), figure.TrackScale(scale.Linear(scale.Domain(0, 100))), figure.TrackAxis(true)).
+		Add(geom.HBand(30, 70, geom.Label("RSI 30–70")),
+			geom.Line(candles, geom.X("t"), geom.Y("rsi"), geom.Color(palette.Purple), geom.Label("RSI 14")))
+
+	// The last close, on the price axis at its own precision, in its day's
+	// direction, with a rule across the panel to it.
+	p.Add(geom.LastValue(candles, geom.X("t"), geom.Y("close"), geom.Dash(3, 3),
+		geom.DirectionBy("open", "close"), geom.Rising(up, "up"), geom.Falling(down, "down")))
 
 	// The volume traded at each price, beside the price and on the same price
 	// axis: a bar lying on its side per price bucket, buys stacked first and
@@ -207,6 +220,7 @@ func candleTable(days []stat.Candle) *data.Table {
 	ema := ys(stat.EMA(xs, closes, fast))
 	mid := ys(stat.TrailingMean(xs, closes, slow))
 	sd := ys(stat.RollingStdDev(xs, closes, slow))
+	rsi := ys(stat.RSI(xs, closes, 14))
 	lower, upper := make([]float64, n), make([]float64, n)
 	for i := range n {
 		lower[i], upper[i] = mid[i]-2*sd[i], mid[i]+2*sd[i]
@@ -216,7 +230,7 @@ func candleTable(days []stat.Candle) *data.Table {
 		Time("t", t).
 		Float64("open", o).Float64("high", h).Float64("low", l).Float64("close", c).
 		Float64("volume", v).
-		Float64("ema", ema).Float64("mid", mid).
+		Float64("ema", ema).Float64("mid", mid).Float64("rsi", rsi).
 		Float64("lower", lower).Float64("upper", upper)
 }
 

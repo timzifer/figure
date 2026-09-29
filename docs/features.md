@@ -87,7 +87,11 @@ The feature surface in one list: scales, marks, coordinate systems, layout, outp
   and `stat.BinWeighted` sums volume by price. `geom.DirectionBy(from, to)`
   colours any mark by which way its row went, in the candles' colours — the
   volume bars under them, a line drawn rising and falling
-  ([ADR 0091](adr/0091-a-direction-is-a-colour-channel-any-mark-can-take.md)). `examples/market` draws all of
+  ([ADR 0091](adr/0091-a-direction-is-a-colour-channel-any-mark-can-take.md)).
+  `geom.LastValue` tags the newest value on its axis, `figure.Crosshair` snaps
+  to the candle at the pointer's time and tags its axes, and `stat.RSI` and
+  `stat.VWAP` are the indicators a composition would get wrong
+  ([ADR 0092](adr/0092-what-a-trading-screen-reads-off-its-edges.md)). `examples/market` draws all of
   it, with the weekends and a holiday folded from one calendar, and with
   `-live` a tick feed folded into minute candles by `stat.Resampler`, the open
   candle revised in place with `data.Stream.ReplaceLast`, and a price axis that

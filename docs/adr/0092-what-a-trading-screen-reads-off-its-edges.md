@@ -1,6 +1,6 @@
 # 0092 — What a trading screen reads off its edges: a value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong
 
-**Status:** Proposed · **Date:** 2026-09-28 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 5
+**Status:** Accepted, amended · **Date:** 2026-09-28 · **Implemented:** 2026-09-29 · **Ranked by:** [ADR 0085](0085-what-a-market-chart-needs.md), rank 5
 
 ## Context
 
@@ -179,11 +179,44 @@ composition gives the wrong numbers.
 
 ## Order of work
 
-1. `render` draws `AxisTag`s from `geom.Tagger` layers and from overlays, with
-   the tick labels they cover hidden and tags on one axis pushed apart.
-2. `geom.LastValue`.
-3. `interact.Index.NearestAlong`; `Crosshair.SnapX` and `Crosshair.Tags`.
-4. `stat.RSI` and `stat.VWAP` with their Append pairs, tested against published
-   reference values; the MACD recipe in `docs/chart-types.md`.
-5. `examples/market` gains an RSI track and a last-price tag, and `-live` a
-   snapping crosshair driven by a scripted pointer.
+Every step is built.
+
+1. `geom.AxisTag`, `geom.TagAxis` and `geom.Tagger` in `geom/tag.go`; render
+   places a panel's tags after ranging it, blanks the primary tick labels they
+   cover, and draws them after the data (`render/tag.go`).
+   `render.DrawAxisTags` draws an overlay's.
+2. `geom.LastValue` with `geom.Rule`, written `"lastValue"` with `"rule"`.
+3. `interact.Index.NearestAlong` with `AlongX`/`AlongY`; `Crosshair.Snap`,
+   `Tags` and `TagColor`.
+4. `stat.RSI` and `stat.VWAP` with their Append pairs, and the MACD, RSI and
+   VWAP recipes in `docs/chart-types.md`.
+5. `examples/market` gains an RSI track and a last-price tag; `-live` a
+   last-price tag following the open candle, and a crosshair snapping to the
+   candle under a resting pointer, drawn into the file it writes.
+
+## Amendment — what building it decided
+
+- **A crosshair is handed its index.** Claim 3 said the overlay already had the
+  index; it does not — an `OverlayFrame` carries panels and a theme, and the
+  index is the `Live`'s. So `Crosshair.Snap` is a field the host sets to
+  `live.Index()`. The rows it snaps to are the current frame's, because the
+  overlay paints at the end of the render that reported them.
+- **A value read off an axis gets its own label.** A tick label has the tick
+  step's precision, so `scale.LabelOf` would have written a last price of 94.37
+  as "94", and a time axis is not a `Labeller` at all. `scale.ValueLabelOf`
+  writes a linear value with as many decimals as it needs, up to two more than
+  the ticks — 7.25, 94.37, 92.40 — and a time value as its date, with the time
+  of day when it is not a midnight.
+- **An overlay's tags cover; a layer's tags hide.** A layer's tags are known
+  before the axes are drawn, so the tick labels they cover are left out. An
+  overlay draws after the axes, so its tags are opaque boxes over whatever is
+  there. Tags on a secondary axis cover rather than hide as well: the
+  secondary axes are drawn by a separate pass that does not take a tick list.
+- **RSI is checked against the arithmetic, and the published page to its
+  rounding.** StockCharts' example computes from closes it prints rounded to
+  the cent, so its RSI sits a few hundredths from what the printed closes give
+  — 70.53 published, 70.46 from the printed data. The test checks the first
+  value exactly against the seed's own sums and the published ones to 0.1.
+- **A last value trains its value axis on the newest value only.** It
+  annotates a series another layer draws; widening the axis to rows it does
+  not show would be a mark changing an axis it does not describe.

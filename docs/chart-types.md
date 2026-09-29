@@ -74,6 +74,11 @@ and it turns eight charts into recipes.
 | Candlestick / OHLC | `geom.Candle` with `geom.OHLC(open, high, low, close)` — one layer that decides each row's direction; `geom.CandleStyle(geom.Ticks)` for the OHLC bar; `stat.OHLC` resamples ticks and `figure.CandleTable` makes its table; `scale.Folds` of a `scale.Calendar` takes the closed days out — see [ADR 0088](adr/0088-a-candle-is-one-mark-that-reads-four-values.md), [ADR 0086](adr/0086-a-calendar-says-when-time-counts.md) and `examples/market`. The recipe it replaces is still true: a `Rect` from open to close over an `ErrorBar` without caps from low to high |
 | Volume under a price / volume profile beside it | a `Bar` in a bottom `Track` sharing time; a horizontal `Bar` (`geom.Orient(geom.Horizontal)`, grouped by side) in a right `Track` sharing price, from `stat.BinWeighted` — see `examples/market` |
 | Bollinger band / Donchian channel | `Area` between `Y` and `Y2`, from `stat.TrailingMean` ± k·`stat.RollingStdDev`, or `stat.RollingMin` / `RollingMax` |
+| RSI panel | `stat.RSI` (Wilder's, not an EMA composition) as a `Line` in a bottom `Track` with `scale.Domain(0, 100)`, and an `HBand(30, 70)` — see `examples/market` and [ADR 0092](adr/0092-what-a-trading-screen-reads-off-its-edges.md) |
+| MACD panel | a recipe, because composing it is its definition: `macd = EMA(12) − EMA(26)` of the closes, `signal = EMA(9)` of `macd`, both as `Line`s in a bottom `Track`, and `macd − signal` as a `Bar` with `DirectionBy("", "hist")` |
+| VWAP | `stat.VWAP(ts, ps, vs, edges)` with a calendar's `scale.Opens` as the session edges, drawn as a `Line` over the candles |
+| Last price | `geom.LastValue` — a rule and a tag on the price axis at the newest row, in its direction's colour |
+| Snapping crosshair | `figure.Crosshair{Snap: live.Index(), Tags: true}` over a `Live` with `TrackRows(true)` — the candle at the pointer's time, its time and close tagged on the axes |
 | Waterfall | `Rect` with per-row `y0`/`y1` from a running total, through `Y` and `Y2` |
 | Bullet | `Rect` bands, a measure bar and a target rule |
 | Waffle | a `Rect` grid from counts |
