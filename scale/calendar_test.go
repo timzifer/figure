@@ -342,3 +342,35 @@ func TestADayTickInAFoldMovesToTheNextOpen(t *testing.T) {
 		seen[tk.Label] = true
 	}
 }
+
+// A value read off an axis carries the precision a value between ticks needs:
+// two decimals more than a linear axis's ticks, and the time of day on a time
+// axis when the instant is not a midnight.
+func TestAValueLabelIsFinerThanATickLabel(t *testing.T) {
+	l := scale.Linear()
+	l.Train(0, 100)
+	l.SetRange(0, 400)
+	if got := scale.ValueLabelOf(l, 94.37); got != "94.37" {
+		t.Errorf("a value between whole-number ticks reads %q, want 94.37", got)
+	}
+	ts := scale.Time()
+	day := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+	ts.Train(scale.ValueOf(ts, day), scale.ValueOf(ts, day.AddDate(0, 0, 10)))
+	if got := scale.ValueLabelOf(ts, scale.ValueOf(ts, day)); got != "Jun 3" {
+		t.Errorf("a midnight reads %q, want the date", got)
+	}
+	if got := scale.ValueLabelOf(ts, scale.ValueOf(ts, day.Add(14*time.Hour+5*time.Minute))); got != "Jun 3 14:05" {
+		t.Errorf("an afternoon reads %q, want the date and the time", got)
+	}
+}
+
+// A value that needs more decimals than two beyond the ticks is rounded to
+// two beyond them, not written out in full.
+func TestAValueLabelStopsTwoDecimalsPastTheTicks(t *testing.T) {
+	l := scale.Linear(scale.Nice())
+	l.Train(89.98, 98.1)
+	l.SetRange(300, 0)
+	if got := scale.ValueLabelOf(l, 92.4028); got != "92.40" {
+		t.Errorf("92.4028 on an axis ticked in twos reads %q, want 92.40", got)
+	}
+}
