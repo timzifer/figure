@@ -486,11 +486,28 @@ func Draw(b ir.Backend, c Chart) error {
 
 	fur := acquireFurniture()
 	axesOver := false
+	// The tags the layers write on their axes, per panel. They are placed
+	// before the axes are drawn, so the tick labels they cover can be left out,
+	// and painted after the data, over the gutter. See
+	// docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+	var tags [][]placedTag
 	for i, p := range panels {
 		area := lay.Areas[i]
 		cd, xTicks, yTicks := p.rangeTo(c.coordOf(p), area, th)
 		if coords != nil {
 			coords[i] = cd
+		}
+		if cd.Straight() {
+			if placed := placeTags(b, th, area, TagScales{X: p.X, Y: p.Y, X2: p.X2, Y2: p.Y2},
+				layerTags(p, area, cd, th, c.Hidden)); len(placed) > 0 {
+				if tags == nil {
+					tags = make([][]placedTag, len(panels))
+				}
+				tags[i] = placed
+				half := float32(th.TickSize) / 2
+				xTicks = hideCovered(xTicks, placed, geom.TagX, half)
+				yTicks = hideCovered(yTicks, placed, geom.TagY, half)
+			}
 		}
 		fur.Reset()
 		cd.Furniture(fur, coord.FurnitureRequest{Area: area, Metrics: metricsOf(th), XTicks: xTicks, YTicks: yTicks})
@@ -521,6 +538,9 @@ func Draw(b ir.Backend, c Chart) error {
 	}
 	if axesOver {
 		drawAxesOverData(b, c, panels, lay.Areas, th)
+	}
+	for _, placed := range tags {
+		drawTags(b, th, placed)
 	}
 
 	// The solver reserves one box per guide, in order, so these are parallel.

@@ -107,3 +107,25 @@ func TestADirectionSurvivesTheDocument(t *testing.T) {
 		})
 	}
 }
+
+// A last value survives the document with its rule, its direction and its
+// colour.
+func TestALastValueSurvivesTheDocument(t *testing.T) {
+	src := candleTable()
+	for name, layer := range map[string]geom.Geom{
+		"plain":     geom.LastValue(src, geom.X("t"), geom.Y("c")),
+		"no rule":   geom.LastValue(src, geom.X("t"), geom.Y("c"), geom.Rule(false)),
+		"direction": geom.LastValue(src, geom.X("t"), geom.Y("c"), geom.DirectionBy("o", "c"), geom.Dash(4, 2)),
+		"coloured":  geom.LastValue(src, geom.X("t"), geom.Y("c"), geom.Color(ir.RGB(9, 8, 7))),
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := chartOf(geom.Line(src, geom.X("t"), geom.Y("c")), layer)
+			want, got := draw(t, c), draw(t, roundTrip(t, c))
+			if strings.Join(want, "\n") != strings.Join(got, "\n") {
+				s, _ := spec.Of(c)
+				b, _ := s.Marshal()
+				t.Errorf("the last value did not survive the round trip\n%s", b)
+			}
+		})
+	}
+}

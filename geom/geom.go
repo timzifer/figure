@@ -279,6 +279,9 @@ type config struct {
 	// previous row.
 	dirFrom, dirTo string
 
+	// rule is whether a [LastValue] draws its line across the panel.
+	rule bool
+
 	sizeCol   string
 	sizeScale scale.SizeScale
 

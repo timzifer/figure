@@ -353,6 +353,7 @@ func decodeLayer(l Layer, shared data.Source) (geom.Geom, error) {
 	if l.Mark.Caps != nil {
 		d.Caps = *l.Mark.Caps
 	}
+	d.Rule = l.Mark.Rule == nil || *l.Mark.Rule
 	if l.Mark.Direction == "previous" {
 		d.Direction = geom.SincePrevious
 	}

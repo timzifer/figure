@@ -229,6 +229,11 @@ type Mark struct {
 	RisingLabel  string `json:"risingLabel,omitempty"`
 	FallingLabel string `json:"fallingLabel,omitempty"`
 
+	// Rule is whether a last-value layer draws its line across the panel: a
+	// pointer, because the default is true and a document that says nothing
+	// must keep it. It is figure's.
+	Rule *bool `json:"rule,omitempty"`
+
 	// XAxis and YAxis name the scales this layer's values are read against:
 	// "x2" and "y2" for the chart's secondary axes, and empty for its primary
 	// ones. They are two fields rather than one because the two directions are

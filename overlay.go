@@ -1,6 +1,8 @@
 package figure
 
 import (
+	"github.com/timzifer/figure/geom"
+	"github.com/timzifer/figure/interact"
 	"github.com/timzifer/figure/ir"
 	"github.com/timzifer/figure/render"
 	"github.com/timzifer/figure/theme"
@@ -78,6 +80,20 @@ type Crosshair struct {
 	// wants only the vertical one.
 	NoVertical   bool
 	NoHorizontal bool
+
+	// Snap is the index the crosshair snaps to — [Live.Index] — or nil to
+	// follow the pointer. With it, the lines cross at the row nearest At along
+	// X, where that row was reported: for a candle, the middle of its slot at
+	// its close. It needs row tracking ([Live.TrackRows]); without rows there
+	// is nothing to snap to and the crosshair follows the pointer. See
+	// docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+	Snap *interact.Index
+
+	// Tags writes the crosshair's position on the panel's axes: its X on the
+	// horizontal axis and its Y on the vertical one, in each axis's own
+	// format, in TagColor or the theme's annotation colour.
+	Tags     bool
+	TagColor ir.Color
 }
 
 // DrawOverlay implements [render.Overlay].
@@ -88,6 +104,16 @@ func (c *Crosshair) DrawOverlay(b ir.Backend, f OverlayFrame) {
 	p, ok := panelFor(f, c.Panel, c.At)
 	if !ok {
 		return
+	}
+	at := c.At
+	if c.Snap != nil {
+		if r, ok := c.Snap.NearestAlong(p.Index, interact.AlongX, at.X); ok {
+			at = r.At
+		}
+	}
+	if c.Tags {
+		// Drawn once the lines are, outside the clip: a tag sits on the axis.
+		defer c.drawTags(b, f, p, at)
 	}
 	stroke := ir.Stroke{
 		Color: orElse(c.Color, fade(f.Theme.AxisColor, 0.55)),
@@ -103,16 +129,28 @@ func (c *Crosshair) DrawOverlay(b ir.Backend, f OverlayFrame) {
 
 	if !c.NoVertical {
 		b.Polyline([]ir.Point{
-			{X: c.At.X, Y: p.Area.Min.Y},
-			{X: c.At.X, Y: p.Area.Max.Y},
+			{X: at.X, Y: p.Area.Min.Y},
+			{X: at.X, Y: p.Area.Max.Y},
 		}, stroke)
 	}
 	if !c.NoHorizontal {
 		b.Polyline([]ir.Point{
-			{X: p.Area.Min.X, Y: c.At.Y},
-			{X: p.Area.Max.X, Y: c.At.Y},
+			{X: p.Area.Min.X, Y: at.Y},
+			{X: p.Area.Max.X, Y: at.Y},
 		}, stroke)
 	}
+}
+
+// drawTags writes the crosshair's position on the axes its lines cross.
+func (c *Crosshair) drawTags(b ir.Backend, f OverlayFrame, p OverlayPanel, at ir.Point) {
+	var tags []geom.AxisTag
+	if !c.NoVertical && p.X != nil {
+		tags = append(tags, geom.AxisTag{Axis: geom.TagX, Value: p.X.Invert(at.X), Color: c.TagColor})
+	}
+	if !c.NoHorizontal && p.Y != nil {
+		tags = append(tags, geom.AxisTag{Axis: geom.TagY, Value: p.Y.Invert(at.Y), Color: c.TagColor})
+	}
+	render.DrawAxisTags(b, f.Theme, p.Area, render.TagScales{X: p.X, Y: p.Y, X2: p.X2, Y2: p.Y2}, tags)
 }
 
 // Highlight rings a set of marks, to say "these ones".

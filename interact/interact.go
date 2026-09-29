@@ -682,6 +682,50 @@ func (ix *Index) RowsOf(panel, layer int, dst []RowRef) []RowRef {
 	return dst
 }
 
+// Along is which device axis [Index.NearestAlong] measures along.
+type Along uint8
+
+// The two directions a nearest row can be measured along.
+const (
+	AlongX Along = iota
+	AlongY
+)
+
+// NearestAlong reports the row of a panel whose reported position is nearest
+// at along one device axis, whatever its distance along the other.
+//
+// It is the question a trader's crosshair asks — the candle at this time —
+// which [Index.At] does not answer: At finds the nearest mark in the plane,
+// and between two candles, or over a tall one, that is not the one at the
+// pointer's time. Rows at the same distance go to the one painted first, so
+// the candle a panel draws before its indicator lines wins a tie with them.
+//
+// It needs row tracking — see [Index.TrackRows] — and reports false for a
+// panel with no rows. See docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+func (ix *Index) NearestAlong(panel int, along Along, at float32) (RowRef, bool) {
+	best, found := -1, false
+	var dist float32
+	for i, r := range ix.rows {
+		if r.panel != panel {
+			continue
+		}
+		d := r.at.X - at
+		if along == AlongY {
+			d = r.at.Y - at
+		}
+		if d < 0 {
+			d = -d
+		}
+		if !found || d < dist {
+			best, dist, found = i, d, true
+		}
+	}
+	if !found {
+		return RowRef{}, false
+	}
+	return ix.refOf(ix.rows[best]), true
+}
+
 // RowsIn appends every row that landed inside r to dst and returns it, in
 // paint order.
 //

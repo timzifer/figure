@@ -126,6 +126,11 @@ const (
 	// docs/adr/0088-a-candle-is-one-mark-that-reads-four-values.md.
 	MarkCandle Mark = "candle"
 
+	// MarkLastValue is the newest value of a column written on its axis, with
+	// a rule across the panel to it — a trading screen's last price. See
+	// docs/adr/0092-what-a-trading-screen-reads-off-its-edges.md.
+	MarkLastValue Mark = "last-value"
+
 	// MarkLocus is a family of curves given by a formula rather than by a tick:
 	// a Nichols chart's M and N contours, a Smith chart's VSWR circles. It is
 	// an annotation because none of those is at a value of either axis — see
@@ -444,11 +449,13 @@ type Desc struct {
 	// compares, DirectionFrom empty for the previous row. Its colours and
 	// labels are Rising, Falling, RisingLabel and FallingLabel.
 	DirectionFrom, DirectionTo string
-	Direction                  CandleDirection
-	Rising, Falling            *ir.Color
-	RisingLabel, FallingLabel  string
-	Hollow, HollowSet          bool
-	CandleStyle                CandleStyleKind
+	// Rule is whether a [LastValue] draws its line across the panel.
+	Rule                      bool
+	Direction                 CandleDirection
+	Rising, Falling           *ir.Color
+	RisingLabel, FallingLabel string
+	Hollow, HollowSet         bool
+	CandleStyle               CandleStyleKind
 
 	// Extra is what a third-party mark's own options set — see [Extra]. It is
 	// nil for a layer configured entirely from this package's options, and
@@ -529,6 +536,8 @@ func FromDesc(d Desc) (Geom, error) {
 		return Bar(d.Source, opts...), nil
 	case MarkCandle:
 		return Candle(d.Source, opts...), nil
+	case MarkLastValue:
+		return LastValue(d.Source, append(opts, Rule(d.Rule))...), nil
 	case MarkArea:
 		return Area(d.Source, opts...), nil
 	case MarkStep:
@@ -897,6 +906,7 @@ func (c config) describeStacking(mark Mark, def Stacking) Desc {
 		Caps:          c.caps,
 		OHLC:          c.ohlc,
 		DirectionFrom: c.dirFrom,
+		Rule:          c.rule,
 		DirectionTo:   c.dirTo,
 		Direction:     c.direction,
 		Rising:        c.rising.color,

@@ -687,6 +687,14 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		if d.MarkerSet {
 			m.Shape = shapeName(d.Marker)
 		}
+	case geom.MarkLastValue:
+		stroke()
+		if d.Color != nil {
+			m.Color = colorHex(*d.Color)
+		}
+		if !d.Rule {
+			m.Rule = boolPtr(false)
+		}
 	case geom.MarkCandle:
 		stroke()
 		fill()
