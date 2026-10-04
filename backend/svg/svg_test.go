@@ -176,6 +176,59 @@ func TestClipAndTransformGroup(t *testing.T) {
 	}
 }
 
+// Two documents inlined into one page share an id namespace, and both count
+// from one. Every id a document defines, and every reference to one, has to
+// carry the prefix, or the second chart's cells are clipped to the first's
+// panel and its aria-labelledby reads the first one's title.
+func TestIDPrefixReachesEveryIdAndReference(t *testing.T) {
+	b, finish := open(t, svg.IDPrefix("chart2-"))
+	b.(ir.Semantics).Describe(ir.Description{Title: "T", Detail: "D"})
+	var clip ir.Path
+	clip.Rect(ir.R(0, 0, 50, 50))
+	b.Push(&clip, ir.Affine{A: 1, D: 1})
+	b.Markers(ir.MarkerCircle, []ir.Point{{X: 1, Y: 1}}, ir.MarkerStyle{Size: 6, Fill: ir.RGB(0, 128, 0)})
+	var p ir.Path
+	p.Rect(ir.R(0, 0, 10, 10))
+	b.FillPath(&p, ir.Fill{
+		Color: ir.RGB(0, 0, 0), End: ir.Point{X: 10},
+		Stops: []ir.GradientStop{{Offset: 0, Color: ir.RGB(0, 0, 0)}, {Offset: 1, Color: ir.RGB(255, 255, 255)}},
+	}, ir.NonZero)
+	b.Pop()
+	got := finish()
+
+	for _, want := range []string{
+		`<clipPath id="chart2-c1">`, `clip-path="url(#chart2-c1)"`,
+		`<path id="chart2-m2"`, `href="#chart2-m2"`,
+		`<linearGradient id="chart2-g3"`, `fill="url(#chart2-g3)"`,
+		`aria-labelledby="chart2-figure-title chart2-figure-desc"`,
+		`<title id="chart2-figure-title">`, `<desc id="chart2-figure-desc">`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in:\n%s", want, got)
+		}
+	}
+	for _, unprefixed := range []string{`id="c1"`, `id="m2"`, `id="g3"`, `id="figure-`, `"#c1`, `"#m2`, `(#c1`, `(#g3`, `="figure-`, `"figure-`} {
+		if strings.Contains(got, unprefixed) {
+			t.Errorf("found unprefixed %s in:\n%s", unprefixed, got)
+		}
+	}
+}
+
+func TestABadIDPrefixIsReportedOnOpen(t *testing.T) {
+	for _, p := range []string{"1chart", "-x", `a"b`, "a b", "ä"} {
+		var buf bytes.Buffer
+		if _, err := svg.Writer(&buf, svg.IDPrefix(p)).Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1}); err == nil {
+			t.Errorf("IDPrefix(%q) opened without an error", p)
+		}
+	}
+	for _, p := range []string{"", "a", "_x", "chart-2.", "Fig_3-"} {
+		var buf bytes.Buffer
+		if _, err := svg.Writer(&buf, svg.IDPrefix(p)).Open(ir.Surface{WidthPx: 10, HeightPx: 10, DPR: 1}); err != nil {
+			t.Errorf("IDPrefix(%q): %v", p, err)
+		}
+	}
+}
+
 func TestUnbalancedPushIsAnError(t *testing.T) {
 	var buf bytes.Buffer
 	target := svg.Writer(&buf)

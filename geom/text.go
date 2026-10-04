@@ -61,6 +61,10 @@ import (
 // A layer given [ColorBy] takes each label's ink from the fill that scale
 // gives the row, dark on light and light on dark, so that a qualitative
 // palette does not leave half its categories unreadable. [Color] overrides it.
+// The layer reads only its own options, never the layer under it: labels over
+// a heatmap need the heatmap's ColorBy repeated on the text layer, with the
+// same scale value so the two agree and the chart keeps one colourbar —
+// without it every label is drawn in the theme's label ink, dark on dark cells.
 //
 // AvoidOverlap opts into the renderer's panel-local label layout. Point labels
 // may move; box labels remain anchored to their own box and are dropped if they

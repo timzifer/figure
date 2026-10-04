@@ -18,6 +18,8 @@ type options struct {
 	fontFail error
 	family   string
 	pretty   bool
+	idPrefix string
+	idFail   error
 }
 
 // WithFont supplies a TrueType or OpenType file whose metrics are used for
@@ -46,6 +48,44 @@ func WithFontFamily(family string) Option {
 // Pretty writes one element per line. Off by default: the compact form is
 // smaller, and golden files are diffed by tooling rather than read.
 func Pretty() Option { return func(o *options) { o.pretty = true } }
+
+// IDPrefix puts p in front of every id the document defines: its clip paths,
+// marker shapes and gradients, and the <title> and <desc> its aria-labelledby
+// names.
+//
+// A standalone file needs none, which is why the default is no prefix and
+// leaves the output byte for byte as it was. It is for several documents
+// inlined into one HTML page, which share one id namespace: every chart counts
+// its ids from one, so the second chart's url(#c1) resolves to the first
+// chart's clip and its cells are cut to the wrong rectangle, and its
+// aria-labelledby reads out the first chart's title. Give each document its own
+// prefix — "sales-", "chart2-" — and they cannot meet.
+//
+// p must be usable at the front of an XML name: an ASCII letter or underscore,
+// then letters, digits, '-', '_' or '.'. Anything else is reported on Open
+// rather than written into an attribute it would break.
+func IDPrefix(p string) Option {
+	return func(o *options) {
+		if !validPrefix(p) {
+			o.idFail = fmt.Errorf("id prefix %q is not the start of an XML name", p)
+			return
+		}
+		o.idPrefix = p
+	}
+}
+
+func validPrefix(p string) bool {
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 // Writer returns a Target that writes an SVG document to w.
 func Writer(w io.Writer, opts ...Option) ir.Target {
@@ -77,6 +117,9 @@ func (t *target) Open(s ir.Surface) (ir.Backend, error) {
 	widthPx, heightPx, dpr := s.WidthPx, s.HeightPx, s.DPR
 	if t.opts.fontFail != nil {
 		return nil, fmt.Errorf("figure/backend/svg: %w", t.opts.fontFail)
+	}
+	if t.opts.idFail != nil {
+		return nil, fmt.Errorf("figure/backend/svg: %w", t.opts.idFail)
 	}
 	if t.w == nil {
 		f, err := os.Create(t.path)

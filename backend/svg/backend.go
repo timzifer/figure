@@ -54,7 +54,8 @@ func newBackend(out io.Writer, w, h int, dpr float64, o options) *backend {
 }
 
 // The ids the accessible title and description are written under. A document
-// has one chart in it, so they need no counter.
+// has one chart in it, so they need no counter; [IDPrefix] is what keeps two
+// documents on one page apart.
 const (
 	titleID = "figure-title"
 	descID  = "figure-desc"
@@ -74,11 +75,11 @@ func (b *backend) accessibilityAttrs(head *bytes.Buffer) {
 	head.WriteString(` role="img" aria-labelledby="`)
 	switch {
 	case b.desc.Title != "" && b.desc.Detail != "":
-		head.WriteString(titleID + " " + descID)
+		head.WriteString(b.opts.idPrefix + titleID + " " + b.opts.idPrefix + descID)
 	case b.desc.Title != "":
-		head.WriteString(titleID)
+		head.WriteString(b.opts.idPrefix + titleID)
 	default:
-		head.WriteString(descID)
+		head.WriteString(b.opts.idPrefix + descID)
 	}
 	head.WriteString(`"`)
 }
@@ -88,13 +89,13 @@ func (b *backend) accessibilityAttrs(head *bytes.Buffer) {
 // reader should find them.
 func (b *backend) accessibilityElements(head *bytes.Buffer) {
 	if b.desc.Title != "" {
-		head.WriteString(`<title id="` + titleID + `">`)
+		head.WriteString(`<title id="` + b.opts.idPrefix + titleID + `">`)
 		xmlEscape(head, b.desc.Title)
 		head.WriteString(`</title>`)
 		b.nl(head)
 	}
 	if b.desc.Detail != "" {
-		head.WriteString(`<desc id="` + descID + `">`)
+		head.WriteString(`<desc id="` + b.opts.idPrefix + descID + `">`)
 		xmlEscape(head, b.desc.Detail)
 		head.WriteString(`</desc>`)
 		b.nl(head)
@@ -103,7 +104,7 @@ func (b *backend) accessibilityElements(head *bytes.Buffer) {
 
 func (b *backend) id(prefix string) string {
 	b.nextID++
-	return prefix + strconv.Itoa(b.nextID)
+	return b.opts.idPrefix + prefix + strconv.Itoa(b.nextID)
 }
 
 // nl writes a newline in pretty mode and nothing otherwise, so the compact and
