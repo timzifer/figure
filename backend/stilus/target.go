@@ -26,6 +26,7 @@ const (
 type Option func(*options)
 
 type options struct {
+	deferred    bool
 	fonts       *fontSet
 	fallback    []*face
 	fontErr     error
@@ -247,6 +248,7 @@ type Surface struct {
 	opts   options
 	glyphs st.GlyphCache
 	b      *backend
+	d      *deferred   // the backend of a [Deferred] surface, instead of b
 	spare  *image.RGBA // the last buffer, reused by the next Open of its size
 }
 
@@ -259,6 +261,14 @@ func NewSurface(opts ...Option) *Surface {
 // Open prepares the surface for a chart of the given size. Opening a surface
 // that is already open replaces what it held.
 func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
+	if s.opts.deferred {
+		d, err := s.opts.openDeferred(sf, &s.glyphs)
+		if err != nil {
+			return nil, err
+		}
+		s.d = d
+		return d, nil
+	}
 	if s.b != nil {
 		s.spare = s.b.img
 	}
@@ -276,15 +286,42 @@ func (s *Surface) Close() error {
 	if s.b != nil {
 		s.spare = s.b.img
 	}
-	s.b = nil
+	s.b, s.d = nil, nil
 	return nil
+}
+
+// Composite rasterises the latest frame of a [Deferred] surface onto dst,
+// which it clears first. dst is in device pixels and should be
+// [Surface.PixelSize]; what lies outside that is not drawn.
+//
+// It is the one place a deferred surface touches pixels, so it is where a
+// window calls it: in its draw callback, when the generation has moved since
+// the last time or the destination is new.
+func (s *Surface) Composite(dst Compositor) error {
+	if s.d == nil {
+		return errors.New("figure/backend/stilus: Composite needs an open deferred surface")
+	}
+	return s.d.composite(dst)
+}
+
+// PixelSize reports the size in device pixels of what the surface draws: its
+// logical size times the device pixel ratio, rounded as its buffer is.
+func (s *Surface) PixelSize() (w, h int) {
+	switch {
+	case s.d != nil:
+		return s.d.pixelSize()
+	case s.b != nil:
+		return s.b.img.Rect.Dx(), s.b.img.Rect.Dy()
+	}
+	return 0, 0
 }
 
 // Image returns what has been drawn, or nil before the first [Surface.Open].
 //
 // The image is the surface's own buffer rather than a copy, so it is valid
 // until the next frame overwrites it. A caller keeping one past that must copy
-// it. Its pixels are premultiplied, as an [image.RGBA]'s are.
+// it. Its pixels are premultiplied, as an [image.RGBA]'s are. A [Deferred]
+// surface has no pixels and returns nil.
 func (s *Surface) Image() image.Image {
 	if s.b == nil {
 		return nil
@@ -299,17 +336,23 @@ func (s *Surface) Image() image.Image {
 // touched. It is zero for a surface that has not been opened, and it is not a
 // frame number: a frame that painted nothing does not advance it.
 func (s *Surface) Generation() uint64 {
-	if s.b == nil {
-		return 0
+	switch {
+	case s.d != nil:
+		return s.d.gen
+	case s.b != nil:
+		return s.b.gen
 	}
-	return s.b.gen
+	return 0
 }
 
 // Size reports the surface's logical size, and the device pixel ratio its
 // buffer is scaled by.
 func (s *Surface) Size() (w, h int, dpr float64) {
-	if s.b == nil {
-		return 0, 0, 0
+	switch {
+	case s.d != nil:
+		return s.d.w, s.d.h, s.d.dpr
+	case s.b != nil:
+		return s.b.w, s.b.h, s.b.dpr
 	}
-	return s.b.w, s.b.h, s.b.dpr
+	return 0, 0, 0
 }

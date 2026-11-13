@@ -52,7 +52,14 @@ func newBackend(img *image.RGBA, w, h int, dpr float64, fonts *fontSet, glyphs *
 	if glyphs == nil {
 		glyphs = new(st.GlyphCache)
 	}
-	b := &backend{img: img, c: st.NewCanvas(img), fonts: fonts, glyphs: glyphs, w: w, h: h, dpr: dpr}
+	b := &backend{img: img, fonts: fonts, glyphs: glyphs, w: w, h: h, dpr: dpr}
+	// A deferred surface's backend has no pixels: its canvas is pointed at a
+	// compositor for each frame it rasterises (Canvas.ResetCompositor).
+	if img != nil {
+		b.c = st.NewCanvas(img)
+	} else {
+		b.c = new(st.Canvas)
+	}
 	b.stack = append(b.stack, level{m: st.Scale(dpr, dpr)})
 	return b
 }
