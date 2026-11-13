@@ -38,8 +38,11 @@ draws and `window/show` steers, because a backend must not import the model
 
 `go.work` at the repository root is **committed**, so the six modules build
 together with no setup. If your tooling ignores it,
-`go work init . ./arrow/v18 ./backend/gg ./backend/gg/gpu ./backend/stilus ./backend/window`
-reproduces it.
+`go work init . ./arrow/v18 ./backend/gg ./backend/stilus ./backend/window`
+reproduces it. The deprecated GPU tier is not in it: it holds wgpu below v0.33
+and the window is on v0.34, and a workspace has one build list. It has a
+workspace of its own, `backend/gg/gpu/go.work`, which the go command finds by
+itself from inside that directory.
 
 The workspace says `go 1.27.1`, because `backend/stilus` does: its font
 library requires it ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)),

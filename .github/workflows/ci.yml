@@ -120,7 +120,7 @@ jobs:
         run: |
           go build ./...
           go build ./backend/gg/...
-          go build ./backend/gg/gpu/...
+          (cd backend/gg/gpu && go build ./...)
           go build ./arrow/v18/...
 
       - name: Build the stilus and window backends
@@ -150,6 +150,11 @@ jobs:
         working-directory: backend/window
         run: go test ./...
 
+      # The GPU tier is built from its own workspace, backend/gg/gpu/go.work,
+      # which the go command finds from inside that directory: it holds wgpu
+      # below v0.33 and the window is on v0.34, so the two cannot share the
+      # repository's workspace (docs/adr/0094).
+      #
       # The GPU tier registers an accelerator that a runner has no device for.
       # The test asserts the property that has to hold either way: a chart
       # renders, and it renders the same chart. See docs/adr/0022.
@@ -263,7 +268,8 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build ./backend/gg/gpu/...
+        working-directory: backend/gg/gpu
+        run: go build ./...
 
       - name: Build the Arrow adapter for ${{ matrix.goos }}/${{ matrix.goarch }}
         env:

@@ -14,8 +14,9 @@ require github.com/gogpu/gg v0.52.5
 
 // wgpu is held below v0.33, which turned the render-pass calls into struct
 // arguments; gg v0.52.5 above still makes the old calls, so a newer wgpu fails
-// to build gg rather than this package. See backend/window/go.mod, which
-// carries the same ceiling, and .github/dependabot.yml.
+// to build gg rather than this package. That is also why this module has a
+// workspace of its own, go.work beside this file: the window is on wgpu v0.34
+// now, and one workspace cannot hold both. See .github/dependabot.yml.
 require (
 	github.com/gogpu/wgpu v0.32.1
 	github.com/timzifer/figure v0.9.0
@@ -37,7 +38,8 @@ require (
 // (gogpu/gg#534, #537, #538, #539, #540). This is the only module that needs
 // them: every one changes what gg's GPU accelerator draws, and this module is
 // what registers that accelerator — the raster backend and the window backend
-// draw on the CPU. go.work applies the replacement to the whole workspace.
+// draw on the CPU. This module's own go.work applies the replacement while it
+// is built; the repository's workspace does not contain it.
 //
 // A replace does not reach anyone who imports this module, and the release
 // check refuses one, so the tier is held out of releases (-skip backend/gg/gpu)

@@ -36,14 +36,17 @@ jobs:
           languages: go
           build-mode: manual
 
-      # go.work ties the five modules together, so one build covers them all.
+      # go.work ties the modules together, so one build covers them — except
+      # the deprecated GPU tier, which holds wgpu below v0.33 and is built from
+      # its own workspace, backend/gg/gpu/go.work.
       - name: Build every module
         run: |
           go build ./...
           go build ./backend/gg/...
-          go build ./backend/gg/gpu/...
+          go build ./backend/stilus/...
           go build ./backend/window/...
           go build ./arrow/v18/...
+          (cd backend/gg/gpu && go build ./...)
 
       - uses: github/codeql-action/analyze@v4
         with:

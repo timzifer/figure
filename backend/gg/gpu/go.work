@@ -1,0 +1,18 @@
+// The GPU tier's own workspace: the tier, the gg backend and the core.
+//
+// It is not in the repository's go.work because a workspace has one build list
+// and the tier holds wgpu below v0.33 — gg v0.52.5 makes the render-pass calls
+// wgpu v0.33 turned into struct arguments — while backend/window composites
+// through stilus/gpu on wgpu v0.34. The go command finds this file by itself
+// from inside this directory, so `cd backend/gg/gpu && go test ./...` builds
+// against the core and backend/gg in the tree, and applies this module's
+// replacement of gg with the fork that carries the tier's fixes.
+//
+// The tier is deprecated with backend/gg (docs/adr/0094).
+go 1.25.0
+
+use (
+	.
+	../
+	../../../
+)
