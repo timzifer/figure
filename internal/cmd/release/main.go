@@ -2,7 +2,7 @@
 //
 // The tag names are mechanical: the supported paths share the core's version,
 // the Arrow adapter and the GPU tier carry majors of their own, and each tag is
-// prefixed with its module's directory. Spelling that out by hand five times
+// prefixed with its module's directory. Spelling that out by hand six times
 // was the part of releasing that went wrong quietly, so this derives it.
 //
 // Tagging order does not matter. Each module is checked against the versions

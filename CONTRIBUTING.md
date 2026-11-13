@@ -2,12 +2,13 @@
 
 ## Layout
 
-This is a five-module repository:
+This is a six-module repository:
 
 | Path | Module | Depends on |
 |---|---|---|
 | `.` | `github.com/timzifer/figure` | **nothing** — the standard library only |
 | `backend/gg` | `github.com/timzifer/figure/backend/gg` | `gogpu/gg`, `x/image` |
+| `backend/stilus` | `github.com/timzifer/figure/backend/stilus` | `timzifer/stilus`, `go-opentype/opentype` and `/fonts` — Go 1.27.1 ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)) |
 | `backend/gg/gpu` | `github.com/timzifer/figure/backend/gg/gpu` | `gogpu/gg/gpu` → `wgpu`, `naga`, `goffi` |
 | `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu`, and the two above |
 | `arrow/v18` | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — its major version is the adapter's ([ADR 0030](docs/adr/0030-arrow-major-version.md)) |
@@ -402,7 +403,7 @@ ruleset's bypass at the new key's id.
 
 ## Releasing
 
-One command releases all five modules. From the repository root:
+One command releases all six modules. From the repository root:
 
 ```sh
 go run ./internal/cmd/release -core vX.Y.Z -summary "what the release is called"
@@ -415,13 +416,15 @@ stops. Re-run it with `-push` to write the tags on `HEAD` and push them.
 Would tag HEAD:
   v0.8.0                 v0.8.0 — the release being tagged
   backend/gg/v0.8.0      backend/gg v0.8.0 — the raster path at core v0.8.0
+  backend/stilus/v0.8.0  backend/stilus v0.8.0 — the stilus raster path at core v0.8.0
   arrow/v18.0.4          arrow/v18.0.4 — the adapter at core v0.8.0
   backend/gg/gpu/v0.3.0  backend/gg/gpu v0.3.0 — the tier at core v0.8.0
   backend/window/v0.8.0  backend/window v0.8.0 — the native path at core v0.8.0
 ```
 
-The versions are derived. `backend/gg` and `backend/window` share the core's —
-they are the supported raster and native paths, and their own APIs are small.
+The versions are derived. `backend/gg`, `backend/stilus` and `backend/window`
+share the core's — they are the supported raster and native paths, and their
+own APIs are small.
 The GPU tier and the Arrow adapter carry majors of their own, so they move a
 patch above their latest tag; `-gpu` and `-arrow` say otherwise when a release
 changes their API. `-skip` leaves a module unreleased. Tag prefixes are the
@@ -429,7 +432,7 @@ module's directory without any major-version suffix, which is why the adapter
 tags as `arrow/` rather than `arrow/v18/`
 ([ADR 0030](docs/adr/0030-arrow-major-version.md)).
 
-Order does not matter: all five tags go on one commit, because no `require`
+Order does not matter: all six tags go on one commit, because no `require`
 line names a tag that does not exist yet.
 
 The command refuses to release a tag that already exists, a working tree with

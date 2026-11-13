@@ -7,9 +7,9 @@ on:
         description: Module to check before tagging (prerequisites must be published)
         type: choice
         default: all
-        options: [all, '.', backend/gg, arrow/v18, backend/gg/gpu, backend/window]
+        options: [all, '.', backend/gg, backend/stilus, arrow/v18, backend/gg/gpu, backend/window]
   push:
-    tags: ['v*', 'backend/gg/v*', 'backend/gg/gpu/v*', 'backend/window/v*', 'arrow/v18.*']
+    tags: ['v*', 'backend/gg/v*', 'backend/gg/gpu/v*', 'backend/stilus/v*', 'backend/window/v*', 'arrow/v18.*']
 
 permissions:
   contents: read

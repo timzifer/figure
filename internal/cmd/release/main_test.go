@@ -16,8 +16,9 @@ func v(s string) release.Version {
 	return version
 }
 
-// tags is a repository history: the v0.7.0 release, tagged across all five
-// modules the way this command tags them.
+// tags is a repository history: the v0.7.0 release, tagged across the modules
+// that existed then, the way this command tags them. backend/stilus has no tag
+// in it, and needs none: it tracks the core's version.
 var tags = []string{
 	"v0.6.0", "v0.7.0",
 	"backend/gg/v0.6.0", "backend/gg/v0.7.0",
@@ -34,6 +35,7 @@ func TestPlanDerivesEveryTagFromTheCoreVersion(t *testing.T) {
 	want := map[string]string{
 		"v0.8.0":                "v0.8.0 — colour transforms",
 		"backend/gg/v0.8.0":     "backend/gg v0.8.0 — the raster path at core v0.8.0",
+		"backend/stilus/v0.8.0": "backend/stilus v0.8.0 — the stilus raster path at core v0.8.0",
 		"backend/window/v0.8.0": "backend/window v0.8.0 — the native path at core v0.8.0",
 		"backend/gg/gpu/v0.2.1": "backend/gg/gpu v0.2.1 — the tier at core v0.8.0",
 		"arrow/v18.0.4":         "arrow/v18.0.4 — the adapter at core v0.8.0",
@@ -59,7 +61,7 @@ func TestPlanTakesOverridesAndSkips(t *testing.T) {
 	for _, tagging := range got {
 		names = append(names, tagging.tag)
 	}
-	if want := "v0.8.0 backend/gg/v0.8.0 backend/gg/gpu/v0.3.0"; strings.Join(names, " ") != want {
+	if want := "v0.8.0 backend/gg/v0.8.0 backend/stilus/v0.8.0 backend/gg/gpu/v0.3.0"; strings.Join(names, " ") != want {
 		t.Errorf("planned %v, want %s", names, want)
 	}
 }
@@ -88,7 +90,7 @@ func TestPlanRefusesWhatCannotBePublished(t *testing.T) {
 		},
 		"skipping everything": func() error {
 			_, err := plan(v("v0.8.0"), "x", nil,
-				[]string{".", "backend/gg", "backend/window", "backend/gg/gpu", "arrow/v18"}, tags)
+				[]string{".", "backend/gg", "backend/stilus", "backend/window", "backend/gg/gpu", "arrow/v18"}, tags)
 			return err
 		},
 	} {

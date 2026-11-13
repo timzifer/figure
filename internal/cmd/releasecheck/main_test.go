@@ -7,7 +7,7 @@ func TestReleaseTagsSelectOnlyTheirModule(t *testing.T) {
 		"v1.4.0": ".", "backend/gg/v1.4.0": "backend/gg",
 		"backend/gg/gpu/v0.1.5": "backend/gg/gpu",
 		"backend/gg/gpu/v1.0.0": "backend/gg/gpu",
-		"backend/window/v1.4.0": "backend/window", "arrow/v18.0.3": "arrow/v18",
+		"backend/window/v1.4.0": "backend/window", "backend/stilus/v1.4.0": "backend/stilus", "arrow/v18.0.3": "arrow/v18",
 	} {
 		got, err := selectModules("all", tag)
 		if err != nil || len(got) != 1 || got[0].Dir != want {

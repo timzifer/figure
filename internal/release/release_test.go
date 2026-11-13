@@ -34,6 +34,7 @@ func TestTagsAreAttributedToTheLongestMatchingPrefix(t *testing.T) {
 		"backend/gg/v0.6.0":     "backend/gg",
 		"backend/gg/gpu/v0.1.5": "backend/gg/gpu",
 		"backend/window/v0.6.0": "backend/window",
+		"backend/stilus/v0.6.0": "backend/stilus",
 		"arrow/v18.0.3":         "arrow/v18",
 	} {
 		m, err := ForTag(tag)
