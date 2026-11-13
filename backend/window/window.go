@@ -3,12 +3,14 @@ package window
 import (
 	"errors"
 	"fmt"
-	"image"
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
+	"github.com/gogpu/gputypes"
+	"github.com/gogpu/wgpu"
 	stilusbackend "github.com/timzifer/figure/backend/stilus"
 	"github.com/timzifer/figure/ir"
+	"github.com/timzifer/stilus/gpu"
 )
 
 // Option configures a window.
@@ -49,9 +51,9 @@ func FollowSize(on bool) Option { return func(c *config) { c.resize = on } }
 // Window is a native window a chart is drawn in.
 //
 // It is two things joined at one seam. [Window.Target] is a drawing surface —
-// the same CPU rasterizer that writes a PNG, drawing into memory — and
-// [Window.Run] is an event loop that presents that memory as a texture and
-// reports what the reader does to it. Neither knows what a chart is; the
+// the rasterizer that writes a PNG, deferred until the window has a frame to
+// draw into — and [Window.Run] is an event loop that composites the chart
+// onto a GPU texture, presents it, and reports what the reader does to it. Neither knows what a chart is; the
 // package next door, backend/window/show, is what joins them to a plot.
 //
 // A Window is used from one goroutine: the one that calls Run, which is the
@@ -60,9 +62,11 @@ type Window struct {
 	cfg  config
 	surf *stilusbackend.Surface
 
-	app *gogpu.App
-	tex *gogpu.Texture
-	gen uint64 // the pixel generation the texture was uploaded from
+	app  *gogpu.App
+	dev  *gpu.Device    // stilus's pipeline, on gogpu's device
+	tgt  *gpu.Target    // the chart, composited at the surface's pixel size
+	pres *gpu.Presenter // draws tgt into the frame's render pass
+	gen  uint64         // the surface generation tgt was composited from
 
 	w, h  int
 	scale float64
@@ -83,7 +87,7 @@ func New(opts ...Option) *Window {
 		o(&c)
 	}
 	w := &Window{cfg: c, w: c.w, h: c.h, scale: 1}
-	w.surf = stilusbackend.NewSurface(c.fonts...)
+	w.surf = stilusbackend.NewSurface(append([]stilusbackend.Option{stilusbackend.Deferred()}, c.fonts...)...)
 	return w
 }
 
@@ -175,15 +179,11 @@ func (w *Window) Run(h Handler) error {
 	w.app = gogpu.NewApp(cfg)
 	w.wire(h)
 
-	// The texture holding the chart is a GPU resource, and it is released while
-	// the renderer that made it is still alive. A window that leaked one per
-	// run would leak it for the life of the process.
-	w.app.OnClose(func() {
-		if w.tex != nil {
-			w.tex.Destroy()
-			w.tex = nil
-		}
-	})
+	// The target, the presenter and stilus's pipeline are GPU resources on
+	// gogpu's device, and they are released while that device is still alive.
+	// A window that leaked them per run would leak them for the life of the
+	// process. The device itself is gogpu's, and gpu.Device.Close leaves it.
+	w.app.OnClose(w.release)
 
 	if err := w.app.Run(); err != nil {
 		return err
@@ -222,12 +222,6 @@ func (w *Window) wire(h Handler) {
 	})
 }
 
-// frame draws the chart and puts it on the screen.
-//
-// The chart is rasterized on the CPU into the surface's own buffer and blitted
-// as one texture. That is a deliberate choice rather than a stopgap: it is the
-// same rasterizer that writes the PNGs, so a window shows exactly what a file
-// would, and there is one implementation of every mark rather than two.
 // wirePointer connects the pointer.
 //
 // The detailed interface is preferred because the plain callbacks lose what a
@@ -326,6 +320,15 @@ func (w *Window) wireScroll(es gpucontext.EventSource, h Handler) {
 	})
 }
 
+// frame draws the chart and puts it on the screen.
+//
+// The chart is drawn by backend/stilus, the rasterizer that writes the PNGs,
+// so a window shows exactly what a file would and there is one implementation
+// of every mark. The surface is deferred: the chart may draw in an event
+// handler, where there is no GPU frame, and keeps its latest frame as IR. Here,
+// with a frame, stilus rasterizes it on the CPU and composites the spans onto
+// a GPU texture — no image is built and none is uploaded — and a presenter
+// draws that texture into the frame's render pass (docs/adr/0094).
 func (w *Window) frame(dc *gogpu.Context, h Handler) {
 	if h.Frame != nil {
 		if err := h.Frame(); err != nil {
@@ -334,43 +337,112 @@ func (w *Window) frame(dc *gogpu.Context, h Handler) {
 			return
 		}
 	}
-	img := w.surf.Image()
-	if img == nil {
-		return
-	}
-	if err := w.upload(dc, img); err != nil {
-		w.fail(err)
-		w.app.Quit()
-		return
-	}
-	width, height := w.Size()
-	if err := dc.DrawTextureScaled(w.tex, 0, 0, float32(width), float32(height)); err != nil {
+	if err := w.present(dc); err != nil {
 		w.fail(err)
 		w.app.Quit()
 	}
 }
 
-// upload puts the chart's pixels on the GPU, and does not when they have not
-// changed.
+// present composites the chart if it changed and draws it into the frame.
 //
-// The rasterizer stamps its buffer with a generation, so "has this frame
-// changed" is a comparison of two integers rather than of two megabytes. A
-// chart nobody is touching therefore reuses the texture it already has, which
-// together with the event-driven loop is what makes an idle window free.
-func (w *Window) upload(dc *gogpu.Context, img image.Image) error {
-	gen := w.surf.Generation()
-	if w.tex != nil && gen == w.gen {
+// The surface stamps each frame that changed it with a generation, so "has
+// this frame changed" is a comparison of two integers. A chart nobody is
+// touching is not rasterized again: the texture it was composited onto is
+// presented as it is, which together with the event-driven loop is what makes
+// an idle window cheap.
+func (w *Window) present(dc *gogpu.Context) error {
+	pw, ph := w.surf.PixelSize()
+	if pw <= 0 || ph <= 0 {
 		return nil
 	}
-	tex, err := dc.Renderer().NewTextureFromImage(img)
+	if err := w.ensureGPU(dc); err != nil {
+		return err
+	}
+	if b := w.tgt; b == nil || b.Bounds().Dx() != pw || b.Bounds().Dy() != ph {
+		if w.tgt != nil {
+			w.tgt.Close()
+			w.tgt = nil
+		}
+		t, err := w.dev.NewTarget(pw, ph)
+		if err != nil {
+			return fmt.Errorf("figure/backend/window: a %dx%d chart texture: %w", pw, ph, err)
+		}
+		w.tgt, w.gen = t, 0 // a new texture holds nothing yet
+	}
+	if gen := w.surf.Generation(); gen != w.gen {
+		if err := w.surf.Composite(w.tgt); err != nil {
+			return fmt.Errorf("figure/backend/window: compositing the chart: %w", err)
+		}
+		w.gen = gen
+	}
+
+	enc, view := dc.CommandEncoder(), dc.SurfaceView()
+	if enc == nil || view == nil {
+		return nil // no frame to draw into; the next one will be
+	}
+	pass, err := enc.BeginRenderPass(&wgpu.RenderPassDescriptor{
+		ColorAttachments: []wgpu.RenderPassColorAttachment{{
+			View:       view,
+			LoadOp:     gputypes.LoadOpClear,
+			StoreOp:    gputypes.StoreOpStore,
+			ClearValue: gputypes.Color{R: 1, G: 1, B: 1, A: 1},
+		}},
+	})
 	if err != nil {
-		return fmt.Errorf("figure/backend/window: uploading the chart: %w", err)
+		return fmt.Errorf("figure/backend/window: beginning the frame: %w", err)
 	}
-	if w.tex != nil {
-		w.tex.Destroy()
+	fw, fh := dc.FramebufferSize()
+	w.pres.Begin(fw, fh)
+	// Stretched to the framebuffer, which is the chart's pixel size except
+	// for the moment between a resize and the frame that follows it.
+	drawErr := w.pres.Draw(pass, w.tgt, &gpu.DrawOptions{W: float32(fw), H: float32(fh)})
+	if err := pass.End(); err != nil && drawErr == nil {
+		drawErr = err
 	}
-	w.tex, w.gen = tex, gen
+	if drawErr != nil {
+		return fmt.Errorf("figure/backend/window: presenting the chart: %w", drawErr)
+	}
+	return w.pres.Commit()
+}
+
+// ensureGPU builds stilus's pipeline and a presenter on gogpu's device, once:
+// the device exists only once the window is running.
+func (w *Window) ensureGPU(dc *gogpu.Context) error {
+	if w.pres != nil {
+		return nil
+	}
+	dp := w.app.DeviceProvider()
+	if dp == nil || dp.Device() == nil {
+		return errors.New("figure/backend/window: the window has no GPU device")
+	}
+	dev, err := gpu.NewDevice(dp.Device())
+	if err != nil {
+		return fmt.Errorf("figure/backend/window: stilus on the window's device: %w", err)
+	}
+	pres, err := dev.NewPresenter(dc.Format(), nil)
+	if err != nil {
+		dev.Close()
+		return fmt.Errorf("figure/backend/window: a presenter for %v: %w", dc.Format(), err)
+	}
+	w.dev, w.pres = dev, pres
 	return nil
+}
+
+// release frees the GPU resources the window made, presenter and target
+// before the pipeline they were made from.
+func (w *Window) release() {
+	if w.pres != nil {
+		w.pres.Close()
+		w.pres = nil
+	}
+	if w.tgt != nil {
+		w.tgt.Close()
+		w.tgt = nil
+	}
+	if w.dev != nil {
+		w.dev.Close()
+		w.dev = nil
+	}
 }
 
 func (w *Window) fail(err error) {

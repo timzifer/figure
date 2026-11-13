@@ -218,6 +218,28 @@ The move itself has been made, in this order:
   package and on the module, and the README, SECURITY, CONTRIBUTING and
   AGENTS name stilus as the raster backend.
 
+After that the window took the step ADR 0021's "Revisit if" describes:
+
+- **gogpu v0.54.1**, the release on the wgpu v0.34 line stilus/gpu is built on.
+  A workspace has one build list, and the deprecated GPU tier holds wgpu below
+  v0.33, so the tier left the repository's `go.work` for one of its own,
+  `backend/gg/gpu/go.work`.
+- **The window composites through stilus/gpu.** Its surface is `Deferred`: the
+  chart draws when it likes — in an event handler as often as in a frame — and
+  the surface keeps the latest frame as IR. In its draw callback the window
+  rasterizes that frame through a `stilus.Canvas` onto a `gpu.Target` built on
+  gogpu's own device, and a `gpu.Presenter` draws the target into the frame's
+  render pass. No image is built and none is uploaded, and a frame that did
+  not change is not rasterized again. `backend/stilus` stays free of wgpu: a
+  deferred surface composites onto any `stilus.Compositor` that can be
+  cleared, and a CPU one is what its tests use.
+- **It is checked against a file.** A test in the window module composites a
+  chart onto a GPU texture, reads it back and compares it with the same chart
+  rasterized into memory: on an Apple M4 not one channel of 345 600 differs by
+  more than two. A runner has no GPU, so the test skips there;
+  `FIGURE_GPU_REQUIRE=1` makes it fail instead on a machine that should have
+  one.
+
 What is left is a decision rather than work: accepting this record, and when
 to remove `backend/gg`.
 
