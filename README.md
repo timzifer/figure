@@ -34,14 +34,16 @@ One declarative chart specification, rendered through interchangeable backends.
 The core is **pure Go with no dependencies at all** — not "no cgo", literally
 nothing outside the standard library — and emits both vector formats, SVG and
 PDF. Add one module and the same specification renders to PNG and JPEG through
-[`gogpu/gg`](https://github.com/gogpu/gg), still with `CGO_ENABLED=0`.
+[`stilus`](https://github.com/timzifer/stilus), a sparse rasterizer with no
+dependencies of its own, still with `CGO_ENABLED=0`.
 
 | | Dependencies | Output |
 |---|---|---|
 | `github.com/timzifer/figure` | **stdlib only** | SVG, PDF, browser canvas |
-| `github.com/timzifer/figure/backend/gg` | GoGPU (`gg`), `x/image` — zero CGO | PNG, JPEG, an in-memory surface |
-| `github.com/timzifer/figure/backend/window` | GoGPU (`gogpu`, `gg`) — zero CGO | a native window |
-| `github.com/timzifer/figure/backend/gg/gpu` | GoGPU (`gg/gpu`, `wgpu`) — zero CGO | — (switches the GPU tier on) |
+| `github.com/timzifer/figure/backend/stilus` | `stilus`, `go-opentype` — zero CGO, Go 1.27.1 | PNG, JPEG, an in-memory surface |
+| `github.com/timzifer/figure/backend/window` | GoGPU (`gogpu`), `backend/stilus` — zero CGO, Go 1.27.1 | a native window |
+| `github.com/timzifer/figure/backend/gg` | GoGPU (`gg`), `x/image` — zero CGO | **deprecated** — PNG, JPEG, a surface ([why](docs/adr/0094-the-raster-backend-is-stilus.md)) |
+| `github.com/timzifer/figure/backend/gg/gpu` | GoGPU (`gg/gpu`, `wgpu`) — zero CGO | **deprecated** — gg's GPU tier |
 | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — zero CGO | — (a data source) |
 
 The browser is in the core too, because it needs nothing to be: a canvas 2D
@@ -59,13 +61,14 @@ module outside the development workspace before it is tagged, so a published
 
 ```sh
 go get github.com/timzifer/figure                  # core: SVG and PDF, stdlib only
-go get github.com/timzifer/figure/backend/gg       # raster: PNG and JPEG
+go get github.com/timzifer/figure/backend/stilus   # raster: PNG and JPEG
 go get github.com/timzifer/figure/backend/window   # a native window
-go get github.com/timzifer/figure/backend/gg/gpu   # optional: the GPU tier
 go get github.com/timzifer/figure/arrow/v18        # optional: plot Arrow data
 ```
 
-Go 1.25 or newer ([why](docs/adr/0005-go-version.md)).
+Go 1.25 or newer for the core ([why](docs/adr/0005-go-version.md)); 1.27.1 or
+newer for the raster backend and the window, whose font library requires it
+([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
 
 ## Quick start
 
@@ -117,8 +120,8 @@ For PDF or raster, swap the target — nothing else changes:
 ```go
 err := p.Render(figure.PDF("signal.pdf"))          // still stdlib only
 
-import ggbackend "github.com/timzifer/figure/backend/gg"
-err := p.Render(ggbackend.PNG("signal.png"))
+import stilusbackend "github.com/timzifer/figure/backend/stilus"
+err := p.Render(stilusbackend.PNG("signal.png"))
 ```
 
 A runnable version is in [`examples/signal`](examples/signal).
@@ -203,14 +206,16 @@ The long version, with what each one is for and which record decided it, is in
    geoms          scales     ~8        backend/svg     SVG
    scales         coords     drawing   backend/pdf     PDF
    coords         layout     ops       backend/canvas  browser canvas
-   theme          ticks                backend/gg      PNG / JPEG / a surface
+   theme          ticks                backend/stilus  PNG / JPEG / a surface
    facets         panels               backend/window  a native window
 ```
 
 The `ir.Backend` interface is the seam. Geoms never touch a renderer; a renderer
 never knows what a scale is. That is what lets figure stand on a young,
-fast-moving graphics stack without being welded to it — the whole gg adapter is
-about 300 lines ([why that matters](docs/adr/0006-gg-coupling-surface.md)).
+fast-moving graphics stack without being welded to it — the whole gg adapter was
+about 300 lines ([why that matters](docs/adr/0006-gg-coupling-surface.md)), and
+replacing it with stilus touched no geom, scale or coord
+([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
 
 Things ride on that seam without widening it. A render can be *watched*, so that
 a pointer can be told which layer drew what it is over
@@ -259,7 +264,8 @@ behaviour rather than against a plausible-sounding explanation of it.
 
 ## License
 
-MIT. The core links nothing; `backend/gg` links only permissively licensed code
-(gg is MIT, `x/image` is BSD-3-Clause). That is a requirement rather than a
+MIT. The core links nothing; `backend/stilus` links only permissively licensed
+code (stilus and brotli are MIT; go-opentype and the Go fonts it embeds are
+BSD-3-Clause). That is a requirement rather than a
 preference — figure must be embeddable by downstream projects under any
 license.

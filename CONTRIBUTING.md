@@ -10,7 +10,7 @@ This is a six-module repository:
 | `backend/gg` | `github.com/timzifer/figure/backend/gg` | `gogpu/gg`, `x/image` |
 | `backend/stilus` | `github.com/timzifer/figure/backend/stilus` | `timzifer/stilus`, `go-opentype/opentype` and `/fonts` — Go 1.27.1 ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)) |
 | `backend/gg/gpu` | `github.com/timzifer/figure/backend/gg/gpu` | `gogpu/gg/gpu` → `wgpu`, `naga`, `goffi` |
-| `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu`, and the two above |
+| `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu` and `backend/stilus` — Go 1.27.1 |
 | `arrow/v18` | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — its major version is the adapter's ([ADR 0030](docs/adr/0030-arrow-major-version.md)) |
 
 Three backends are in the core module — `backend/svg`, `backend/pdf` and
@@ -42,11 +42,11 @@ together with no setup. If your tooling ignores it,
 reproduces it.
 
 The workspace says `go 1.27.1`, because `backend/stilus` does: its font
-library requires it ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
-Every other module still declares 1.25, and CI checks that on a 1.25
-toolchain with a workspace that leaves `backend/stilus` out — a toolchain
-older than the workspace would otherwise switch itself up to 1.27 and check
-nothing.
+library requires it ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)),
+and `backend/window`, which draws through it, declares the same. Every other
+module still declares 1.25, and CI checks that on a 1.25 toolchain with a
+workspace that leaves those two out — a toolchain older than the workspace
+would otherwise switch itself up to 1.27 and check nothing.
 
 > Each nested module requires the core at a published tag, not through a
 > `replace` directive. The workspace still overrides that for local
@@ -62,12 +62,13 @@ nothing.
 go build ./... && go test ./...
 (cd backend/gg && go test ./...)
 (cd backend/gg/gpu && go test ./...)
+(cd backend/stilus && go test ./...)
 (cd backend/window && go test ./...)
 (cd arrow/v18 && go test ./...)
 
 # the checks CI runs
 gofmt -l .                                   # must print nothing
-for m in . backend/gg backend/gg/gpu backend/window arrow/v18; do (cd "$m" && go vet ./...); done
+for m in . backend/gg backend/gg/gpu backend/stilus backend/window arrow/v18; do (cd "$m" && go vet ./...); done
 CGO_ENABLED=0 go build ./...
 
 # a chart in a window, by hand — the one thing CI cannot check, because a
@@ -490,8 +491,9 @@ not exist. Publish the prerequisite first, then bump:
 
    `go.mod` at the root has no `require` block, so nothing precedes the core.
 2. **The require lines.** Bump `github.com/timzifer/figure` in the failing
-   module's `go.mod` — and, in `backend/gg/gpu` and `backend/window`,
-   `github.com/timzifer/figure/backend/gg` if that is what is short — then
+   module's `go.mod` — and, in `backend/gg/gpu`,
+   `github.com/timzifer/figure/backend/gg`, or in `backend/window`,
+   `github.com/timzifer/figure/backend/stilus`, if that is what is short — then
    `go mod tidy` and commit. `go.work` overrides these during development, so
    the change is invisible locally; it is what a downstream `go get` resolves.
 
@@ -502,8 +504,17 @@ not exist. Publish the prerequisite first, then bump:
    ago is otherwise a `404` that no retry clears. Fetching straight from git
    sees the tag immediately. `releasecheck` sets this itself.
 
-   `backend/gg/gpu` and `backend/window` require `backend/gg` as well, so if
-   that tag is also being bumped it has to be pushed before they can be tidied.
+   `backend/gg/gpu` requires `backend/gg` as well, and `backend/window`
+   requires `backend/stilus`, so if that tag is also being bumped it has to be
+   pushed before they can be tidied.
+
+   **The first release of `backend/stilus` is this case by construction.**
+   `backend/window` imports it, and a `require` line cannot name a tag that
+   does not exist — not even for the workspace, which reads the module graph
+   before it replaces anything — so until that tag exists `backend/window`'s
+   `go.mod` names no version of it and its release check fails. Release with
+   `-skip backend/window`, then add the require, tidy, and release the window
+   on its own.
 3. **The module on its own.** With the bump committed and pushed, release just
    it — skip the rest, and name its version if a patch above its latest tag is
    not what it should get:

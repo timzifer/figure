@@ -95,10 +95,11 @@ jobs:
             arrow/v18/go.sum
 
       # The committed workspace says go 1.27.1, because backend/stilus does
-      # (docs/adr/0094). Checking that the other modules really build on the
-      # 1.25 their go.mod files declare needs a workspace that leaves it out —
+      # (docs/adr/0094), and backend/window with it, since it draws through
+      # stilus. Checking that the other modules really build on the 1.25 their
+      # go.mod files declare needs a workspace that leaves those two out —
       # otherwise the toolchain switches itself to 1.27 and checks nothing.
-      - name: Use a Go 1.25 workspace without the stilus backend
+      - name: Use a Go 1.25 workspace without the 1.27 modules
         if: matrix.go == '1.25'
         shell: bash
         run: |
@@ -110,7 +111,6 @@ jobs:
           	$GITHUB_WORKSPACE/arrow/v18
           	$GITHUB_WORKSPACE/backend/gg
           	$GITHUB_WORKSPACE/backend/gg/gpu
-          	$GITHUB_WORKSPACE/backend/window
           )
           EOF
           echo "GOWORK=$RUNNER_TEMP/go125.work" >> "$GITHUB_ENV"
@@ -121,12 +121,13 @@ jobs:
           go build ./...
           go build ./backend/gg/...
           go build ./backend/gg/gpu/...
-          go build ./backend/window/...
           go build ./arrow/v18/...
 
-      - name: Build the stilus backend
+      - name: Build the stilus and window backends
         if: matrix.go != '1.25'
-        run: go build ./backend/stilus/...
+        run: |
+          go build ./backend/stilus/...
+          go build ./backend/window/...
 
       - name: Test the core
         run: go test ./...
@@ -145,6 +146,7 @@ jobs:
       # and the seams. The window itself is compiled on every platform above
       # and cross-compiled below. See docs/adr/0021.
       - name: Test the window backend
+        if: matrix.go != '1.25'
         working-directory: backend/window
         run: go test ./...
 

@@ -26,10 +26,11 @@
 // # Why the chart is rasterized on the CPU
 //
 // Because there is one implementation of every mark, and a window should show
-// what a file would. The GPU is not idle in this arrangement — it composites and
-// presents — and gg's own GPU tier can be switched on underneath, without
-// anything here changing, by importing
-// github.com/timzifer/figure/backend/gg/gpu.
+// what a file would: the chart is drawn by backend/stilus, the rasterizer that
+// writes the documentation's PNGs, into memory, and the GPU composites and
+// presents the result (docs/adr/0094). Compositing stilus's spans straight onto
+// a GPU texture, which stilus's own gpu module does, is the next step and needs
+// nothing here to change but the surface.
 //
 // The cost of the arrangement is one texture upload per changed frame. It is
 // paid only when the frame changed: figure repaints nothing when a frame is
@@ -40,11 +41,11 @@
 //
 // # A separate module
 //
-// Like backend/gg, this is a nested module: importing figure's core still
+// Like backend/stilus, this is a nested module: importing figure's core still
 // yields a dependency graph with nothing in it but the standard library, and a
 // program that renders SVG on a server links no window layer. It depends on
-// backend/gg as well as on the core, because the rasterizer is where the marks
-// are drawn.
+// backend/stilus as well as on the core, because the rasterizer is where the
+// marks are drawn — and so it declares the Go 1.27.1 that module does.
 //
 // # Status
 //

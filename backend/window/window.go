@@ -7,7 +7,7 @@ import (
 
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/gpucontext"
-	ggbackend "github.com/timzifer/figure/backend/gg"
+	stilusbackend "github.com/timzifer/figure/backend/stilus"
 	"github.com/timzifer/figure/ir"
 )
 
@@ -17,7 +17,7 @@ type Option func(*config)
 type config struct {
 	title  string
 	w, h   int
-	fonts  []ggbackend.Option
+	fonts  []stilusbackend.Option
 	resize bool
 }
 
@@ -36,8 +36,8 @@ func Size(w, h int) Option {
 }
 
 // Font supplies the fonts the chart is drawn with, exactly as the file targets
-// take them. See [github.com/timzifer/figure/backend/gg.WithFont].
-func Font(opts ...ggbackend.Option) Option {
+// take them. See [github.com/timzifer/figure/backend/stilus.WithFont].
+func Font(opts ...stilusbackend.Option) Option {
 	return func(c *config) { c.fonts = append(c.fonts, opts...) }
 }
 
@@ -58,7 +58,7 @@ func FollowSize(on bool) Option { return func(c *config) { c.resize = on } }
 // goroutine every callback then runs on.
 type Window struct {
 	cfg  config
-	surf *ggbackend.Surface
+	surf *stilusbackend.Surface
 
 	app *gogpu.App
 	tex *gogpu.Texture
@@ -83,7 +83,7 @@ func New(opts ...Option) *Window {
 		o(&c)
 	}
 	w := &Window{cfg: c, w: c.w, h: c.h, scale: 1}
-	w.surf = ggbackend.NewSurface(c.fonts...)
+	w.surf = stilusbackend.NewSurface(c.fonts...)
 	return w
 }
 

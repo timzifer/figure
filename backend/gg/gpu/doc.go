@@ -60,5 +60,9 @@
 // and nothing else enumerated no adapters at all. This module imports them,
 // which is what makes the opt-in reach the hardware.
 //
+// Deprecated: this is gg's GPU tier, and figure's raster backend is
+// github.com/timzifer/figure/backend/stilus now (docs/adr/0094), which this
+// tier does nothing for. It is deprecated with backend/gg.
+//
 // [ADR 0006]: https://github.com/timzifer/figure/blob/main/docs/adr/0006-gg-coupling-surface.md
 package gpu

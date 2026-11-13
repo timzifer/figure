@@ -189,14 +189,37 @@ The pictures did not move and the renders did not slow down: the gallery's
 channel differences against gg are what they were after the font box was
 aligned, and the 63 figures render in 221 ms against 234 ms.
 
-What remains before this is Accepted is the move itself:
+The move itself has been made, in this order:
 
-- a CI job on Go 1.27 for this module, and its benchmarks in
-  `.github/scripts/allocgate.awk`;
-- `internal/release` learning the module;
-- the gallery moved and `docs/images` regenerated, in one commit;
-- `backend/window` on this backend, then the deprecation notices on
-  `backend/gg` and `backend/gg/gpu`.
+- **CI.** The module is vetted, tested with and without the race detector,
+  cross-built for every target including js/wasm, measured for coverage, and
+  its frame benchmarks are in the allocation gate: a line and a scatter over
+  100 000 rows, redrawn into one surface, allocate what 1 000 do (312 against
+  307) under a ceiling of 384. A surface reuses its pixel buffer when opened
+  again at the same size, which halved a frame's bytes. The committed workspace
+  says go 1.27.1; the minimum-toolchain job checks the 1.25 modules from a
+  workspace of their own with `GOTOOLCHAIN=local`.
+- **Release.** `internal/release` publishes `backend/stilus` in lockstep with
+  the core, and its release check passes against the published core it
+  requires.
+- **The gallery** is `backend/stilus/cmd/gallery`. Every PNG was regenerated
+  in the commit that moved it — the two cannot be separated without a commit
+  whose figures check red — no SVG changed, and the figures check clean on
+  arm64 and, under Rosetta, on amd64. Its tests take nine seconds.
+- **The window** draws through `backend/stilus` and links no gg. It declares
+  Go 1.27.1 with it, and leaves the 1.25 job. Its gogpu pin stays at v0.53.1:
+  the ceiling was gg's and is gone, and lifting the pin is a change of its own.
+  Because a `require` cannot name a tag that does not exist — not even for the
+  workspace, which reads the module graph before it replaces anything — its
+  `go.mod` names no version of `backend/stilus` until the first release, which
+  therefore goes out with `-skip backend/window` and is followed by the window
+  on its own.
+- **`backend/gg` and `backend/gg/gpu`** carry `Deprecated:` notices on the
+  package and on the module, and the README, SECURITY, CONTRIBUTING and
+  AGENTS name stilus as the raster backend.
+
+What is left is a decision rather than work: accepting this record, and when
+to remove `backend/gg`.
 
 ## Revisit if
 
