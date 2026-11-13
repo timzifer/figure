@@ -8,7 +8,7 @@ require (
 	github.com/go-opentype/fonts v0.14.0
 	github.com/go-opentype/opentype v0.21.1
 	github.com/timzifer/figure v0.15.0
-	github.com/timzifer/stilus v0.18.0
+	github.com/timzifer/stilus v0.19.0
 )
 
 require github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect

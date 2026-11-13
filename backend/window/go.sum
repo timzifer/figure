@@ -28,10 +28,10 @@ github.com/timzifer/figure v0.15.0 h1:OyOATrivZXHJLo3fCREeQiXRcJNaaBdp6dlc/1A3fQ
 github.com/timzifer/figure v0.15.0/go.mod h1:q8KmlPjxcoOTgAe9gR4RNdTCwTb2bzA9CDlNIyzbXtE=
 github.com/timzifer/figure/backend/stilus v0.15.1 h1:UdVG2/Ryx/DsEwvySiYw2artkq3PICN8dwVoKHu9Ex0=
 github.com/timzifer/figure/backend/stilus v0.15.1/go.mod h1:BCFka8OA+JtGTDcuztOE8wb0uaNLWeJkVCVk2aHfpX8=
-github.com/timzifer/stilus v0.18.0 h1:Z32N1r7W+qxAVMHLFF0ztlNEhVkg1BPNi8nwEsM+3AM=
-github.com/timzifer/stilus v0.18.0/go.mod h1:J8uybarHVrCcMUgRwrEkZOw5USCYqbIcfqjTGm2pB2o=
-github.com/timzifer/stilus/gpu v0.8.0 h1:CW6j5Ty6tD0eFt/f4upkzA1bv7zfs6Dwt77IPOYRCV4=
-github.com/timzifer/stilus/gpu v0.8.0/go.mod h1:00BWYEHJ/6RrJvc56zhU82G0Nz/8REkt4WloXvqxrUc=
+github.com/timzifer/stilus v0.19.0 h1:KgOwrdJStW4RscuE5GW9bkVnCt88gHH5GxveZhAxezM=
+github.com/timzifer/stilus v0.19.0/go.mod h1:J8uybarHVrCcMUgRwrEkZOw5USCYqbIcfqjTGm2pB2o=
+github.com/timzifer/stilus/gpu v0.8.1 h1:7mY7eMc/uV5yxTh+BkMHS1jQixu4jMdwWy/qkaaCIpY=
+github.com/timzifer/stilus/gpu v0.8.1/go.mod h1:ixAqpgl/VMyqHq+CiBHda8rNTBwk2Y23W9MvrOGN0wM=
 github.com/ulikunitz/xz v0.5.8/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
 golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=

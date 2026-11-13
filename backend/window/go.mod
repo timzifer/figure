@@ -21,7 +21,7 @@ require (
 	github.com/gogpu/wgpu v0.34.14
 	github.com/timzifer/figure v0.15.0
 	github.com/timzifer/figure/backend/stilus v0.15.1
-	github.com/timzifer/stilus/gpu v0.8.0
+	github.com/timzifer/stilus/gpu v0.8.1
 )
 
 require (
@@ -31,6 +31,6 @@ require (
 	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
 	github.com/gogpu/naga v0.21.10 // indirect
-	github.com/timzifer/stilus v0.18.0 // indirect
+	github.com/timzifer/stilus v0.19.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )
