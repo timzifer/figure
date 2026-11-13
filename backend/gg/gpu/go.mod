@@ -36,14 +36,16 @@ require (
 )
 
 // gg is replaced by a fork carrying GPU-tier fixes that are still open upstream
-// (gogpu/gg#534, #537, #538, #539, #540). This is the only module that needs
+// (gogpu/gg#534, #537, #538, #539; #540 was merged and is in gg v0.52.7).
+// This is the only module that needs
 // them: every one changes what gg's GPU accelerator draws, and this module is
 // what registers that accelerator — the raster backend and the window backend
 // draw on the CPU. This module's own go.work applies the replacement while it
 // is built; the repository's workspace does not contain it.
 //
 // A replace does not reach anyone who imports this module, and the release
-// check refuses one, so the tier is held out of releases (-skip backend/gg/gpu)
-// until a gg release carries the fixes. Then this goes, and the require above
-// moves to that release.
+// check refuses one, so the tier is held out of releases (-skip backend/gg/gpu).
+// It stays that way: the tier is deprecated and removed in v0.20.0
+// (docs/adr/0094), and releasing it on upstream gg would ship the four bugs the
+// fork fixes. backend/gg/gpu/v0.4.0 is its last release.
 replace github.com/gogpu/gg => github.com/timzifer/gg v0.52.6-figure.5
