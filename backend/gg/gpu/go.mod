@@ -16,7 +16,8 @@ require github.com/gogpu/gg v0.52.5
 // arguments; gg v0.52.5 above still makes the old calls, so a newer wgpu fails
 // to build gg rather than this package. That is also why this module has a
 // workspace of its own, go.work beside this file: the window is on wgpu v0.34
-// now, and one workspace cannot hold both. See .github/dependabot.yml.
+// now, and one workspace cannot hold both. Dependabot leaves this module
+// alone: it is deprecated and removed in v0.20.0 (docs/adr/0094).
 require (
 	github.com/gogpu/wgpu v0.32.1
 	github.com/timzifer/figure v0.9.0
