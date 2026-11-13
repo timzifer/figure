@@ -3,10 +3,10 @@
 # what actually move.
 version: 2
 updates:
+  # The modules that move freely.
   - package-ecosystem: gomod
     directories:
-      - /backend/gg
-      - /backend/gg/gpu
+      - /backend/stilus
       - /backend/window
       - /arrow/v18
     schedule:
@@ -15,13 +15,23 @@ updates:
     commit-message:
       prefix: build
       include: scope
-    # The GoGPU stack moves as a unit, and gg leads it. wgpu v0.33 turned the
-    # render-pass calls into struct arguments, and gg v0.52.5 — the version both
-    # backend/gg and the GPU tier pin — still makes the old calls, so anything
-    # that drags wgpu to v0.33 or later fails to build gg itself. gogpu v0.53.2
-    # and gpucontext v0.30 do exactly that. Holding the ceiling here keeps
-    # Dependabot from reopening a bump that cannot compile; raise it in one
-    # commit across both modules once gg ships against the new wgpu.
+
+  # The deprecated gg modules (docs/adr/0094). gg v0.52.5 — the version both
+  # pin — makes the render-pass calls wgpu v0.33 turned into struct arguments,
+  # so anything that drags wgpu to v0.33 or later fails to build gg itself;
+  # gogpu v0.53.2 and gpucontext v0.30 do exactly that. Holding the ceiling
+  # here keeps Dependabot from reopening a bump that cannot compile. The window
+  # used to share it and does not: it draws through stilus and is on wgpu v0.34.
+  - package-ecosystem: gomod
+    directories:
+      - /backend/gg
+      - /backend/gg/gpu
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+      include: scope
     ignore:
       - dependency-name: github.com/gogpu/wgpu
         versions: [">=0.33.0"]

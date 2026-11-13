@@ -49,6 +49,7 @@ type Module struct {
 var Modules = []Module{
 	{Dir: ".", Prefix: "", Major: 0, TracksCore: true, Title: "%s — %s"},
 	{Dir: "backend/gg", Prefix: "backend/gg/", Major: 0, TracksCore: true, Title: "backend/gg %s — the raster path at core %s"},
+	{Dir: "backend/stilus", Prefix: "backend/stilus/", Major: 0, TracksCore: true, Title: "backend/stilus %s — the stilus raster path at core %s"},
 	{Dir: "arrow/v18", Prefix: "arrow/", Major: 18, Title: "arrow/%s — the adapter at core %s"},
 	{Dir: "backend/gg/gpu", Prefix: "backend/gg/gpu/", Major: 0, Title: "backend/gg/gpu %s — the tier at core %s"},
 	{Dir: "backend/window", Prefix: "backend/window/", Major: 0, TracksCore: true, Title: "backend/window %s — the native path at core %s"},

@@ -1,36 +1,39 @@
 module github.com/timzifer/figure/backend/window
 
-go 1.25.0
+// backend/stilus requires Go 1.27.1, for its font library, and this module
+// draws with it (docs/adr/0094).
+go 1.27.1
 
-// GoGPU is pinned to an exact version, for the same reason the gg backend pins
-// gg: the stack is young, and a release of this backend is validated against
-// exactly one release of the window layer and says which.
+// GoGPU is pinned to an exact version: the stack is young, and a release of
+// this backend is validated against exactly one release of the window layer
+// and says which.
 //
-// gogpu v0.53.1 is the newest release that still resolves against gg v0.52.5.
-// wgpu v0.33 turned the render-pass calls into struct arguments — Draw(a, b, c,
-// d) became Draw(gputypes.DrawArgs{...}) — and gg at this pin has not followed,
-// so anything that drags wgpu to v0.33 or later breaks gg's own internal/gpu
-// package rather than any code here. gogpu v0.53.2 does exactly that, and so
-// does gpucontext v0.30 and later by way of a DeviceProvider that gained a
-// method gogpu v0.53.1 does not implement. The whole GoGPU stack moves as a
-// unit and gg leads it; the ceiling lifts when gg ships a release built against
-// the new wgpu. Dependabot is told to hold at it in .github/dependabot.yml.
+// v0.54.1 is the release whose wgpu, gputypes and gpucontext are the line
+// stilus/gpu is built on (wgpu v0.34, gputypes v0.8.2). The pin used to sit at
+// v0.53.1 under a ceiling that was gg's rather than the window's — gg v0.52.5
+// does not build against wgpu v0.33 or later — and went when the chart moved to
+// backend/stilus (docs/adr/0094). The deprecated GPU tier keeps that ceiling,
+// which is why it has a workspace of its own.
+//
+// backend/stilus has no tag yet, so it cannot be required: a require line
+// naming a version that does not exist breaks the workspace as well, because
+// the module graph is read before the workspace replaces it. Until its first
+// release the workspace provides it, and this module's release check fails —
+// which is what that check is for: it says to release backend/stilus first and
+// then require it here.
 require (
-	github.com/gogpu/gogpu v0.53.1
-	github.com/timzifer/figure v0.8.0
-	github.com/timzifer/figure/backend/gg v0.8.0
+	github.com/gogpu/gogpu v0.54.1
+	github.com/gogpu/gpucontext v0.32.0
+	github.com/timzifer/figure v0.14.0
 )
 
-require github.com/gogpu/gpucontext v0.29.0
-
 require (
-	github.com/go-webgpu/goffi v0.6.3 // indirect
+	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
-	github.com/gogpu/gg v0.52.5 // indirect
-	github.com/gogpu/gputypes v0.6.0 // indirect
-	github.com/gogpu/naga v0.19.0 // indirect
-	github.com/gogpu/wgpu v0.32.1 // indirect
-	golang.org/x/image v0.45.0 // indirect
+	github.com/gogpu/gputypes v0.8.2 // indirect
+	github.com/gogpu/naga v0.21.10 // indirect
+	github.com/gogpu/wgpu v0.34.14 // indirect
+	github.com/timzifer/stilus v0.18.0 // indirect
+	github.com/timzifer/stilus/gpu v0.8.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
 )

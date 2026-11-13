@@ -31,6 +31,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -48,6 +49,7 @@ jobs:
           go vet ./...
           (cd backend/gg && go vet ./...)
           (cd backend/gg/gpu && go vet ./...)
+          (cd backend/stilus && go vet ./...)
           (cd backend/window && go vet ./...)
           (cd arrow/v18 && go vet ./...)
 
@@ -88,16 +90,44 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
+
+      # The committed workspace says go 1.27.1, because backend/stilus does
+      # (docs/adr/0094), and backend/window with it, since it draws through
+      # stilus. Checking that the other modules really build on the 1.25 their
+      # go.mod files declare needs a workspace that leaves those two out —
+      # otherwise the toolchain switches itself to 1.27 and checks nothing.
+      - name: Use a Go 1.25 workspace without the 1.27 modules
+        if: matrix.go == '1.25'
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/go125.work" <<EOF
+          go 1.25.0
+
+          use (
+          	$GITHUB_WORKSPACE
+          	$GITHUB_WORKSPACE/arrow/v18
+          	$GITHUB_WORKSPACE/backend/gg
+          	$GITHUB_WORKSPACE/backend/gg/gpu
+          )
+          EOF
+          echo "GOWORK=$RUNNER_TEMP/go125.work" >> "$GITHUB_ENV"
+          echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
 
       - name: Build
         run: |
           go build ./...
           go build ./backend/gg/...
-          go build ./backend/gg/gpu/...
-          go build ./backend/window/...
+          go -C backend/gg/gpu build ./...
           go build ./arrow/v18/...
+
+      - name: Build the stilus and window backends
+        if: matrix.go != '1.25'
+        run: |
+          go build ./backend/stilus/...
+          go build ./backend/window/...
 
       - name: Test the core
         run: go test ./...
@@ -106,14 +136,25 @@ jobs:
         working-directory: backend/gg
         run: go test ./...
 
+      - name: Test the stilus backend
+        if: matrix.go != '1.25'
+        working-directory: backend/stilus
+        run: go test ./...
+
       # The window layer cannot be opened on a runner with no display, so what
       # runs here is everything that is not the window: the input conversions
       # and the seams. The window itself is compiled on every platform above
       # and cross-compiled below. See docs/adr/0021.
       - name: Test the window backend
+        if: matrix.go != '1.25'
         working-directory: backend/window
         run: go test ./...
 
+      # The GPU tier is built from its own workspace, backend/gg/gpu/go.work,
+      # which the go command finds from inside that directory: it holds wgpu
+      # below v0.33 and the window is on v0.34, so the two cannot share the
+      # repository's workspace (docs/adr/0094).
+      #
       # The GPU tier registers an accelerator that a runner has no device for.
       # The test asserts the property that has to hold either way: a chart
       # renders, and it renders the same chart. See docs/adr/0022.
@@ -143,6 +184,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -151,6 +193,10 @@ jobs:
 
       - name: Test the gg backend
         working-directory: backend/gg
+        run: go test -race ./...
+
+      - name: Test the stilus backend
+        working-directory: backend/stilus
         run: go test -race ./...
 
       - name: Test the window backend
@@ -184,6 +230,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -198,6 +245,12 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: go build ./backend/gg/...
+
+      - name: Build the stilus backend for ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./backend/stilus/...
 
       - name: Build the window backend for ${{ matrix.goos }}/${{ matrix.goarch }}
         env:
@@ -215,7 +268,8 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build ./backend/gg/gpu/...
+        working-directory: backend/gg/gpu
+        run: go build ./...
 
       - name: Build the Arrow adapter for ${{ matrix.goos }}/${{ matrix.goarch }}
         env:
@@ -244,6 +298,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
       - uses: actions/setup-node@v7
@@ -285,6 +340,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -304,6 +360,7 @@ jobs:
           {
             go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...
             (cd backend/gg && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
+            (cd backend/stilus && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
             (cd backend/window && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
             (cd arrow/v18 && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
           } | tee bench.txt
@@ -355,6 +412,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -367,11 +425,12 @@ jobs:
           # by their own tests.
           go test -covermode=atomic -coverpkg=./... -coverprofile=core.cov ./...
           (cd backend/gg && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../gg.cov ./...)
+          (cd backend/stilus && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../stilus.cov ./...)
           (cd backend/window && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../window.cov ./...)
           (cd arrow/v18 && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../arrow.cov ./...)
 
           # Merge the profiles: one mode line, then every data line from each.
-          { echo "mode: atomic"; tail -q -n +2 core.cov gg.cov window.cov arrow.cov; } > coverage.cov
+          { echo "mode: atomic"; tail -q -n +2 core.cov gg.cov stilus.cov window.cov arrow.cov; } > coverage.cov
           go tool cover -func=coverage.cov | tail -n 1 | tee coverage-total.txt
 
       - name: Write the badge endpoint
@@ -450,17 +509,18 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
       - name: Check the committed figures against the code
         id: check
         continue-on-error: true
-        run: go run ./backend/gg/cmd/gallery -check
+        run: go run ./backend/stilus/cmd/gallery -check
 
       - name: Re-render
         if: steps.check.outcome == 'failure'
-        run: go run ./backend/gg/cmd/gallery
+        run: go run ./backend/stilus/cmd/gallery
 
       # On a pull request a stale figure is a failure the author fixes: the
       # regenerated images are attached so the change can be looked at.
@@ -475,7 +535,7 @@ jobs:
         if: steps.check.outcome == 'failure' && github.event_name == 'pull_request'
         run: |
           echo "::error::The committed figures no longer match the code."
-          echo "Run 'go run ./backend/gg/cmd/gallery' and commit docs/images/."
+          echo "Run 'go run ./backend/stilus/cmd/gallery' and commit docs/images/."
           echo "The re-rendered images are attached to this run as an artifact."
           exit 1
 

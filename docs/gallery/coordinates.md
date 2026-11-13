@@ -3,7 +3,7 @@
 Charts whose frame is not a plain rectangle: polar, Smith and Nichols charts, map projections, the plane cut into cells and a 3-D scene from several cameras.
 
 Every figure here is rendered by
-[`backend/gg/cmd/gallery`](../../backend/gg/cmd/gallery) and re-checked in CI, so a
+[`backend/stilus/cmd/gallery`](../../backend/stilus/cmd/gallery) and re-checked in CI, so a
 picture here cannot drift away from the code that produced it.
 
 [← The gallery](../gallery.md) · [Lines, points and bars](basics.md) · [Distributions](distributions.md) · [Parts of a whole](parts.md) · [Flows, networks and sets](relations.md) · **Coordinates and projections** · [Markets](markets.md) · [Layout, axes and scale](scale.md) · [Without colour](colour.md)

@@ -1,3 +1,4 @@
+// Deprecated: use github.com/timzifer/figure/backend/stilus; this module is removed in v0.20.0 (docs/adr/0094).
 module github.com/timzifer/figure/backend/gg
 
 go 1.25.0

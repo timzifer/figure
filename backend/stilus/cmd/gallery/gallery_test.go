@@ -23,7 +23,7 @@ const docsDir = "../../../../docs/images"
 // When it fails legitimately — because a render genuinely changed — the fix is
 // to run the generator and commit the result:
 //
-//	go run ./backend/gg/cmd/gallery
+//	go run ./backend/stilus/cmd/gallery
 func TestCommittedFiguresAreUpToDate(t *testing.T) {
 	if err := verify(docsDir); err != nil {
 		t.Fatalf("%v", err)

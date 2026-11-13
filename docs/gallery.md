@@ -4,7 +4,7 @@ Every figure the library draws, rendered from the code that draws it, in
 eight groups, 63 figures in all. Each picture below opens its group.
 
 Every figure here is rendered by
-[`backend/gg/cmd/gallery`](../backend/gg/cmd/gallery) and re-checked in CI, so a
+[`backend/stilus/cmd/gallery`](../backend/stilus/cmd/gallery) and re-checked in CI, so a
 picture here cannot drift away from the code that produced it.
 
 | | |

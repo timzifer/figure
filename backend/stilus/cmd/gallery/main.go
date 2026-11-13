@@ -1,8 +1,8 @@
 // Command gallery renders every figure used in the README and the docs.
 //
-// It lives in the gg module because it is the only place that can produce both
-// halves of each figure: the SVG comes from figure's built-in emitter, the PNG
-// from this backend. Rendering both from one specification is also the
+// It lives in the stilus module because it is the only place that can produce
+// both halves of each figure: the SVG comes from figure's built-in emitter, the
+// PNG from this backend (docs/adr/0094). Rendering both from one specification is also the
 // cross-backend check — if the two ever stop agreeing, a figure will visibly
 // disagree with itself.
 //
@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/timzifer/figure"
-	ggbackend "github.com/timzifer/figure/backend/gg"
+	stilusbackend "github.com/timzifer/figure/backend/stilus"
 	"github.com/timzifer/figure/coord"
 	"github.com/timzifer/figure/data"
 	"github.com/timzifer/figure/facet"
@@ -100,7 +100,7 @@ func verify(dir string) error {
 		for _, p := range problems {
 			fmt.Fprintln(os.Stderr, " ", p)
 		}
-		return errors.New("figures are out of date; run `go run ./backend/gg/cmd/gallery` and commit the result")
+		return errors.New("figures are out of date; run `go run ./backend/stilus/cmd/gallery` and commit the result")
 	}
 	fmt.Println("all figures up to date")
 	return nil
@@ -204,7 +204,7 @@ func (f plate) render() (svg, png []byte, err error) {
 		return nil, nil, err
 	}
 	var pb bytes.Buffer
-	if err := f.chart().Render(ggbackend.Writer(&pb, ggbackend.FormatPNG)); err != nil {
+	if err := f.chart().Render(stilusbackend.Writer(&pb, stilusbackend.FormatPNG)); err != nil {
 		return nil, nil, err
 	}
 	return sb.Bytes(), pb.Bytes(), nil

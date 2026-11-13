@@ -2,14 +2,15 @@
 
 ## Layout
 
-This is a five-module repository:
+This is a six-module repository:
 
 | Path | Module | Depends on |
 |---|---|---|
 | `.` | `github.com/timzifer/figure` | **nothing** — the standard library only |
 | `backend/gg` | `github.com/timzifer/figure/backend/gg` | `gogpu/gg`, `x/image` |
+| `backend/stilus` | `github.com/timzifer/figure/backend/stilus` | `timzifer/stilus`, `go-opentype/opentype` and `/fonts` — Go 1.27.1 ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)) |
 | `backend/gg/gpu` | `github.com/timzifer/figure/backend/gg/gpu` | `gogpu/gg/gpu` → `wgpu`, `naga`, `goffi` |
-| `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu`, and the two above |
+| `backend/window` | `github.com/timzifer/figure/backend/window` | `gogpu/gogpu` and `backend/stilus` — Go 1.27.1 |
 | `arrow/v18` | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — its major version is the adapter's ([ADR 0030](docs/adr/0030-arrow-major-version.md)) |
 
 Three backends are in the core module — `backend/svg`, `backend/pdf` and
@@ -35,10 +36,20 @@ layer is allowed to be linked, and it holds two packages on purpose: `window`
 draws and `window/show` steers, because a backend must not import the model
 ([ADR 0021](docs/adr/0021-native-window.md)).
 
-`go.work` at the repository root is **committed**, so the five modules build
+`go.work` at the repository root is **committed**, so the six modules build
 together with no setup. If your tooling ignores it,
-`go work init . ./arrow/v18 ./backend/gg ./backend/gg/gpu ./backend/window`
-reproduces it.
+`go work init . ./arrow/v18 ./backend/gg ./backend/stilus ./backend/window`
+reproduces it. The deprecated GPU tier is not in it: it holds wgpu below v0.33
+and the window is on v0.34, and a workspace has one build list. It has a
+workspace of its own, `backend/gg/gpu/go.work`, which the go command finds by
+itself from inside that directory.
+
+The workspace says `go 1.27.1`, because `backend/stilus` does: its font
+library requires it ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)),
+and `backend/window`, which draws through it, declares the same. Every other
+module still declares 1.25, and CI checks that on a 1.25 toolchain with a
+workspace that leaves those two out — a toolchain older than the workspace
+would otherwise switch itself up to 1.27 and check nothing.
 
 > Each nested module requires the core at a published tag, not through a
 > `replace` directive. The workspace still overrides that for local
@@ -54,12 +65,13 @@ reproduces it.
 go build ./... && go test ./...
 (cd backend/gg && go test ./...)
 (cd backend/gg/gpu && go test ./...)
+(cd backend/stilus && go test ./...)
 (cd backend/window && go test ./...)
 (cd arrow/v18 && go test ./...)
 
 # the checks CI runs
 gofmt -l .                                   # must print nothing
-for m in . backend/gg backend/gg/gpu backend/window arrow/v18; do (cd "$m" && go vet ./...); done
+for m in . backend/gg backend/gg/gpu backend/stilus backend/window arrow/v18; do (cd "$m" && go vet ./...); done
 CGO_ENABLED=0 go build ./...
 
 # a chart in a window, by hand — the one thing CI cannot check, because a
@@ -130,7 +142,7 @@ stream it is written as. Deflate output belongs to the standard library, and two
 Go releases produce two streams for identical pixels; pinning it would be a
 golden test of `compress/flate`. The vector half, including where the raster is
 drawn and how large it is, is still compared exactly. See
-`backend/gg/cmd/gallery/embedded.go`.
+`backend/stilus/cmd/gallery/embedded.go`.
 
 Do not widen either tolerance to make a failure go away. Narrowing one is an
 improvement; widening one hides the thing the test is for.
@@ -145,12 +157,12 @@ tests use `sameRect`/`samePoint` at `svgdiff.DefaultTolerance` instead.
 Every chart in the README and the docs is generated, never hand-made:
 
 ```sh
-go run ./backend/gg/cmd/gallery            # regenerate docs/images/
-go run ./backend/gg/cmd/gallery -check     # verify they match the code
+go run ./backend/stilus/cmd/gallery            # regenerate docs/images/
+go run ./backend/stilus/cmd/gallery -check     # verify they match the code
 ```
 
 The `-check` form also runs as an ordinary test
-(`go test ./backend/gg/cmd/gallery`) and in CI, so a stale figure fails the
+(`go test ./backend/stilus/cmd/gallery`) and in CI, so a stale figure fails the
 build. When it does, run the generator and commit the result. On `main`, CI
 regenerates and commits them for you.
 
@@ -395,7 +407,7 @@ ruleset's bypass at the new key's id.
 
 ## Releasing
 
-One command releases all five modules. From the repository root:
+One command releases all six modules. From the repository root:
 
 ```sh
 go run ./internal/cmd/release -core vX.Y.Z -summary "what the release is called"
@@ -408,13 +420,15 @@ stops. Re-run it with `-push` to write the tags on `HEAD` and push them.
 Would tag HEAD:
   v0.8.0                 v0.8.0 — the release being tagged
   backend/gg/v0.8.0      backend/gg v0.8.0 — the raster path at core v0.8.0
+  backend/stilus/v0.8.0  backend/stilus v0.8.0 — the stilus raster path at core v0.8.0
   arrow/v18.0.4          arrow/v18.0.4 — the adapter at core v0.8.0
   backend/gg/gpu/v0.3.0  backend/gg/gpu v0.3.0 — the tier at core v0.8.0
   backend/window/v0.8.0  backend/window v0.8.0 — the native path at core v0.8.0
 ```
 
-The versions are derived. `backend/gg` and `backend/window` share the core's —
-they are the supported raster and native paths, and their own APIs are small.
+The versions are derived. `backend/gg`, `backend/stilus` and `backend/window`
+share the core's — they are the supported raster and native paths, and their
+own APIs are small.
 The GPU tier and the Arrow adapter carry majors of their own, so they move a
 patch above their latest tag; `-gpu` and `-arrow` say otherwise when a release
 changes their API. `-skip` leaves a module unreleased. Tag prefixes are the
@@ -422,7 +436,7 @@ module's directory without any major-version suffix, which is why the adapter
 tags as `arrow/` rather than `arrow/v18/`
 ([ADR 0030](docs/adr/0030-arrow-major-version.md)).
 
-Order does not matter: all five tags go on one commit, because no `require`
+Order does not matter: all six tags go on one commit, because no `require`
 line names a tag that does not exist yet.
 
 The command refuses to release a tag that already exists, a working tree with
@@ -480,8 +494,9 @@ not exist. Publish the prerequisite first, then bump:
 
    `go.mod` at the root has no `require` block, so nothing precedes the core.
 2. **The require lines.** Bump `github.com/timzifer/figure` in the failing
-   module's `go.mod` — and, in `backend/gg/gpu` and `backend/window`,
-   `github.com/timzifer/figure/backend/gg` if that is what is short — then
+   module's `go.mod` — and, in `backend/gg/gpu`,
+   `github.com/timzifer/figure/backend/gg`, or in `backend/window`,
+   `github.com/timzifer/figure/backend/stilus`, if that is what is short — then
    `go mod tidy` and commit. `go.work` overrides these during development, so
    the change is invisible locally; it is what a downstream `go get` resolves.
 
@@ -492,8 +507,17 @@ not exist. Publish the prerequisite first, then bump:
    ago is otherwise a `404` that no retry clears. Fetching straight from git
    sees the tag immediately. `releasecheck` sets this itself.
 
-   `backend/gg/gpu` and `backend/window` require `backend/gg` as well, so if
-   that tag is also being bumped it has to be pushed before they can be tidied.
+   `backend/gg/gpu` requires `backend/gg` as well, and `backend/window`
+   requires `backend/stilus`, so if that tag is also being bumped it has to be
+   pushed before they can be tidied.
+
+   **The first release of `backend/stilus` is this case by construction.**
+   `backend/window` imports it, and a `require` line cannot name a tag that
+   does not exist — not even for the workspace, which reads the module graph
+   before it replaces anything — so until that tag exists `backend/window`'s
+   `go.mod` names no version of it and its release check fails. Release with
+   `-skip backend/window`, then add the require, tidy, and release the window
+   on its own.
 3. **The module on its own.** With the bump committed and pushed, release just
    it — skip the rest, and name its version if a patch above its latest tag is
    not what it should get:

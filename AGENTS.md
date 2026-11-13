@@ -9,8 +9,8 @@ constraints that are easy to break without noticing.
 **The core module must never gain a dependency.** `go.mod` at the repository
 root has no `require` block, and it stays that way. Anything that needs
 `gogpu/gg`, `gogpu/gogpu`, `x/image`, Arrow, or anything else belongs in a
-nested module — `backend/gg`, `backend/gg/gpu`, `backend/window` and `arrow/v18` are
-the four that exist. `syscall/js` is the standard library, which is why the
+nested module — `backend/stilus`, `backend/gg`, `backend/gg/gpu`, `backend/window`
+and `arrow/v18` are the five that exist. `syscall/js` is the standard library, which is why the
 browser backend is in the core rather than beside them.
 
 CI checks it:
@@ -85,7 +85,7 @@ tests fail; that is correct. Regenerate with `-update`, read the diff, and only
 then commit. **Never widen a tolerance to make a failure go away.**
 
 **Documentation figures are generated.** Everything in `docs/images/` comes from
-`backend/gg/cmd/gallery`. Never hand-edit them. A test and a CI job both check
+`backend/stilus/cmd/gallery`. Never hand-edit them. A test and a CI job both check
 they match the code.
 
 **`backend/gg` must not import `gg/gpu`.** Importing it activates the GPU tier,
@@ -95,6 +95,37 @@ The CPU rasterizer is the supported path —
 
 **gg is pinned exactly.** Upgrading it is a deliberate change with its own
 commit, not a side effect of `go get -u`.
+
+**The raster backend is `backend/stilus`, and `backend/gg` is deprecated.**
+New raster work goes into stilus; gg keeps building, unchanged, through
+v0.19.0 and is removed in v0.20.0 with its GPU tier, and is never tagged v1
+([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
+Four things there bite:
+
+- *A glyph outline is in ems, not design units.* `stilus.GlyphCache`
+  quantises the matrix's linear part to 1/64 and reads its scale as the em size
+  in pixels. Handed design units, a 16 px label in a 2048-unit font has a scale
+  of 16/2048, which rounds to 1/64 — twice its size — and a 10 px label rounds
+  to zero and is laid out and never drawn. `TestSmallTextIsDrawnAtItsSize` is
+  that bug.
+- *The font box is OS/2's, advances are unrounded.* Ascent and descent come
+  from `sTypoAscender`/`sTypoDescender`, hhea only when both are zero — gg's
+  rule, which keeps every chart on the rectangle gg laid it out on. The vector
+  emitters read hhea; the 15 % between the two is the drift
+  `TestMeasurementAgreesWithTheVectorEmitter` allows. Advances are the font's
+  own widths, not gg's whole pixels, and agree with the SVG backend to
+  0.01 px.
+- *The module declares Go 1.27.1*, because go-opentype does, and so does
+  `backend/window`, which draws through it. The committed workspace says
+  1.27.1 for that reason; every other module still declares 1.25, and CI's
+  minimum-toolchain job builds them from a workspace that leaves those two out
+  with `GOTOOLCHAIN=local`. Without that the toolchain switches itself up and
+  the 1.25 claim is checked by nothing.
+- *`backend/window` names no version of `backend/stilus` until it has a tag.*
+  A require on a version that does not exist breaks the workspace too, because
+  the module graph is read before the workspace replaces it. The first release
+  goes out with `-skip backend/window`; then the require is added and the
+  window released — CONTRIBUTING's "When a require line does have to move".
 
 **A domain is ordered, and an axis's direction is `scale.Reverse`.** `Domain`,
 `LogDomain`, `SymLogDomain` and `Zoomer.SetDomain` all order the bounds they are
@@ -373,10 +404,12 @@ common punctuation and the mathematical operators; they do not cover CJK, and
 they do not cover the mathematical angle brackets U+27E8 and U+27E9 a Bloch
 sphere's `|0⟩` is written with. So the SVG of a chart and the PNG of the same
 chart can differ in their labels — the vector viewer asks the reader's own
-fonts and a PNG has nobody to ask. `gg.WithFallbackFont` supplies the coverage;
+fonts and a PNG has nobody to ask. `stilus.WithFallbackFont` (and the
+deprecated `gg.WithFallbackFont`) supplies the coverage;
 the substitution is `backend/pdf`'s rule for a rune outside WinAnsi, so a
-missing glyph is visible rather than silent. `TestTheEmbeddedFontHasNoMathematicalAngleBrackets`
-pins the gap, so a font change that closed it would be noticed rather than
+missing glyph is visible rather than silent. `TestAMissingRuneIsAQuestionMarkUnlessAFallbackHasIt`
+in backend/stilus and `TestTheEmbeddedFontHasNoMathematicalAngleBrackets` in backend/gg
+pin the gap, so a font change that closed it would be noticed rather than
 leaving the fallback guarding nothing. See
 [ADR 0038](docs/adr/0038-embedded-fonts.md)'s amendment.
 
@@ -468,7 +501,7 @@ exactly how this first went red. So the gallery lifts embedded payloads out of
 both documents and compares them with the same per-channel tolerance the PNG
 half already uses; the vector half, including the `<image>` element's own
 position and size, is still compared exactly. See
-`backend/gg/cmd/gallery/embedded.go`, and note this is not a widened tolerance
+`backend/stilus/cmd/gallery/embedded.go`, and note this is not a widened tolerance
 but the same one applied to pixels rather than to an encoding of them. It is
 also why there is no golden SVG for a density chart in `testdata/golden`:
 pinning `compress/flate` is not a test of figure.
@@ -619,7 +652,7 @@ segment.** The IR carries no per-mark colour
 ([ADR 0007](docs/adr/0007-per-mark-colour.md)), so faces that differ in shade
 cannot be merged, and a path with one depth would sort as one thing. That is a
 cost model rather than a bug, but it is still a count, and
-`backend/gg/cmd/gallery`'s tests render every figure about five times over in
+`backend/stilus/cmd/gallery`'s tests render every figure about five times over in
 each of two formats. `TestNoFigureIsDrawnWithTooManyCalls` is the wall, and it
 counts calls rather than seconds because a timing assertion on a shared runner
 is a gate people learn to ignore.
