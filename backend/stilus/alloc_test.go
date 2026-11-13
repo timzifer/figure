@@ -15,7 +15,14 @@ import (
 )
 
 // A frame redrawn on a surface allocates what a frame costs, not what its rows
-// cost: the backend keeps its path, dash and pixel buffers between calls.
+// cost: the surface keeps its backend between opens — the canvas with its
+// stroke and coverage buffers, the glyph cache, the pixel buffer — so a
+// hundred times the rows allocates exactly what a hundredth does.
+//
+// The slack is the gate's. It was 20 once, and a coverage run broke it at 25:
+// every Render opened a new canvas then, so a frame refilled the rasterizer's
+// buffers and a larger one refilled more of them. Keeping the canvas made the
+// two counts equal, with or without a collection between frames.
 func TestARedrawDoesNotAllocatePerPoint(t *testing.T) {
 	allocs := func(n int) float64 {
 		xs, ys := make([]float64, n), make([]float64, n)
@@ -30,7 +37,7 @@ func TestARedrawDoesNotAllocatePerPoint(t *testing.T) {
 		return testing.AllocsPerRun(5, func() { _ = p.Render(s) })
 	}
 	small, large := allocs(200), allocs(20000)
-	if large > small+20 {
+	if large > small+8 {
 		t.Errorf("a frame over 20000 rows allocates %v times, over 200 rows %v", large, small)
 	}
 }

@@ -240,16 +240,18 @@ func (t *target) encode(w io.Writer, img *image.RGBA) error {
 //
 // The glyph cache belongs to the surface rather than to a frame, so a chart
 // opened again on the same surface finds its glyphs already rasterised; and so
-// does the pixel buffer, which a chart rendered again at the same size draws
-// into rather than allocating a megabyte per frame.
+// do the backend and its canvas, whose path, stroke and coverage buffers are
+// what make a steady frame allocate nothing in the rasterizer, and the pixel
+// buffer, which a chart rendered again at the same size draws into rather than
+// allocating a megabyte per frame.
 //
 // A Surface draws one chart at a time and is not safe for concurrent use.
 type Surface struct {
 	opts   options
 	glyphs st.GlyphCache
-	b      *backend
-	d      *deferred   // the backend of a [Deferred] surface, instead of b
-	spare  *image.RGBA // the last buffer, reused by the next Open of its size
+	b      *backend  // the last backend, kept for the next Open after Close
+	open   bool      // b is drawing a chart rather than waiting to be reused
+	d      *deferred // the backend of a [Deferred] surface, instead of b
 }
 
 // NewSurface returns an in-memory target. It takes the same options as the file
@@ -269,24 +271,31 @@ func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
 		s.d = d
 		return d, nil
 	}
-	if s.b != nil {
-		s.spare = s.b.img
+	if s.b == nil {
+		b, err := s.opts.open(sf, &s.glyphs, nil)
+		if err != nil {
+			return nil, err
+		}
+		s.b, s.open = b, true
+		return b, nil
 	}
-	b, err := s.opts.open(sf, &s.glyphs, s.spare)
+	fonts, err := s.opts.resolve()
 	if err != nil {
 		return nil, err
 	}
-	s.b, s.spare = b, nil
-	return b, nil
+	img, dpr, err := buffer(sf, s.b.img)
+	if err != nil {
+		return nil, err
+	}
+	s.b.reopen(img, sf.WidthPx, sf.HeightPx, dpr, fonts)
+	s.open = true
+	return s.b, nil
 }
 
 // Close ends the chart. The image is not available afterwards; the surface
 // keeps the buffer for the next Open of the same size.
 func (s *Surface) Close() error {
-	if s.b != nil {
-		s.spare = s.b.img
-	}
-	s.b, s.d = nil, nil
+	s.open, s.d = false, nil
 	return nil
 }
 
@@ -310,7 +319,7 @@ func (s *Surface) PixelSize() (w, h int) {
 	switch {
 	case s.d != nil:
 		return s.d.pixelSize()
-	case s.b != nil:
+	case s.open:
 		return s.b.img.Rect.Dx(), s.b.img.Rect.Dy()
 	}
 	return 0, 0
@@ -323,7 +332,7 @@ func (s *Surface) PixelSize() (w, h int) {
 // it. Its pixels are premultiplied, as an [image.RGBA]'s are. A [Deferred]
 // surface has no pixels and returns nil.
 func (s *Surface) Image() image.Image {
-	if s.b == nil {
+	if !s.open {
 		return nil
 	}
 	return s.b.img
@@ -339,7 +348,7 @@ func (s *Surface) Generation() uint64 {
 	switch {
 	case s.d != nil:
 		return s.d.gen
-	case s.b != nil:
+	case s.open:
 		return s.b.gen
 	}
 	return 0
@@ -351,7 +360,7 @@ func (s *Surface) Size() (w, h int, dpr float64) {
 	switch {
 	case s.d != nil:
 		return s.d.w, s.d.h, s.d.dpr
-	case s.b != nil:
+	case s.open:
 		return s.b.w, s.b.h, s.b.dpr
 	}
 	return 0, 0, 0
