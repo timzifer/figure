@@ -19,8 +19,8 @@ require github.com/gogpu/gg v0.52.5
 // now, and one workspace cannot hold both. See .github/dependabot.yml.
 require (
 	github.com/gogpu/wgpu v0.32.1
-	github.com/timzifer/figure v0.9.0
-	github.com/timzifer/figure/backend/gg v0.8.0
+	github.com/timzifer/figure v0.12.0
+	github.com/timzifer/figure/backend/gg v0.12.0
 )
 
 require (
