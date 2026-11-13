@@ -7,13 +7,13 @@ go 1.25.0
 // each release of this backend is validated against exactly one gg release and
 // says which.
 require (
-	github.com/gogpu/gg v0.52.5
+	github.com/gogpu/gg v0.52.7
 	github.com/timzifer/figure v0.12.0
 	golang.org/x/image v0.45.0
 )
 
 require (
-	github.com/gogpu/gpucontext v0.28.0 // indirect
-	github.com/gogpu/gputypes v0.5.2 // indirect
+	github.com/gogpu/gpucontext v0.31.3 // indirect
+	github.com/gogpu/gputypes v0.8.2 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
