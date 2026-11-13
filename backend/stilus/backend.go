@@ -64,6 +64,18 @@ func newBackend(img *image.RGBA, w, h int, dpr float64, fonts *fontSet, glyphs *
 	return b
 }
 
+// reopen points a backend kept by a [Surface] at a new chart: a new or cleared
+// buffer, a size, fonts. Its canvas, glyph cache and buffers stay — that is
+// the reason it is kept — and the buffer gets a generation of its own, because
+// its pixels are not the last chart's any more.
+func (b *backend) reopen(img *image.RGBA, w, h int, dpr float64, fonts *fontSet) {
+	b.img, b.w, b.h, b.dpr, b.fonts = img, w, h, dpr, fonts
+	b.c.Reset(img, img.Bounds())
+	b.stack = append(b.stack[:0], level{m: st.Scale(dpr, dpr)})
+	b.drew, b.dirty = false, false
+	b.gen = generations.Add(1)
+}
+
 func (b *backend) top() st.Matrix { return b.stack[len(b.stack)-1].m }
 
 // matrixOf is the identity conversion: figure's affine and stilus's matrix

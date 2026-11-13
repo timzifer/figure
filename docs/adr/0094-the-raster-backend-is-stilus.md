@@ -196,9 +196,10 @@ The move itself has been made, in this order:
 - **CI.** The module is vetted, tested with and without the race detector,
   cross-built for every target including js/wasm, measured for coverage, and
   its frame benchmarks are in the allocation gate: a line and a scatter over
-  100 000 rows, redrawn into one surface, allocate what 1 000 do (312 against
-  307) under a ceiling of 384. A surface reuses its pixel buffer when opened
-  again at the same size, which halved a frame's bytes. The committed workspace
+  100 000 rows, redrawn into one surface, allocate what 1 000 do (158 each)
+  under a ceiling of 192. A surface keeps its backend between opens — the
+  canvas and its rasterizer buffers, the glyph cache, the pixel buffer — which
+  took a frame from 2.4 MB and 311 allocations to 8 KB and 158. The committed workspace
   says go 1.27.1; the minimum-toolchain job checks the 1.25 modules from a
   workspace of their own with `GOTOOLCHAIN=local`.
 - **Release.** `internal/release` publishes `backend/stilus` in lockstep with

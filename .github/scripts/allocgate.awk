@@ -199,13 +199,14 @@ END {
 	# The stilus raster backend, added with ADR 0094. Unlike every pair above,
 	# these frames go through a real rasterizer rather than a backend that does
 	# nothing: a line and a scatter, a title and axes, redrawn into one surface
-	# as a window redraws. The backend keeps its path, dash, ramp and pixel
-	# buffers and its glyph cache between frames, and the surface reuses its
-	# pixel buffer at the same size — so a hundred times the rows, all of them
-	# drawn as markers, costs the allocations a thousand does. A marker path
-	# rebuilt per row, or a buffer allocated per call, shows up here first.
+	# as a window redraws. The surface keeps its backend between opens — the
+	# canvas with its stroke and coverage buffers, the glyph cache, the pixel
+	# buffer — so a hundred times the rows costs the allocations a thousand
+	# does, and a frame about eight kilobytes. A marker path rebuilt per row, a
+	# buffer allocated per call, or a canvas made per Render shows up here
+	# first: the last of those was the first version, at twice the count.
 	flat("BenchmarkStilusFrame1k", "BenchmarkStilusFrame100k", 8)
-	atMost("BenchmarkStilusFrame100k", 384)
+	atMost("BenchmarkStilusFrame100k", 192)
 
 	# Row identity, added after v0.5. Tracking which source row is behind each
 	# mark is opt-in, and what it is opt-in *for* is memory per mark — not

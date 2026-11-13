@@ -4,8 +4,8 @@ github.com/go-opentype/fonts v0.14.0 h1:WHw7k9gkHT1pu9B2yyvd0FWyQqn/4NKFQoKhvMYt
 github.com/go-opentype/fonts v0.14.0/go.mod h1:od2QcmdpKo7QCqo6Jb16y4GULk+h2Hhfq6x3xfvn62Q=
 github.com/go-opentype/opentype v0.16.0 h1:8FnPhPXQ0E3dVqfGlf8wh/v9g0eIFc7tlzUH4yi2Lu4=
 github.com/go-opentype/opentype v0.16.0/go.mod h1:ZB31jTJl2mhPESXYMuUW+p36UrOabw/2+6mtyh/vNnI=
-github.com/timzifer/figure v0.14.0 h1:eB0ZOk8RkqBIL6SJZN2zN29OvoFclwmD21ffwHY650I=
-github.com/timzifer/figure v0.14.0/go.mod h1:q8KmlPjxcoOTgAe9gR4RNdTCwTb2bzA9CDlNIyzbXtE=
+github.com/timzifer/figure v0.15.0 h1:OyOATrivZXHJLo3fCREeQiXRcJNaaBdp6dlc/1A3fQM=
+github.com/timzifer/figure v0.15.0/go.mod h1:q8KmlPjxcoOTgAe9gR4RNdTCwTb2bzA9CDlNIyzbXtE=
 github.com/timzifer/stilus v0.18.0 h1:Z32N1r7W+qxAVMHLFF0ztlNEhVkg1BPNi8nwEsM+3AM=
 github.com/timzifer/stilus v0.18.0/go.mod h1:J8uybarHVrCcMUgRwrEkZOw5USCYqbIcfqjTGm2pB2o=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
