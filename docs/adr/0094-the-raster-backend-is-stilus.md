@@ -246,7 +246,9 @@ The record was accepted with the removal set: `backend/gg` and
 `backend/gg/gpu` ship deprecated in v0.15.0 through v0.19.0 and are removed in
 v0.20.0, together with `backend/gg/gpu/go.work`, the gg modules' Dependabot
 block and their CI steps. The window moved to stilus/gpu v0.8.0 before the
-merge.
+merge. `backend/gg/gpu` is not released again: it builds against a fork of gg
+whose fixes are still open upstream, and a release on upstream gg would ship
+those bugs, so `backend/gg/gpu/v0.4.0` stays its last release until it goes.
 
 ## Revisit if
 
