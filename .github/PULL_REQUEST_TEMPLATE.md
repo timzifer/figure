@@ -14,6 +14,6 @@
 - [ ] `gofmt -l .` is empty and `go vet ./...` is clean
 - [ ] The core module still depends on nothing but the standard library
 - [ ] Documentation figures regenerated if a render changed
-      (`go run ./backend/gg/cmd/gallery`)
+      (`go run ./backend/stilus/cmd/gallery`)
 - [ ] A behaviour change is covered by a test that fails without it
 - [ ] An architectural decision is recorded in `docs/adr/` if the change makes one

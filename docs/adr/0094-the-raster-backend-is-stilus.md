@@ -104,7 +104,9 @@ gg's.**
   `backend/gg` and `backend/pdf`.
 - **The gallery moves with it.** `backend/gg/cmd/gallery` becomes
   `backend/stilus/cmd/gallery`, and every PNG in `docs/images` is regenerated
-  in one commit that does nothing else. The SVGs do not change.
+  in the commit that moves it — the two cannot be separated without a commit
+  whose figures check red. The SVGs do not change, and the PNGs check clean on
+  arm64 and on amd64.
 - **The window moves with it**, and that is what lifts the wgpu ceiling: with
   gg out of `backend/window`'s graph, gogpu follows wgpu to whatever release
   `stilus/gpu` requires. The first step presents a `backend/stilus` surface the

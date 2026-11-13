@@ -85,7 +85,7 @@ tests fail; that is correct. Regenerate with `-update`, read the diff, and only
 then commit. **Never widen a tolerance to make a failure go away.**
 
 **Documentation figures are generated.** Everything in `docs/images/` comes from
-`backend/gg/cmd/gallery`. Never hand-edit them. A test and a CI job both check
+`backend/stilus/cmd/gallery`. Never hand-edit them. A test and a CI job both check
 they match the code.
 
 **`backend/gg` must not import `gg/gpu`.** Importing it activates the GPU tier,
@@ -468,7 +468,7 @@ exactly how this first went red. So the gallery lifts embedded payloads out of
 both documents and compares them with the same per-channel tolerance the PNG
 half already uses; the vector half, including the `<image>` element's own
 position and size, is still compared exactly. See
-`backend/gg/cmd/gallery/embedded.go`, and note this is not a widened tolerance
+`backend/stilus/cmd/gallery/embedded.go`, and note this is not a widened tolerance
 but the same one applied to pixels rather than to an encoding of them. It is
 also why there is no golden SVG for a density chart in `testdata/golden`:
 pinning `compress/flate` is not a test of figure.
@@ -619,7 +619,7 @@ segment.** The IR carries no per-mark colour
 ([ADR 0007](docs/adr/0007-per-mark-colour.md)), so faces that differ in shade
 cannot be merged, and a path with one depth would sort as one thing. That is a
 cost model rather than a bug, but it is still a count, and
-`backend/gg/cmd/gallery`'s tests render every figure about five times over in
+`backend/stilus/cmd/gallery`'s tests render every figure about five times over in
 each of two formats. `TestNoFigureIsDrawnWithTooManyCalls` is the wall, and it
 counts calls rather than seconds because a timing assertion on a shared runner
 is a gate people learn to ignore.

@@ -10,10 +10,11 @@ import (
 // pngTolerance is the fraction of colour channels allowed to differ by more
 // than channelTolerance before two renders count as different figures.
 //
-// gg's CPU rasterizer is deterministic, so in practice the diff is exactly
-// zero. The tolerance exists so that a future rasterizer improvement, or a
-// platform with different floating-point rounding in the AA path, produces a
-// review-worthy signal rather than a red build on every machine.
+// stilus is deterministic, and the committed figures check clean on arm64 and
+// on amd64, so in practice the diff is exactly zero. The tolerance exists so
+// that a future rasterizer improvement, or a platform with different
+// floating-point rounding in the AA path, produces a review-worthy signal
+// rather than a red build on every machine.
 const (
 	pngTolerance     = 0.001 // 0.1% of channels
 	channelTolerance = 2     // out of 255

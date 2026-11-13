@@ -508,11 +508,11 @@ jobs:
       - name: Check the committed figures against the code
         id: check
         continue-on-error: true
-        run: go run ./backend/gg/cmd/gallery -check
+        run: go run ./backend/stilus/cmd/gallery -check
 
       - name: Re-render
         if: steps.check.outcome == 'failure'
-        run: go run ./backend/gg/cmd/gallery
+        run: go run ./backend/stilus/cmd/gallery
 
       # On a pull request a stale figure is a failure the author fixes: the
       # regenerated images are attached so the change can be looked at.
@@ -527,7 +527,7 @@ jobs:
         if: steps.check.outcome == 'failure' && github.event_name == 'pull_request'
         run: |
           echo "::error::The committed figures no longer match the code."
-          echo "Run 'go run ./backend/gg/cmd/gallery' and commit docs/images/."
+          echo "Run 'go run ./backend/stilus/cmd/gallery' and commit docs/images/."
           echo "The re-rendered images are attached to this run as an artifact."
           exit 1
 

@@ -126,7 +126,7 @@ A runnable version is in [`examples/signal`](examples/signal).
 ## Gallery
 
 Every figure in [docs/gallery.md](docs/gallery.md) is rendered by
-[`backend/gg/cmd/gallery`](backend/gg/cmd/gallery) and re-checked in CI, so a
+[`backend/stilus/cmd/gallery`](backend/stilus/cmd/gallery) and re-checked in CI, so a
 picture cannot drift away from the code that produced it.
 
 | | |

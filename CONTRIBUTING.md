@@ -138,7 +138,7 @@ stream it is written as. Deflate output belongs to the standard library, and two
 Go releases produce two streams for identical pixels; pinning it would be a
 golden test of `compress/flate`. The vector half, including where the raster is
 drawn and how large it is, is still compared exactly. See
-`backend/gg/cmd/gallery/embedded.go`.
+`backend/stilus/cmd/gallery/embedded.go`.
 
 Do not widen either tolerance to make a failure go away. Narrowing one is an
 improvement; widening one hides the thing the test is for.
@@ -153,12 +153,12 @@ tests use `sameRect`/`samePoint` at `svgdiff.DefaultTolerance` instead.
 Every chart in the README and the docs is generated, never hand-made:
 
 ```sh
-go run ./backend/gg/cmd/gallery            # regenerate docs/images/
-go run ./backend/gg/cmd/gallery -check     # verify they match the code
+go run ./backend/stilus/cmd/gallery            # regenerate docs/images/
+go run ./backend/stilus/cmd/gallery -check     # verify they match the code
 ```
 
 The `-check` form also runs as an ordinary test
-(`go test ./backend/gg/cmd/gallery`) and in CI, so a stale figure fails the
+(`go test ./backend/stilus/cmd/gallery`) and in CI, so a stale figure fails the
 build. When it does, run the generator and commit the result. On `main`, CI
 regenerates and commits them for you.
 

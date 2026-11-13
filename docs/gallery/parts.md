@@ -3,7 +3,7 @@
 One total split into its shares, flat, stacked over time or nested.
 
 Every figure here is rendered by
-[`backend/gg/cmd/gallery`](../../backend/gg/cmd/gallery) and re-checked in CI, so a
+[`backend/stilus/cmd/gallery`](../../backend/stilus/cmd/gallery) and re-checked in CI, so a
 picture here cannot drift away from the code that produced it.
 
 [← The gallery](../gallery.md) · [Lines, points and bars](basics.md) · [Distributions](distributions.md) · **Parts of a whole** · [Flows, networks and sets](relations.md) · [Coordinates and projections](coordinates.md) · [Markets](markets.md) · [Layout, axes and scale](scale.md) · [Without colour](colour.md)

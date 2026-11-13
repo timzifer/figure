@@ -3,7 +3,7 @@
 The everyday forms: series over a continuous or time axis, scatter, bars, areas and steps, with intervals, thresholds, second axes and typeset labels.
 
 Every figure here is rendered by
-[`backend/gg/cmd/gallery`](../../backend/gg/cmd/gallery) and re-checked in CI, so a
+[`backend/stilus/cmd/gallery`](../../backend/stilus/cmd/gallery) and re-checked in CI, so a
 picture here cannot drift away from the code that produced it.
 
 [← The gallery](../gallery.md) · **Lines, points and bars** · [Distributions](distributions.md) · [Parts of a whole](parts.md) · [Flows, networks and sets](relations.md) · [Coordinates and projections](coordinates.md) · [Markets](markets.md) · [Layout, axes and scale](scale.md) · [Without colour](colour.md)
