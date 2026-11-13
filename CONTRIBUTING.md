@@ -511,13 +511,14 @@ not exist. Publish the prerequisite first, then bump:
    requires `backend/stilus`, so if that tag is also being bumped it has to be
    pushed before they can be tidied.
 
-   **The first release of `backend/stilus` is this case by construction.**
-   `backend/window` imports it, and a `require` line cannot name a tag that
-   does not exist — not even for the workspace, which reads the module graph
-   before it replaces anything — so until that tag exists `backend/window`'s
-   `go.mod` names no version of it and its release check fails. Release with
-   `-skip backend/window`, then add the require, tidy, and release the window
-   on its own.
+   **A new module that another one imports is this case by construction.**
+   A `require` line cannot name a tag that does not exist — not even for the
+   workspace, which reads the module graph before it replaces anything — so
+   the importer's `go.mod` names no version of it until it is tagged, and the
+   importer's release check fails until then. v0.15.0 was released that way:
+   the core, `backend/gg` and `arrow/v18`; then `backend/stilus`, once its
+   require named core v0.15.0; then `backend/window`, once its require named
+   `backend/stilus` v0.15.0.
 3. **The module on its own.** With the bump committed and pushed, release just
    it — skip the rest, and name its version if a patch above its latest tag is
    not what it should get:

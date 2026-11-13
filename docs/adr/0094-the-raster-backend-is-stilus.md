@@ -214,9 +214,8 @@ The move itself has been made, in this order:
   the ceiling was gg's and is gone, and lifting the pin is a change of its own.
   Because a `require` cannot name a tag that does not exist — not even for the
   workspace, which reads the module graph before it replaces anything — its
-  `go.mod` names no version of `backend/stilus` until the first release, which
-  therefore goes out with `-skip backend/window` and is followed by the window
-  on its own.
+  `go.mod` named no version of `backend/stilus` until its first release, so
+  v0.15.0 went out in three steps: the core, then stilus, then the window.
 - **`backend/gg` and `backend/gg/gpu`** carry `Deprecated:` notices on the
   package and on the module, and the README, SECURITY, CONTRIBUTING and
   AGENTS name stilus as the raster backend.
