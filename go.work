@@ -1,16 +1,23 @@
 // Development workspace.
 //
-// The gg backend, the window backend, the opt-in GPU tier and the Arrow adapter
-// are separate modules so that importing figure's core keeps a stdlib-only
-// dependency graph. During development they are built together from this
-// workspace; released builds resolve the core through the require directive in
-// each nested module's go.mod.
-go 1.25.0
+// The raster backends, the window backend, the opt-in GPU tier and the Arrow
+// adapter are separate modules so that importing figure's core keeps a
+// stdlib-only dependency graph. During development they are built together from
+// this workspace; released builds resolve the core through the require
+// directive in each nested module's go.mod.
+//
+// The workspace says go 1.27.1 because backend/stilus does: its font library
+// requires it (docs/adr/0094). That raises nothing for any other module — each
+// one's own go.mod is still what a user's build reads, and the core and the gg
+// modules still declare 1.25. CI checks that declaration on Go 1.25 with a
+// workspace of its own that leaves backend/stilus out.
+go 1.27.1
 
 use (
 	.
 	./arrow/v18
 	./backend/gg
 	./backend/gg/gpu
+	./backend/stilus
 	./backend/window
 )

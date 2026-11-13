@@ -131,13 +131,14 @@ func (o options) resolve() (*fontSet, error) {
 	return &cp, nil
 }
 
-// open makes a backend for s, drawing into a new buffer.
-func (o options) open(s ir.Surface, glyphs *st.GlyphCache) (*backend, error) {
+// open makes a backend for s, drawing into spare if it is the right size and
+// into a new buffer otherwise.
+func (o options) open(s ir.Surface, glyphs *st.GlyphCache, spare *image.RGBA) (*backend, error) {
 	fonts, err := o.resolve()
 	if err != nil {
 		return nil, err
 	}
-	img, dpr, err := buffer(s)
+	img, dpr, err := buffer(s, spare)
 	if err != nil {
 		return nil, err
 	}
@@ -145,8 +146,9 @@ func (o options) open(s ir.Surface, glyphs *st.GlyphCache) (*backend, error) {
 }
 
 // buffer is the pixel buffer for a surface: logical size times the device
-// pixel ratio, as gg's NewContextWithScale makes it.
-func buffer(s ir.Surface) (*image.RGBA, float64, error) {
+// pixel ratio, as gg's NewContextWithScale makes it. A spare buffer of exactly
+// that size is cleared and handed back rather than allocated again.
+func buffer(s ir.Surface, spare *image.RGBA) (*image.RGBA, float64, error) {
 	if s.WidthPx <= 0 || s.HeightPx <= 0 {
 		return nil, 0, errors.New("figure/backend/stilus: chart size must be positive")
 	}
@@ -156,7 +158,12 @@ func buffer(s ir.Surface) (*image.RGBA, float64, error) {
 	}
 	w := int(float64(s.WidthPx)*dpr + 0.5)
 	h := int(float64(s.HeightPx)*dpr + 0.5)
-	return image.NewRGBA(image.Rect(0, 0, w, h)), dpr, nil
+	r := image.Rect(0, 0, w, h)
+	if spare != nil && spare.Rect == r {
+		clear(spare.Pix)
+		return spare, dpr, nil
+	}
+	return image.NewRGBA(r), dpr, nil
 }
 
 // PNG returns a target that writes a PNG file.
@@ -183,7 +190,7 @@ type target struct {
 }
 
 func (t *target) Open(s ir.Surface) (ir.Backend, error) {
-	b, err := t.opts.open(s, nil)
+	b, err := t.opts.open(s, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -231,13 +238,16 @@ func (t *target) encode(w io.Writer, img *image.RGBA) error {
 //	img := s.Image()
 //
 // The glyph cache belongs to the surface rather than to a frame, so a chart
-// opened again on the same surface finds its glyphs already rasterised.
+// opened again on the same surface finds its glyphs already rasterised; and so
+// does the pixel buffer, which a chart rendered again at the same size draws
+// into rather than allocating a megabyte per frame.
 //
 // A Surface draws one chart at a time and is not safe for concurrent use.
 type Surface struct {
 	opts   options
 	glyphs st.GlyphCache
 	b      *backend
+	spare  *image.RGBA // the last buffer, reused by the next Open of its size
 }
 
 // NewSurface returns an in-memory target. It takes the same options as the file
@@ -249,16 +259,23 @@ func NewSurface(opts ...Option) *Surface {
 // Open prepares the surface for a chart of the given size. Opening a surface
 // that is already open replaces what it held.
 func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
-	b, err := s.opts.open(sf, &s.glyphs)
+	if s.b != nil {
+		s.spare = s.b.img
+	}
+	b, err := s.opts.open(sf, &s.glyphs, s.spare)
 	if err != nil {
 		return nil, err
 	}
-	s.b = b
+	s.b, s.spare = b, nil
 	return b, nil
 }
 
-// Close releases the pixel buffer. The image is not available afterwards.
+// Close ends the chart. The image is not available afterwards; the surface
+// keeps the buffer for the next Open of the same size.
 func (s *Surface) Close() error {
+	if s.b != nil {
+		s.spare = s.b.img
+	}
 	s.b = nil
 	return nil
 }

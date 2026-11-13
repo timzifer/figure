@@ -372,7 +372,7 @@ func (b *backend) Resize(s ir.Surface) error {
 	if s.DPR <= 0 {
 		s.DPR = b.dpr
 	}
-	img, dpr, err := buffer(s)
+	img, dpr, err := buffer(s, nil)
 	if err != nil {
 		return err
 	}

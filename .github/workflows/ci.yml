@@ -31,6 +31,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -48,6 +49,7 @@ jobs:
           go vet ./...
           (cd backend/gg && go vet ./...)
           (cd backend/gg/gpu && go vet ./...)
+          (cd backend/stilus && go vet ./...)
           (cd backend/window && go vet ./...)
           (cd arrow/v18 && go vet ./...)
 
@@ -88,8 +90,31 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
+
+      # The committed workspace says go 1.27.1, because backend/stilus does
+      # (docs/adr/0094). Checking that the other modules really build on the
+      # 1.25 their go.mod files declare needs a workspace that leaves it out —
+      # otherwise the toolchain switches itself to 1.27 and checks nothing.
+      - name: Use a Go 1.25 workspace without the stilus backend
+        if: matrix.go == '1.25'
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/go125.work" <<EOF
+          go 1.25.0
+
+          use (
+          	$GITHUB_WORKSPACE
+          	$GITHUB_WORKSPACE/arrow/v18
+          	$GITHUB_WORKSPACE/backend/gg
+          	$GITHUB_WORKSPACE/backend/gg/gpu
+          	$GITHUB_WORKSPACE/backend/window
+          )
+          EOF
+          echo "GOWORK=$RUNNER_TEMP/go125.work" >> "$GITHUB_ENV"
+          echo "GOTOOLCHAIN=local" >> "$GITHUB_ENV"
 
       - name: Build
         run: |
@@ -99,11 +124,20 @@ jobs:
           go build ./backend/window/...
           go build ./arrow/v18/...
 
+      - name: Build the stilus backend
+        if: matrix.go != '1.25'
+        run: go build ./backend/stilus/...
+
       - name: Test the core
         run: go test ./...
 
       - name: Test the gg backend
         working-directory: backend/gg
+        run: go test ./...
+
+      - name: Test the stilus backend
+        if: matrix.go != '1.25'
+        working-directory: backend/stilus
         run: go test ./...
 
       # The window layer cannot be opened on a runner with no display, so what
@@ -143,6 +177,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -151,6 +186,10 @@ jobs:
 
       - name: Test the gg backend
         working-directory: backend/gg
+        run: go test -race ./...
+
+      - name: Test the stilus backend
+        working-directory: backend/stilus
         run: go test -race ./...
 
       - name: Test the window backend
@@ -184,6 +223,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -198,6 +238,12 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: go build ./backend/gg/...
+
+      - name: Build the stilus backend for ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build ./backend/stilus/...
 
       - name: Build the window backend for ${{ matrix.goos }}/${{ matrix.goarch }}
         env:
@@ -244,6 +290,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
       - uses: actions/setup-node@v7
@@ -285,6 +332,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -304,6 +352,7 @@ jobs:
           {
             go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...
             (cd backend/gg && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
+            (cd backend/stilus && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
             (cd backend/window && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
             (cd arrow/v18 && go test -run='^$' -bench=. -benchmem -benchtime=10x -count=1 ./...)
           } | tee bench.txt
@@ -355,6 +404,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 
@@ -367,11 +417,12 @@ jobs:
           # by their own tests.
           go test -covermode=atomic -coverpkg=./... -coverprofile=core.cov ./...
           (cd backend/gg && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../gg.cov ./...)
+          (cd backend/stilus && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../stilus.cov ./...)
           (cd backend/window && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../window.cov ./...)
           (cd arrow/v18 && go test -covermode=atomic -coverpkg=./...,github.com/timzifer/figure/... -coverprofile=../../arrow.cov ./...)
 
           # Merge the profiles: one mode line, then every data line from each.
-          { echo "mode: atomic"; tail -q -n +2 core.cov gg.cov window.cov arrow.cov; } > coverage.cov
+          { echo "mode: atomic"; tail -q -n +2 core.cov gg.cov stilus.cov window.cov arrow.cov; } > coverage.cov
           go tool cover -func=coverage.cov | tail -n 1 | tee coverage-total.txt
 
       - name: Write the badge endpoint
@@ -450,6 +501,7 @@ jobs:
             go.sum
             backend/gg/go.sum
             backend/gg/gpu/go.sum
+            backend/stilus/go.sum
             backend/window/go.sum
             arrow/v18/go.sum
 

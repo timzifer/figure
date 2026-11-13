@@ -196,6 +196,17 @@ END {
 	# over a thousand does. See docs/adr/0083-an-axis-break-is-marked-or-not-drawn.md.
 	flat("BenchmarkFolded1k", "BenchmarkFolded100k", 8)
 
+	# The stilus raster backend, added with ADR 0094. Unlike every pair above,
+	# these frames go through a real rasterizer rather than a backend that does
+	# nothing: a line and a scatter, a title and axes, redrawn into one surface
+	# as a window redraws. The backend keeps its path, dash, ramp and pixel
+	# buffers and its glyph cache between frames, and the surface reuses its
+	# pixel buffer at the same size — so a hundred times the rows, all of them
+	# drawn as markers, costs the allocations a thousand does. A marker path
+	# rebuilt per row, or a buffer allocated per call, shows up here first.
+	flat("BenchmarkStilusFrame1k", "BenchmarkStilusFrame100k", 8)
+	atMost("BenchmarkStilusFrame100k", 384)
+
 	# Row identity, added after v0.5. Tracking which source row is behind each
 	# mark is opt-in, and what it is opt-in *for* is memory per mark — not
 	# per-frame allocations. If that stops being true it is a buffer that

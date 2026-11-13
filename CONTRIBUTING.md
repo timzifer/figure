@@ -35,10 +35,17 @@ layer is allowed to be linked, and it holds two packages on purpose: `window`
 draws and `window/show` steers, because a backend must not import the model
 ([ADR 0021](docs/adr/0021-native-window.md)).
 
-`go.work` at the repository root is **committed**, so the five modules build
+`go.work` at the repository root is **committed**, so the six modules build
 together with no setup. If your tooling ignores it,
-`go work init . ./arrow/v18 ./backend/gg ./backend/gg/gpu ./backend/window`
+`go work init . ./arrow/v18 ./backend/gg ./backend/gg/gpu ./backend/stilus ./backend/window`
 reproduces it.
+
+The workspace says `go 1.27.1`, because `backend/stilus` does: its font
+library requires it ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
+Every other module still declares 1.25, and CI checks that on a 1.25
+toolchain with a workspace that leaves `backend/stilus` out — a toolchain
+older than the workspace would otherwise switch itself up to 1.27 and check
+nothing.
 
 > Each nested module requires the core at a published tag, not through a
 > `replace` directive. The workspace still overrides that for local
