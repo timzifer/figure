@@ -265,7 +265,7 @@ behaviour rather than against a plausible-sounding explanation of it.
 ## License
 
 MIT. The core links nothing; `backend/stilus` links only permissively licensed
-code (stilus and brotli are MIT; go-opentype and the Go fonts it embeds are
-BSD-3-Clause). That is a requirement rather than a
+code (stilus and brotli are MIT; go-opentype, dsnet/compress and the Go fonts
+it embeds are BSD-3-Clause). That is a requirement rather than a
 preference — figure must be embeddable by downstream projects under any
 license.
