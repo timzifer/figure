@@ -8,7 +8,7 @@ go 1.25.0
 // says which.
 require (
 	github.com/gogpu/gg v0.52.5
-	github.com/timzifer/figure v0.12.0
+	github.com/timzifer/figure v0.14.0
 	golang.org/x/image v0.45.0
 )
 
