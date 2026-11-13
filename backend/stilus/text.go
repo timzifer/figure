@@ -71,6 +71,7 @@ func (b *backend) Text(run ir.TextRun) {
 		ax, ay := float64(run.At.X), float64(run.At.Y)
 		base = st.Translate(-ax, -ay).Mul(st.Rotate(run.Rotation)).Mul(st.Translate(ax, ay)).Mul(base)
 	}
+	b.drew = true
 	paint := st.Paint{Color: premul(run.Color)}
 	for _, r := range run.Text {
 		f, g := b.fonts.resolve(primary, r)

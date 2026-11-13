@@ -4,110 +4,270 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"os"
 
 	"github.com/timzifer/figure/ir"
+	st "github.com/timzifer/stilus"
+)
+
+// Format is an output image format.
+type Format uint8
+
+// The supported formats.
+const (
+	FormatPNG Format = iota
+	FormatJPEG
 )
 
 // Option configures a target.
 type Option func(*options)
 
 type options struct {
-	fallback [][]byte
+	fonts       *fontSet
+	fallback    []*face
+	fontErr     error
+	jpegQuality int
+}
+
+// WithFont replaces the embedded Go fonts with supplied TrueType or OpenType
+// files.
+//
+// Pass bold or italic as nil to reuse regular for that style. Italic is worth
+// supplying for a chart whose labels carry notation: a typesetter sets
+// variables italic, and the vector emitters ask the viewer for an italic face
+// whether or not one is given here.
+func WithFont(regular, bold, italic []byte) Option {
+	return func(o *options) {
+		reg, err := parseFace(regular, "supplied regular")
+		if err != nil {
+			o.fontErr = err
+			return
+		}
+		set := &fontSet{regular: reg, bold: reg, italic: reg}
+		if len(bold) > 0 {
+			if set.bold, err = parseFace(bold, "supplied bold"); err != nil {
+				o.fontErr = err
+				return
+			}
+		}
+		if len(italic) > 0 {
+			if set.italic, err = parseFace(italic, "supplied italic"); err != nil {
+				o.fontErr = err
+				return
+			}
+		}
+		o.fonts = set
+	}
 }
 
 // WithFallbackFont adds fonts consulted, in order, for a rune the chart's own
-// font has no glyph for — backend/gg's option of the same name.
+// font has no glyph for.
+//
+// The embedded Go fonts cover Latin, Greek, Cyrillic and the common
+// punctuation and mathematical operators. They do not cover the mathematical
+// angle brackets U+27E8 and U+27E9 — a Bloch sphere's |0⟩ — nor any CJK
+// script. A rune no face can draw is written as `?`, which is what backend/pdf
+// writes for a rune outside its encoding: a label that quietly loses a
+// character says something the data does not.
+//
+// It composes with [WithFont] in either order, and the font box stays the
+// chart's own font's, so a fallback glyph in one label does not move the
+// baseline of the row it is in.
 func WithFallbackFont(ttf ...[]byte) Option {
-	return func(o *options) { o.fallback = append(o.fallback, ttf...) }
+	return func(o *options) {
+		for i, b := range ttf {
+			if len(b) == 0 {
+				continue
+			}
+			f, err := parseFace(b, fmt.Sprintf("fallback %d", i))
+			if err != nil {
+				o.fontErr = err
+				return
+			}
+			o.fallback = append(o.fallback, f)
+		}
+	}
 }
 
-// PNG returns a target that writes a PNG file.
-func PNG(path string, opts ...Option) ir.Target { return &target{path: path, opts: build(opts)} }
-
-// Writer returns a target that encodes a PNG into w.
-func Writer(w io.Writer, opts ...Option) ir.Target { return &target{w: w, opts: build(opts)} }
+// JPEGQuality sets the JPEG encoder quality, 1 to 100. The default is 90.
+func JPEGQuality(q int) Option {
+	return func(o *options) {
+		if q > 0 && q <= 100 {
+			o.jpegQuality = q
+		}
+	}
+}
 
 func build(opts []Option) options {
-	var o options
+	o := options{jpegQuality: 90}
 	for _, fn := range opts {
 		fn(&o)
 	}
 	return o
 }
 
-type target struct {
-	path string
-	w    io.Writer
-	opts options
-	img  *image.RGBA
+// resolve is the font set a target draws with: the supplied one or the
+// embedded one, with any fallbacks behind it. It copies rather than editing,
+// because the embedded set is shared by every backend in the process.
+func (o options) resolve() (*fontSet, error) {
+	if o.fontErr != nil {
+		return nil, o.fontErr
+	}
+	fonts := o.fonts
+	if fonts == nil {
+		var err error
+		if fonts, err = defaultFonts(); err != nil {
+			return nil, err
+		}
+	}
+	if len(o.fallback) == 0 {
+		return fonts, nil
+	}
+	cp := *fonts
+	cp.fallback = append(append([]*face(nil), fonts.fallback...), o.fallback...)
+	return &cp, nil
 }
 
-func (t *target) Open(s ir.Surface) (ir.Backend, error) {
-	if s.WidthPx <= 0 || s.HeightPx <= 0 {
-		return nil, errors.New("figure/backend/stilus: chart size must be positive")
-	}
-	fonts, err := defaultFonts()
+// open makes a backend for s, drawing into a new buffer.
+func (o options) open(s ir.Surface, glyphs *st.GlyphCache) (*backend, error) {
+	fonts, err := o.resolve()
 	if err != nil {
 		return nil, err
 	}
-	if len(t.opts.fallback) > 0 {
-		cp := *fonts
-		cp.fallback = nil
-		for i, ttf := range t.opts.fallback {
-			f, err := parseFace(ttf, fmt.Sprintf("fallback %d", i))
-			if err != nil {
-				return nil, err
-			}
-			cp.fallback = append(cp.fallback, f)
-		}
-		fonts = &cp
+	img, dpr, err := buffer(s)
+	if err != nil {
+		return nil, err
+	}
+	return newBackend(img, s.WidthPx, s.HeightPx, dpr, fonts, glyphs), nil
+}
+
+// buffer is the pixel buffer for a surface: logical size times the device
+// pixel ratio, as gg's NewContextWithScale makes it.
+func buffer(s ir.Surface) (*image.RGBA, float64, error) {
+	if s.WidthPx <= 0 || s.HeightPx <= 0 {
+		return nil, 0, errors.New("figure/backend/stilus: chart size must be positive")
 	}
 	dpr := s.DPR
 	if dpr <= 0 {
 		dpr = 1
 	}
-	// The surface is in logical units and the buffer in device pixels, as
-	// with gg: the backend's base transform is the device scale.
 	w := int(float64(s.WidthPx)*dpr + 0.5)
 	h := int(float64(s.HeightPx)*dpr + 0.5)
-	t.img = image.NewRGBA(image.Rect(0, 0, w, h))
-	return newBackend(t.img, dpr, fonts), nil
+	return image.NewRGBA(image.Rect(0, 0, w, h)), dpr, nil
 }
 
-// Surface is a target that draws into memory and keeps the pixels, as
-// backend/gg's Surface does. It keeps its glyph cache across opens, which is
-// what a chart redrawn every frame gets — gg's face caches are process-wide
-// for the same reason.
-type Surface struct {
-	opts options
-	b    *backend
+// PNG returns a target that writes a PNG file.
+func PNG(path string, opts ...Option) ir.Target {
+	return &target{path: path, format: FormatPNG, opts: build(opts)}
 }
 
-// NewSurface returns an in-memory target.
-func NewSurface(opts ...Option) *Surface { return &Surface{opts: build(opts)} }
+// JPEG returns a target that writes a JPEG file.
+func JPEG(path string, opts ...Option) ir.Target {
+	return &target{path: path, format: FormatJPEG, opts: build(opts)}
+}
 
-// Open prepares the surface for a chart of the given size.
-func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
-	t := target{opts: s.opts}
-	nb, err := t.Open(sf)
+// Writer returns a target that encodes into w in the given format.
+func Writer(w io.Writer, format Format, opts ...Option) ir.Target {
+	return &target{w: w, format: format, opts: build(opts)}
+}
+
+type target struct {
+	path   string
+	w      io.Writer
+	format Format
+	opts   options
+	b      *backend
+}
+
+func (t *target) Open(s ir.Surface) (ir.Backend, error) {
+	b, err := t.opts.open(s, nil)
 	if err != nil {
 		return nil, err
 	}
-	b := nb.(*backend)
-	if s.b != nil {
-		b.glyphs = s.b.glyphs
+	t.b = b
+	return b, nil
+}
+
+func (t *target) Close() error {
+	if t.b == nil {
+		return nil
+	}
+	img := t.b.img
+	t.b = nil
+	if t.w != nil {
+		return t.encode(t.w, img)
+	}
+	f, err := os.Create(t.path)
+	if err != nil {
+		return err
+	}
+	if err := t.encode(f, img); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+func (t *target) encode(w io.Writer, img *image.RGBA) error {
+	if t.format == FormatJPEG {
+		return jpeg.Encode(w, img, &jpeg.Options{Quality: t.opts.jpegQuality})
+	}
+	return png.Encode(w, img)
+}
+
+// Surface is a target that draws into memory rather than into a file.
+//
+// [PNG] and [JPEG] encode a chart and are done with it. A Surface keeps the
+// pixels: it stays open, its image can be read after every frame, and it can be
+// resized and repainted in place. That is what a window needs, and what any
+// caller compositing a chart into a larger picture needs too.
+//
+//	s := stilus.NewSurface()
+//	live, err := p.Live(s)
+//	// ... draw, resize, draw again ...
+//	img := s.Image()
+//
+// The glyph cache belongs to the surface rather than to a frame, so a chart
+// opened again on the same surface finds its glyphs already rasterised.
+//
+// A Surface draws one chart at a time and is not safe for concurrent use.
+type Surface struct {
+	opts   options
+	glyphs st.GlyphCache
+	b      *backend
+}
+
+// NewSurface returns an in-memory target. It takes the same options as the file
+// targets: the font is the one thing a raster backend has to be told about.
+func NewSurface(opts ...Option) *Surface {
+	return &Surface{opts: build(opts)}
+}
+
+// Open prepares the surface for a chart of the given size. Opening a surface
+// that is already open replaces what it held.
+func (s *Surface) Open(sf ir.Surface) (ir.Backend, error) {
+	b, err := s.opts.open(sf, &s.glyphs)
+	if err != nil {
+		return nil, err
 	}
 	s.b = b
 	return b, nil
 }
 
-// Close keeps the pixels; Image stays valid.
-func (s *Surface) Close() error { return nil }
+// Close releases the pixel buffer. The image is not available afterwards.
+func (s *Surface) Close() error {
+	s.b = nil
+	return nil
+}
 
-// Image is what has been drawn, or nil before the first Open.
+// Image returns what has been drawn, or nil before the first [Surface.Open].
+//
+// The image is the surface's own buffer rather than a copy, so it is valid
+// until the next frame overwrites it. A caller keeping one past that must copy
+// it. Its pixels are premultiplied, as an [image.RGBA]'s are.
 func (s *Surface) Image() image.Image {
 	if s.b == nil {
 		return nil
@@ -115,22 +275,24 @@ func (s *Surface) Image() image.Image {
 	return s.b.img
 }
 
-func (t *target) Close() error {
-	if t.img == nil {
-		return nil
+// Generation reports a counter that changes whenever the pixels do.
+//
+// It answers "is this frame the same as the last one" without comparing two
+// buffers, which is what lets a window skip re-uploading a chart nobody has
+// touched. It is zero for a surface that has not been opened, and it is not a
+// frame number: a frame that painted nothing does not advance it.
+func (s *Surface) Generation() uint64 {
+	if s.b == nil {
+		return 0
 	}
-	img := t.img
-	t.img = nil
-	if t.w != nil {
-		return png.Encode(t.w, img)
+	return s.b.gen
+}
+
+// Size reports the surface's logical size, and the device pixel ratio its
+// buffer is scaled by.
+func (s *Surface) Size() (w, h int, dpr float64) {
+	if s.b == nil {
+		return 0, 0, 0
 	}
-	f, err := os.Create(t.path)
-	if err != nil {
-		return err
-	}
-	if err := png.Encode(f, img); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
+	return s.b.w, s.b.h, s.b.dpr
 }

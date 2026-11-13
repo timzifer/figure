@@ -157,18 +157,44 @@ It is the smaller diff for a caller, and it is wrong in three ways.
 
 ### What has to exist before this is Accepted
 
-The spike implements drawing and nothing else. Before the gallery moves:
+The spike implemented drawing and nothing else. Since then the backend has
+gained what `backend/gg` offers a caller:
 
-- `ir.Partial` and `ir.Resizer` on the backend, and a generation stamp on the
-  surface, so `Live` and the window work as they do on gg;
-- `WithFont(regular, bold, italic)`, a JPEG target and the in-memory `Surface`
-  with gg's semantics;
-- a texture cache for `Image`, which the spike converts on every call;
-- tests in the module: parity of `Measure` against the SVG backend within the
-  drift gg's parity test states, fallback and `?` substitution, hairlines,
-  clips, a reversed transform;
-- gradient interpolation checked against `palette.Lerp`'s rule that colour is
-  blended in linear light — the spike interpolates in premultiplied sRGB.
+- `ir.Partial` and `ir.Resizer`, and a `Surface` with gg's semantics — `Open`
+  replaces, `Close` releases, `Image`, `Size`, and a `Generation` stamped only
+  by a frame that touched the buffer, from one counter for the process so a
+  replaced buffer is never mistaken for its predecessor. gg's surface tests
+  are ported unchanged and pass.
+- `WithFont(regular, bold, italic)`, `WithFallbackFont`, `JPEG`,
+  `JPEGQuality`, and `Writer` with gg's signature.
+- Gradients sampled in linear light into a 256-entry ramp, built once per set
+  of stops: black to white is 188 at the middle, as gg and `palette.Lerp` make
+  it. stilus interpolates its own knots in the encoded values, which is why the
+  ramp is sampled here rather than handed over as knots.
+- `Image` converts into a buffer the backend keeps rather than into a cache
+  keyed by the picture. A density raster draws into the same image every
+  frame, and a cache keyed by the pointer would show the first frame for ever;
+  the conversion is one pass over the picture's pixels, which is what gg pays
+  too.
+- Tests in the module: a run aligned to end at its advance inks where one
+  aligned to start does; advances agree with the SVG backend to 0.01 px and
+  the font box within gg's stated drift; text from 6 px up is drawn at its
+  size; `?` and fallbacks; rectangle and path clips; a mirrored transform; a
+  hairline; device scale; the gradient midpoint; both encoders; and a redraw
+  over 20 000 rows allocating what one over 200 does.
+
+The pictures did not move and the renders did not slow down: the gallery's
+channel differences against gg are what they were after the font box was
+aligned, and the 63 figures render in 221 ms against 234 ms.
+
+What remains before this is Accepted is the move itself:
+
+- a CI job on Go 1.27 for this module, and its benchmarks in
+  `.github/scripts/allocgate.awk`;
+- `internal/release` learning the module;
+- the gallery moved and `docs/images` regenerated, in one commit;
+- `backend/window` on this backend, then the deprecation notices on
+  `backend/gg` and `backend/gg/gpu`.
 
 ## Revisit if
 

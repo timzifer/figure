@@ -1,9 +1,11 @@
 package stilus
 
 import (
+	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
+	"math"
+	"sync/atomic"
 
 	"github.com/timzifer/figure/ir"
 	st "github.com/timzifer/stilus"
@@ -16,6 +18,11 @@ type level struct {
 	clip bool
 }
 
+// generations stamps a buffer each time a frame changes it. It is one counter
+// for the process rather than one per surface, so a buffer replaced by Open or
+// Resize can never be mistaken for the one it replaced.
+var generations atomic.Uint64
+
 // backend adapts figure's IR onto a stilus canvas.
 type backend struct {
 	img    *image.RGBA
@@ -24,17 +31,28 @@ type backend struct {
 	glyphs *st.GlyphCache
 	stack  []level
 
+	w, h  int     // logical size
+	dpr   float64 // device pixels per logical unit
+	gen   uint64  // the buffer's generation, for Surface.Generation
+	drew  bool    // pixels were touched since the last Flush
+	dirty bool    // a damage clip is on the canvas until Flush
+
 	// Buffers reused across calls, so that a steady frame allocates nothing
 	// here that grows with the chart.
 	path   st.Path
 	marker ir.Path
 	dash   []float64
 	grad   st.LinearGradient
-	img2   st.ImageShader
+	ramp   rampKey
+	pix    []uint32
+	shader st.ImageShader
 }
 
-func newBackend(img *image.RGBA, dpr float64, fonts *fontSet) *backend {
-	b := &backend{img: img, c: st.NewCanvas(img), fonts: fonts, glyphs: new(st.GlyphCache)}
+func newBackend(img *image.RGBA, w, h int, dpr float64, fonts *fontSet, glyphs *st.GlyphCache) *backend {
+	if glyphs == nil {
+		glyphs = new(st.GlyphCache)
+	}
+	b := &backend{img: img, c: st.NewCanvas(img), fonts: fonts, glyphs: glyphs, w: w, h: h, dpr: dpr}
 	b.stack = append(b.stack, level{m: st.Scale(dpr, dpr)})
 	return b
 }
@@ -108,6 +126,7 @@ func (b *backend) Polyline(pts []ir.Point, style ir.Stroke) {
 		sp.LineTo(p.X, p.Y)
 	}
 	b.c.Stroke(sp, b.top(), b.strokeStyle(style), &st.Paint{Color: premul(style.Color)})
+	b.drew = true
 }
 
 func (b *backend) StrokePath(p *ir.Path, style ir.Stroke) {
@@ -115,6 +134,7 @@ func (b *backend) StrokePath(p *ir.Path, style ir.Stroke) {
 		return
 	}
 	b.c.Stroke(b.pathOf(p), b.top(), b.strokeStyle(style), &st.Paint{Color: premul(style.Color)})
+	b.drew = true
 }
 
 func ruleOf(r ir.FillRule) st.FillRule {
@@ -136,21 +156,7 @@ func (b *backend) FillPath(p *ir.Path, fill ir.Fill, rule ir.FillRule) {
 		paint = st.Paint{Shader: &b.grad}
 	}
 	b.c.Fill(b.pathOf(p), b.top(), ruleOf(rule), &paint)
-}
-
-// gradient sets the backend's linear gradient to fill, and reports whether it
-// can be drawn.
-func (b *backend) gradient(fill ir.Fill) bool {
-	g := &b.grad
-	g.Ramp = g.Ramp[:0]
-	g.Knots = g.Knots[:0]
-	for _, s := range fill.Stops {
-		g.Ramp = append(g.Ramp, st.PackRGBA(premul(s.Color)))
-		g.Knots = append(g.Knots, min(max(s.Offset, 0), 1))
-	}
-	g.Extend = [2]bool{true, true}
-	g.Alpha = 255
-	return g.Set(float64(fill.Start.X), float64(fill.Start.Y), float64(fill.End.X), float64(fill.End.Y), b.top())
+	b.drew = true
 }
 
 func (b *backend) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) {
@@ -183,8 +189,15 @@ func (b *backend) Markers(shape ir.Marker, at []ir.Point, style ir.MarkerStyle) 
 			b.c.Stroke(sp, m, ss, &stroke)
 		}
 	}
+	b.drew = true
 }
 
+// Image draws img stretched over dst, filtered linearly.
+//
+// The picture is converted into stilus's premultiplied layout on every call,
+// into a buffer the backend keeps. It is not cached by identity: a density
+// raster redraws into the same image each frame, and a cache keyed by the
+// pointer would show the first frame for ever.
 func (b *backend) Image(img image.Image, dst ir.Rect) {
 	if img == nil || dst.Empty() {
 		return
@@ -193,27 +206,61 @@ func (b *backend) Image(img image.Image, dst ir.Rect) {
 	if r.Empty() {
 		return
 	}
-	// SPIKE: converted on every call. A texture cache keyed by the picture
-	// is the obvious next step; the density raster redraws one per frame.
-	rgba := image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
-	draw.Draw(rgba, rgba.Bounds(), img, r.Min, draw.Src)
-	pl := st.Plane{Kind: st.PlaneRGBA, W: r.Dx(), H: r.Dy(), Stride: r.Dx(), Pix32: make([]uint32, r.Dx()*r.Dy())}
-	for i := range pl.Pix32 {
-		o := 4 * i
-		pl.Pix32[i] = st.PackRGBA(color.RGBA{rgba.Pix[o], rgba.Pix[o+1], rgba.Pix[o+2], rgba.Pix[o+3]})
+	w, h := r.Dx(), r.Dy()
+	if cap(b.pix) < w*h {
+		b.pix = make([]uint32, w*h)
 	}
-	tex := st.NewTexture(pl)
-	toDevice := st.Scale(float64(dst.Dx())/float64(r.Dx()), float64(dst.Dy())/float64(r.Dy())).
+	b.pix = b.pix[:w*h]
+	convert(b.pix, img)
+	// The texture is made per call because its base plane must not change
+	// once it exists; its mip levels are made on demand and only when the
+	// picture is drawn much smaller than it is.
+	tex := st.NewTexture(st.Plane{Kind: st.PlaneRGBA, W: w, H: h, Stride: w, Pix32: b.pix})
+	toDevice := st.Scale(float64(dst.Dx())/float64(w), float64(dst.Dy())/float64(h)).
 		Mul(st.Translate(float64(dst.Min.X), float64(dst.Min.Y))).
 		Mul(b.top())
-	b.img2.Reset()
-	if !b.img2.SetImage(tex, toDevice, true, 255) {
+	b.shader.Reset()
+	if !b.shader.SetImage(tex, toDevice, true, 255) {
 		return
 	}
 	sp := &b.path
 	sp.Reset()
 	sp.Rect(dst.Min.X, dst.Min.Y, dst.Dx(), dst.Dy())
-	b.c.Fill(sp, b.top(), st.NonZero, &st.Paint{Shader: &b.img2})
+	b.c.Fill(sp, b.top(), st.NonZero, &st.Paint{Shader: &b.shader})
+	b.drew = true
+}
+
+// convert writes img into dst in stilus's layout, premultiplied, row by row
+// from the picture's top-left corner. The two layouts figure's own rasters
+// come in take a direct path; anything else goes through At.
+func convert(dst []uint32, img image.Image) {
+	r := img.Bounds()
+	w := r.Dx()
+	switch src := img.(type) {
+	case *image.RGBA:
+		for y := range r.Dy() {
+			row := src.Pix[src.PixOffset(r.Min.X, r.Min.Y+y):]
+			for x := range w {
+				o := 4 * x
+				dst[y*w+x] = st.PackRGBA(color.RGBA{row[o], row[o+1], row[o+2], row[o+3]})
+			}
+		}
+	case *image.NRGBA:
+		for y := range r.Dy() {
+			row := src.Pix[src.PixOffset(r.Min.X, r.Min.Y+y):]
+			for x := range w {
+				o := 4 * x
+				dst[y*w+x] = st.PackRGBA(premul(ir.Color{R: row[o], G: row[o+1], B: row[o+2], A: row[o+3]}))
+			}
+		}
+	default:
+		for y := range r.Dy() {
+			for x := range w {
+				cr, cg, cb, ca := img.At(r.Min.X+x, r.Min.Y+y).RGBA()
+				dst[y*w+x] = st.PackRGBA(color.RGBA{uint8(cr >> 8), uint8(cg >> 8), uint8(cb >> 8), uint8(ca >> 8)})
+			}
+		}
+	}
 }
 
 func (b *backend) Push(clip *ir.Path, xform ir.Affine) {
@@ -224,6 +271,9 @@ func (b *backend) Push(clip *ir.Path, xform ir.Affine) {
 	lv := level{m: m}
 	if clip != nil && !clip.Empty() {
 		lv.clip = true
+		// A rectangle costs nothing per pixel; any other clip is
+		// rasterised into a mask over its bounds. Every clip figure pushes
+		// is a rectangle, so this is the path that matters.
 		if r, ok := clip.AsRect(); ok {
 			b.c.ClipRect(st.Rect{X0: float64(r.Min.X), Y0: float64(r.Min.Y), X1: float64(r.Max.X), Y1: float64(r.Max.Y)}, m)
 		} else {
@@ -243,4 +293,104 @@ func (b *backend) Pop() {
 	b.stack = b.stack[:len(b.stack)-1]
 }
 
-func (b *backend) Flush() error { return b.c.Err() }
+// Damage implements [ir.Partial]: it limits the next frame to the rectangles
+// that changed.
+//
+// The frame is clipped to them and they are cleared first, because a repaint
+// composites: drawing an antialiased stroke a second time over the first one
+// darkens its edges, so the pixels have to go before the frame is replayed.
+// Both take the bounding box of the rectangles rather than each of them, as
+// backend/gg does: a pixel inside the box and outside every rectangle is
+// repainted for nothing, and a pixel outside the box is not touched.
+//
+// A nil list is the whole frame. An empty one — which figure never sends,
+// because it skips an unchanged frame instead — clips the frame to nothing.
+func (b *backend) Damage(rects []ir.Rect) {
+	b.undamage()
+	b.drew = true
+	if rects == nil {
+		clear(b.img.Pix)
+		return
+	}
+	var box ir.Rect
+	if len(rects) > 0 {
+		box = rects[0]
+		for _, r := range rects[1:] {
+			box.Min.X = min(box.Min.X, r.Min.X)
+			box.Min.Y = min(box.Min.Y, r.Min.Y)
+			box.Max.X = max(box.Max.X, r.Max.X)
+			box.Max.Y = max(box.Max.Y, r.Max.Y)
+		}
+	}
+	px := b.pixels(box)
+	b.clearRect(px)
+	// The clip is the cleared pixels exactly rather than the logical box,
+	// so an edge pixel the box only partly covers is repainted whole
+	// instead of composited over what is left of it.
+	b.c.ClipRect(st.Rect{X0: float64(px.Min.X), Y0: float64(px.Min.Y), X1: float64(px.Max.X), Y1: float64(px.Max.Y)}, st.Identity)
+	b.dirty = true
+}
+
+// pixels is the device-pixel rectangle covering r, a rectangle in logical
+// units, within the buffer.
+func (b *backend) pixels(r ir.Rect) image.Rectangle {
+	s := b.dpr
+	return image.Rect(
+		int(math.Floor(float64(r.Min.X)*s)),
+		int(math.Floor(float64(r.Min.Y)*s)),
+		int(math.Ceil(float64(r.Max.X)*s)),
+		int(math.Ceil(float64(r.Max.Y)*s)),
+	).Intersect(b.img.Bounds())
+}
+
+// clearRect makes a rectangle of the buffer transparent.
+func (b *backend) clearRect(r image.Rectangle) {
+	if r.Empty() {
+		return
+	}
+	for y := r.Min.Y; y < r.Max.Y; y++ {
+		o := b.img.PixOffset(r.Min.X, y)
+		clear(b.img.Pix[o : o+4*r.Dx()])
+	}
+}
+
+// undamage releases a damage clip left over from the last frame.
+func (b *backend) undamage() {
+	if b.dirty {
+		b.c.PopClip()
+		b.dirty = false
+	}
+}
+
+// Resize implements [ir.Resizer]: it replaces the pixel buffer the chart is
+// drawn into, which is what a window being dragged wider needs. The glyph
+// cache survives it; the pixels do not, and the next frame paints all of them.
+func (b *backend) Resize(s ir.Surface) error {
+	if s.WidthPx <= 0 || s.HeightPx <= 0 {
+		return fmt.Errorf("figure/backend/stilus: size %dx%d is not positive", s.WidthPx, s.HeightPx)
+	}
+	if s.DPR <= 0 {
+		s.DPR = b.dpr
+	}
+	img, dpr, err := buffer(s)
+	if err != nil {
+		return err
+	}
+	b.dirty = false
+	b.img, b.w, b.h, b.dpr = img, s.WidthPx, s.HeightPx, dpr
+	b.c.Reset(img, img.Bounds())
+	b.stack = append(b.stack[:0], level{m: st.Scale(dpr, dpr)})
+	return nil
+}
+
+// Flush completes the frame. A frame that put something into the buffer
+// stamps it with a new generation, so a window watching it re-uploads exactly
+// the frames that changed.
+func (b *backend) Flush() error {
+	b.undamage()
+	if b.drew {
+		b.gen = generations.Add(1)
+		b.drew = false
+	}
+	return b.c.Err()
+}
