@@ -14,26 +14,23 @@ go 1.27.1
 // does not build against wgpu v0.33 or later — and went when the chart moved to
 // backend/stilus (docs/adr/0094). The deprecated GPU tier keeps that ceiling,
 // which is why it has a workspace of its own.
-//
-// backend/stilus has no tag yet, so it cannot be required: a require line
-// naming a version that does not exist breaks the workspace as well, because
-// the module graph is read before the workspace replaces it. Until its first
-// release the workspace provides it, and this module's release check fails —
-// which is what that check is for: it says to release backend/stilus first and
-// then require it here.
 require (
 	github.com/gogpu/gogpu v0.54.1
 	github.com/gogpu/gpucontext v0.32.0
-	github.com/timzifer/figure v0.14.0
+	github.com/gogpu/gputypes v0.8.2
+	github.com/gogpu/wgpu v0.34.14
+	github.com/timzifer/figure v0.15.0
+	github.com/timzifer/figure/backend/stilus v0.15.0
+	github.com/timzifer/stilus/gpu v0.8.0
 )
 
 require (
+	github.com/andybalholm/brotli v1.2.6 // indirect
+	github.com/go-opentype/fonts v0.14.0 // indirect
+	github.com/go-opentype/opentype v0.16.0 // indirect
 	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
-	github.com/gogpu/gputypes v0.8.2 // indirect
 	github.com/gogpu/naga v0.21.10 // indirect
-	github.com/gogpu/wgpu v0.34.14 // indirect
 	github.com/timzifer/stilus v0.18.0 // indirect
-	github.com/timzifer/stilus/gpu v0.8.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )

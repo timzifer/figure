@@ -121,11 +121,13 @@ Four things there bite:
   minimum-toolchain job builds them from a workspace that leaves those two out
   with `GOTOOLCHAIN=local`. Without that the toolchain switches itself up and
   the 1.25 claim is checked by nothing.
-- *`backend/window` names no version of `backend/stilus` until it has a tag.*
-  A require on a version that does not exist breaks the workspace too, because
-  the module graph is read before the workspace replaces it. The first release
-  goes out with `-skip backend/window`; then the require is added and the
-  window released — CONTRIBUTING's "When a require line does have to move".
+- *A module another one imports is tagged before the importer can require
+  it.* A require on a version that does not exist breaks the workspace too,
+  because the module graph is read before the workspace replaces it. So
+  v0.15.0 went out in three steps — the core with gg and arrow, then
+  `backend/stilus` once its require named that core, then `backend/window`
+  once its require named stilus — which is CONTRIBUTING's "When a require
+  line does have to move", and is what the next new module will need too.
 
 **A domain is ordered, and an axis's direction is `scale.Reverse`.** `Domain`,
 `LogDomain`, `SymLogDomain` and `Zoomer.SetDomain` all order the bounds they are
