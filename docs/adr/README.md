@@ -103,7 +103,7 @@ depends on.
 | [0091](0091-a-direction-is-a-colour-channel-any-mark-can-take.md) | A direction is a colour channel any mark can take, read from two columns and painted in the candle's colours | Accepted, amended | 0088's volume-bar revisit |
 | [0092](0092-what-a-trading-screen-reads-off-its-edges.md) | A value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong | Accepted, amended | 0085's fifth rank |
 | [0093](0093-several-symbols-are-a-facet-whose-panels-carry-their-tracks.md) | Several symbols are a facet whose panels carry their own tracks, and a comparison divides each series by its value where the view begins | Proposed | `ErrTrackWithFacet` |
-| [0094](0094-the-raster-backend-is-stilus.md) | The raster backend is stilus, and gg is deprecated before v1 freezes it | Proposed | 0021's revisit |
+| [0094](0094-the-raster-backend-is-stilus.md) | The raster backend is stilus, and gg is deprecated before v1 freezes it | Accepted | 0021's revisit |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -422,10 +422,12 @@ for panel indices. A comparison is `geom.Relative()`: each series divided by
 its first value in view, so the zero follows a pan, written by a percent axis
 that gains a `+` flag for the sign a comparison is read by.
 
-**0094 replaces the rasterizer**, *Proposed*. A spike drew all 63 gallery
+**0094 replaces the rasterizer**, *Accepted*. A spike drew all 63 gallery
 figures through `timzifer/stilus`, with text as opentype outlines filled
 through stilus's glyph cache: the pictures match gg's to antialiasing once the
 font box comes from the same table, and the renders are 8× faster overall and
 15–30× on a typical chart. `backend/gg` is deprecated rather than redirected,
 because a redirect would change every caller's pictures under an unchanged
 import path, and before v1, so that v1 freezes stilus's API instead of gg's.
+`backend/gg` and its GPU tier ship deprecated for five minor releases and are
+removed in v0.20.0.

@@ -50,8 +50,9 @@
 // github.com/timzifer/figure/backend/stilus, which draws the same charts with
 // the same options and targets — PNG, JPEG, Writer, Surface, WithFont,
 // WithFallbackFont — eight times faster across the documentation's figures,
-// and is what renders them (docs/adr/0094). This package keeps building for at
-// least one more minor release and will not be tagged v1. It is deprecated
+// and is what renders them (docs/adr/0094). This package ships deprecated in
+// v0.15.0 through v0.19.0 and is removed in v0.20.0; it will not be tagged
+// v1. It is deprecated
 // rather than redirected to stilus because a redirect would change every
 // picture a caller has made under an unchanged import path.
 package gg

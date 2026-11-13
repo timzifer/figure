@@ -97,8 +97,9 @@ The CPU rasterizer is the supported path —
 commit, not a side effect of `go get -u`.
 
 **The raster backend is `backend/stilus`, and `backend/gg` is deprecated.**
-New raster work goes into stilus; gg keeps building, unchanged, until it is
-removed, and is not tagged v1 ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
+New raster work goes into stilus; gg keeps building, unchanged, through
+v0.19.0 and is removed in v0.20.0 with its GPU tier, and is never tagged v1
+([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)).
 Four things there bite:
 
 - *A glyph outline is in ems, not design units.* `stilus.GlyphCache`

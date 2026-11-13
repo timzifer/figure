@@ -34,6 +34,6 @@ require (
 	github.com/gogpu/naga v0.21.10 // indirect
 	github.com/gogpu/wgpu v0.34.14 // indirect
 	github.com/timzifer/stilus v0.18.0 // indirect
-	github.com/timzifer/stilus/gpu v0.7.0 // indirect
+	github.com/timzifer/stilus/gpu v0.8.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )

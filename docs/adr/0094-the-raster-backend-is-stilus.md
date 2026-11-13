@@ -1,6 +1,6 @@
 # 0094 — The raster backend is stilus, and gg is deprecated before v1 freezes it
 
-**Status:** Proposed · **Date:** 2026-11-13 · **Revisits:** [ADR 0006](0006-gg-coupling-surface.md), [ADR 0021](0021-native-window.md), [ADR 0022](0022-gpu-tier.md), [ADR 0005](0005-go-version.md)
+**Status:** Accepted · **Date:** 2026-11-13 · **Revisits:** [ADR 0006](0006-gg-coupling-surface.md), [ADR 0021](0021-native-window.md), [ADR 0022](0022-gpu-tier.md), [ADR 0005](0005-go-version.md)
 
 ## Context
 
@@ -116,7 +116,9 @@ gg's.**
   arriving from another library.
 - **`backend/gg` is deprecated, not redirected.** The module and package carry
   a `// Deprecated:` notice pointing at `backend/stilus`, keep building and
-  keep their tests for at least one minor release, and are not tagged `v1`.
+  keep their tests for **five minor releases — v0.15.0, the first to carry
+  the notice, through v0.19.0 — and are removed in v0.20.0**. They are not
+  tagged `v1`.
   `backend/gg/gpu` is deprecated with it: it is gg's GPU tier, and there is
   nothing of stilus's for it to switch on.
 
@@ -240,8 +242,11 @@ After that the window took the step ADR 0021's "Revisit if" describes:
   `FIGURE_GPU_REQUIRE=1` makes it fail instead on a machine that should have
   one.
 
-What is left is a decision rather than work: accepting this record, and when
-to remove `backend/gg`.
+The record was accepted with the removal set: `backend/gg` and
+`backend/gg/gpu` ship deprecated in v0.15.0 through v0.19.0 and are removed in
+v0.20.0, together with `backend/gg/gpu/go.work`, the gg modules' Dependabot
+block and their CI steps. The window moved to stilus/gpu v0.8.0 before the
+merge.
 
 ## Revisit if
 

@@ -1,4 +1,4 @@
-// Deprecated: gg's GPU tier, deprecated with backend/gg; figure's raster backend is github.com/timzifer/figure/backend/stilus (docs/adr/0094).
+// Deprecated: gg's GPU tier, deprecated with backend/gg; figure's raster backend is github.com/timzifer/figure/backend/stilus; removed in v0.20.0 (docs/adr/0094).
 module github.com/timzifer/figure/backend/gg/gpu
 
 go 1.25.0

@@ -42,8 +42,8 @@ dependencies of its own, still with `CGO_ENABLED=0`.
 | `github.com/timzifer/figure` | **stdlib only** | SVG, PDF, browser canvas |
 | `github.com/timzifer/figure/backend/stilus` | `stilus`, `go-opentype` — zero CGO, Go 1.27.1 | PNG, JPEG, an in-memory surface |
 | `github.com/timzifer/figure/backend/window` | GoGPU (`gogpu`), `backend/stilus` — zero CGO, Go 1.27.1 | a native window |
-| `github.com/timzifer/figure/backend/gg` | GoGPU (`gg`), `x/image` — zero CGO | **deprecated** — PNG, JPEG, a surface ([why](docs/adr/0094-the-raster-backend-is-stilus.md)) |
-| `github.com/timzifer/figure/backend/gg/gpu` | GoGPU (`gg/gpu`, `wgpu`) — zero CGO | **deprecated** — gg's GPU tier |
+| `github.com/timzifer/figure/backend/gg` | GoGPU (`gg`), `x/image` — zero CGO | **deprecated**, removed in v0.20.0 — PNG, JPEG, a surface ([why](docs/adr/0094-the-raster-backend-is-stilus.md)) |
+| `github.com/timzifer/figure/backend/gg/gpu` | GoGPU (`gg/gpu`, `wgpu`) — zero CGO | **deprecated**, removed in v0.20.0 — gg's GPU tier |
 | `github.com/timzifer/figure/arrow/v18` | `apache/arrow-go` — zero CGO | — (a data source) |
 
 The browser is in the core too, because it needs nothing to be: a canvas 2D

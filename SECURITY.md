@@ -10,8 +10,8 @@ release of each module; older releases are not patched.
 | `github.com/timzifer/figure` | `v0.x`, latest only |
 | `github.com/timzifer/figure/backend/stilus` | `v0.x`, latest only |
 | `github.com/timzifer/figure/backend/window` | `v0.x`, latest only |
-| `github.com/timzifer/figure/backend/gg` | `v0.x`, latest only, while deprecated ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)) |
-| `github.com/timzifer/figure/backend/gg/gpu` | `v0.x`, latest only, while deprecated |
+| `github.com/timzifer/figure/backend/gg` | `v0.x`, latest only, until its removal in v0.20.0 ([ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)) |
+| `github.com/timzifer/figure/backend/gg/gpu` | `v0.x`, latest only, until its removal in v0.20.0 |
 | `github.com/timzifer/figure/arrow/v18` | `v18.x`, latest only |
 
 ## Reporting a vulnerability
