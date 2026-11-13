@@ -1,9 +1,14 @@
 # The core module has no dependencies to update by design, so it is not listed:
 # an update to it would be a bug. The nested modules and the actions in CI are
 # what actually move.
+#
+# backend/gg and backend/gg/gpu are not listed either. They are deprecated and
+# removed in v0.20.0 (docs/adr/0094); until then they build unchanged, and a
+# bump to a module on its way out is churn — every gg or wgpu bump there was
+# also one that could not compile, since gg v0.52.5 makes the render-pass calls
+# wgpu v0.33 turned into struct arguments.
 version: 2
 updates:
-  # The modules that move freely.
   - package-ecosystem: gomod
     directories:
       - /backend/stilus
@@ -15,32 +20,14 @@ updates:
     commit-message:
       prefix: build
       include: scope
-
-  # The deprecated gg modules (docs/adr/0094). gg v0.52.5 — the version both
-  # pin — makes the render-pass calls wgpu v0.33 turned into struct arguments,
-  # so anything that drags wgpu to v0.33 or later fails to build gg itself;
-  # gogpu v0.53.2 and gpucontext v0.30 do exactly that. Holding the ceiling
-  # here keeps Dependabot from reopening a bump that cannot compile. The window
-  # used to share it and does not: it draws through stilus and is on wgpu v0.34.
-  - package-ecosystem: gomod
-    directories:
-      - /backend/gg
-      - /backend/gg/gpu
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: build
-      include: scope
+    # A nested module's require on figure's own modules is a floor, not a pin:
+    # it moves only when the module needs an API the version it names does not
+    # have, and the release check is what says so (CONTRIBUTING, "When a
+    # require line does have to move"). A bump to the latest tag on every
+    # release is noise that says nothing about what the module needs.
     ignore:
-      - dependency-name: github.com/gogpu/wgpu
-        versions: [">=0.33.0"]
-      - dependency-name: github.com/gogpu/gogpu
-        versions: [">=0.53.2"]
-      - dependency-name: github.com/gogpu/gpucontext
-        versions: [">=0.30.0"]
-      - dependency-name: github.com/gogpu/gputypes
-        versions: [">=0.7.0"]
+      - dependency-name: github.com/timzifer/figure
+      - dependency-name: github.com/timzifer/figure/*
 
   - package-ecosystem: github-actions
     directory: /
