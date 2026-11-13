@@ -20,14 +20,14 @@ require (
 	github.com/gogpu/gputypes v0.8.2
 	github.com/gogpu/wgpu v0.34.14
 	github.com/timzifer/figure v0.15.0
-	github.com/timzifer/figure/backend/stilus v0.15.0
+	github.com/timzifer/figure/backend/stilus v0.15.1
 	github.com/timzifer/stilus/gpu v0.8.0
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.6 // indirect
+	github.com/dsnet/compress v0.0.2-0.20230904184137-39efe44ab707 // indirect
 	github.com/go-opentype/fonts v0.14.0 // indirect
-	github.com/go-opentype/opentype v0.16.0 // indirect
+	github.com/go-opentype/opentype v0.21.1 // indirect
 	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
 	github.com/gogpu/naga v0.21.10 // indirect
