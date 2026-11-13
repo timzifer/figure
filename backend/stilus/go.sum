@@ -12,7 +12,7 @@ github.com/klauspost/compress v1.4.1/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0
 github.com/klauspost/cpuid v1.2.0/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
 github.com/timzifer/figure v0.15.0 h1:OyOATrivZXHJLo3fCREeQiXRcJNaaBdp6dlc/1A3fQM=
 github.com/timzifer/figure v0.15.0/go.mod h1:q8KmlPjxcoOTgAe9gR4RNdTCwTb2bzA9CDlNIyzbXtE=
-github.com/timzifer/stilus v0.18.0 h1:Z32N1r7W+qxAVMHLFF0ztlNEhVkg1BPNi8nwEsM+3AM=
-github.com/timzifer/stilus v0.18.0/go.mod h1:J8uybarHVrCcMUgRwrEkZOw5USCYqbIcfqjTGm2pB2o=
+github.com/timzifer/stilus v0.19.0 h1:KgOwrdJStW4RscuE5GW9bkVnCt88gHH5GxveZhAxezM=
+github.com/timzifer/stilus v0.19.0/go.mod h1:J8uybarHVrCcMUgRwrEkZOw5USCYqbIcfqjTGm2pB2o=
 github.com/ulikunitz/xz v0.5.8/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
