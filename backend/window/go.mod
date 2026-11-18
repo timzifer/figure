@@ -17,7 +17,7 @@ go 1.27.1
 require (
 	github.com/gogpu/gogpu v0.54.1
 	github.com/gogpu/gpucontext v0.32.0
-	github.com/gogpu/gputypes v0.8.2
+	github.com/gogpu/gputypes v0.9.1
 	github.com/gogpu/wgpu v0.34.14
 	github.com/timzifer/figure v0.15.0
 	github.com/timzifer/figure/backend/stilus v0.15.1
