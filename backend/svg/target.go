@@ -137,8 +137,12 @@ func (t *target) Close() error {
 	if t.bw != nil {
 		err = t.bw.Flush()
 	}
-	if cerr := t.w.Close(); err == nil {
-		err = cerr
+	// A File target has no writer until Open creates the file, and a render
+	// that fails before Open — or an Open whose Create failed — leaves it so.
+	if t.w != nil {
+		if cerr := t.w.Close(); err == nil {
+			err = cerr
+		}
 	}
 	return err
 }
