@@ -127,6 +127,11 @@ func optionalFont(b []byte, which string) (*sfnt.Font, error) {
 	if err != nil {
 		return nil, fmt.Errorf("figure/backend/pdf: parsing the supplied %s font: %w", which, err)
 	}
+	// The regular face's reason holds for every face: a bold title drawn
+	// through a font with no Unicode map is a title of .notdef boxes.
+	if !f.HasUnicodeMap() {
+		return nil, fmt.Errorf("figure/backend/pdf: the supplied %s font has no Unicode character map, so no label could be mapped to a glyph", which)
+	}
 	return f, nil
 }
 
