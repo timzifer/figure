@@ -390,7 +390,7 @@ jobs:
           path: bench.txt
 
   # ---------------------------------------------------------------------------
-  # Coverage across both modules, published as a shields.io endpoint so the
+  # Coverage across the core and the nested modules, published as a shields.io endpoint so the
   # README badge needs no third-party service.
   # ---------------------------------------------------------------------------
   coverage:
@@ -404,7 +404,10 @@ jobs:
       # SSH. See CONTRIBUTING.md.
       - uses: actions/checkout@v7
         with:
-          ssh-key: ${{ secrets.CI_PUSH_KEY }}
+          # Only a push to main commits anything, so only a push to main
+          # gets the key: on a pull request the steps after this run the
+          # PR's own code, and the key is a bypass of main's ruleset.
+          ssh-key: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CI_PUSH_KEY || '' }}
       - uses: actions/setup-go@v7
         with:
           go-version: stable
@@ -501,7 +504,10 @@ jobs:
       # commit below lands on a protected main.
       - uses: actions/checkout@v7
         with:
-          ssh-key: ${{ secrets.CI_PUSH_KEY }}
+          # Only a push to main commits anything, so only a push to main
+          # gets the key: on a pull request the steps after this run the
+          # PR's own code, and the key is a bypass of main's ruleset.
+          ssh-key: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.CI_PUSH_KEY || '' }}
       - uses: actions/setup-go@v7
         with:
           go-version: stable
