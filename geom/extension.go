@@ -122,13 +122,28 @@ func registered(m Mark) (func(Desc) (Geom, error), bool) {
 
 // builtin reports whether m is a mark this package defines.
 func builtin(m Mark) bool {
-	switch m {
-	case MarkLine, MarkScatter, MarkBar, MarkArea, MarkStep, MarkBoxplot, MarkRect,
-		MarkHistogram, MarkViolin, MarkRidgeline, MarkHexbin, MarkBeeswarm, MarkECDF, MarkTrend,
-		MarkHLine, MarkVLine, MarkHBand, MarkVBand, MarkSegment, MarkRegion, MarkNote, MarkLocus, MarkText:
-		return true
-	}
-	return false
+	_, ok := builtinMarks[m]
+	return ok
+}
+
+// builtinMarks is every mark this package defines. [Register] refuses each of
+// them and [FromDesc] never asks the registry about one, so a third-party
+// package cannot change what a document's built-in mark means. A mark added to
+// describe.go and not here is a mark Register would let a plug-in shadow;
+// TestEveryBuiltInMarkIsRefusedByRegister reads describe.go to catch that.
+var builtinMarks = map[Mark]struct{}{
+	MarkLine: {}, MarkScatter: {}, MarkBar: {}, MarkArea: {}, MarkStep: {},
+	MarkBoxplot: {}, MarkRect: {}, MarkText: {},
+	MarkContour: {}, MarkHorizon: {}, MarkRaster: {}, MarkVoronoi: {},
+	MarkHistogram: {}, MarkViolin: {}, MarkRidgeline: {}, MarkHexbin: {},
+	MarkBeeswarm: {}, MarkECDF: {}, MarkQQ: {}, MarkTrend: {},
+	MarkTreemap: {}, MarkIcicle: {}, MarkSankey: {}, MarkArc: {}, MarkTree: {},
+	MarkGraph: {}, MarkNodeLink: {}, MarkIntersections: {}, MarkSetMatrix: {},
+	MarkSetSizes: {}, MarkVenn: {}, MarkParallel: {}, MarkParallelSets: {},
+	MarkSurvival: {}, MarkDepends: {}, MarkErrorBar: {}, MarkCandle: {},
+	MarkLastValue: {}, MarkLocus: {},
+	MarkHLine: {}, MarkVLine: {}, MarkHBand: {}, MarkVBand: {}, MarkSegment: {},
+	MarkRegion: {}, MarkNote: {},
 }
 
 // sortedKeys is the map's keys in order, so that a description turned back

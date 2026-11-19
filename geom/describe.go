@@ -519,9 +519,11 @@ func FromDesc(d Desc) (Geom, error) {
 		return Locus(d.Family, d.Levels, opts...), nil
 	}
 
-	if build, ok := registered(d.Mark); ok {
-		// A registered mark decides for itself whether it needs a source.
-		return build(d)
+	if !builtin(d.Mark) {
+		if build, ok := registered(d.Mark); ok {
+			// A registered mark decides for itself whether it needs a source.
+			return build(d)
+		}
 	}
 
 	if d.Source == nil {
