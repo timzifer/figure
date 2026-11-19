@@ -7,6 +7,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"math"
 	"os"
 
 	"github.com/timzifer/figure/ir"
@@ -146,6 +147,18 @@ func (o options) open(s ir.Surface, glyphs *st.GlyphCache, spare *image.RGBA) (*
 	return newBackend(img, s.WidthPx, s.HeightPx, dpr, fonts, glyphs), nil
 }
 
+// MaxSide and MaxPixels bound the pixel buffer a surface may ask for, after
+// the device pixel ratio is applied. A chart's size can arrive from a document
+// somebody else wrote — figure.ParseJSON is that path — and a width of a
+// million or a ratio of 1e9 would otherwise be an allocation of terabytes, or
+// an int overflow on the way to one. MaxPixels is a gibibyte of RGBA, which a
+// 16384-pixel square still fits; anything larger is refused with an error
+// rather than attempted.
+const (
+	MaxSide   = 1 << 15
+	MaxPixels = 1 << 28
+)
+
 // buffer is the pixel buffer for a surface: logical size times the device
 // pixel ratio, as gg's NewContextWithScale makes it. A spare buffer of exactly
 // that size is cleared and handed back rather than allocated again.
@@ -157,8 +170,20 @@ func buffer(s ir.Surface, spare *image.RGBA) (*image.RGBA, float64, error) {
 	if dpr <= 0 {
 		dpr = 1
 	}
-	w := int(float64(s.WidthPx)*dpr + 0.5)
-	h := int(float64(s.HeightPx)*dpr + 0.5)
+	if math.IsNaN(dpr) || math.IsInf(dpr, 0) {
+		return nil, 0, fmt.Errorf("figure/backend/stilus: device pixel ratio %v is not a finite number", s.DPR)
+	}
+	// In float64 first: the product of a hostile size and ratio can be past
+	// what an int holds, and converting that is implementation-defined.
+	fw := math.Round(float64(s.WidthPx) * dpr)
+	fh := math.Round(float64(s.HeightPx) * dpr)
+	if fw < 1 || fh < 1 {
+		return nil, 0, fmt.Errorf("figure/backend/stilus: a %d×%d chart at device pixel ratio %v is less than one pixel across", s.WidthPx, s.HeightPx, dpr)
+	}
+	if fw > MaxSide || fh > MaxSide || fw*fh > MaxPixels {
+		return nil, 0, fmt.Errorf("figure/backend/stilus: a %.0f×%.0f pixel buffer is larger than the %d-pixel side and %d-pixel total this backend allocates", fw, fh, MaxSide, MaxPixels)
+	}
+	w, h := int(fw), int(fh)
 	r := image.Rect(0, 0, w, h)
 	if spare != nil && spare.Rect == r {
 		clear(spare.Pix)
