@@ -1,7 +1,7 @@
 package palette
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/timzifer/figure/ir"
 )
@@ -48,25 +48,40 @@ func RegisterMatrix(name string, m [][]ir.Color) {
 			return
 		}
 	}
-	matrices[name] = m
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	matrices[name] = cloneMatrix(m)
 }
 
-// MatrixByName looks up a registered bivariate matrix.
+// MatrixByName looks up a registered bivariate matrix. The result is a copy,
+// rows included: editing it changes nothing that is registered.
 func MatrixByName(name string) ([][]ir.Color, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	m, ok := matrices[name]
-	return m, ok
+	return cloneMatrix(m), ok
+}
+
+// cloneMatrix copies a matrix and each of its rows; a copy of the outer slice
+// alone would still share every colour with the original.
+func cloneMatrix(m [][]ir.Color) [][]ir.Color {
+	if m == nil {
+		return nil
+	}
+	out := make([][]ir.Color, len(m))
+	for i, row := range m {
+		out[i] = slices.Clone(row)
+	}
+	return out
 }
 
 // MatrixName reports the name a matrix was registered under, comparing the
 // colours rather than the slice, so that a copy of a registered matrix is still
 // written down by name.
 func MatrixName(m [][]ir.Color) (string, bool) {
-	names := make([]string, 0, len(matrices))
-	for name := range matrices {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	for _, name := range sortedNames(matrices) {
 		if sameMatrix(matrices[name], m) {
 			return name, true
 		}
