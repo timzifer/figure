@@ -1,6 +1,6 @@
 # figure
 
-**A grammar-driven plotting library for Go: one model, many backends, runs everywhere — built on the GoGPU stack.**
+**A grammar-driven plotting library for Go: one model, many backends, runs everywhere — pure Go and cgo-free, from the core to the window.**
 
 > Status: **`v0.x`.** The model is settled and the API is not frozen. The
 > three seams that took positional scale arguments have been reshaped so that a
@@ -64,9 +64,10 @@ combination this project targets:
 Two things changed the calculus versus older Go plotting attempts. First, a
 grammar-driven, serializable model (à la Vega-Lite) is now the expected shape of a
 modern charting library. Second — and decisively — **the rendering layer that used
-to be the multi-year blocker now exists in pure Go**: the GoGPU stack provides a
-Skia-quality 2D engine, a pure-Go WebGPU implementation, and a windowing layer,
-all cgo-free. That removes the single biggest reason ambitious Go plotters stalled.
+to be the multi-year blocker now exists in pure Go**: a Skia-quality 2D
+rasterizer (stilus, after gg — [ADR 0094](docs/adr/0094-the-raster-backend-is-stilus.md)),
+a pure-Go WebGPU implementation and a windowing layer (the GoGPU stack), all
+cgo-free. That removes the single biggest reason ambitious Go plotters stalled.
 
 So the unoccupied position is: **a grammar-driven Go plotting library whose entire
 stack is cgo-free and portable, that renders identically across static, web, and

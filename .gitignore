@@ -25,14 +25,19 @@ profile.cov
 # vendor/
 
 # Go workspace file. go.work is committed: this repository is multi-module
-# (core + backend/gg + backend/gg/gpu + backend/window + arrow) and the
-# workspace is how they are built together.
+# (core + backend/stilus + backend/gg + backend/gg/gpu + backend/window +
+# arrow) and the workspace is how they are built together.
 go.work.sum
 
 # env file
 .env
 
-# Charts written by the examples when they are run by hand.
+# Charts written by the examples when they are run by hand. Every example
+# writes into the directory it is run from, and run from the root that is here;
+# nothing at the root is a committed chart.
+/*.svg
+/*.png
+/*.pdf
 bigdata-*.svg
 live.svg
 accessible.svg

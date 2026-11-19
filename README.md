@@ -10,7 +10,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A grammar-driven plotting library for Go: one model, many backends, runs
-everywhere — built on the GoGPU stack.**
+everywhere — pure Go and cgo-free, from the core to the window.**
 
 > **Status: `v0.x`.** The model is settled and the API is not frozen. The three
 > seams that took positional scale arguments have been reshaped so that a chart
@@ -245,7 +245,7 @@ of every mark and a window shows what a file would
   order it was built, with the argument behind each step.
 - [pkg.go.dev](https://pkg.go.dev/github.com/timzifer/figure) — the API
   reference, generated from the doc comments.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — building a five-module repository, how
+- [CONTRIBUTING.md](CONTRIBUTING.md) — building a six-module repository, how
   to regenerate golden files and figures, and how a release is tagged.
 - [SECURITY.md](SECURITY.md) — which versions get fixes, and how to report a
   vulnerability privately.

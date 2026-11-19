@@ -9,7 +9,9 @@
 // wants one as PDF links nothing native and nothing young. The browser backend
 // is built in for the same reason: a canvas 2D context is reached through
 // syscall/js. Raster output lives in a separate module,
-// github.com/timzifer/figure/backend/gg, which is still CGO-free.
+// github.com/timzifer/figure/backend/stilus, which is still CGO-free; the
+// older github.com/timzifer/figure/backend/gg is deprecated and goes in
+// v0.20.0.
 //
 // # Shape of the API
 //
