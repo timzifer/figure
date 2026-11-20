@@ -396,6 +396,12 @@ jobs:
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
+    # Runs on main push the badge one at a time, so a merge that lands mid-run
+    # is rebased onto rather than raced; a pull request gets a group of its
+    # own, because a shared one would cancel its pending runs.
+    concurrency:
+      group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main-push-coverage' || format('coverage-{0}', github.run_id) }}
+      cancel-in-progress: false
     steps:
       # main is a protected branch, so the badge commit below cannot go through
       # the workflow token: a ruleset bypass is not grantable to it on a
@@ -480,16 +486,7 @@ jobs:
       - name: Commit the badge
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          set -euo pipefail
-          if git diff --quiet -- docs/coverage.json; then
-            echo "coverage unchanged"
-            exit 0
-          fi
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/coverage.json
-          git commit -m "ci: update the coverage badge"
-          git push
+          .github/scripts/push-to-main.sh "ci: update the coverage badge" docs/coverage.json
 
   # ---------------------------------------------------------------------------
   # The documentation figures. Every chart in the README is generated code
@@ -499,6 +496,11 @@ jobs:
   figures:
     name: Documentation figures
     runs-on: ubuntu-latest
+    # The coverage job's arrangement, and for figures it matters more: two
+    # renders pushing out of order would leave the older picture on main.
+    concurrency:
+      group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main-push-figures' || format('figures-{0}', github.run_id) }}
+      cancel-in-progress: false
     steps:
       # The same deploy key as the coverage job, and for the same reason: the
       # commit below lands on a protected main.
@@ -549,9 +551,4 @@ jobs:
       - name: Commit the re-rendered figures
         if: steps.check.outcome == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          set -euo pipefail
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/images
-          git commit -m "ci: re-render the documentation figures"
-          git push
+          .github/scripts/push-to-main.sh "ci: re-render the documentation figures" docs/images
