@@ -104,6 +104,7 @@ depends on.
 | [0092](0092-what-a-trading-screen-reads-off-its-edges.md) | A value is tagged on its axis, a crosshair snaps to a row, and an indicator earns a function only where composing it goes wrong | Accepted, amended | 0085's fifth rank |
 | [0093](0093-several-symbols-are-a-facet-whose-panels-carry-their-tracks.md) | Several symbols are a facet whose panels carry their own tracks, and a comparison divides each series by its value where the view begins | Proposed | `ErrTrackWithFacet` |
 | [0094](0094-the-raster-backend-is-stilus.md) | The raster backend is stilus, and gg is deprecated before v1 freezes it | Accepted | 0021's revisit |
+| [0095](0095-every-mark-freezes-and-the-audit-decides-which-ship.md) | Every mark freezes with v1, and the audit decides which ones ship | Accepted | #86 |
 
 Nothing in §17 is open any more. **§17.7**, the third-party geom and backend
 extension API, was the last, and it was held open on purpose until the
@@ -431,3 +432,13 @@ because a redirect would change every caller's pictures under an unchanged
 import path, and before v1, so that v1 freezes stilus's API instead of gg's.
 `backend/gg` and its GPU tier ship deprecated for five minor releases and are
 removed in v0.20.0.
+
+**0095 decides how much of `geom` freezes**, *Accepted*: all of it. Go tags a
+module rather than a package, a nested module would rename every specialist
+mark in the dialect, and an exclusion list is a promise with a hole in it — so
+there is no experimental tier, and what the second audit doubts is removed
+before the tag and can return additively. The audit's geom pass starts from the
+eighteen marks and forty-two options added since the restart. Discoverability
+is documentation: one table of what each mark reads, which `spec`'s tests hold
+to the encoder, and a package doc with a matrix of options against marks that a test keeps
+current.
