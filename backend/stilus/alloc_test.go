@@ -7,12 +7,27 @@ package stilus_test
 
 import (
 	"math"
+	"runtime"
+	"runtime/debug"
 	"testing"
 
 	"github.com/timzifer/figure"
 	stilusbackend "github.com/timzifer/figure/backend/stilus"
 	"github.com/timzifer/figure/geom"
 )
+
+// allocsWithoutCollection is [testing.AllocsPerRun] with the collector held
+// off for the measurement. A collection empties every sync.Pool, and a frame
+// that finds its pooled scratch gone refills it — a few dozen allocations that
+// have nothing to do with the rows, landing on whichever run a collection
+// happened to fall in. That is a real cost a real chart pays now and then, and
+// it is not the one this gate measures, which is whether a frame allocates per
+// row. With GOGC=5 the sized-layer gate failed by exactly that refill.
+func allocsWithoutCollection(runs int, f func()) float64 {
+	runtime.GC()
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	return testing.AllocsPerRun(runs, f)
+}
 
 // A frame redrawn on a surface allocates what a frame costs, not what its rows
 // cost: the surface keeps its backend between opens — the canvas with its
@@ -34,7 +49,7 @@ func TestARedrawDoesNotAllocatePerPoint(t *testing.T) {
 		p.Add(geom.Scatter(figure.Float64Columns(map[string][]float64{"x": xs, "y": ys}), geom.X("x"), geom.Y("y")))
 		s := stilusbackend.NewSurface()
 		_ = p.Render(s) // warm the pools and the glyph cache
-		return testing.AllocsPerRun(5, func() { _ = p.Render(s) })
+		return allocsWithoutCollection(5, func() { _ = p.Render(s) })
 	}
 	small, large := allocs(200), allocs(20000)
 	if large > small+8 {

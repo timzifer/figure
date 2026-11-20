@@ -8,6 +8,8 @@ package geom_test
 import (
 	"image"
 	"math"
+	"runtime"
+	"runtime/debug"
 	"testing"
 
 	"github.com/timzifer/figure/geom"
@@ -16,6 +18,19 @@ import (
 	"github.com/timzifer/figure/scale"
 	"github.com/timzifer/figure/theme"
 )
+
+// allocsWithoutCollection is [testing.AllocsPerRun] with the collector held
+// off for the measurement. A collection empties every sync.Pool, and a frame
+// that finds its pooled scratch gone refills it — a few dozen allocations that
+// have nothing to do with the rows, landing on whichever run a collection
+// happened to fall in. That is a real cost a real chart pays now and then, and
+// it is not the one this gate measures, which is whether a frame allocates per
+// row. With GOGC=5 the sized-layer gate failed by exactly that refill.
+func allocsWithoutCollection(runs int, f func()) float64 {
+	runtime.GC()
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	return testing.AllocsPerRun(runs, f)
+}
 
 // A redrawn contour traces into the same memory, which is why stat.Contour is a
 // struct with a Reset.
@@ -33,12 +48,12 @@ func TestARedrawnContourDoesNotAllocatePerRow(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	big := testing.AllocsPerRun(10, func() {
+	big := allocsWithoutCollection(10, func() {
 		if err := g.Train(geom.Training{X: x, Y: y}); err != nil {
 			t.Fatal(err)
 		}
 	})
-	tiny := testing.AllocsPerRun(10, func() {
+	tiny := allocsWithoutCollection(10, func() {
 		if err := small.Train(geom.Training{X: scale.Linear(), Y: scale.Linear()}); err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +84,7 @@ func TestARedrawnLabelledContourDoesNotAllocatePerLabel(t *testing.T) {
 		b := discarding{irtest.New()}
 		f := geom.Frame{Area: area, X: x, Y: y, Theme: theme.Light}
 		return func() float64 {
-			return testing.AllocsPerRun(10, func() {
+			return allocsWithoutCollection(10, func() {
 				if err := g.Build(b, f); err != nil {
 					t.Fatal(err)
 				}
