@@ -12,7 +12,13 @@ accepts every option and ignores the ones it has no use for, which is what
 keeps the option set one namespace; a *document* listing a line's whisker
 extent would read as though that meant something. `spec.writeMarkProps` decides
 per mark. Adding an option means adding it there too, and the round-trip test
-in `spec/` is what catches forgetting.
+in `spec/` is what catches forgetting. `internal/markprops` writes the same
+answer down as data for `geom`'s documentation, and
+`TestTheMarkTableIsWhatTheEncoderWrites` derives it from this function and
+fails when the two differ — so a change here is a change to that table, never
+the other way round. A built-in mark with no case of its own falls into the
+third-party branch and writes every shared property, which is how
+`MarkParallel` described a fill and a curve it never drew.
 
 **`geom.Desc` and `scale.Desc` are complete, not partial.** Every field with a
 non-zero default — `BarWidth`, `Whisker`, `Outliers`, `Extend`, `Opacity` —

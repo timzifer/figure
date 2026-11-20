@@ -277,7 +277,14 @@ outside a `Build`, where there is no scratch to take.
 more places or the JSON spec silently drops it: a field on `geom.Desc`, a line
 in `config.describe`, and a case in `spec.writeMarkProps` for the marks that
 use it. `geom`'s `TestDescribeAndRebuildAgree` and `spec`'s round-trip test are
-what catch forgetting.
+what catch forgetting. Two more places keep the documentation true, and each
+has a test that fails until it is done: the option's group in `geom`'s package
+doc (`TestThePackageDocNamesEveryMarkAndOption`), and, for a property the
+encoder writes, the marks' rows in `internal/markprops`
+(`TestTheMarkTableIsWhatTheEncoderWrites`, then
+`go test ./geom -run TestTheOptionMatrixIsCurrent -update` for the matrix).
+A new mark is a row there and a place in the package doc's list of marks, for
+the same reason ([ADR 0095](docs/adr/0095-every-mark-freezes-and-the-audit-decides-which-ship.md)).
 
 **A guide** — a third kind beside the legend and the colourbar — is a
 `layout.GuideKind` constant, a measuring function in `layout`, and a drawing

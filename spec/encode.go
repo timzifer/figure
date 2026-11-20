@@ -612,6 +612,16 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 	// The relational layouts. Each writes the gap it leaves between its shapes;
 	// the two that place nodes also write how thick a node is, and the one
 	// whose picture depends on where its rail sits writes that.
+	case geom.MarkParallel:
+		// A line per row across the panel's own axes: a stroke and how solid
+		// it is, and nothing else. It fills nothing, its missing-value policy
+		// is the gap, and its segments are straight, so a document listing a
+		// fill, a curve or a decimation for it would describe options it
+		// ignores — which is what the third-party branch below used to write.
+		stroke()
+		if d.Opacity >= 0 {
+			m.Opacity = float64Ptr(d.Opacity)
+		}
 	case geom.MarkTreemap, geom.MarkIcicle:
 		fill()
 		m.Padding = d.Padding

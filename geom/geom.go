@@ -4,6 +4,203 @@
 // columns, asks the scales where values go, and emits IR. It has no reference
 // to a backend, no knowledge of SVG or raster, and no opinion about layout
 // beyond the rectangle it is given.
+//
+// Every mark is built the same way — a constructor taking the table and a list
+// of [Option] values — and every constructor takes every option. An option a
+// mark has no use for is accepted and changes nothing, which keeps the options
+// one namespace for every mark, including one defined outside this package
+// through [Register] and [Configure]. Which options a mark does read is the
+// table at the end of this page.
+//
+// # Marks
+//
+// The basic marks:
+//   - [Line], [Scatter], [Bar], [Area], [Step], [Rect], [Text]
+//
+// Distributions and fitted statistics:
+//   - [Histogram], [Violin], [Ridgeline], [Boxplot], [Beeswarm], [ECDF],
+//     [QQ], [Trend], [Hexbin], [ErrorBar], [Survival]
+//
+// Fields, surfaces and curves given by a formula:
+//   - [Contour], [Raster], [Horizon], [Voronoi], [Locus]
+//
+// Relational layouts — a hierarchy, a flow, a graph, or rows across several
+// axes:
+//   - [Treemap], [Icicle], [Sankey], [Arc], [Tree], [Graph], [NodeLink],
+//     [Parallel], [ParallelSets]
+//
+// Sets, counted:
+//   - [Intersections], [SetMatrix], [SetSizes], [Venn]
+//
+// Plans and markets:
+//   - [Depends], [Candle], [LastValue]
+//
+// Annotations, placed at values rather than read from a table:
+//   - [HLine], [VLine], [HBand], [VBand], [Segment], [Region], [Note]
+//
+// # Options
+//
+// Columns, naming what a mark reads from the table:
+//   - [X], [Y], [X2], [Y2], [Mid], [From], [To], [ID], [Parent], [Value],
+//     [Dims], [OHLC], [Event], [LinkBy], [ProgressBy], [ErrorBy],
+//     [ErrorXBy], [UncertaintyBy], [KeyBy], [WidthBy], [ExplodeBy],
+//     [DirectionBy], [TextBy], [OnX2], [OnY2]
+//
+// Colour, size and series:
+//   - [Color], [ColorBy], [SizeBy], [GroupBy], [Label], [Guide], [Stack],
+//     [Order], [Dodge]
+//
+// The stroke and the marker:
+//   - [Width], [Dash], [Shape], [Size]
+//
+// The fill:
+//   - [Fill], [Opacity], [Hatch], [HatchColor], [HatchDensity],
+//     [HatchWidth], [Gradient], [Corner], [Inset]
+//
+// Rows, missing values and decimation:
+//   - [OnMissing], [Decimate], [Budget], [DensityCells]
+//
+// Lines and curves:
+//   - [Curve], [Tension], [Steps], [Closed]
+//
+// Text:
+//   - [Align], [FontSize], [Rotate], [Elide], [AvoidOverlap], [MinFontSize],
+//     [Slide], [Wrap], [Callout]
+//
+// Bars, boxes and intervals:
+//   - [BarWidth], [Baseline], [Orient], [Whisker], [Outliers], [Caps],
+//     [Explode]
+//
+// Depth, for a chart drawn in three dimensions:
+//   - [Z], [Extrude], [Droplines]
+//
+// Distributions:
+//   - [Bins], [BinRange], [Bandwidth], [Overlap], [Smooth], [Span],
+//     [Confidence], [CensorMarks]
+//
+// Fields and levels:
+//   - [Levels], [LevelCount], [LevelFormat], [LabelLevels], [Bands],
+//     [BandHeight], [Resample]
+//
+// Layouts:
+//   - [Padding], [Thickness], [Branches], [Link], [Top]
+//
+// Markets:
+//   - [Direction], [Rising], [Falling], [Hollow], [CandleStyle], [Rule]
+//
+// Annotations:
+//   - [Extend]
+//
+// A mark defined outside this package:
+//   - [Extra]
+//
+// # Which options a mark reads
+//
+// The columns, and [Color], [ColorBy], [SizeBy], [GroupBy], [Label] and
+// [Guide], are described with each mark's constructor. The table lists the
+// rest: the options each mark reads as a property of itself, as the JSON spec
+// writes them on its mark object. An option a mark is not listed against is
+// accepted and ignored.
+//
+// The fill options travel as a group: a mark that fills is listed against all
+// of them, and a few — [Corner] above all — are not drawn by every mark that
+// fills. Narrowing the group per mark is the encoder's change to make, and the
+// table follows it.
+//
+// The table is generated; TestTheOptionMatrixIsCurrent fails when it is stale,
+// and rewrites it when run with -update.
+//
+//	Arc            Baseline Corner Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Padding Thickness
+//	Area           Baseline Budget Closed Corner Curve Dash Decimate Dodge
+//	               Fill Gradient Hatch HatchColor HatchDensity HatchWidth
+//	               Inset OnMissing Opacity Order Tension Width
+//	Bar            BarWidth Baseline Budget Corner Dash Decimate Dodge
+//	               Explode Extrude Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset OnMissing Opacity Order
+//	               Orient Width
+//	Beeswarm       BarWidth Corner Dash Dodge Fill Gradient Hatch
+//	               HatchColor HatchDensity HatchWidth Inset Opacity Order
+//	               Shape Size Width
+//	Boxplot        BarWidth Budget Corner Dash Decimate Fill Gradient
+//	               Hatch HatchColor HatchDensity HatchWidth Inset
+//	               OnMissing Opacity Orient Outliers Whisker Width
+//	Candle         BarWidth Budget CandleStyle Corner Dash Decimate
+//	               Direction Falling Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Hollow Inset OnMissing Opacity
+//	               Rising Width
+//	Contour        Dash LabelLevels LevelCount Levels Width
+//	Depends        BarWidth Dash Size Width
+//	ECDF           Dash Dodge Order Width
+//	ErrorBar       BarWidth Budget Caps Dash Decimate Dodge OnMissing
+//	               Order Shape Size Width
+//	Graph          Baseline Branches Corner Dash Fill Gradient Hatch
+//	               HatchColor HatchDensity HatchWidth Inset Opacity Size
+//	               Width
+//	HBand          Corner Dash Extend Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Width
+//	Hexbin         Corner DensityCells Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity
+//	Histogram      Baseline BinRange Bins Corner Dash Fill Gradient Hatch
+//	               HatchColor HatchDensity HatchWidth Inset Opacity Orient
+//	               Width
+//	HLine          Dash Extend Width
+//	Horizon        BandHeight Bands Baseline Budget Corner Decimate Fill
+//	               Gradient Hatch HatchColor HatchDensity HatchWidth Inset
+//	               OnMissing Opacity
+//	Icicle         Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Padding
+//	Intersections  Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Order Top
+//	LastValue      Color Dash Rule Width
+//	Line           Budget Closed Curve Dash Decimate Dodge OnMissing Order
+//	               Tension Width
+//	Locus          Dash Extend LabelLevels Levels Width
+//	NodeLink       Corner Dash Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Size Width
+//	Note           Align Extend FontSize Rotate
+//	Parallel       Dash Opacity Width
+//	ParallelSets   Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Padding Thickness
+//	QQ             Corner Dash Dodge Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Order Shape Size
+//	               Width
+//	Raster         Resample
+//	Rect           BarWidth Corner Dash Explode Extrude Fill Gradient
+//	               Hatch HatchColor HatchDensity HatchWidth Inset Opacity
+//	               Width
+//	Region         Corner Dash Extend Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Width
+//	Ridgeline      Bandwidth Corner Dash Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Overlap Width
+//	Sankey         Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Padding Thickness
+//	Scatter        Budget Corner Dash Decimate DensityCells Dodge Fill
+//	               Gradient Hatch HatchColor HatchDensity HatchWidth Inset
+//	               OnMissing Opacity Order Shape Size Width
+//	Segment        Dash Extend Width
+//	SetMatrix      Dash Order Shape Size Top Width
+//	SetSizes       Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity
+//	Step           Budget Closed Dash Decimate Dodge OnMissing Order Steps
+//	               Width
+//	Survival       CensorMarks Confidence Dash Dodge Order Width
+//	Text           Align AvoidOverlap Callout Elide FontSize MinFontSize
+//	               Rotate Slide Wrap
+//	Tree           Baseline Branches Dash Orient Width
+//	Treemap        Corner Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Padding
+//	Trend          Curve Dash Dodge Order Smooth Span Tension Width
+//	VBand          Corner Dash Extend Fill Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Inset Opacity Width
+//	Venn           Corner Dash Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Width
+//	Violin         Bandwidth BarWidth Corner Dash Dodge Fill Gradient
+//	               Hatch HatchColor HatchDensity HatchWidth Inset Opacity
+//	               Width
+//	VLine          Dash Extend Width
+//	Voronoi        Corner Dash Fill Gradient Hatch HatchColor HatchDensity
+//	               HatchWidth Inset Opacity Width
 package geom
 
 import (
