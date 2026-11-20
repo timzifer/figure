@@ -299,6 +299,12 @@ rather than rediscovering them.
   decided before v1, and a request type that should stay free to grow is made
   non-comparable now with a leading `_ [0]func()` field, which costs no space
   and is the one change that cannot be made later.
+- **`geom` is read mark by mark.** Every mark freezes with the core and none
+  is marked experimental ([ADR 0095](0095-every-mark-freezes-and-the-audit-decides-which-ship.md)),
+  so the audit's geom pass is where the namespace gets smaller. It starts from
+  the eighteen marks, forty-two options and fifteen types added since
+  `26f214a` that 0095 lists, asks of each whether it is a fact of the mark or a
+  knob, and removes the knobs before the tag.
 
 ### Order of work
 
