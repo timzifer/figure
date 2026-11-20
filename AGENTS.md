@@ -192,6 +192,17 @@ gate was steady all along while the benchmark half was not. A pool miss is a
 real cost that a real chart pays occasionally; it is simply not the cost this
 gate measures, which is whether a frame allocates *per row*.
 
+**A gated test measures with the collector held off, for the same reason.**
+One processor was not the whole of it: a collection empties every
+`sync.Pool`, and a frame that runs after one refills its scratch. The
+sized-layer gate went red once on macOS at exactly that refill — 108 against
+98 — and `GOGC=5` reproduces it on any machine. So the pool-backed gates
+measure through `allocsWithoutCollection`, which collects first and sets
+`debug.SetGCPercent(-1)` for the runs; every allocation is still counted. A
+new gate over a render, a scene or a `Build` uses it; a gate over a buffer the
+caller hands back, as most of `stat`'s are, has no pool to lose and does not
+need it.
+
 **Responsive scaling multiplies lengths and must not mutate a shared theme.**
 `theme.Scaled` copies every dash slice it touches rather than scaling in place —
 `theme.Light` is a package variable, and scaling its grid dash would scale it

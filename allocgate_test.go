@@ -3,6 +3,8 @@
 package figure_test
 
 import (
+	"runtime"
+	"runtime/debug"
 	"testing"
 
 	"github.com/timzifer/figure"
@@ -10,6 +12,19 @@ import (
 	"github.com/timzifer/figure/internal/irtest"
 	"github.com/timzifer/figure/three"
 )
+
+// allocsWithoutCollection is [testing.AllocsPerRun] with the collector held
+// off for the measurement. A collection empties every sync.Pool, and a frame
+// that finds its pooled scratch gone refills it — a few dozen allocations that
+// have nothing to do with the rows, landing on whichever run a collection
+// happened to fall in. That is a real cost a real chart pays now and then, and
+// it is not the one this gate measures, which is whether a frame allocates per
+// row. With GOGC=5 the sized-layer gate failed by exactly that refill.
+func allocsWithoutCollection(runs int, f func()) float64 {
+	runtime.GC()
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	return testing.AllocsPerRun(runs, f)
+}
 
 // The allocation gate.
 //
@@ -35,7 +50,7 @@ func allocsPerFrame(t *testing.T, p *figure.Plot) float64 {
 	if err := p.Render(target); err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	return testing.AllocsPerRun(20, func() {
+	return allocsWithoutCollection(20, func() {
 		if err := p.Render(target); err != nil {
 			t.Fatalf("Render: %v", err)
 		}
@@ -255,7 +270,7 @@ func allocsPerScene(t *testing.T, p *three.Plot) float64 {
 	if err := p.Render(target); err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	return testing.AllocsPerRun(20, func() {
+	return allocsWithoutCollection(20, func() {
 		if err := p.Render(target); err != nil {
 			t.Fatalf("Render: %v", err)
 		}
@@ -326,7 +341,7 @@ func TestAnOrbitDoesNotAllocatePerQuad(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		return testing.AllocsPerRun(20, func() {
+		return allocsWithoutCollection(20, func() {
 			live.Camera(three.Orbit(live.CameraValue(), 0.01, 0))
 			if err := live.Draw(); err != nil {
 				t.Fatal(err)
