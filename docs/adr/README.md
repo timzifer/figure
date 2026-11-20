@@ -439,6 +439,6 @@ mark in the dialect, and an exclusion list is a promise with a hole in it — so
 there is no experimental tier, and what the second audit doubts is removed
 before the tag and can return additively. The audit's geom pass starts from the
 eighteen marks and forty-two options added since the restart. Discoverability
-is documentation: one table of what each mark reads, which `spec` reads too,
-and a package doc with a matrix of options against marks that a test keeps
+is documentation: one table of what each mark reads, which `spec`'s tests hold
+to the encoder, and a package doc with a matrix of options against marks that a test keeps
 current.

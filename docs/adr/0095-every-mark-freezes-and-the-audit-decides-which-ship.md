@@ -120,10 +120,13 @@ it there.
 ### 5. Discoverability is documentation, kept honest by a test
 
 - **One table of what each mark reads.** What `spec.writeMarkProps` decides in
-  its switch becomes data: a table, in `geom`, of the property groups each mark
-  uses — stroke, fill, rows, curve, and the mark's own — which `spec` reads to
-  decide what a document writes. One table, two readers, so the JSON encoder
-  and the documentation cannot disagree about a mark.
+  its switch is written down once more as data: a table, in
+  `internal/markprops`, of the options each mark reads as a property of
+  itself. `spec`'s tests derive the same answer from what the encoder actually
+  writes for every mark and fail when the two differ, so the JSON encoder and
+  the documentation cannot disagree about a mark. The encoder keeps its switch:
+  turning a switch whose cases carry conditions of their own into a table
+  would be a rewrite of the dialect's writer for no change in what it writes.
 - **A package doc that is a map of the package.** `geom`'s doc comment grows
   from seven lines to a guide with headings — the marks by family (the basic
   marks, distributions, relational layouts, sets, time and markets,
@@ -140,8 +143,8 @@ it there.
 
 1. This record and the row in 0084 §7.
 2. `geom/geom.go` split, a move and nothing else.
-3. The table of what each mark reads, with `spec.writeMarkProps` reading it and
-   every golden and round-trip test unchanged.
+3. The table of what each mark reads, held to `spec.writeMarkProps` by a test,
+   with every golden and round-trip test unchanged.
 4. The package doc and the matrix test.
 5. The geom pass of the second audit, under 0084 §5, from §3's lists. Its
    removals are CHANGE BEFORE V1 rows of that audit, each in its own commit.
@@ -164,7 +167,7 @@ it there.
 - **It does not change the option API.** No per-mark option types, no
   `Option` interface, no validating constructor.
 - **It does not touch `Geom`, `Desc`'s existing fields or the dialect.** The
-  table in §5 is unexported, and `spec` writes exactly what it wrote.
+  table in §5 is internal, and `spec` writes what it wrote.
 
 ## Revisit if
 
