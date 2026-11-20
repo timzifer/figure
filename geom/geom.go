@@ -102,10 +102,8 @@
 // writes them on its mark object. An option a mark is not listed against is
 // accepted and ignored.
 //
-// The fill options travel as a group: a mark that fills is listed against all
-// of them, and a few — [Corner] above all — are not drawn by every mark that
-// fills. Narrowing the group per mark is the encoder's change to make, and the
-// table follows it.
+// An option counts as read when it changes the picture, the legend included:
+// a violin rounds no corner of its own, but its swatch does.
 //
 // The table is generated; TestTheOptionMatrixIsCurrent fails when it is stale,
 // and rewrites it when run with -update.
@@ -117,18 +115,16 @@
 //	               Inset OnMissing Opacity Order Tension Width
 //	Bar            BarWidth Baseline Budget Corner Dash Decimate Dodge
 //	               Explode Extrude Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset OnMissing Opacity Order
-//	               Orient Width
-//	Beeswarm       BarWidth Corner Dash Dodge Fill Gradient Hatch
-//	               HatchColor HatchDensity HatchWidth Inset Opacity Order
-//	               Shape Size Width
+//	               HatchDensity HatchWidth Inset OnMissing Order Orient
+//	               Width
+//	Beeswarm       BarWidth Dash Dodge Order Shape Size Width
 //	Boxplot        BarWidth Budget Corner Dash Decimate Fill Gradient
 //	               Hatch HatchColor HatchDensity HatchWidth Inset
 //	               OnMissing Opacity Orient Outliers Whisker Width
 //	Candle         BarWidth Budget CandleStyle Corner Dash Decimate
-//	               Direction Falling Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Hollow Inset OnMissing Opacity
-//	               Rising Width
+//	               Direction Falling Gradient Hatch HatchColor
+//	               HatchDensity HatchWidth Hollow Inset OnMissing Rising
+//	               Width
 //	Contour        Dash LabelLevels LevelCount Levels Width
 //	Depends        BarWidth Dash Size Width
 //	ECDF           Dash Dodge Order Width
@@ -137,17 +133,14 @@
 //	Graph          Baseline Branches Corner Dash Fill Gradient Hatch
 //	               HatchColor HatchDensity HatchWidth Inset Opacity Size
 //	               Width
-//	HBand          Corner Dash Extend Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset Opacity Width
-//	Hexbin         Corner DensityCells Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset Opacity
+//	HBand          Corner Dash Extend Fill Hatch HatchColor HatchDensity
+//	               HatchWidth Opacity Width
+//	Hexbin         DensityCells Fill
 //	Histogram      Baseline BinRange Bins Corner Dash Fill Gradient Hatch
 //	               HatchColor HatchDensity HatchWidth Inset Opacity Orient
 //	               Width
 //	HLine          Dash Extend Width
-//	Horizon        BandHeight Bands Baseline Budget Corner Decimate Fill
-//	               Gradient Hatch HatchColor HatchDensity HatchWidth Inset
-//	               OnMissing Opacity
+//	Horizon        BandHeight Bands Baseline Budget Decimate OnMissing
 //	Icicle         Corner Fill Gradient Hatch HatchColor HatchDensity
 //	               HatchWidth Inset Opacity Padding
 //	Intersections  Corner Fill Gradient Hatch HatchColor HatchDensity
@@ -162,39 +155,38 @@
 //	Parallel       Dash Opacity Width
 //	ParallelSets   Corner Fill Gradient Hatch HatchColor HatchDensity
 //	               HatchWidth Inset Opacity Padding Thickness
-//	QQ             Corner Dash Dodge Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset Opacity Order Shape Size
-//	               Width
+//	QQ             Dash Dodge Fill Order Shape Size Width
 //	Raster         Resample
 //	Rect           BarWidth Corner Dash Explode Extrude Fill Gradient
-//	               Hatch HatchColor HatchDensity HatchWidth Inset Opacity
-//	               Width
-//	Region         Corner Dash Extend Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset Opacity Width
+//	               Hatch HatchColor HatchDensity HatchWidth Inset Width
+//	Region         Corner Dash Extend Fill Hatch HatchColor HatchDensity
+//	               HatchWidth Opacity Width
 //	Ridgeline      Bandwidth Corner Dash Fill Gradient Hatch HatchColor
 //	               HatchDensity HatchWidth Inset Opacity Overlap Width
 //	Sankey         Corner Fill Gradient Hatch HatchColor HatchDensity
 //	               HatchWidth Inset Opacity Padding Thickness
-//	Scatter        Budget Corner Dash Decimate DensityCells Dodge Fill
-//	               Gradient Hatch HatchColor HatchDensity HatchWidth Inset
-//	               OnMissing Opacity Order Shape Size Width
+//	Scatter        Budget Dash Decimate DensityCells Dodge Fill OnMissing
+//	               Opacity Order Shape Size Width
 //	Segment        Dash Extend Width
-//	SetMatrix      Dash Order Shape Size Top Width
+//	SetMatrix      Corner Dash Hatch HatchColor HatchDensity HatchWidth
+//	               Order Shape Size Top Width
 //	SetSizes       Corner Fill Gradient Hatch HatchColor HatchDensity
 //	               HatchWidth Inset Opacity
 //	Step           Budget Closed Dash Decimate Dodge OnMissing Order Steps
 //	               Width
-//	Survival       CensorMarks Confidence Dash Dodge Order Width
-//	Text           Align AvoidOverlap Callout Elide FontSize MinFontSize
-//	               Rotate Slide Wrap
-//	Tree           Baseline Branches Dash Orient Width
+//	Survival       CensorMarks Confidence Dash Dodge Fill Gradient Hatch
+//	               HatchColor HatchDensity HatchWidth Inset Opacity Order
+//	               Width
+//	Text           Align AvoidOverlap Callout Elide Fill FontSize
+//	               MinFontSize Rotate Slide Wrap
+//	Tree           Baseline Branches Dash Opacity Orient Width
 //	Treemap        Corner Fill Gradient Hatch HatchColor HatchDensity
 //	               HatchWidth Inset Opacity Padding
 //	Trend          Curve Dash Dodge Order Smooth Span Tension Width
-//	VBand          Corner Dash Extend Fill Gradient Hatch HatchColor
-//	               HatchDensity HatchWidth Inset Opacity Width
-//	Venn           Corner Dash Fill Gradient Hatch HatchColor HatchDensity
-//	               HatchWidth Inset Opacity Width
+//	VBand          Corner Dash Extend Fill Hatch HatchColor HatchDensity
+//	               HatchWidth Opacity Width
+//	Venn           Corner Dash Fill Hatch HatchColor HatchDensity
+//	               HatchWidth Opacity Width
 //	Violin         Bandwidth BarWidth Corner Dash Dodge Fill Gradient
 //	               Hatch HatchColor HatchDensity HatchWidth Inset Opacity
 //	               Width

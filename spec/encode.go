@@ -425,30 +425,53 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 			}
 		}
 	}
-	fill := func() {
-		if d.Fill != nil {
+	// The fill properties are written per part, because not every mark that
+	// fills draws every part: a scatter has no corners, a hexbin no hatch, a
+	// band no gradient. A part counts as drawn when it changes the picture,
+	// the legend's swatch included — a violin rounds no corner of its own, but
+	// its swatch does, and a document that dropped the corner would draw a
+	// different legend.
+	const (
+		fillColor = 1 << iota
+		fillOpacity
+		fillHatch
+		fillGradient
+		fillCorner
+		fillInset
+		fillAll = fillColor | fillOpacity | fillHatch | fillGradient | fillCorner | fillInset
+	)
+	fillParts := func(parts int) {
+		if parts&fillColor != 0 && d.Fill != nil {
 			m.Fill = colorHex(*d.Fill)
 		}
-		if d.Opacity >= 0 {
+		if parts&fillOpacity != 0 && d.Opacity >= 0 {
 			m.Opacity = float64Ptr(d.Opacity)
 		}
-		if d.HatchSet {
-			m.Hatch = hatchName(d.Hatch)
+		if parts&fillHatch != 0 {
+			if d.HatchSet {
+				m.Hatch = hatchName(d.Hatch)
+			}
+			if d.HatchDensity > 0 {
+				m.HatchDensity = d.HatchDensity
+			}
+			if d.HatchWidth > 0 {
+				m.HatchWidth = d.HatchWidth
+			}
+			if d.HatchColorSet {
+				m.HatchColor = colorHex(d.HatchColor)
+			}
 		}
-		if d.HatchDensity > 0 {
-			m.HatchDensity = d.HatchDensity
-		}
-		if d.HatchWidth > 0 {
-			m.HatchWidth = d.HatchWidth
-		}
-		if d.HatchColorSet {
-			m.HatchColor = colorHex(d.HatchColor)
-		}
-		if d.Gradient != nil {
+		if parts&fillGradient != 0 && d.Gradient != nil {
 			m.Gradient = colorHex(*d.Gradient)
 		}
-		m.Corner, m.Inset = d.Corner, d.Inset
+		if parts&fillCorner != 0 {
+			m.Corner = d.Corner
+		}
+		if parts&fillInset != 0 {
+			m.Inset = d.Inset
+		}
 	}
+	fill := func() { fillParts(fillAll) }
 	// The default policy and the default reduction are written only when they
 	// are not the default: a document should say what was chosen, not repeat
 	// what was not.
@@ -533,7 +556,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.Interpolate = stepName(d.Steps)
 	case geom.MarkScatter:
 		stroke()
-		fill()
+		fillParts(fillColor | fillOpacity)
 		rows()
 		group()
 		m.Size = d.Size
@@ -546,7 +569,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.DensityCells = d.CellSize
 	case geom.MarkBar:
 		stroke()
-		fill()
+		fillParts(fillAll &^ fillOpacity)
 		rows()
 		group()
 		m.BarWidth, m.Origin = float64Ptr(d.BarWidth), d.Baseline
@@ -555,7 +578,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		orientation()
 	case geom.MarkRect:
 		stroke()
-		fill()
+		fillParts(fillAll &^ fillOpacity)
 		m.Extrude = d.Extrude
 		m.BarWidth = float64Ptr(d.BarWidth)
 		m.Explode = d.Explode
@@ -639,8 +662,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		fill()
 		m.Padding, m.Thickness = d.Padding, d.Thickness
 	case geom.MarkTree:
-		// A tree is its branches, so it writes a stroke and no fill; where its
-		// root sits, and the branch shape when it is not the elbow.
+		// A tree is its branches, so it writes a stroke and, of the fill, only
+		// the opacity they fade by; where its root sits, and the branch shape
+		// when it is not the elbow.
+		fillParts(fillOpacity)
 		stroke()
 		m.Origin = d.Baseline
 		if d.Branch == geom.Straight {
@@ -666,7 +691,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 			m.Branch = "straight"
 		}
 	case geom.MarkHexbin:
-		fill()
+		fillParts(fillColor)
 		m.DensityCells = d.CellSize
 	case geom.MarkContour:
 		stroke()
@@ -682,16 +707,17 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 			m.Resample = resampleName(d.Resample)
 		}
 	case geom.MarkHorizon:
-		fill()
 		rows()
 		// The fold and nothing else. A horizon has no stroke — every band is a
 		// filled region whose only edge is the one the next band starts at —
-		// and no group, because a grouped one is an error rather than a
-		// picture.
+		// no fill of its own, because each band takes its colour from the
+		// fold's ramp, and no group, because a grouped one is an error rather
+		// than a picture.
 		m.Bands, m.BandHeight, m.Origin = d.Bands, d.BandHeight, d.Baseline
 	case geom.MarkBeeswarm:
+		// Markers in their series' colours: a stroke and a marker, and none
+		// of the fill properties, which a swarm reads none of.
 		stroke()
-		fill()
 		group()
 		m.Size, m.BarWidth = d.Size, float64Ptr(d.BarWidth)
 		if d.MarkerSet {
@@ -707,7 +733,10 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		}
 	case geom.MarkCandle:
 		stroke()
-		fill()
+		// A body's colour is its direction's, so a candle reads no fill colour
+		// and no opacity; the rest of the fill — hatch, gradient, corner,
+		// inset — draws on the body like any box's.
+		fillParts(fillAll &^ (fillColor | fillOpacity))
 		rows()
 		m.BarWidth = float64Ptr(d.BarWidth)
 		if d.Direction == geom.SincePrevious {
@@ -743,6 +772,9 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// of this mark's configuration, and both halves of the chart carry it.
 		m.Top, m.Order = d.Top, rankedBy(d)
 	case geom.MarkSetMatrix:
+		// The dots are markers; the hatch and the corner are the legend
+		// swatch's, which is a box.
+		fillParts(fillHatch | fillCorner)
 		stroke()
 		m.Size, m.Top, m.Order = d.Size, d.Top, rankedBy(d)
 		if d.MarkerSet {
@@ -753,15 +785,18 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// that decide an UpSet's columns say nothing about these bars.
 		fill()
 	case geom.MarkVenn:
-		fill()
+		fillParts(fillColor | fillOpacity | fillHatch | fillCorner)
 		stroke()
 	case geom.MarkSurvival:
+		// The confidence band is a filled region, so it takes the fill like
+		// an area does; it has no corners to round.
+		fillParts(fillAll &^ fillCorner)
 		stroke()
 		group()
 		m.Confidence, m.CensorMarks = d.Confidence, d.CensorMarks
 	case geom.MarkQQ:
 		stroke()
-		fill()
+		fillParts(fillColor)
 		group()
 		m.Size = d.Size
 		if d.MarkerSet {
@@ -785,7 +820,7 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		m.Extend = boolPtr(d.Extend)
 	case geom.MarkHBand, geom.MarkVBand, geom.MarkRegion:
 		stroke()
-		fill()
+		fillParts(fillColor | fillOpacity | fillHatch | fillCorner)
 		m.Extend = boolPtr(d.Extend)
 	case geom.MarkNote:
 		m.Text, m.FontSize, m.Angle = d.Text, d.FontSize, degrees(d.Rotation)
@@ -796,7 +831,9 @@ func writeMarkProps(m *Mark, d geom.Desc) {
 		// encoding; what is left here is how the run is drawn. The alignment
 		// is written only when the layer was told, because a text layer that
 		// was not centres its labels in their boxes — writing "left" for that
-		// would pin the default and change the chart.
+		// would pin the default and change the chart. A fill is the background
+		// the labels are read against, which picks their ink.
+		fillParts(fillColor)
 		m.FontSize, m.Angle = d.FontSize, degrees(d.Rotation)
 		if d.AlignSet {
 			m.Align, m.Baseline = hAlignName(d.HAlign), vAlignName(d.VAlign)
