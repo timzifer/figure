@@ -6,7 +6,7 @@ go 1.27.1
 
 require (
 	github.com/go-opentype/fonts v0.14.0
-	github.com/go-opentype/opentype v0.21.1
+	github.com/go-opentype/opentype v0.25.0
 	github.com/timzifer/figure v0.15.0
 	github.com/timzifer/stilus v0.19.0
 )
